@@ -1,0 +1,1 @@
+/usr/bin/cc -fsanitize=address -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names -fsanitize=address CMakeFiles/kolibri_indexer.dir/apps/kolibri_indexer.c.o -o kolibri_indexer  libkolibri_core.a /opt/homebrew/opt/openssl@3/lib/libcrypto.dylib /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib/libsqlite3.tbd

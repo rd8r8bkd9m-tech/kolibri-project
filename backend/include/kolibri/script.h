@@ -5,6 +5,7 @@
 #ifndef KOLIBRI_SCRIPT_H
 #define KOLIBRI_SCRIPT_H
 
+#include "kolibri/digit_text.h"
 #include "kolibri/formula.h"
 #include "kolibri/genome.h"
 #include "kolibri/symbol_table.h"
@@ -15,9 +16,21 @@
 extern "C" {
 #endif
 
+typedef struct {
+    KolibriDigitText stimulus;
+    KolibriDigitText response;
+    KolibriDigitText question;
+    KolibriDigitText answer;
+    KolibriDigitText expected;
+    unsigned char teach_hash[32];
+    unsigned char evaluate_hash[32];
+    int has_teach;
+    int has_evaluate;
+} KolibriCrystalCore;
+
 /*
- * Контекст исполнения KolibriScript. Хранит цифровой поток сценария и
- * предоставляет доступ к пулу формул и цифровому геному.
+ * Контекст исполнения KolibriScript. Хранит цифровой поток сценария, кристалл
+ * генезиса и предоставляет доступ к пулу формул и цифровому геному.
  */
 struct KolibriScriptVariable;
 struct KolibriScriptAssociation;
@@ -27,7 +40,8 @@ typedef struct {
     KolibriFormulaPool *pool;
     KolibriGenome *genome;
     FILE *vyvod;
-    char *source_text;
+    KolibriDigitText source_stream;
+    KolibriCrystalCore crystal_core;
     KolibriSymbolTable symbol_table;
     char mode[32];
 

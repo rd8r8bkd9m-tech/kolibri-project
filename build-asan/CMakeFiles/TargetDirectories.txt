@@ -1,0 +1,17 @@
+/Users/kolibri/Documents/os/build-asan/CMakeFiles/kolibri_core_objects.dir
+/Users/kolibri/Documents/os/build-asan/CMakeFiles/kolibri_core.dir
+/Users/kolibri/Documents/os/build-asan/CMakeFiles/kolibri_wasm.dir
+/Users/kolibri/Documents/os/build-asan/CMakeFiles/kolibri_node.dir
+/Users/kolibri/Documents/os/build-asan/CMakeFiles/ks_compiler.dir
+/Users/kolibri/Documents/os/build-asan/CMakeFiles/kolibri_knowledge_server.dir
+/Users/kolibri/Documents/os/build-asan/CMakeFiles/kolibri_indexer.dir
+/Users/kolibri/Documents/os/build-asan/CMakeFiles/kolibri_queue.dir
+/Users/kolibri/Documents/os/build-asan/CMakeFiles/kolibri_sim.dir
+/Users/kolibri/Documents/os/build-asan/CMakeFiles/kolibri_coordinator.dir
+/Users/kolibri/Documents/os/build-asan/CMakeFiles/kolibri_knowledge_relay.dir
+/Users/kolibri/Documents/os/build-asan/CMakeFiles/kolibri_verify_digit_masking.dir
+/Users/kolibri/Documents/os/build-asan/CMakeFiles/verify_digit_masking.dir
+/Users/kolibri/Documents/os/build-asan/CMakeFiles/kolibri_tests.dir
+/Users/kolibri/Documents/os/build-asan/CMakeFiles/test.dir
+/Users/kolibri/Documents/os/build-asan/CMakeFiles/edit_cache.dir
+/Users/kolibri/Documents/os/build-asan/CMakeFiles/rebuild_cache.dir

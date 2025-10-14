@@ -8,6 +8,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <openssl/sha.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -18,6 +19,108 @@
 
 #define KOLIBRI_MAX_LOOP_ITERATIONS 1024
 #define KOLIBRI_ARRAY_GROWTH_FACTOR 2U
+
+static void kolibri_digit_text_clear(KolibriDigitText *text) {
+    if (!text) {
+        return;
+    }
+    text->length = 0;
+}
+
+static void kolibri_hex_encode(const unsigned char *data, size_t len, char *out, size_t out_len) {
+    if (!out || out_len == 0) {
+        return;
+    }
+    if (!data || len == 0) {
+        out[0] = '\0';
+        return;
+    }
+    static const char lookup[] = "0123456789abcdef";
+    size_t required = len * 2U + 1U;
+    if (out_len < required) {
+        if (out_len > 0) {
+            out[0] = '\0';
+        }
+        return;
+    }
+    for (size_t i = 0; i < len; ++i) {
+        unsigned char byte = data[i];
+        out[i * 2U] = lookup[(byte >> 4) & 0x0FU];
+        out[i * 2U + 1U] = lookup[byte & 0x0FU];
+    }
+    out[len * 2U] = '\0';
+}
+
+static void kolibri_crystal_init(KolibriCrystalCore *core) {
+    if (!core) {
+        return;
+    }
+    kolibri_digit_text_init(&core->stimulus);
+    kolibri_digit_text_init(&core->response);
+    kolibri_digit_text_init(&core->question);
+    kolibri_digit_text_init(&core->answer);
+    kolibri_digit_text_init(&core->expected);
+    memset(core->teach_hash, 0, sizeof(core->teach_hash));
+    memset(core->evaluate_hash, 0, sizeof(core->evaluate_hash));
+    core->has_teach = 0;
+    core->has_evaluate = 0;
+}
+
+static void kolibri_crystal_reset(KolibriCrystalCore *core) {
+    if (!core) {
+        return;
+    }
+    kolibri_digit_text_clear(&core->stimulus);
+    kolibri_digit_text_clear(&core->response);
+    kolibri_digit_text_clear(&core->question);
+    kolibri_digit_text_clear(&core->answer);
+    kolibri_digit_text_clear(&core->expected);
+    memset(core->teach_hash, 0, sizeof(core->teach_hash));
+    memset(core->evaluate_hash, 0, sizeof(core->evaluate_hash));
+    core->has_teach = 0;
+    core->has_evaluate = 0;
+}
+
+static void kolibri_crystal_free(KolibriCrystalCore *core) {
+    if (!core) {
+        return;
+    }
+    kolibri_digit_text_free(&core->stimulus);
+    kolibri_digit_text_free(&core->response);
+    kolibri_digit_text_free(&core->question);
+    kolibri_digit_text_free(&core->answer);
+    kolibri_digit_text_free(&core->expected);
+    memset(core->teach_hash, 0, sizeof(core->teach_hash));
+    memset(core->evaluate_hash, 0, sizeof(core->evaluate_hash));
+    core->has_teach = 0;
+    core->has_evaluate = 0;
+}
+
+static void kolibri_crystal_compute_hash(const char *stage_tag,
+                                         const unsigned char *prev_hash,
+                                         size_t prev_len,
+                                         const KolibriDigitText *first,
+                                         const KolibriDigitText *second,
+                                         unsigned char out_hash[SHA256_DIGEST_LENGTH]) {
+    if (!out_hash) {
+        return;
+    }
+    SHA256_CTX ctx;
+    SHA256_Init(&ctx);
+    if (stage_tag) {
+        SHA256_Update(&ctx, stage_tag, strlen(stage_tag));
+    }
+    if (prev_hash && prev_len > 0U) {
+        SHA256_Update(&ctx, prev_hash, prev_len);
+    }
+    if (first && first->length > 0U) {
+        SHA256_Update(&ctx, first->digits, first->length);
+    }
+    if (second && second->length > 0U) {
+        SHA256_Update(&ctx, second->digits, second->length);
+    }
+    SHA256_Final(out_hash, &ctx);
+}
 
 typedef struct {
     size_t line;
@@ -191,7 +294,8 @@ static const char *const KOLIBRI_KEYWORDS[] = {
     "отправить",
     "фитнес",
     "итог",
-    "режим"
+    "режим",
+    "верифицировать"
 };
 
 static void kolibri_to_lower_ascii(const char *src, char *dst, size_t dst_len);
@@ -639,7 +743,8 @@ typedef enum {
     KOLIBRI_NODE_SWARM_SEND,
     KOLIBRI_NODE_IF,
     KOLIBRI_NODE_WHILE,
-    KOLIBRI_NODE_MODE
+    KOLIBRI_NODE_MODE,
+    KOLIBRI_NODE_VERIFY
 } KolibriNodeKind;
 
 typedef struct KolibriStatement KolibriStatement;
@@ -694,6 +799,9 @@ struct KolibriStatement {
         struct {
             KolibriExpression value;
         } mode_stmt;
+        struct {
+            KolibriExpression expected;
+        } verify;
     } data;
 };
 
@@ -788,6 +896,9 @@ static void kolibri_free_statement(KolibriStatement *stmt) {
         break;
     case KOLIBRI_NODE_MODE:
         kolibri_free_expression(&stmt->data.mode_stmt.value);
+        break;
+    case KOLIBRI_NODE_VERIFY:
+        kolibri_free_expression(&stmt->data.verify.expected);
         break;
     case KOLIBRI_NODE_CALL_EVOLUTION:
     case KOLIBRI_NODE_PRINT_CANVAS:
@@ -1496,6 +1607,24 @@ static KolibriStatement *kolibri_parser_parse_print_canvas(KolibriParser *parser
     return stmt;
 }
 
+static KolibriStatement *kolibri_parser_parse_verify(KolibriParser *parser) {
+    const KolibriToken *start = kolibri_parser_advance(parser);
+    const char *terminator_keywords[] = { NULL };
+    KolibriTokenType terminator_types[] = { KOLIBRI_TOKEN_NEWLINE, KOLIBRI_TOKEN_EOF };
+    KolibriExpression expr = { 0 };
+    if (!kolibri_parser_parse_expression_until(parser, &expr, terminator_keywords, 0, terminator_types, 2U)) {
+        return NULL;
+    }
+    KolibriStatement *stmt = kolibri_parser_make_statement(KOLIBRI_NODE_VERIFY,
+                                                           kolibri_make_span(start->span.start, expr.span.end));
+    if (!stmt) {
+        kolibri_free_expression(&expr);
+        return NULL;
+    }
+    stmt->data.verify.expected = expr;
+    return stmt;
+}
+
 static KolibriStatement *kolibri_parser_parse_if(KolibriParser *parser) {
     const KolibriToken *start = kolibri_parser_advance(parser);
     const char *terminator_keywords[] = { "тогда" };
@@ -1599,6 +1728,9 @@ static KolibriStatement *kolibri_parser_parse_statement(KolibriParser *parser) {
     }
     if (strcmp(token->lexeme, "оценить") == 0) {
         return kolibri_parser_parse_evaluate_formula(parser);
+    }
+    if (strcmp(token->lexeme, "верифицировать") == 0) {
+        return kolibri_parser_parse_verify(parser);
     }
     if (strcmp(token->lexeme, "сохранить") == 0) {
         return kolibri_parser_parse_save_formula(parser);
@@ -2155,12 +2287,14 @@ static void kolibri_script_log(KolibriScript *script, const char *event, const c
     if (!event) {
         event = "SCRIPT_EVENT";
     }
-    char payload[512];
     if (!message) {
         message = "";
     }
-    snprintf(payload, sizeof(payload), "%s", message);
-    kg_append(script->genome, event, payload, NULL);
+    char digits_payload[KOLIBRI_PAYLOAD_SIZE];
+    if (kg_encode_payload(message, digits_payload, sizeof(digits_payload)) != 0) {
+        return;
+    }
+    kg_append(script->genome, event, digits_payload, NULL);
 }
 
 /* ===================== Interpreter ===================== */
@@ -2222,6 +2356,64 @@ static int kolibri_execute_mode(KolibriScript *script, const KolibriStatement *s
     return 0;
 }
 
+static int kolibri_execute_verify(KolibriScript *script, const KolibriStatement *stmt) {
+    if (!script) {
+        return -1;
+    }
+    KolibriValue expected_value;
+    if (kolibri_evaluate_expression(script, &stmt->data.verify.expected, &expected_value) != 0) {
+        kolibri_script_log(script, "SCRIPT_ERROR", "Не удалось вычислить ожидаемый ответ для 'верифицировать'");
+        return -1;
+    }
+    char *expected_text = NULL;
+    if (kolibri_value_to_string(&expected_value, &expected_text) != 0) {
+        kolibri_value_free(&expected_value);
+        return -1;
+    }
+    kolibri_value_free(&expected_value);
+
+    KolibriCrystalCore *crystal = &script->crystal_core;
+    if (!crystal->has_evaluate) {
+        kolibri_script_log(script, "SCRIPT_ERROR", "Нет вычисленного ответа для верификации");
+        free(expected_text);
+        return -1;
+    }
+
+    bool match = kolibri_digit_text_equals_utf8(&crystal->answer, expected_text);
+
+    if (kolibri_digit_text_assign_utf8(&crystal->expected, expected_text) != 0) {
+        kolibri_script_log(script, "SCRIPT_ERROR", "Кристалл не смог зафиксировать верификацию");
+        free(expected_text);
+        return -1;
+    }
+
+    unsigned char verify_hash[SHA256_DIGEST_LENGTH];
+    const unsigned char *prev = crystal->has_evaluate ? crystal->evaluate_hash : NULL;
+    size_t prev_len = crystal->has_evaluate ? sizeof(crystal->evaluate_hash) : 0U;
+    kolibri_crystal_compute_hash("CRYSTAL_VERIFY", prev, prev_len, &crystal->answer, &crystal->expected, verify_hash);
+
+    char hash_hex[SHA256_DIGEST_LENGTH * 2U + 1U];
+    kolibri_hex_encode(verify_hash, sizeof(verify_hash), hash_hex, sizeof(hash_hex));
+
+    char status_buffer[192];
+    snprintf(status_buffer, sizeof(status_buffer), "stage=verify status=%s hash=%s", match ? "ok" : "fail", hash_hex);
+    kolibri_script_log(script, "SCRIPT_VERIFY", expected_text);
+    kolibri_script_log(script, "CRYSTAL_VERIFY", status_buffer);
+
+    if (script->vyvod) {
+        fprintf(script->vyvod, "[Колибри] Верификация: %s\n", match ? "успешна" : "ошибка");
+    }
+
+    free(expected_text);
+
+    if (!match) {
+        return -1;
+    }
+
+    kolibri_crystal_reset(crystal);
+    return 0;
+}
+
 static int kolibri_execute_teach(KolibriScript *script, const KolibriStatement *stmt) {
     KolibriValue left;
     KolibriValue right;
@@ -2259,12 +2451,29 @@ static int kolibri_execute_teach(KolibriScript *script, const KolibriStatement *
     assoc->stimulus = left_text;
     assoc->response = right_text;
 
+    kolibri_script_log(script, "SCRIPT_TEACH", assoc->stimulus);
+
+    KolibriCrystalCore *crystal = &script->crystal_core;
+    if (kolibri_digit_text_assign_utf8(&crystal->stimulus, assoc->stimulus) == 0 &&
+        kolibri_digit_text_assign_utf8(&crystal->response, assoc->response) == 0) {
+        kolibri_crystal_compute_hash("CRYSTAL_TEACH", NULL, 0, &crystal->stimulus, &crystal->response, crystal->teach_hash);
+        crystal->has_teach = 1;
+        crystal->has_evaluate = 0;
+        char hash_hex[SHA256_DIGEST_LENGTH * 2U + 1U];
+        kolibri_hex_encode(crystal->teach_hash, sizeof(crystal->teach_hash), hash_hex, sizeof(hash_hex));
+        char log_message[128];
+        snprintf(log_message, sizeof(log_message), "stage=teach hash=%s", hash_hex);
+        kolibri_script_log(script, "CRYSTAL_TEACH", log_message);
+    } else {
+        kolibri_crystal_reset(crystal);
+        kolibri_script_log(script, "SCRIPT_ERROR", "Кристалл не смог зафиксировать обучение");
+    }
+
     if (script->pool) {
         uint64_t now = (uint64_t)time(NULL);
         (void)kf_pool_add_association(script->pool, &script->symbol_table, left_text, right_text, "teach", now);
         kolibri_record_ngrams(script, left_text, right_text, "teach", now);
     }
-    kolibri_script_log(script, "SCRIPT_TEACH", assoc->stimulus);
     kolibri_value_free(&left);
     kolibri_value_free(&right);
     return 0;
@@ -2356,6 +2565,24 @@ static int kolibri_execute_evaluate_formula(KolibriScript *script, const Kolibri
     kolibri_script_log(script, "SCRIPT_EVALUATE", task_text);
     kolibri_clean_answer(answer_buffer);
     kolibri_apply_mode(script, answer_buffer);
+
+    KolibriCrystalCore *crystal = &script->crystal_core;
+    if (kolibri_digit_text_assign_utf8(&crystal->question, task_text) == 0 &&
+        kolibri_digit_text_assign_utf8(&crystal->answer, answer_buffer) == 0) {
+        const unsigned char *prev = crystal->has_teach ? crystal->teach_hash : NULL;
+        size_t prev_len = crystal->has_teach ? sizeof(crystal->teach_hash) : 0U;
+        kolibri_crystal_compute_hash("CRYSTAL_EVALUATE", prev, prev_len, &crystal->question, &crystal->answer, crystal->evaluate_hash);
+        crystal->has_evaluate = 1;
+        char hash_hex[SHA256_DIGEST_LENGTH * 2U + 1U];
+        kolibri_hex_encode(crystal->evaluate_hash, sizeof(crystal->evaluate_hash), hash_hex, sizeof(hash_hex));
+        char log_message[160];
+        snprintf(log_message, sizeof(log_message), "stage=evaluate hash=%s", hash_hex);
+        kolibri_script_log(script, "CRYSTAL_EVALUATE", log_message);
+    } else {
+        crystal->has_evaluate = 0;
+        kolibri_script_log(script, "SCRIPT_ERROR", "Кристалл не смог зафиксировать оценку");
+    }
+
     KolibriValue result_value = kolibri_value_from_string(answer_buffer);
     kolibri_script_set_variable(script, "итог", result_value);
     free(task_text);
@@ -2501,18 +2728,22 @@ static int kolibri_execute_statement(KolibriScript *script, const KolibriStateme
         return kolibri_execute_while(script, stmt);
     case KOLIBRI_NODE_MODE:
         return kolibri_execute_mode(script, stmt);
+    case KOLIBRI_NODE_VERIFY:
+        return kolibri_execute_verify(script, stmt);
     default:
         return 0;
     }
 }
 
 static void kolibri_script_reset(KolibriScript *script) {
+    if (!script) {
+        return;
+    }
     kolibri_script_clear_variables(script);
     kolibri_script_clear_associations(script);
     kolibri_script_clear_formulas(script);
-    if (script) {
-        kolibri_script_set_mode(script, "neutral");
-    }
+    kolibri_crystal_reset(&script->crystal_core);
+    kolibri_script_set_mode(script, "neutral");
 }
 
 /* ===================== Public API ===================== */
@@ -2525,7 +2756,8 @@ int ks_init(KolibriScript *skript, KolibriFormulaPool *pool, KolibriGenome *geno
     skript->pool = pool;
     skript->genome = genome;
     skript->vyvod = stdout;
-    skript->source_text = NULL;
+    kolibri_digit_text_init(&skript->source_stream);
+    kolibri_crystal_init(&skript->crystal_core);
     kolibri_symbol_table_init(&skript->symbol_table, genome);
     kolibri_symbol_table_load(&skript->symbol_table);
     kolibri_symbol_table_seed_defaults(&skript->symbol_table);
@@ -2538,8 +2770,8 @@ void ks_free(KolibriScript *skript) {
         return;
     }
     kolibri_script_reset(skript);
-    free(skript->source_text);
-    skript->source_text = NULL;
+    kolibri_digit_text_free(&skript->source_stream);
+    kolibri_crystal_free(&skript->crystal_core);
     skript->pool = NULL;
     skript->genome = NULL;
     skript->vyvod = NULL;
@@ -2556,13 +2788,7 @@ int ks_load_text(KolibriScript *skript, const char *text) {
     if (!skript || !text) {
         return -1;
     }
-    char *copy = strdup(text);
-    if (!copy) {
-        return -1;
-    }
-    free(skript->source_text);
-    skript->source_text = copy;
-    return 0;
+    return kolibri_digit_text_assign_utf8(&skript->source_stream, text);
 }
 
 int ks_load_file(KolibriScript *skript, const char *path) {
@@ -2594,13 +2820,20 @@ int ks_load_file(KolibriScript *skript, const char *path) {
     size_t read_bytes = fread(buffer, 1U, (size_t)size, file);
     fclose(file);
     buffer[read_bytes] = '\0';
-    int result = ks_load_text(skript, buffer);
+    int result = kolibri_digit_text_assign_utf8(&skript->source_stream, buffer);
     free(buffer);
     return result;
 }
 
 int ks_execute(KolibriScript *skript) {
-    if (!skript || !skript->source_text) {
+    if (!skript) {
+        return -1;
+    }
+    if (skript->source_stream.length == 0U) {
+        return -1;
+    }
+    char *source_utf8 = NULL;
+    if (kolibri_digit_text_to_utf8(&skript->source_stream, &source_utf8) != 0) {
         return -1;
     }
     kolibri_script_reset(skript);
@@ -2610,8 +2843,9 @@ int ks_execute(KolibriScript *skript) {
     kolibri_diagnostic_buffer_init(&diagnostics);
 
     KolibriLexer lexer;
-    kolibri_lexer_init(&lexer, skript->source_text, &tokens, &diagnostics);
+    kolibri_lexer_init(&lexer, source_utf8, &tokens, &diagnostics);
     if (kolibri_lexer_run(&lexer) != 0) {
+        free(source_utf8);
         kolibri_token_buffer_free(&tokens);
         kolibri_diagnostic_buffer_free(&diagnostics);
         kolibri_script_log(skript, "SCRIPT_ERROR", "Лексический анализ завершился с ошибкой");
@@ -2627,6 +2861,7 @@ int ks_execute(KolibriScript *skript) {
         if (diagnostics.count > 0 && diagnostics.data[0].message) {
             kolibri_script_log(skript, "SCRIPT_ERROR", diagnostics.data[0].message);
         }
+        free(source_utf8);
         kolibri_program_free(&program);
         kolibri_token_buffer_free(&tokens);
         kolibri_diagnostic_buffer_free(&diagnostics);
@@ -2638,6 +2873,7 @@ int ks_execute(KolibriScript *skript) {
     kolibri_program_free(&program);
     kolibri_token_buffer_free(&tokens);
     kolibri_diagnostic_buffer_free(&diagnostics);
+    free(source_utf8);
 
     return status;
 }

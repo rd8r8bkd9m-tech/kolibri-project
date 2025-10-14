@@ -13,16 +13,18 @@ static void teach_linear_task(KolibriFormulaPool *pool) {
 }
 
 static void assert_deterministic(void) {
-  KolibriFormulaPool first;
-  KolibriFormulaPool second;
-  kf_pool_init(&first, 2025);
-  kf_pool_init(&second, 2025);
-  teach_linear_task(&first);
-  teach_linear_task(&second);
-  kf_pool_tick(&first, 64);
-  kf_pool_tick(&second, 64);
-  const KolibriFormula *best_first = kf_pool_best(&first);
-  const KolibriFormula *best_second = kf_pool_best(&second);
+  KolibriFormulaPool *first = (KolibriFormulaPool *)malloc(sizeof(KolibriFormulaPool));
+  KolibriFormulaPool *second = (KolibriFormulaPool *)malloc(sizeof(KolibriFormulaPool));
+  assert(first != NULL);
+  assert(second != NULL);
+  kf_pool_init(first, 2025);
+  kf_pool_init(second, 2025);
+  teach_linear_task(first);
+  teach_linear_task(second);
+  kf_pool_tick(first, 64);
+  kf_pool_tick(second, 64);
+  const KolibriFormula *best_first = kf_pool_best(first);
+  const KolibriFormula *best_second = kf_pool_best(second);
   uint8_t digits_first[32];
   uint8_t digits_second[32];
   size_t len_first =
@@ -31,6 +33,8 @@ static void assert_deterministic(void) {
       kf_formula_digits(best_second, digits_second, sizeof(digits_second));
   assert(len_first == len_second);
   assert(memcmp(digits_first, digits_second, len_first) == 0);
+  free(first);
+  free(second);
 }
 
 static void test_feedback_adjustment(void) {

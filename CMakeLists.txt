@@ -11,6 +11,7 @@ option(KOLIBRI_ENABLE_FUZZ "Enable Kolibri fuzz targets" OFF)
 add_library(kolibri_core_objects OBJECT
     backend/src/decimal.c
     backend/src/digits.c
+    backend/src/digit_text.c
     backend/src/genome.c
     backend/src/random.c
     backend/src/formula.c
@@ -117,6 +118,7 @@ add_executable(kolibri_queue apps/kolibri_queue.c)
 add_executable(kolibri_sim apps/kolibri_sim_cli.c)
 add_executable(kolibri_coordinator apps/kolibri_coordinator.c)
 add_executable(kolibri_knowledge_relay apps/kolibri_knowledge_relay.c)
+add_executable(kolibri_verify_digit_masking tools/verify_digit_masking.c)
 
 target_link_libraries(kolibri_node PRIVATE kolibri_core)
 target_link_libraries(ks_compiler PRIVATE kolibri_core)
@@ -126,6 +128,11 @@ target_link_libraries(kolibri_queue PRIVATE kolibri_core)
 target_link_libraries(kolibri_sim PRIVATE kolibri_core)
 target_link_libraries(kolibri_coordinator PRIVATE kolibri_core)
 target_link_libraries(kolibri_knowledge_relay PRIVATE kolibri_core)
+target_link_libraries(kolibri_verify_digit_masking PRIVATE kolibri_core)
+
+add_custom_target(verify_digit_masking ALL
+    COMMAND $<TARGET_FILE:kolibri_verify_digit_masking>
+    DEPENDS kolibri_verify_digit_masking)
 
 if(KOLIBRI_ENABLE_TESTS)
     enable_testing()

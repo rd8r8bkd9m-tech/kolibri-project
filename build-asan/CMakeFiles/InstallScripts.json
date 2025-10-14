@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/kolibri/Documents/os/build-asan/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

@@ -6,6 +6,7 @@ void test_formula(void);
 void test_net(void);
 void test_digits(void);
 void test_script(void);
+void test_script_crystal_cycle(void);
 void test_script_load_file(void);
 void test_knowledge_index(void);
 void test_knowledge_queue(void);
@@ -19,6 +20,7 @@ int main(void) {
   test_digits();
   test_net();
   test_script();
+  test_script_crystal_cycle();
   test_script_load_file();
   test_knowledge_index();
   test_knowledge_queue();

@@ -1,0 +1,2 @@
+/usr/bin/ar qc libkolibri_wasm.a CMakeFiles/kolibri_wasm.dir/backend/src/wasm_bridge.c.o CMakeFiles/kolibri_wasm.dir/backend/src/wasm_genome_stub.c.o
+/usr/bin/ranlib libkolibri_wasm.a
