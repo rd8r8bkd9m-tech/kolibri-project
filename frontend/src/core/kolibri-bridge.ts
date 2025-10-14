@@ -1,17 +1,16 @@
 /**
  * kolibri-bridge.ts
  *
- * WebAssembly-backed bridge that executes KolibriScript programs inside the
- * browser. The bridge loads `kolibri.wasm`, initialises the Kolibri runtime
- * exported by the module, and exposes a single `ask` method used by the UI.
+ * Высокоуровневый мост между интерфейсом и ядром KolibriScript. Модуль
+ * пытается загрузить WebAssembly-модуль `kolibri.wasm`, а при сбоях
+ * gracefully деградирует до резервных реализаций (LLM или статическое
+ * сообщение). Вся логика построения KolibriScript программ собрана здесь,
+ * чтобы обеспечить прозрачность и детерминированность поведения фронтенда.
  */
-import { createWasiContext } from "./wasi";
-import { teachKnowledge, sendKnowledgeFeedback } from "./knowledge";
+
 import type { KnowledgeSnippet } from "../types/knowledge";
-
-import { createWasiPreview1 } from "./wasi";
-
-import { getWasiImports, resetWasi, setMemory } from "./wasi";
+import { sendKnowledgeFeedback, teachKnowledge } from "./knowledge";
+import { findModeLabel } from "./modes";
 
 export interface KolibriBridge {
   readonly ready: Promise<void>;
@@ -29,32 +28,140 @@ interface KolibriWasmExports {
 }
 
 const OUTPUT_CAPACITY = 8192;
-const DEFAULT_MODE = "Быстрый ответ";
+const DEFAULT_MODE_LABEL = "Нейтральный";
 const WASM_RESOURCE_URL = "/kolibri.wasm";
+const WASM_INFO_URL = "/kolibri.wasm.txt";
 const DEFAULT_API_BASE = "/api";
-
 const RESPONSE_MODE = (import.meta.env.VITE_KOLIBRI_RESPONSE_MODE ?? "script").toLowerCase();
 const RAW_API_BASE = import.meta.env.VITE_KOLIBRI_API_BASE ?? DEFAULT_API_BASE;
 
-function normaliseApiBase(base: string): string {
-  const trimmed = base.trim();
+const API_BASE = (() => {
+  const trimmed = RAW_API_BASE.trim();
   if (!trimmed) {
-    return "";
+    return DEFAULT_API_BASE;
   }
   return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
-}
+})();
 
-const API_BASE = normaliseApiBase(RAW_API_BASE) || DEFAULT_API_BASE;
 const LLM_INFERENCE_URL = `${API_BASE}/v1/infer`;
 const SHOULD_USE_LLM = RESPONSE_MODE === "llm";
-const WASM_INFO_URL = "/kolibri.wasm.txt";
 
 const COMMAND_PATTERN = /^(показать|обучить|спросить|тикнуть|сохранить)/i;
 const PROGRAM_START_PATTERN = /начало\s*:/i;
 const PROGRAM_END_PATTERN = /конец\./i;
 
-type WasiInstanceContext = ReturnType<typeof createWasiContext>;
-type WasmExportFunction = (...args: number[]) => number;
+const textDecoder = new TextDecoder("utf-8");
+const textEncoder = new TextEncoder();
+
+const WASI_ERRNO_SUCCESS = 0;
+const WASI_ERRNO_BADF = 8;
+const WASI_ERRNO_INVAL = 28;
+const WASI_ERRNO_IO = 29;
+const WASI_FILETYPE_CHARACTER_DEVICE = 2;
+
+class WasiAdapter {
+  private memory: WebAssembly.Memory | null = null;
+  private view: DataView | null = null;
+
+  constructor(
+    private readonly stdout: (text: string) => void = (text) => console.debug("[kolibri-wasi]", text.trim()),
+    private readonly stderr: (text: string) => void = (text) => console.warn("[kolibri-wasi][stderr]", text.trim()),
+  ) {}
+
+  attach(memory: WebAssembly.Memory): void {
+    this.memory = memory;
+    this.view = new DataView(memory.buffer);
+  }
+
+  private ensureView(): DataView {
+    if (!this.memory) {
+      throw new Error("WASI memory is not initialised");
+    }
+    if (!this.view || this.view.buffer !== this.memory.buffer) {
+      this.view = new DataView(this.memory.buffer);
+    }
+    return this.view;
+  }
+
+  private ensureBytes(): Uint8Array {
+    if (!this.memory) {
+      throw new Error("WASI memory is not initialised");
+    }
+    return new Uint8Array(this.memory.buffer);
+  }
+
+  get imports(): Record<string, Record<string, WebAssembly.ImportValue>> {
+    return {
+      wasi_snapshot_preview1: {
+        args_get: () => WASI_ERRNO_SUCCESS,
+        args_sizes_get: (argcPtr: number, argvBufSizePtr: number) => {
+          const view = this.ensureView();
+          view.setUint32(argcPtr, 0, true);
+          view.setUint32(argvBufSizePtr, 0, true);
+          return WASI_ERRNO_SUCCESS;
+        },
+        environ_get: () => WASI_ERRNO_SUCCESS,
+        environ_sizes_get: (countPtr: number, sizePtr: number) => {
+          const view = this.ensureView();
+          view.setUint32(countPtr, 0, true);
+          view.setUint32(sizePtr, 0, true);
+          return WASI_ERRNO_SUCCESS;
+        },
+        fd_close: () => WASI_ERRNO_SUCCESS,
+        fd_fdstat_get: (_fd: number, statPtr: number) => {
+          const view = this.ensureView();
+          for (let offset = 0; offset < 24; offset += 1) {
+            view.setUint8(statPtr + offset, 0);
+          }
+          view.setUint8(statPtr, WASI_FILETYPE_CHARACTER_DEVICE);
+          return WASI_ERRNO_SUCCESS;
+        },
+        fd_seek: () => WASI_ERRNO_IO,
+        fd_write: (fd: number, iovsPtr: number, iovsLen: number, nwrittenPtr: number) => {
+          if (!this.memory) {
+            return WASI_ERRNO_INVAL;
+          }
+          const view = this.ensureView();
+          let bytesWritten = 0;
+          for (let index = 0; index < iovsLen; index += 1) {
+            const ptr = view.getUint32(iovsPtr + index * 8, true);
+            const len = view.getUint32(iovsPtr + index * 8 + 4, true);
+            bytesWritten += len;
+            if (fd === 1 || fd === 2) {
+              const chunk = new Uint8Array(this.memory.buffer, ptr, len);
+              const text = textDecoder.decode(chunk);
+              if (fd === 1) {
+                this.stdout(text);
+              } else {
+                this.stderr(text);
+              }
+            }
+          }
+          view.setUint32(nwrittenPtr, bytesWritten >>> 0, true);
+          view.setUint32(nwrittenPtr + 4, Math.floor(bytesWritten / 2 ** 32) >>> 0, true);
+          return WASI_ERRNO_SUCCESS;
+        },
+        proc_exit: (status: number) => {
+          throw new Error(`WASI program exited with code ${status}`);
+        },
+        random_get: (ptr: number, len: number) => {
+          if (!this.memory) {
+            return WASI_ERRNO_INVAL;
+          }
+          const bytes = new Uint8Array(this.memory.buffer, ptr, len);
+          if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+            crypto.getRandomValues(bytes);
+          } else {
+            for (let index = 0; index < len; index += 1) {
+              bytes[index] = Math.floor(Math.random() * 256);
+            }
+          }
+          return WASI_ERRNO_SUCCESS;
+        },
+      },
+    };
+  }
+}
 
 const resolveMemory = (exports: WebAssembly.Exports): WebAssembly.Memory => {
   const memory = (exports as Record<string, unknown>).memory;
@@ -64,24 +171,20 @@ const resolveMemory = (exports: WebAssembly.Exports): WebAssembly.Memory => {
   throw new Error("WASM-модуль не экспортирует память WebAssembly");
 };
 
-const resolveFunction = (exports: WebAssembly.Exports, candidates: readonly string[]): WasmExportFunction => {
+const resolveFunction = (exports: WebAssembly.Exports, candidates: readonly string[]): (...args: number[]) => number => {
   const lookup = exports as Record<string, unknown>;
   for (const name of candidates) {
     const candidate = lookup[name];
     if (typeof candidate === "function") {
-      return candidate as WasmExportFunction;
+      return candidate as (...args: number[]) => number;
     }
   }
   throw new Error(`WASM-модуль не экспортирует функции ${candidates.join(" или ")}`);
 };
 
-const createKolibriWasmExports = (
-  rawExports: WebAssembly.Exports,
-  wasi: WasiInstanceContext,
-): KolibriWasmExports => {
+const createKolibriWasmExports = (rawExports: WebAssembly.Exports, wasi: WasiAdapter): KolibriWasmExports => {
   const memory = resolveMemory(rawExports);
-  wasi.setMemory(memory);
-
+  wasi.attach(memory);
   return {
     memory,
     _malloc: resolveFunction(rawExports, ["_malloc", "malloc"]) as (size: number) => number,
@@ -96,38 +199,38 @@ const createKolibriWasmExports = (
   };
 };
 
-function escapeScriptString(value: string): string {
-  return value
+const escapeScriptString = (value: string): string =>
+  value
     .replace(/\\/g, "\\\\")
     .replace(/"/g, '\\"')
     .replace(/\r?\n/g, "\\n");
-}
 
-function normaliseLines(input: string): string[] {
-  return input
+const normaliseLines = (input: string): string[] =>
+  input
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
-}
 
 export function buildScript(prompt: string, mode: string, context: KnowledgeSnippet[]): string {
-  const trimmed = prompt.trim();
-  if (!trimmed) {
+  const trimmedPrompt = prompt.trim();
+  const resolvedMode = mode ? findModeLabel(mode) : DEFAULT_MODE_LABEL;
+
+  if (!trimmedPrompt) {
     return `начало:\n    показать "Пустой запрос"\nконец.\n`;
   }
 
-  if (PROGRAM_START_PATTERN.test(trimmed) && PROGRAM_END_PATTERN.test(trimmed)) {
-    return trimmed.endsWith("\n") ? trimmed : `${trimmed}\n`;
+  if (PROGRAM_START_PATTERN.test(trimmedPrompt) && PROGRAM_END_PATTERN.test(trimmedPrompt)) {
+    return trimmedPrompt.endsWith("\n") ? trimmedPrompt : `${trimmedPrompt}\n`;
   }
 
   const lines: string[] = ["начало:"];
 
-  if (mode && mode !== DEFAULT_MODE) {
-    lines.push(`    показать "Режим: ${escapeScriptString(mode)}"`);
+  if (resolvedMode && resolvedMode !== DEFAULT_MODE_LABEL) {
+    lines.push(`    показать "Режим: ${escapeScriptString(resolvedMode)}"`);
   }
 
-  lines.push(`    переменная вопрос = "${escapeScriptString(trimmed)}"`);
-  lines.push(`    показать "Вопрос: ${escapeScriptString(trimmed)}"`);
+  lines.push(`    переменная вопрос = "${escapeScriptString(trimmedPrompt)}"`);
+  lines.push(`    показать "Вопрос: ${escapeScriptString(trimmedPrompt)}"`);
 
   const uniqueAnswers = new Set<string>();
   context.forEach((snippet, index) => {
@@ -140,15 +243,19 @@ export function buildScript(prompt: string, mode: string, context: KnowledgeSnip
       return;
     }
     uniqueAnswers.add(normalised);
-    lines.push(`    переменная источник_${index + 1} = "${escapeScriptString(snippet.source ?? snippet.id)}"`);
-    lines.push(`    обучить связь "${escapeScriptString(trimmed)}" -> "${escapeScriptString(normalised)}"`);
     const sourceLabel = snippet.title || snippet.id;
+    lines.push(`    переменная источник_${index + 1} = "${escapeScriptString(snippet.source ?? snippet.id)}"`);
+    lines.push(`    обучить связь "${escapeScriptString(trimmedPrompt)}" -> "${escapeScriptString(normalised)}"`);
     lines.push(`    показать "Источник ${index + 1}: ${escapeScriptString(sourceLabel)}"`);
   });
 
+  if (normaliseLines(trimmedPrompt).every((line) => COMMAND_PATTERN.test(line))) {
+    lines.push("    вызвать эволюцию");
+  }
+
   lines.push(`    создать формулу ответ из "ассоциация"`);
   lines.push("    вызвать эволюцию");
-  lines.push(`    оценить ответ на задаче "${escapeScriptString(trimmed)}"`);
+  lines.push(`    оценить ответ на задаче "${escapeScriptString(trimmedPrompt)}"`);
   lines.push("    показать итог");
   lines.push("конец.");
 
@@ -156,109 +263,63 @@ export function buildScript(prompt: string, mode: string, context: KnowledgeSnip
 }
 
 async function describeWasmFailure(error: unknown): Promise<string> {
-  const baseReason =
-    error instanceof Error && error.message ? error.message : String(error ?? "Неизвестная ошибка");
+  const baseReason = error instanceof Error && error.message ? error.message : String(error ?? "Неизвестная ошибка");
 
   try {
-    const response = await fetch(WASM_INFO_URL);
+    const response = await fetch(WASM_INFO_URL, { cache: "no-store" });
     if (!response.ok) {
       return baseReason;
     }
-
     const infoText = (await response.text()).trim();
-    if (!infoText) {
-      return baseReason;
-    }
-
-    return `${baseReason}\n\n${infoText}`;
-  } catch (infoError) {
-    console.debug("[kolibri-bridge] Не удалось получить информацию о kolibri.wasm.", infoError);
+    return infoText ? `${baseReason}\n\n${infoText}` : baseReason;
+  } catch {
     return baseReason;
   }
 }
 
-class KolibriWasmBridge implements KolibriBridge {
-  private readonly encoder = new TextEncoder();
-  private readonly decoder = new TextDecoder("utf-8");
+class KolibriWasmRuntime {
   private exports: KolibriWasmExports | null = null;
-  private readonly wasi = createWasiPreview1();
-  readonly ready: Promise<void>;
+  private readonly wasi = new WasiAdapter();
 
-  constructor() {
-    this.ready = this.initialise();
-  }
-
-  private async instantiateWasm(): Promise<WebAssembly.Instance> {
-    const importObject: WebAssembly.Imports = { ...getWasiImports() };
-
-    const importObject: WebAssembly.Imports = { ...this.wasi.imports };
-  private async instantiateWasm(): Promise<KolibriWasmExports> {
-    const wasi = createWasiContext((text) => {
-      console.debug("[kolibri-bridge][wasi]", text);
-    });
-    const importObject: WebAssembly.Imports = {
-      wasi_snapshot_preview1: wasi.imports,
-    };
-
-    let instance: WebAssembly.Instance | null = null;
-    if ("instantiateStreaming" in WebAssembly) {
-      try {
-        const streamingResult = await WebAssembly.instantiateStreaming(fetch(WASM_RESOURCE_URL), importObject);
-        this.wasi.onInstance(streamingResult.instance);
-        return streamingResult.instance;
-        instance = streamingResult.instance;
-      } catch (error) {
-        // Fallback to ArrayBuffer path when MIME type is missing.
-        console.warn("Kolibri WASM streaming instantiation failed, retrying with ArrayBuffer.", error);
-      }
-    }
-
-    if (!instance) {
-      const response = await fetch(WASM_RESOURCE_URL);
-      if (!response.ok) {
-        throw new Error(`Не удалось загрузить kolibri.wasm: ${response.status} ${response.statusText}`);
-      }
-      const bytes = await response.arrayBuffer();
-      const fallbackResult = await WebAssembly.instantiate(bytes, importObject);
-      instance = fallbackResult.instance;
-    }
-    const bytes = await response.arrayBuffer();
-    const { instance } = await WebAssembly.instantiate(bytes, importObject);
-    this.wasi.onInstance(instance);
-    return instance;
-
-    return createKolibriWasmExports(instance.exports, wasi);
-  }
-
-  private async initialise(): Promise<void> {
-    resetWasi();
-    const instance = await this.instantiateWasm();
-    const exports = instance.exports as KolibriWasmExports;
-    if (!(exports.memory instanceof WebAssembly.Memory)) {
-      throw new Error("WASM-модуль не предоставил память");
-    }
-    setMemory(exports.memory);
-    if (typeof exports._kolibri_bridge_init !== "function") {
-      throw new Error("WASM-модуль не содержит kolibri_bridge_init");
-    }
-    const exports = await this.instantiateWasm();
-    const result = exports._kolibri_bridge_init();
-    if (result !== 0) {
-      throw new Error(`Не удалось инициализировать KolibriScript (код ${result})`);
+  async initialise(): Promise<void> {
+    const instance = await this.instantiate();
+    const exports = createKolibriWasmExports(instance.exports, this.wasi);
+    const initResult = exports._kolibri_bridge_init();
+    if (initResult !== 0) {
+      throw new Error(`Не удалось инициализировать KolibriScript (код ${initResult})`);
     }
     this.exports = exports;
   }
 
-  async ask(prompt: string, mode: string = DEFAULT_MODE, context: KnowledgeSnippet[] = []): Promise<string> {
-    await this.ready;
-    if (!this.exports) {
-      throw new Error("Kolibri WASM мост не готов");
+  private async instantiate(): Promise<WebAssembly.Instance> {
+    const importObject = this.wasi.imports;
+
+    if ("instantiateStreaming" in WebAssembly) {
+      try {
+        const streaming = await WebAssembly.instantiateStreaming(fetch(WASM_RESOURCE_URL), importObject);
+        return streaming.instance;
+      } catch (error) {
+        console.warn("Kolibri WASM streaming instantiation failed, retrying with ArrayBuffer.", error);
+      }
     }
 
+    const response = await fetch(WASM_RESOURCE_URL);
+    if (!response.ok) {
+      throw new Error(`Не удалось загрузить kolibri.wasm: ${response.status} ${response.statusText}`);
+    }
+    const bytes = await response.arrayBuffer();
+    const { instance } = await WebAssembly.instantiate(bytes, importObject);
+    return instance;
+  }
+
+  async execute(prompt: string, mode: string, context: KnowledgeSnippet[]): Promise<string> {
+    if (!this.exports) {
+      throw new Error("Kolibri WASM мост не инициализирован");
+    }
+
+    const script = buildScript(prompt, mode ?? DEFAULT_MODE_LABEL, context);
+    const scriptBytes = textEncoder.encode(script);
     const exports = this.exports;
-   const script = buildScript(prompt, mode, context);
-    console.debug("[kolibri-bridge] generated script:\n", script);
-    const scriptBytes = this.encoder.encode(script);
     const programPtr = exports._malloc(scriptBytes.length + 1);
     const outputPtr = exports._malloc(OUTPUT_CAPACITY);
 
@@ -283,10 +344,9 @@ class KolibriWasmBridge implements KolibriBridge {
       }
 
       const outputBytes = heap.subarray(outputPtr, outputPtr + written);
-      const text = this.decoder.decode(outputBytes).trim();
-      const answer = text.length === 0 ? "KolibriScript завершил работу без вывода." : text;
+      const rawText = textDecoder.decode(outputBytes).trim();
+      const answer = rawText.length === 0 ? "KolibriScript завершил работу без вывода." : rawText;
 
-      // Автоматическое самообучение: фиксируем связку вопрос -> ответ
       void teachKnowledge(prompt, answer);
       void sendKnowledgeFeedback("good", prompt, answer);
 
@@ -298,11 +358,9 @@ class KolibriWasmBridge implements KolibriBridge {
   }
 
   async reset(): Promise<void> {
-    await this.ready;
     if (!this.exports) {
-      throw new Error("Kolibri WASM мост не готов");
+      throw new Error("Kolibri WASM мост не инициализирован");
     }
-
     const result = this.exports._kolibri_bridge_reset();
     if (result !== 0) {
       throw new Error(`Не удалось сбросить KolibriScript (код ${result})`);
@@ -327,31 +385,35 @@ class KolibriWasmBridge implements KolibriBridge {
   }
 }
 
-class KolibriFallbackBridge implements KolibriBridge {
+class KolibriScriptBridge implements KolibriBridge {
   readonly ready = Promise.resolve();
-  private readonly reason: string;
 
-  constructor(error: unknown) {
-    if (error instanceof Error && error.message) {
-      this.reason = error.message;
-    } else {
-      this.reason = String(error ?? "Неизвестная ошибка");
-    }
+  constructor(private readonly runtime: KolibriWasmRuntime) {}
+
+  async ask(prompt: string, mode: string = DEFAULT_MODE_LABEL, context: KnowledgeSnippet[] = []): Promise<string> {
+    return this.runtime.execute(prompt, mode, context);
   }
 
-  async ask(_prompt: string, _mode?: string, _context: KnowledgeSnippet[] = []): Promise<string> {
-    void _prompt;
-    void _mode;
-    void _context;
+  async reset(): Promise<void> {
+    await this.runtime.reset();
+  }
+}
+
+class KolibriFallbackBridge implements KolibriBridge {
+  readonly ready = Promise.resolve();
+
+  constructor(private readonly reason: string) {}
+
+  async ask(): Promise<string> {
     return [
       "KolibriScript недоступен: kolibri.wasm не был загружен.",
       `Причина: ${this.reason}`,
-      "Запустите scripts/build_wasm.sh и перезапустите фронтенд, чтобы восстановить работоспособность ядра.",
+      "Запустите scripts/build_wasm.sh или установите переменную KOLIBRI_ALLOW_WASM_STUB=1 для деградированного режима.",
     ].join("\n");
   }
 
   async reset(): Promise<void> {
-    // Нет состояния для сброса в режим без WASM.
+    // Нет состояния для сброса.
   }
 }
 
@@ -360,18 +422,12 @@ class KolibriLLMBridge implements KolibriBridge {
 
   constructor(private readonly endpoint: string, private readonly fallback: KolibriBridge) {}
 
-  async ask(prompt: string, mode: string = DEFAULT_MODE): Promise<string> {
-    const payload = {
-      prompt,
-      mode,
-    };
-
+  async ask(prompt: string, mode: string = DEFAULT_MODE_LABEL, context: KnowledgeSnippet[] = []): Promise<string> {
+    const payload = { prompt, mode, context };
     try {
       const response = await fetch(this.endpoint, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
@@ -379,26 +435,15 @@ class KolibriLLMBridge implements KolibriBridge {
         throw new Error(`LLM proxy responded with ${response.status} ${response.statusText}`);
       }
 
-      let data: unknown;
-      try {
-        data = await response.json();
-      } catch (jsonError) {
-        throw new Error(`Failed to parse LLM proxy response: ${String(jsonError)}`);
-      }
-
-      if (!data || typeof data !== "object" || typeof (data as { response?: unknown }).response !== "string") {
+      const data = (await response.json()) as { response?: unknown };
+      if (typeof data.response !== "string" || !data.response.trim()) {
         throw new Error("LLM proxy returned an unexpected payload.");
       }
 
-      const text = ((data as { response: string }).response || "").trim();
-      if (!text) {
-        throw new Error("LLM proxy returned an empty response.");
-      }
-
-      return text;
+      return data.response.trim();
     } catch (error) {
       console.warn("[kolibri-bridge] Ошибка при запросе к LLM, выполняем KolibriScript.", error);
-      const fallbackResponse = await this.fallback.ask(prompt, mode);
+      const fallbackResponse = await this.fallback.ask(prompt, mode, context);
       return `${fallbackResponse}\n\n(Ответ сгенерирован KolibriScript из-за ошибки LLM.)`;
     }
   }
@@ -409,24 +454,23 @@ class KolibriLLMBridge implements KolibriBridge {
 }
 
 const createBridge = async (): Promise<KolibriBridge> => {
-  const wasmBridge = new KolibriWasmBridge();
+  const runtime = new KolibriWasmRuntime();
 
-  let fallback: KolibriBridge;
   try {
-    await wasmBridge.ready;
-    fallback = wasmBridge;
+    await runtime.initialise();
   } catch (error) {
-    console.warn("[kolibri-bridge] Переход в деградированный режим без WebAssembly.", error);
-    fallback = new KolibriFallbackBridge(error);
     const reason = await describeWasmFailure(error);
+    console.warn("[kolibri-bridge] Переход в деградированный режим без WebAssembly.", reason);
     return new KolibriFallbackBridge(reason);
   }
 
+  const scriptBridge = new KolibriScriptBridge(runtime);
+
   if (SHOULD_USE_LLM) {
-    return new KolibriLLMBridge(LLM_INFERENCE_URL, fallback);
+    return new KolibriLLMBridge(LLM_INFERENCE_URL, scriptBridge);
   }
 
-  return fallback;
+  return scriptBridge;
 };
 
 const bridgePromise: Promise<KolibriBridge> = createBridge();

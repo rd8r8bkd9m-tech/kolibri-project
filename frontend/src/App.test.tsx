@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MockInstance } from "vitest";
 import App from "./App";
+import { MODE_OPTIONS } from "./core/modes";
 
 type AskFunction = (prompt: string, mode?: string) => Promise<string>;
 
@@ -67,14 +68,14 @@ describe("App contextual retrieval", () => {
     const [prompt, mode] = askMock.mock.calls[0] ?? [];
     expect(prompt).toContain("Контекст:");
     expect(prompt).toContain("Описание Kolibri");
-    expect(mode).toBe("Быстрый ответ");
+    expect(mode).toBe(MODE_OPTIONS[0]?.value ?? "neutral");
 
     await waitFor(() => expect(screen.getByText("Ответ с контекстом")).toBeInTheDocument());
 
     const toggle = screen.getByRole("button", { name: "Показать контекст (1)" });
     await userEvent.click(toggle);
-    expect(screen.getByText("Документ")).toBeInTheDocument();
-    expect(screen.getByText("Описание Kolibri")).toBeInTheDocument();
+    expect(screen.getAllByText("Документ").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Описание Kolibri").length).toBeGreaterThan(0);
   });
 
   it("falls back gracefully when contextual search fails", async () => {
