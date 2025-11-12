@@ -23,6 +23,7 @@ add_library(kolibri_core_objects OBJECT
     backend/src/knowledge_index.c
     backend/src/knowledge_queue.c
     backend/src/sim.c
+    backend/src/semantic_digits.c
 )
 
 target_include_directories(kolibri_core_objects
@@ -151,6 +152,11 @@ if(KOLIBRI_ENABLE_TESTS)
     )
     target_link_libraries(kolibri_tests PRIVATE kolibri_core Threads::Threads)
     add_test(NAME kolibri_tests COMMAND kolibri_tests)
+    
+    # AGI v2.0 Phase 1: Semantic module tests
+    add_executable(test_semantic tests/test_semantic.c)
+    target_link_libraries(test_semantic PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_semantic COMMAND test_semantic)
 
     configure_file(tests/ks_compiler_roundtrip.cmake
                    ${CMAKE_CURRENT_BINARY_DIR}/ks_compiler_roundtrip.cmake
