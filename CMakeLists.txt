@@ -24,6 +24,7 @@ add_library(kolibri_core_objects OBJECT
     backend/src/knowledge_queue.c
     backend/src/sim.c
     backend/src/semantic_digits.c
+    backend/src/context_window.c
 )
 
 target_include_directories(kolibri_core_objects
@@ -157,6 +158,11 @@ if(KOLIBRI_ENABLE_TESTS)
     add_executable(test_semantic tests/test_semantic.c)
     target_link_libraries(test_semantic PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_semantic COMMAND test_semantic)
+    
+    # AGI v2.0 Phase 1.2: Context window tests
+    add_executable(test_context tests/test_context.c)
+    target_link_libraries(test_context PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_context COMMAND test_context)
 
     configure_file(tests/ks_compiler_roundtrip.cmake
                    ${CMAKE_CURRENT_BINARY_DIR}/ks_compiler_roundtrip.cmake
