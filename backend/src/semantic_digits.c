@@ -76,7 +76,7 @@ int k_semantic_context_add_word(KolibriSemanticContext *ctx,
  */
 static double compute_pattern_fitness(const uint8_t *pattern,
                                      size_t pattern_len,
-                                     const k_digit_stream *word_digits,
+                                     const kolibri_potok_cifr *word_digits,
                                      const KolibriSemanticContext *ctx) {
     if (!pattern || !word_digits || !ctx) return 0.0;
     
@@ -170,7 +170,7 @@ int k_semantic_learn(const char *word,
     double fitness[POPULATION_SIZE];
     
     KolibriRng rng;
-    k_rng_init(&rng, (uint64_t)time(NULL));
+    k_rng_seed(&rng, (uint64_t)time(NULL));
     
     /* Случайная инициализация популяции */
     for (size_t i = 0; i < POPULATION_SIZE; i++) {

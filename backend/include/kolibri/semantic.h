@@ -9,6 +9,7 @@
 #define KOLIBRI_SEMANTIC_H
 
 #include "kolibri/decimal.h"
+#include "kolibri/digits.h"
 #include "kolibri/formula.h"
 
 #include <stddef.h>
@@ -38,8 +39,8 @@ typedef struct {
  * Контекст для семантического обучения
  */
 typedef struct {
-    k_digit_stream word_digits;                      /* Цифры основного слова */
-    k_digit_stream context_words[KOLIBRI_SEMANTIC_CONTEXT_MAX]; /* Окружающие слова */
+    kolibri_potok_cifr word_digits;                      /* Цифры основного слова */
+    kolibri_potok_cifr context_words[KOLIBRI_SEMANTIC_CONTEXT_MAX]; /* Окружающие слова */
     size_t context_count;                            /* Количество слов в контексте */
     double relevance[KOLIBRI_SEMANTIC_CONTEXT_MAX]; /* Релевантность каждого слова */
 } KolibriSemanticContext;
