@@ -1,0 +1,90 @@
+# Kolibri Cloud Storage API
+
+Простой REST API для облачного хранилища файлов.
+
+## Быстро начать
+
+```bash
+# Установка
+npm install
+
+# Запуск
+npm start          # Основной сервер (http://localhost:3001)
+npm run dev        # С hot reload
+npm run test       # Запуск тестов
+```
+
+## Основные возможности
+
+✅ **User Management**
+- Регистрация и вход
+- JWT аутентификация
+- Per-user storage limits
+
+✅ **File Operations**
+- Upload (до 100MB)
+- Download
+- Delete
+- List files
+
+✅ **Storage Management**
+- Отслеживание использованного места
+- Информация об ограничениях
+- Статистика файлов
+
+✅ **API**
+- 8 endpoints
+- JSON responses
+- CORS enabled
+
+## API Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | /api/auth/register | ✗ | Регистрация пользователя |
+| POST | /api/auth/login | ✗ | Вход в систему |
+| POST | /api/storage/upload | ✓ | Загрузить файл |
+| GET | /api/storage/files | ✓ | Список файлов |
+| GET | /api/storage/download/:id | ✓ | Скачать файл |
+| DELETE | /api/storage/files/:id | ✓ | Удалить файл |
+| GET | /api/storage/info | ✓ | Информация о хранилище |
+| GET | /api/health | ✗ | Статус сервера |
+
+## Тестирование
+
+### Через API
+```bash
+# Регистрация
+curl -X POST http://localhost:3001/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"user","password":"pass"}'
+
+# Сохранить token из ответа
+
+# Загрузить файл
+curl -X POST http://localhost:3001/api/storage/upload \
+  -H "Authorization: Bearer {token}" \
+  -F "file=@document.pdf"
+
+# Список файлов
+curl http://localhost:3001/api/storage/files \
+  -H "Authorization: Bearer {token}"
+```
+
+### Автоматические тесты
+```bash
+npm run test
+```
+
+## Технологии
+
+- **Express.js** - Web framework
+- **Multer** - File uploads
+- **JWT** - Authentication
+- **Node.js** - Runtime
+
+## Лицензия
+
+Dual-licensed (AGPL-3.0 / Commercial)
+
+© 2025 Kolibri

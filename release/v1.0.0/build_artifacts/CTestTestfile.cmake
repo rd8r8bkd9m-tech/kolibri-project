@@ -1,0 +1,38 @@
+# CMake generated Testfile for 
+# Source directory: /Users/kolibri/Documents/os
+# Build directory: /Users/kolibri/Documents/os/build
+# 
+# This file includes the relevant testing commands required for 
+# testing this directory and lists subdirectories to be tested as well.
+add_test(kolibri_tests "/Users/kolibri/Documents/os/build/kolibri_tests")
+set_tests_properties(kolibri_tests PROPERTIES  _BACKTRACE_TRIPLES "/Users/kolibri/Documents/os/CMakeLists.txt;221;add_test;/Users/kolibri/Documents/os/CMakeLists.txt;0;")
+add_test(test_ai_encoder "/Users/kolibri/Documents/os/build/test_ai_encoder")
+set_tests_properties(test_ai_encoder PROPERTIES  _BACKTRACE_TRIPLES "/Users/kolibri/Documents/os/CMakeLists.txt;229;add_test;/Users/kolibri/Documents/os/CMakeLists.txt;0;")
+add_test(test_text_roundtrip "/Users/kolibri/Documents/os/build/test_text_roundtrip")
+set_tests_properties(test_text_roundtrip PROPERTIES  _BACKTRACE_TRIPLES "/Users/kolibri/Documents/os/CMakeLists.txt;237;add_test;/Users/kolibri/Documents/os/CMakeLists.txt;0;")
+add_test(test_storage_demo "/Users/kolibri/Documents/os/build/test_storage_demo")
+set_tests_properties(test_storage_demo PROPERTIES  _BACKTRACE_TRIPLES "/Users/kolibri/Documents/os/CMakeLists.txt;245;add_test;/Users/kolibri/Documents/os/CMakeLists.txt;0;")
+add_test(test_formula_compression "/Users/kolibri/Documents/os/build/test_formula_compression")
+set_tests_properties(test_formula_compression PROPERTIES  _BACKTRACE_TRIPLES "/Users/kolibri/Documents/os/CMakeLists.txt;253;add_test;/Users/kolibri/Documents/os/CMakeLists.txt;0;")
+add_test(test_formula_storage "/Users/kolibri/Documents/os/build/test_formula_storage")
+set_tests_properties(test_formula_storage PROPERTIES  _BACKTRACE_TRIPLES "/Users/kolibri/Documents/os/CMakeLists.txt;261;add_test;/Users/kolibri/Documents/os/CMakeLists.txt;0;")
+add_test(test_logical_memory "/Users/kolibri/Documents/os/build/test_logical_memory")
+set_tests_properties(test_logical_memory PROPERTIES  _BACKTRACE_TRIPLES "/Users/kolibri/Documents/os/CMakeLists.txt;269;add_test;/Users/kolibri/Documents/os/CMakeLists.txt;0;")
+add_test(test_formula_logic "/Users/kolibri/Documents/os/build/test_formula_logic")
+set_tests_properties(test_formula_logic PROPERTIES  _BACKTRACE_TRIPLES "/Users/kolibri/Documents/os/CMakeLists.txt;277;add_test;/Users/kolibri/Documents/os/CMakeLists.txt;0;")
+add_test(test_full_pipeline "/Users/kolibri/Documents/os/build/test_full_pipeline")
+set_tests_properties(test_full_pipeline PROPERTIES  _BACKTRACE_TRIPLES "/Users/kolibri/Documents/os/CMakeLists.txt;285;add_test;/Users/kolibri/Documents/os/CMakeLists.txt;0;")
+add_test(ks_compiler_roundtrip "/opt/homebrew/bin/cmake" "-Dks_compiler=/Users/kolibri/Documents/os/build/ks_compiler" "-P" "/Users/kolibri/Documents/os/build/ks_compiler_roundtrip.cmake")
+set_tests_properties(ks_compiler_roundtrip PROPERTIES  _BACKTRACE_TRIPLES "/Users/kolibri/Documents/os/CMakeLists.txt;290;add_test;/Users/kolibri/Documents/os/CMakeLists.txt;0;")
+add_test(kolibri_node_custom_key_inline "/opt/homebrew/Frameworks/Python.framework/Versions/3.13/bin/python3.13" "/Users/kolibri/Documents/os/tests/run_kolibri_node_hmac.py" "/Users/kolibri/Documents/os/build/kolibri_node" "inline")
+set_tests_properties(kolibri_node_custom_key_inline PROPERTIES  _BACKTRACE_TRIPLES "/Users/kolibri/Documents/os/CMakeLists.txt;297;add_test;/Users/kolibri/Documents/os/CMakeLists.txt;0;")
+add_test(kolibri_node_custom_key_file "/opt/homebrew/Frameworks/Python.framework/Versions/3.13/bin/python3.13" "/Users/kolibri/Documents/os/tests/run_kolibri_node_hmac.py" "/Users/kolibri/Documents/os/build/kolibri_node" "file")
+set_tests_properties(kolibri_node_custom_key_file PROPERTIES  _BACKTRACE_TRIPLES "/Users/kolibri/Documents/os/CMakeLists.txt;302;add_test;/Users/kolibri/Documents/os/CMakeLists.txt;0;")
+add_test(kolibri_node_usage "/Users/kolibri/Documents/os/build/kolibri_node" "--help")
+set_tests_properties(kolibri_node_usage PROPERTIES  _BACKTRACE_TRIPLES "/Users/kolibri/Documents/os/CMakeLists.txt;309;add_test;/Users/kolibri/Documents/os/CMakeLists.txt;0;")
+add_test(kolibri_indexer_usage "/Users/kolibri/Documents/os/build/kolibri_indexer")
+set_tests_properties(kolibri_indexer_usage PROPERTIES  WILL_FAIL "TRUE" _BACKTRACE_TRIPLES "/Users/kolibri/Documents/os/CMakeLists.txt;311;add_test;/Users/kolibri/Documents/os/CMakeLists.txt;0;")
+add_test(kolibri_queue_usage "/Users/kolibri/Documents/os/build/kolibri_queue")
+set_tests_properties(kolibri_queue_usage PROPERTIES  WILL_FAIL "TRUE" _BACKTRACE_TRIPLES "/Users/kolibri/Documents/os/CMakeLists.txt;314;add_test;/Users/kolibri/Documents/os/CMakeLists.txt;0;")
+add_test(kolibri_sim_usage "/Users/kolibri/Documents/os/build/kolibri_sim")
+set_tests_properties(kolibri_sim_usage PROPERTIES  WILL_FAIL "TRUE" _BACKTRACE_TRIPLES "/Users/kolibri/Documents/os/CMakeLists.txt;317;add_test;/Users/kolibri/Documents/os/CMakeLists.txt;0;")

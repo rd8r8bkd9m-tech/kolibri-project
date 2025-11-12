@@ -1,0 +1,3 @@
+docs/ingested
+docs
+data

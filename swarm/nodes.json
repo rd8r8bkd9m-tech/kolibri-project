@@ -1,0 +1,19 @@
+{
+  "nodes": [
+    {
+      "name": "node_a",
+      "genome": "build/knowledge/approved/node_a/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_a",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": ["node_b"]
+    },
+    {
+      "name": "node_b",
+      "genome": "build/knowledge/approved/node_b/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_b",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": ["node_a"]
+    }
+  ]
+}
+

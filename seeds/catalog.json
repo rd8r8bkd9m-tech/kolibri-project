@@ -1,0 +1,41 @@
+{
+  "sources": [
+    {
+      "name": "Python Documentation Hub",
+      "index": "https://www.python.org/doc/",
+      "allow_domains": [
+        "python.org",
+        "docs.python.org",
+        "wiki.python.org"
+      ]
+    },
+    {
+      "name": "GNU Manuals",
+      "index": "https://www.gnu.org/manual/manual.html",
+      "allow_domains": [
+        "gnu.org"
+      ]
+    },
+    {
+      "name": "W3C Standards",
+      "index": "https://www.w3.org/TR/",
+      "allow_domains": [
+        "w3.org"
+      ]
+    },
+    {
+      "name": "Linux Foundation Docs",
+      "index": "https://docs.kernel.org/",
+      "allow_domains": [
+        "kernel.org"
+      ]
+    },
+    {
+      "name": "Apache Software Foundation",
+      "index": "https://www.apache.org/index.html",
+      "allow_domains": [
+        "apache.org"
+      ]
+    }
+  ]
+}

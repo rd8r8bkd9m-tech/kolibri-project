@@ -1,0 +1,1 @@
+MD5 (test_image.png) = 658a468419e3a468da51f7fab97905d1
