@@ -1,12 +1,95 @@
+# Dependencies
+node_modules/
+.venv/
+.env/
+venv/
+env/
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Build outputs
 /build/
+build-*/
+dist/
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+CMakeFiles/
+cmake_install.cmake
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.classpath
+
+# Frontend builds
 frontend/*.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts
 frontend/public/kolibri.wasm
-*.o
-*.a
+frontend/node_modules/
+frontend/dist/
+
+# OS files
+Thumbs.db
+.AppleDouble
+.LSOverride
+
+# Logs & outputs
+logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+data.json
+data.json.bak
+*.db
+*.sqlite
+*.sqlite3
+*.pid
+*.seed
 *.dat
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+.cache/
+
+# WASM & compiled
+*.wasm
+*.wasm.map
+
+# Python cache & tests
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local configuration
+.env
+.env.local
+.env.*.local
 root.key
 compile_commands.json
-.DS_Store
+
+# Cloud storage
+cloud-storage/uploads/
+cloud-storage/compressed/
+cloud-storage/data.json.bak
+cloud-storage/server.log
+
+# Generated files
+*.generated.*
+token.txt
+auth.token
