@@ -1,56 +1,56 @@
-# Kolibri OS Release Plan
+# План релиза Kolibri OS
 
-## Vision
-Kolibri OS aims to deliver a lightweight, reliable, and scriptable operating environment with first-class support for KolibriScript applications and embedded simulators. The release will provide developers with a cohesive toolchain, validated runtime, and comprehensive documentation so that they can build and deploy Kolibri workloads confidently.
+## Видение
+Kolibri OS нацелена на создание легковесного, надежного и скриптуемого операционного окружения с первоклассной поддержкой приложений KolibriScript и встроенных симуляторов. Релиз предоставит разработчикам целостный инструментарий, проверенную среду выполнения и всестороннюю документацию, чтобы они могли уверенно создавать и развертывать рабочие нагрузки Kolibri.
 
-## Guiding Principles
-- **Stability first:** prioritize deterministic builds, reproducible simulations, and regression-free releases.
-- **Developer ergonomics:** streamline scripting, testing, and deployment workflows.
-- **Cross-platform reach:** maintain support for native, WebAssembly, and embedded targets.
-- **Transparent quality:** enforce automated checks, coverage, and policy validation across the stack.
+## Руководящие принципы
+- **Стабильность прежде всего:** приоритет детерминированным сборкам, воспроизводимым симуляциям и релизам без регрессий.
+- **Эргономика разработчика:** оптимизация рабочих процессов скриптинга, тестирования и развертывания.
+- **Кроссплатформенность:** поддержка нативных, WebAssembly и встроенных целевых платформ.
+- **Прозрачное качество:** применение автоматизированных проверок, покрытия и валидации политик во всем стеке.
 
-## Milestones and Deliverables
+## Этапы и результаты
 
-### 1. Tooling Foundation (Week 1)
-- Finalize dependency manifests (`requirements.txt`, CMake targets) for CI cache warmup.
-- Ensure `ruff`, `pyright`, and `pytest` pass locally; add missing type stubs or suppressions.
-- Harden `ks_compiler` build by validating CMake configurations for native and WASM outputs.
-- Document local setup in `README.md` including bootstrap scripts and environment prerequisites.
+### 1. Основа инструментария (Неделя 1)
+- Финализировать манифесты зависимостей (`requirements.txt`, цели CMake) для прогрева кэша CI.
+- Убедиться, что `ruff`, `pyright` и `pytest` проходят локально; добавить недостающие заглушки типов или подавления.
+- Укрепить сборку `ks_compiler` путем валидации конфигураций CMake для нативных и WASM выводов.
+- Документировать локальную настройку в `README.md`, включая скрипты начальной загрузки и предварительные требования к окружению.
 
-### 2. Simulator Hardening (Weeks 2-3)
+### 2. Укрепление симулятора (Недели 2-3)
 - Завершить порт KolibriSim на C (`kolibri/sim.h`) и устранить расхождения с прежней Python-версией.
 - Расширить unit-тесты (`tests/test_sim.c`, `kolibri_sim soak`) для сценариев длительных прогонов и ротации журнала.
-- Profile performance hotspots and add benchmarks for event processing.
-- Introduce structured logging and trace toggles for debugging complex simulations.
+- Профилировать узкие места производительности и добавить бенчмарки для обработки событий.
+- Внедрить структурированное логирование и переключатели трассировки для отладки сложных симуляций.
 
-### 3. Script Runtime Enhancements (Weeks 3-4)
-- Align C and Python bindings for KolibriScript APIs; ensure shared buffer semantics.
-- Add regression tests in `tests/test_script.c` and integration harnesses under `scripts/`.
-- Implement scripting examples demonstrating digits, networking, and soak workloads.
-- Provide developer documentation for extending KolibriScript with custom modules.
+### 3. Улучшения среды выполнения скриптов (Недели 3-4)
+- Выровнять привязки C и Python для API KolibriScript; обеспечить семантику общих буферов.
+- Добавить регрессионные тесты в `tests/test_script.c` и интеграционные обвязки в `scripts/`.
+- Реализовать примеры скриптов, демонстрирующие цифры, сетевое взаимодействие и длительные рабочие нагрузки.
+- Предоставить документацию для разработчиков по расширению KolibriScript пользовательскими модулями.
 
-### 4. Frontend & User Experience (Weeks 4-5)
-- Polish web frontend (if applicable) to visualize simulation metrics and digit streams.
-- Integrate real-time updates via WebAssembly build artifacts.
-- Collect user feedback through internal testing sessions and iterate on UX pain points.
+### 4. Фронтенд и пользовательский опыт (Недели 4-5)
+- Отполировать веб-фронтенд (если применимо) для визуализации метрик симуляции и потоков цифр.
+- Интегрировать обновления в реальном времени через артефакты сборки WebAssembly.
+- Собрать отзывы пользователей через внутренние сессии тестирования и итерировать по болевым точкам UX.
 
-### 5. Release Readiness (Week 6)
-- Freeze features, enter bug-fix-only mode, and triage outstanding issues.
-- Achieve policy compliance and security review sign-off.
-- Finalize release notes, changelog, and migration guides.
-- Tag release candidate builds, perform regression suite, and publish final artifacts.
+### 5. Готовность к релизу (Неделя 6)
+- Заморозить функции, войти в режим только исправления ошибок и отсортировать нерешенные проблемы.
+- Достичь соответствия политикам и одобрения проверки безопасности.
+- Финализировать примечания к релизу, журнал изменений и руководства по миграции.
+- Пометить релиз-кандидат сборки, выполнить регрессионный набор и опубликовать финальные артефакты.
 
-## Risk Management
-- Establish weekly checkpoints to track milestone progress and unblock dependencies.
-- Maintain contingency buffers for integration regressions or CI instability.
-- Use feature flags to isolate experimental functionality from release-critical paths.
+## Управление рисками
+- Установить еженедельные контрольные точки для отслеживания прогресса этапов и разблокировки зависимостей.
+- Поддерживать резервные буферы для интеграционных регрессий или нестабильности CI.
+- Использовать флаги функций для изоляции экспериментальной функциональности от критичных для релиза путей.
 
-## Post-Release Follow-Up
-- Monitor telemetry and crash reports for two weeks post-release.
-- Schedule retrospective to capture lessons learned and update processes.
-- Plan maintenance releases for critical fixes and incremental improvements.
+## Действия после релиза
+- Мониторить телеметрию и отчеты об ошибках в течение двух недель после релиза.
+- Запланировать ретроспективу для фиксации извлеченных уроков и обновления процессов.
+- Планировать поддерживающие релизы для критических исправлений и инкрементальных улучшений.
 
-## Success Metrics
-- 100% pass rate across CI matrices (Python, CMake, WebAssembly, policy checks).
-- Code coverage above 80% for critical modules; no regressions in soak benchmarks.
-- Positive developer feedback collected via survey on tooling and documentation quality.
+## Метрики успеха
+- 100% успешное прохождение по всем матрицам CI (Python, CMake, WebAssembly, проверки политик).
+- Покрытие кода выше 80% для критических модулей; отсутствие регрессий в длительных бенчмарках.
+- Положительные отзывы разработчиков, собранные через опрос о качестве инструментария и документации.
