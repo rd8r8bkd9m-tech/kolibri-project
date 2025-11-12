@@ -26,6 +26,7 @@ add_library(kolibri_core_objects OBJECT
     backend/src/semantic_digits.c
     backend/src/context_window.c
     backend/src/corpus_learning.c
+    backend/src/text_generation.c
 )
 
 target_include_directories(kolibri_core_objects
@@ -169,6 +170,11 @@ if(KOLIBRI_ENABLE_TESTS)
     add_executable(test_corpus tests/test_corpus.c)
     target_link_libraries(test_corpus PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_corpus COMMAND test_corpus)
+    
+    # AGI v2.0 Phase 2: Text generation tests
+    add_executable(test_generation tests/test_generation.c)
+    target_link_libraries(test_generation PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_generation COMMAND test_generation)
 
     configure_file(tests/ks_compiler_roundtrip.cmake
                    ${CMAKE_CURRENT_BINARY_DIR}/ks_compiler_roundtrip.cmake
