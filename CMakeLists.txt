@@ -25,6 +25,7 @@ add_library(kolibri_core_objects OBJECT
     backend/src/sim.c
     backend/src/semantic_digits.c
     backend/src/context_window.c
+    backend/src/corpus_learning.c
 )
 
 target_include_directories(kolibri_core_objects
@@ -163,6 +164,11 @@ if(KOLIBRI_ENABLE_TESTS)
     add_executable(test_context tests/test_context.c)
     target_link_libraries(test_context PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_context COMMAND test_context)
+    
+    # AGI v2.0 Phase 1.3: Corpus learning tests
+    add_executable(test_corpus tests/test_corpus.c)
+    target_link_libraries(test_corpus PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_corpus COMMAND test_corpus)
 
     configure_file(tests/ks_compiler_roundtrip.cmake
                    ${CMAKE_CURRENT_BINARY_DIR}/ks_compiler_roundtrip.cmake
