@@ -33,6 +33,41 @@ https://github.com/rd8r8bkd9m-tech/kolibri-project/raw/main/tools/kolibri_archiv
 https://github.com/rd8r8bkd9m-tech/kolibri-project/blob/main/KOLIBRI_5_9M_COMPRESSION_PROOF.md
 ```
 
+### 6. Результаты 1GB теста
+```
+https://github.com/rd8r8bkd9m-tech/kolibri-project/blob/main/RESULT_1GB.md
+```
+
+### 7. Инструкция по верификации
+```
+https://github.com/rd8r8bkd9m-tech/kolibri-project/blob/main/README_proof.md
+```
+
+### 8. Скрипт автоматической проверки
+```
+https://github.com/rd8r8bkd9m-tech/kolibri-project/raw/main/verify_1gb.sh
+```
+
+---
+
+## 🧪 АВТОМАТИЧЕСКАЯ ВЕРИФИКАЦИЯ
+
+Для независимой проверки результатов:
+
+```bash
+# Скачать скрипт
+curl -L -o verify_1gb.sh https://github.com/rd8r8bkd9m-tech/kolibri-project/raw/main/verify_1gb.sh
+
+# Запустить проверку
+chmod +x verify_1gb.sh
+./verify_1gb.sh
+
+# Результат покажет:
+# ✅ MD5 совпадение
+# ✅ Побайтовое совпадение (cmp)
+# ✅ Коэффициент сжатия
+```
+
 ---
 
 ## 🚀 БЫСТРАЯ УСТАНОВКА
