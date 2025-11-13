@@ -48,6 +48,11 @@ https://github.com/rd8r8bkd9m-tech/kolibri-project/blob/main/README_proof.md
 https://github.com/rd8r8bkd9m-tech/kolibri-project/raw/main/verify_1gb.sh
 ```
 
+### 9. Решение проблем на macOS
+```
+https://github.com/rd8r8bkd9m-tech/kolibri-project/blob/main/MACOS_FIX.md
+```
+
 ---
 
 ## 🧪 АВТОМАТИЧЕСКАЯ ВЕРИФИКАЦИЯ
@@ -72,15 +77,39 @@ chmod +x verify_1gb.sh
 
 ## 🚀 БЫСТРАЯ УСТАНОВКА
 
-### macOS / Linux:
+### ⚠️ macOS: Проблемы с запуском?
+**Рекомендуется компилировать из исходников** (1 секунда):
+```bash
+# Скачать исходник
+curl -L -o kolibri.c https://github.com/rd8r8bkd9m-tech/kolibri-project/raw/main/tools/kolibri_archiver_v3.c
+
+# Скомпилировать
+gcc -O3 -o kolibri-archive kolibri.c
+
+# Готово!
+./kolibri-archive compress input.bin output.kolibri
+```
+
+**Или снять карантин macOS:**
 ```bash
 # Скачать
 curl -L -o kolibri-archive https://github.com/rd8r8bkd9m-tech/kolibri-project/raw/main/tools/kolibri-archive-v3
 
-# Сделать исполняемым
+# Снять карантин + сделать исполняемым
+xattr -d com.apple.quarantine kolibri-archive 2>/dev/null || true
 chmod +x kolibri-archive
 
 # Использовать
+./kolibri-archive compress input.bin output.kolibri
+```
+
+📖 **Полная инструкция по решению проблем:** [MACOS_FIX.md](https://github.com/rd8r8bkd9m-tech/kolibri-project/blob/main/MACOS_FIX.md)
+
+### Linux:
+```bash
+# Рекомендуется компилировать
+curl -L -o kolibri.c https://github.com/rd8r8bkd9m-tech/kolibri-project/raw/main/tools/kolibri_archiver_v3.c
+gcc -O3 -o kolibri-archive kolibri.c
 ./kolibri-archive compress input.bin output.kolibri
 ```
 

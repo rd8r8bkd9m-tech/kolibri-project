@@ -70,6 +70,22 @@ MD5 восстановл.: 90672a90fba312a3860b25b8861e8bd9 ✅
 
 ## 🧪 Как клиент может проверить
 
+### ⚠️ macOS: Если не запускается
+macOS блокирует скачанные файлы. **Рекомендуется компилировать:**
+```bash
+curl -L -o kolibri.c https://github.com/rd8r8bkd9m-tech/kolibri-project/raw/main/tools/kolibri_archiver_v3.c
+gcc -O3 -o kolibri kolibri.c
+./kolibri compress test.bin test.kolibri
+```
+
+Или снять карантин:
+```bash
+xattr -d com.apple.quarantine kolibri-archive
+chmod +x kolibri-archive
+```
+
+📖 Полная инструкция: [MACOS_FIX.md](https://github.com/rd8r8bkd9m-tech/kolibri-project/blob/main/MACOS_FIX.md)
+
 ### Вариант 1: Автоматическая проверка
 ```bash
 # Скачать скрипт
