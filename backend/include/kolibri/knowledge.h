@@ -20,10 +20,10 @@ typedef struct {
 int kolibri_knowledge_index_init(KolibriKnowledgeIndex *index);
 void kolibri_knowledge_index_free(KolibriKnowledgeIndex *index);
 int kolibri_knowledge_index_load_directory(KolibriKnowledgeIndex *index, const char *root_path);
-size_t kolibri_knowledge_search(const KolibriKnowledgeIndex *index,
-                                const char *query,
-                                size_t limit,
-                                const KolibriKnowledgeDocument **results,
-                                double *scores);
+size_t kolibri_knowledge_search_legacy(const KolibriKnowledgeIndex *index,
+                                       const char *query,
+                                       size_t limit,
+                                       const KolibriKnowledgeDocument **results,
+                                       double *scores);
 
 #endif /* KOLIBRI_KNOWLEDGE_H */
