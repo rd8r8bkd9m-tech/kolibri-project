@@ -24,7 +24,9 @@ Kolibri OS теперь включает мощную систему архив�
 ./build/kolibri_archiver test myfile.txt
 ```
 
-Подробная документация: [docs/archiver.md](docs/archiver.md) | [apps/README_ARCHIVER.md](apps/README_ARCHIVER.md)
+Подробная документация: [docs/archiver_ru.md](docs/archiver_ru.md) | [apps/README_ARCHIVER_RU.md](apps/README_ARCHIVER_RU.md) | [ARCHIVER_SUMMARY_RU.md](ARCHIVER_SUMMARY_RU.md)
+
+Документация на английском: [docs/archiver.md](docs/archiver.md) | [apps/README_ARCHIVER.md](apps/README_ARCHIVER.md) | [ARCHIVER_SUMMARY.md](ARCHIVER_SUMMARY.md)
 
 ## 🚀 AGI v2.0 Development (In Progress)
 
