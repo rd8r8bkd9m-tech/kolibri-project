@@ -77,35 +77,34 @@ chmod +x verify_1gb.sh
 
 ## 🚀 БЫСТРАЯ УСТАНОВКА
 
-### ⚠️ macOS: Проблемы с запуском?
-**Рекомендуется компилировать из исходников** (1 секунда):
+### ⚡ ONE-LINER (рекомендуется для macOS/Linux):
+```bash
+curl -fsSL https://raw.githubusercontent.com/rd8r8bkd9m-tech/kolibri-project/main/install.sh | bash
+```
+Автоматически скачивает исходник, компилирует и проверяет. **Нет проблем с карантином!**
+
+### 📦 Или вручную (3 команды):
 ```bash
 # Скачать исходник
-curl -L -o kolibri.c https://github.com/rd8r8bkd9m-tech/kolibri-project/raw/main/tools/kolibri_archiver_v3.c
+curl -fsSL https://raw.githubusercontent.com/rd8r8bkd9m-tech/kolibri-project/main/tools/kolibri_archiver_v3.c -o kolibri.c
 
 # Скомпилировать
 gcc -O3 -o kolibri-archive kolibri.c
-
-# Готово!
-./kolibri-archive compress input.bin output.kolibri
-```
-
-**Или снять карантин macOS:**
-```bash
-# Скачать
-curl -L -o kolibri-archive https://github.com/rd8r8bkd9m-tech/kolibri-project/raw/main/tools/kolibri-archive-v3
-
-# Снять карантин + сделать исполняемым
-xattr -d com.apple.quarantine kolibri-archive 2>/dev/null || true
-chmod +x kolibri-archive
 
 # Использовать
 ./kolibri-archive compress input.bin output.kolibri
 ```
 
-📖 **Полная инструкция по решению проблем:** [MACOS_FIX.md](https://github.com/rd8r8bkd9m-tech/kolibri-project/blob/main/MACOS_FIX.md)
+### ⚠️ macOS: Скачанный бинарник не работает?
+macOS Gatekeeper блокирует скачанные файлы. **Используйте компиляцию выше** или снимите карантин:
+```bash
+xattr -d com.apple.quarantine kolibri-archive 2>/dev/null || true
+chmod +x kolibri-archive
+```
 
-### Linux:
+📖 **Полная инструкция:** [MACOS_FIX.md](https://github.com/rd8r8bkd9m-tech/kolibri-project/blob/main/MACOS_FIX.md)
+
+### 🐧 Linux:
 ```bash
 # Рекомендуется компилировать
 curl -L -o kolibri.c https://github.com/rd8r8bkd9m-tech/kolibri-project/raw/main/tools/kolibri_archiver_v3.c
