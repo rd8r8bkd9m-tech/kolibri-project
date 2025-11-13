@@ -93,3 +93,4 @@ cloud-storage/server.log
 *.generated.*
 token.txt
 auth.token
+_codeql_build_dir/

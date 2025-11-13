@@ -112,3 +112,48 @@ int kolibri_bridge_execute(const char *program_utf8, char *out_buffer, size_t ou
     return (int)written;
 #endif
 }
+
+/* Compression WASM exports */
+#include "kolibri/compress.h"
+
+static KolibriCompressor *g_compressor = NULL;
+
+int kolibri_bridge_compress_init(void) {
+    if (g_compressor) {
+        kolibri_compressor_destroy(g_compressor);
+    }
+    g_compressor = kolibri_compressor_create(KOLIBRI_COMPRESS_ALL);
+    return g_compressor ? 0 : -1;
+}
+
+int kolibri_bridge_compress(const uint8_t *input, size_t input_size,
+                            uint8_t **output, size_t *output_size) {
+    if (!g_compressor) {
+        if (kolibri_bridge_compress_init() != 0) {
+            return -1;
+        }
+    }
+    
+    return kolibri_compress(g_compressor, input, input_size,
+                           output, output_size, NULL);
+}
+
+int kolibri_bridge_decompress(const uint8_t *input, size_t input_size,
+                               uint8_t **output, size_t *output_size) {
+    return kolibri_decompress(input, input_size, output, output_size, NULL);
+}
+
+void kolibri_bridge_compress_cleanup(void) {
+    if (g_compressor) {
+        kolibri_compressor_destroy(g_compressor);
+        g_compressor = NULL;
+    }
+}
+
+uint32_t kolibri_bridge_checksum(const uint8_t *data, size_t size) {
+    return kolibri_checksum(data, size);
+}
+
+int kolibri_bridge_file_type(const uint8_t *data, size_t size) {
+    return kolibri_detect_file_type(data, size);
+}

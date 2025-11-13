@@ -338,11 +338,11 @@ static int compare_ranked(const void *lhs, const void *rhs) {
     return 0;
 }
 
-size_t kolibri_knowledge_search(const KolibriKnowledgeIndex *index,
-                                const char *query,
-                                size_t limit,
-                                const KolibriKnowledgeDocument **results,
-                                double *scores) {
+size_t kolibri_knowledge_search_legacy(const KolibriKnowledgeIndex *index,
+                                       const char *query,
+                                       size_t limit,
+                                       const KolibriKnowledgeDocument **results,
+                                       double *scores) {
     if (!index || index->count == 0 || !query || !results) {
         return 0;
     }
