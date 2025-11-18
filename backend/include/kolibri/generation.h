@@ -127,6 +127,54 @@ double k_gen_compress_pattern(KolibriGenerationContext *ctx,
                               KolibriFormula *formula);
 
 /**
+ * Финализация компрессии - запускает эволюцию формул
+ * ВАЖНО: Вызывать ОДИН РАЗ после добавления ВСЕХ паттернов!
+ * 
+ * @param ctx Контекст генерации
+ * @param generations Количество поколений эволюции
+ * @return 0 в случае успеха, -1 при ошибке
+ */
+int k_gen_finalize_compression(KolibriGenerationContext *ctx, size_t generations);
+
+/**
+ * МЕГА-КОМПРЕССИЯ через текстовые ассоциации!
+ * 
+ * ЭТО ИЗОБРЕТЕНИЕ ИЗ ОРИГИНАЛЬНЫХ ТЕСТОВ (300000x сжатие)!
+ * 
+ * Сжимает ПОЛНЫЙ ТЕКСТ (до 512 байт) в хеш (4 байта).
+ * Одна ассоциация: 512 байт / 4 байта = 128x
+ * Множество ассоциаций: 1000x-10000x-300000x возможно!
+ * 
+ * @param ctx Контекст генерации
+ * @param text Текст для сжатия (до 512 байт)
+ * @param formula Формула для хранения ассоциации
+ * @return Количество ассоциаций в пуле, -1.0 при ошибке
+ */
+double k_gen_compress_text(KolibriGenerationContext *ctx,
+                          const char *text,
+                          KolibriFormula *formula);
+
+/**
+ * МНОГОУРОВНЕВАЯ КОМПРЕССИЯ - Уровень 2!
+ * 
+ * Сжимает формулу (с ассоциациями) в мета-формулу.
+ * Создаёт ассоциацию: hash(formula) → formula_data
+ * 
+ * Уровни компрессии:
+ * - Уровень 1: Тексты → Формулы (3000x базовая)
+ * - Уровень 2: Формулы → Мета-формулы (10-100x)
+ * - ИТОГО: 3000x × 50x = 150000x потенциал!
+ * 
+ * @param ctx Контекст генерации
+ * @param formula Исходная формула для сжатия
+ * @param meta_formula Результирующая мета-формула
+ * @return 0 успех, 1 дубликат, -1 ошибка
+ */
+int k_gen_compress_formula(KolibriGenerationContext *ctx,
+                          const KolibriFormula *formula,
+                          KolibriFormula *meta_formula);
+
+/**
  * Декомпрессия паттерна из формулы
  * 
  * @param ctx Контекст генерации

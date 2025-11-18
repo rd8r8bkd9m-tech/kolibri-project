@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kolibri Compressor - GPU Accelerated</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .stat {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .drop-zone {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 60px 40px;
+            text-align: center;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .drop-zone:hover {
+            background: #f0f2ff;
+            border-color: #764ba2;
+            transform: translateY(-2px);
+        }
+        
+        .drop-zone.dragover {
+            background: #e6e9ff;
+            border-color: #764ba2;
+            border-style: solid;
+        }
+        
+        .drop-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+        
+        .drop-text {
+            font-size: 1.3em;
+            color: #495057;
+            margin-bottom: 10px;
+        }
+        
+        .drop-subtext {
+            color: #6c757d;
+        }
+        
+        .progress-container {
+            margin-top: 30px;
+            display: none;
+        }
+        
+        .progress-bar {
+            height: 30px;
+            background: #e9ecef;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .result {
+            margin-top: 30px;
+            padding: 25px;
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 10px;
+            display: none;
+        }
+        
+        .result h3 {
+            color: #155724;
+            margin-bottom: 15px;
+        }
+        
+        .result-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .result-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        
+        .result-label {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+        
+        .result-value {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #155724;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.1em;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .comparison {
+            margin-top: 20px;
+            padding: 20px;
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 10px;
+            display: none;
+        }
+        
+        .comparison h4 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Kolibri Generative</h1>
+            <p>Generative Compression in Your Browser (CPU Simulation)</p>
+        </div>
+        
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-value" id="speedStat">N/A</div>
+                <div class="stat-label">JS Speed</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="ratioStat">~∞</div>
+                <div class="stat-label">Theoretical Ratio</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="filesStat">0</div>
+                <div class="stat-label">files processed</div>
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-icon">🧬</div>
+                <div class="drop-text">Перетащите файл для генеративного сжатия</div>
+                <div class="drop-subtext">или нажмите для выбора</div>
+                <input type="file" id="fileInput" style="display: none;">
+            </div>
+            
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill">0%</div>
+                </div>
+            </div>
+            
+            <div class="result" id="result">
+                <h3>✅ Генерация завершена!</h3>
+                <div class="result-grid">
+                    <div class="result-item">
+                        <div class="result-label">Исходный размер</div>
+                        <div class="result-value" id="originalSize">-</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">Размер представления (L5)</div>
+                        <div class="result-value" id="compressedSize">-</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">Коэффициент (теоретический)</div>
+                        <div class="result-value" id="ratio">-</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">Время</div>
+                        <div class="result-value" id="time">-</div>
+                    </div>
+                </div>
+                <button class="btn" id="downloadBtn">📥 Скачать .kgen файл</button>
+            </div>
+            
+            <div class="comparison" id="comparison">
+                <h4>📊 Концепция</h4>
+                <p id="comparisonText"></p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // --- Generative Archiver Logic (JavaScript Port) ---
+
+        // DJB2 Hash
+        function hashData(data) {
+            let hash = 5381;
+            for (let i = 0; i < data.length; i++) {
+                hash = (hash * 33) ^ data[i];
+            }
+            return hash >>> 0; // Ensure unsigned 32-bit integer
+        }
+
+        // L1 -> L2: Binary to Decimal String
+        function level1_to_level2(input) {
+            const out_size = input.length * 3;
+            const output = new Uint8Array(out_size);
+            const textEncoder = new TextEncoder();
+            for (let i = 0; i < input.length; i++) {
+                const s = input[i].toString().padStart(3, '0');
+                output.set(textEncoder.encode(s), i * 3);
+            }
+            return output;
+        }
+
+        // L2 -> L3: "Formula"
+        function level2_to_level3(l2_data) {
+            const l3_output = new Uint8Array(36);
+            const l2_hash = hashData(l2_data);
+            const view = new DataView(l3_output.buffer);
+            view.setUint32(0, l2_hash, true);
+            for (let i = 4; i < 36; i++) {
+                l3_output[i] = (l2_hash >> ((i % 4) * 8)) & 0xFF;
+            }
+            return l3_output;
+        }
+
+        // L3 -> L4: "Meta-Formula"
+        function level3_to_level4(l3_data) {
+            const l4_output = new Uint8Array(12);
+            const l3_hash = hashData(l3_data);
+            const view = new DataView(l4_output.buffer);
+            view.setUint32(0, l3_hash, true);
+            for (let i = 4; i < 12; i++) {
+                l4_output[i] = (l3_hash >> ((i % 4) * 8)) & 0xFF;
+            }
+            return l4_output;
+        }
+
+        // L4 -> L5: "Super-Meta"
+        function level4_to_level5(l4_data) {
+            const l5_output = new Uint8Array(6);
+            const l4_hash = hashData(l4_data);
+            const view = new DataView(l5_output.buffer);
+            view.setUint32(0, l4_hash, true); // Super-hash
+            view.setUint16(4, l4_data.length, true); // "Parameters"
+            return l5_output;
+        }
+
+        // --- Main Compression Function ---
+        function compress(data) {
+            console.log(`L1 (input): ${data.length} bytes`);
+            updateProgress(10);
+            
+            const l2_data = level1_to_level2(data);
+            console.log(`L2 (decimal): ${l2_data.length} bytes`);
+            updateProgress(30);
+
+            const l3_data = level2_to_level3(l2_data);
+            console.log(`L3 (formula): ${l3_data.length} bytes`);
+            updateProgress(50);
+
+            const l4_data = level3_to_level4(l3_data);
+            console.log(`L4 (meta): ${l4_data.length} bytes`);
+            updateProgress(70);
+
+            const l5_data = level4_to_level5(l4_data);
+            console.log(`L5 (super-meta): ${l5_data.length} bytes`);
+            updateProgress(90);
+
+            // Create final archive file (Header + Original Data for simulation)
+            const headerSize = 12; // magic (4) + original_size (4) + l5_hash (4)
+            const finalArchive = new Uint8Array(headerSize + data.length);
+            const view = new DataView(finalArchive.buffer);
+            
+            // Header
+            view.setUint32(0, 0x4B47454E, true); // "KGEN"
+            view.setUint32(4, data.length, true);
+            view.setUint32(8, new DataView(l5_data.buffer).getUint32(0, true), true);
+            
+            // Original data (for simulated decompression)
+            finalArchive.set(data, headerSize);
+            
+            updateProgress(100);
+            console.log(`Final archive size: ${finalArchive.length} bytes`);
+
+            return {
+                archive: finalArchive,
+                headerSize: headerSize
+            };
+        }
+        
+        // --- UI and File Handling ---
+        
+        let filesProcessed = 0;
+        let compressedArchive = null;
+        let originalFilename = '';
+        
+        // Форматирование размера
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const units = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${units[i]}`;
+        }
+        
+        // Обновление прогресса
+        function updateProgress(percent) {
+            const progressFill = document.getElementById('progressFill');
+            progressFill.style.width = percent + '%';
+            progressFill.textContent = percent + '%';
+        }
+        
+        // Обработка файла
+        async function processFile(file) {
+            originalFilename = file.name;
+            document.getElementById('progressContainer').style.display = 'block';
+            document.getElementById('result').style.display = 'none';
+            
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const data = new Uint8Array(e.target.result);
+                const originalSize = data.length;
+                
+                const startTime = performance.now();
+                const { archive, headerSize } = compress(data);
+                const endTime = performance.now();
+                
+                const elapsed = (endTime - startTime) / 1000;
+                const ratio = originalSize / headerSize;
+                
+                compressedArchive = archive;
+                
+                // Показываем результат
+                document.getElementById('originalSize').textContent = formatSize(originalSize);
+                document.getElementById('compressedSize').textContent = `${headerSize} bytes`;
+                document.getElementById('ratio').textContent = `${ratio.toFixed(0)}×`;
+                document.getElementById('time').textContent = `${elapsed.toFixed(3)} с`;
+                
+                document.getElementById('result').style.display = 'block';
+                
+                filesProcessed++;
+                document.getElementById('filesStat').textContent = filesProcessed;
+                
+                document.getElementById('comparison').style.display = 'block';
+                document.getElementById('comparisonText').textContent = 
+                    `Это симуляция. Архив содержит заголовок (${headerSize} байт) и исходные данные для восстановления. Теоретический коэффициент сжатия - это отношение исходного размера к размеру заголовка.`;
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+        
+        // Скачивание
+        document.getElementById('downloadBtn').addEventListener('click', function() {
+            if (!compressedArchive) return;
+            
+            const blob = new Blob([compressedArchive], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = originalFilename + '.kgen';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+        
+        // Drag and drop
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                processFile(files[0]);
+            }
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                processFile(e.target.files[0]);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
+from .gpu_store import router as gpu_router
 
 
 @dataclass
@@ -68,7 +69,8 @@ class InferenceResponse(BaseModel):
     latency_ms: Optional[float] = Field(default=None, description="End-to-end latency for the upstream call")
 
 
-app = FastAPI(title="Kolibri LLM proxy", version="0.1.0")
+app = FastAPI(title="Kolibri AI backend", version="0.2.0")
+app.include_router(gpu_router)
 
 
 def _extract_text(payload: Any) -> str:

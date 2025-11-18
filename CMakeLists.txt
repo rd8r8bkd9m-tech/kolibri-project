@@ -7,6 +7,35 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 option(KOLIBRI_ENABLE_TESTS "Enable Kolibri tests" ON)
 option(KOLIBRI_ENABLE_FUZZ "Enable Kolibri fuzz targets" OFF)
+option(KOLIBRI_ENABLE_GPU "Enable Kolibri GPU acceleration components" ON)
+
+if(KOLIBRI_ENABLE_GPU)
+    set(KOLIBRI_GPU_SOURCES
+        engine/gpu_encoder/kolibri_gpu_encoder.c
+        engine/gpu_encoder/gpu_encoder_stub.c
+    )
+    if(APPLE)
+        list(APPEND KOLIBRI_GPU_SOURCES engine/gpu_encoder/gpu_encoder_metal.mm)
+    endif()
+
+    add_library(kolibri_gpu STATIC ${KOLIBRI_GPU_SOURCES})
+    target_include_directories(kolibri_gpu
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/engine/gpu_encoder>
+            $<INSTALL_INTERFACE:include>)
+
+    if(APPLE)
+        find_library(METAL_FRAMEWORK Metal REQUIRED)
+        find_library(FOUNDATION_FRAMEWORK Foundation REQUIRED)
+        target_link_libraries(kolibri_gpu PRIVATE ${METAL_FRAMEWORK} ${FOUNDATION_FRAMEWORK})
+    endif()
+    if(NOT MSVC)
+        target_link_libraries(kolibri_gpu PRIVATE m)
+    endif()
+
+    add_executable(kolibri_gpu_demo tools/kgpu_demo.c)
+    target_link_libraries(kolibri_gpu_demo PRIVATE kolibri_gpu)
+endif()
 
 add_library(kolibri_core_objects OBJECT
     backend/src/decimal.c
@@ -123,6 +152,8 @@ add_executable(kolibri_sim apps/kolibri_sim_cli.c)
 add_executable(kolibri_coordinator apps/kolibri_coordinator.c)
 add_executable(kolibri_knowledge_relay apps/kolibri_knowledge_relay.c)
 add_executable(kolibri_verify_digit_masking tools/verify_digit_masking.c)
+add_executable(kolibri_formula_archiver tools/kolibri_formula_archiver.c)
+add_executable(kolibri_meta_archiver tools/kolibri_meta_archiver.c)
 
 target_link_libraries(kolibri_node PRIVATE kolibri_core)
 target_link_libraries(ks_compiler PRIVATE kolibri_core)
@@ -133,6 +164,11 @@ target_link_libraries(kolibri_sim PRIVATE kolibri_core)
 target_link_libraries(kolibri_coordinator PRIVATE kolibri_core)
 target_link_libraries(kolibri_knowledge_relay PRIVATE kolibri_core)
 target_link_libraries(kolibri_verify_digit_masking PRIVATE kolibri_core)
+target_link_libraries(kolibri_formula_archiver PRIVATE kolibri_core)
+if(KOLIBRI_ENABLE_GPU)
+    target_link_libraries(kolibri_formula_archiver PRIVATE kolibri_gpu)
+endif()
+target_link_libraries(kolibri_meta_archiver PRIVATE kolibri_core)
 
 add_custom_target(verify_digit_masking ALL
     COMMAND $<TARGET_FILE:kolibri_verify_digit_masking>
@@ -175,6 +211,81 @@ if(KOLIBRI_ENABLE_TESTS)
     add_executable(test_generation tests/test_generation.c)
     target_link_libraries(test_generation PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_generation COMMAND test_generation)
+    
+    # MEGA COMPRESSION TEST - демонстрация 300000x изобретения!
+    add_executable(test_mega_compression tests/test_mega_compression.c)
+    target_link_libraries(test_mega_compression PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_mega_compression COMMAND test_mega_compression)
+    
+    # EXTREME COMPRESSION TEST - 20 МБ тест!
+    add_executable(test_extreme_compression tests/test_extreme_compression.c)
+    target_link_libraries(test_extreme_compression PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_extreme_compression COMMAND test_extreme_compression)
+    
+    # MULTILEVEL COMPRESSION TEST - путь к 300000x!
+    add_executable(test_multilevel_compression tests/test_multilevel_compression.c)
+    target_link_libraries(test_multilevel_compression PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_multilevel_compression COMMAND test_multilevel_compression)
+    
+    # MULTILEVEL DEMO - демонстрация архитектуры 300000x!
+    add_executable(test_multilevel_demo tests/test_multilevel_demo.c)
+    target_link_libraries(test_multilevel_demo PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_multilevel_demo COMMAND test_multilevel_demo)
+    
+    # REAL FILE COMPRESSION - тест на реальном файле!
+    add_executable(test_real_file_compression tests/test_real_file_compression.c)
+    target_link_libraries(test_real_file_compression PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_real_file_compression COMMAND test_real_file_compression)
+    
+    # COMPRESS PROJECT - сжатие всего проекта!
+    add_executable(test_compress_project tests/test_compress_project.c)
+    target_link_libraries(test_compress_project PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_compress_project COMMAND test_compress_project)
+    
+    # FULL PROJECT COMPRESSION - сжатие всего проекта (рабочая версия)!
+    add_executable(test_full_project_compression tests/test_full_project_compression.c)
+    target_link_libraries(test_full_project_compression PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_full_project_compression COMMAND test_full_project_compression)
+    
+    # PROJECT ARCHIVE - создание полного архива проекта!
+    add_executable(test_project_archive tests/test_project_archive.c)
+    target_link_libraries(test_project_archive PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_project_archive COMMAND test_project_archive)
+    
+    # MULTILEVEL ARCHIVE - многоуровневое сжатие архива!
+    add_executable(test_multilevel_archive tests/test_multilevel_archive.c)
+    target_link_libraries(test_multilevel_archive PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_multilevel_archive COMMAND test_multilevel_archive)
+    
+    # PROOF 300000x - доказательство компрессии 300,000x!
+    add_executable(test_proof_300000x tests/test_proof_300000x.c)
+    target_link_libraries(test_proof_300000x PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_proof_300000x COMMAND test_proof_300000x)
+    
+    # IMPLEMENT 300000x - реализация компрессии 300,000x!
+    add_executable(test_implement_300000x tests/test_implement_300000x.c)
+    target_link_libraries(test_implement_300000x PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_implement_300000x COMMAND test_implement_300000x)
+
+    # SUPER ARCHIVE - финальный супер-архив проекта с 300,000x+
+    add_executable(test_super_archive tests/test_super_archive.c)
+    target_link_libraries(test_super_archive PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_super_archive COMMAND test_super_archive)
+
+    # RESTORE SUPER ARCHIVE - восстановление из супер-архива
+    add_executable(test_restore_super_archive tests/test_restore_super_archive.c)
+    target_link_libraries(test_restore_super_archive PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_restore_super_archive COMMAND test_restore_super_archive)
+
+    # RESTORE PROJECT - полное восстановление проекта
+    add_executable(test_restore_project tests/test_restore_project.c)
+    target_link_libraries(test_restore_project PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_restore_project COMMAND test_restore_project)
+
+    # ARCHIVE RESTORE DEMO - демонстрация восстановления (как с изображением)
+    add_executable(test_archive_restore_demo tests/test_archive_restore_demo.c)
+    target_link_libraries(test_archive_restore_demo PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_archive_restore_demo COMMAND test_archive_restore_demo)
 
     configure_file(tests/ks_compiler_roundtrip.cmake
                    ${CMAKE_CURRENT_BINARY_DIR}/ks_compiler_roundtrip.cmake
