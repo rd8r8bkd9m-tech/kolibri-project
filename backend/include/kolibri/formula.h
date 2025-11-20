@@ -29,8 +29,8 @@ typedef struct {
     char source[64];
 } KolibriAssociation;
 
-#define KOLIBRI_FORMULA_MAX_ASSOCIATIONS 32
-#define KOLIBRI_POOL_MAX_ASSOCIATIONS 64
+#define KOLIBRI_FORMULA_MAX_ASSOCIATIONS 320
+#define KOLIBRI_POOL_MAX_ASSOCIATIONS 10000
 
 typedef struct {
     KolibriGene gene;

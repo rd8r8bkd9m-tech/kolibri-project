@@ -28,3 +28,6 @@ if [[ -d "$approved_dir" ]]; then
 fi
 
 "$project_root/build/kolibri_indexer" build --output "$output_dir" "${roots[@]}"
+
+spectral_json="$output_dir/spectral_profiles.json"
+python3 "$project_root/scripts/spectral_fingerprint.py" --output "$spectral_json" "${roots[@]}"
