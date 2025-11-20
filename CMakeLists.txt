@@ -56,6 +56,7 @@ add_library(kolibri_core_objects OBJECT
     backend/src/context_window.c
     backend/src/corpus_learning.c
     backend/src/text_generation.c
+    backend/src/compress.c
 )
 
 target_include_directories(kolibri_core_objects
@@ -128,7 +129,7 @@ if(NOT KOLIBRI_OPENSSL_TARGET)
 endif()
 
 target_link_libraries(kolibri_core_objects PUBLIC ${KOLIBRI_OPENSSL_TARGET})
-target_link_libraries(kolibri_core PUBLIC ${KOLIBRI_OPENSSL_TARGET} SQLite::SQLite3)
+target_link_libraries(kolibri_core PUBLIC ${KOLIBRI_OPENSSL_TARGET} SQLite::SQLite3 m)
 
 add_library(kolibri_wasm STATIC
     backend/src/wasm_bridge.c
@@ -152,6 +153,7 @@ add_executable(kolibri_sim apps/kolibri_sim_cli.c)
 add_executable(kolibri_coordinator apps/kolibri_coordinator.c)
 add_executable(kolibri_knowledge_relay apps/kolibri_knowledge_relay.c)
 add_executable(kolibri_verify_digit_masking tools/verify_digit_masking.c)
+add_executable(kolibri_archiver apps/kolibri_archiver.c)
 add_executable(kolibri_formula_archiver tools/kolibri_formula_archiver.c)
 add_executable(kolibri_meta_archiver tools/kolibri_meta_archiver.c)
 
@@ -164,6 +166,7 @@ target_link_libraries(kolibri_sim PRIVATE kolibri_core)
 target_link_libraries(kolibri_coordinator PRIVATE kolibri_core)
 target_link_libraries(kolibri_knowledge_relay PRIVATE kolibri_core)
 target_link_libraries(kolibri_verify_digit_masking PRIVATE kolibri_core)
+target_link_libraries(kolibri_archiver PRIVATE kolibri_core)
 target_link_libraries(kolibri_formula_archiver PRIVATE kolibri_core)
 if(KOLIBRI_ENABLE_GPU)
     target_link_libraries(kolibri_formula_archiver PRIVATE kolibri_gpu)
@@ -212,6 +215,10 @@ if(KOLIBRI_ENABLE_TESTS)
     target_link_libraries(test_generation PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_generation COMMAND test_generation)
     
+    # Kolibri Archiver: Compression tests
+    add_executable(test_compress tests/test_compress.c)
+    target_link_libraries(test_compress PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_compress COMMAND test_compress)
     # MEGA COMPRESSION TEST - демонстрация 300000x изобретения!
     add_executable(test_mega_compression tests/test_mega_compression.c)
     target_link_libraries(test_mega_compression PRIVATE kolibri_core Threads::Threads)

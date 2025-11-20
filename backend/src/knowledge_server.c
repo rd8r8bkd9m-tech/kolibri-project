@@ -508,7 +508,7 @@ static void handle_client(int client_fd, const KolibriKnowledgeIndex *index) {
     if (limit > 16U) {
         limit = 16U;
     }
-    size_t found = kolibri_knowledge_search(index, query, limit, results, scores);
+    size_t found = kolibri_knowledge_search_legacy(index, query, limit, results, scores);
 
     char response[KOLIBRI_RESPONSE_BUFFER];
     size_t offset = 0;

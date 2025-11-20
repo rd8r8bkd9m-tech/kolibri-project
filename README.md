@@ -51,6 +51,32 @@ gcc tools/kolibri_archiver_v10.c -o kolibri -O3
 - [engine/gpu_encoder/](engine/gpu_encoder/) — кодер/декодер ReasonBlock на CUDA/Metal
 - [scripts/spectral_fingerprint.py](scripts/spectral_fingerprint.py) — спектральный анализ входных знаний
 
+## 📦 Kolibri Archiver - Advanced Compression System
+
+Kolibri OS теперь включает мощную систему архивирования с многоуровневым сжатием:
+
+- **Высокие коэффициенты сжатия**: 5-40x в зависимости от типа данных
+- **Многослойное сжатие**: Математический анализ + LZ77 + RLE
+- **Целостность данных**: Проверка CRC32
+- **Поддержка архивов**: Несколько файлов в одном архиве
+
+### Быстрый старт с архиватором
+
+```bash
+# Сжать файл
+./build/kolibri_archiver compress myfile.txt myfile.klb
+
+# Распаковать файл
+./build/kolibri_archiver decompress myfile.klb restored.txt
+
+# Протестировать коэффициент сжатия
+./build/kolibri_archiver test myfile.txt
+```
+
+Подробная документация: [docs/archiver_ru.md](docs/archiver_ru.md) | [apps/README_ARCHIVER_RU.md](apps/README_ARCHIVER_RU.md) | [ARCHIVER_SUMMARY_RU.md](ARCHIVER_SUMMARY_RU.md)
+
+Документация на английском: [docs/archiver.md](docs/archiver.md) | [apps/README_ARCHIVER.md](apps/README_ARCHIVER.md) | [ARCHIVER_SUMMARY.md](ARCHIVER_SUMMARY.md)
+
 ## 🚀 AGI v2.0 Development (In Progress)
 
 Kolibri OS расширяется в направлении полноценной системы искусственного интеллекта, сохраняя уникальный подход "мышления числами". См. [ROADMAP_AGI.md](ROADMAP_AGI.md) для полного плана развития.
