@@ -143,7 +143,6 @@ def _analyze_metrics(path: Path) -> None:
     highlights = []
     for (src, dst), recs in per_edge.items():
         ok = [r for r in recs if r.get("ok")]
-        fail = [r for r in recs if not r.get("ok")]
         bytes_list = [float(r.get("bytes", 0)) for r in ok]
         dur_list = [float(r.get("duration_sec", 0.0)) for r in ok if r.get("duration_sec")]
         total_b = int(sum(bytes_list))
