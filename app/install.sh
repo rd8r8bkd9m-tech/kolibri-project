@@ -5,6 +5,10 @@
 
 set -e
 
+# Get the script directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$SCRIPT_DIR"
+
 echo "=================================="
 echo "Kolibri Smeta - Installation"
 echo "=================================="
@@ -65,7 +69,15 @@ else
     USE_DOCKER=true
 fi
 
-if ! check_command docker-compose && [ "$USE_DOCKER" = true ]; then
+# Check for docker-compose (v1) or docker compose (v2)
+DOCKER_COMPOSE_CMD=""
+if command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE_CMD="docker-compose"
+elif docker compose version &> /dev/null; then
+    DOCKER_COMPOSE_CMD="docker compose"
+fi
+
+if [ -z "$DOCKER_COMPOSE_CMD" ] && [ "$USE_DOCKER" = true ]; then
     log_warn "Docker Compose не найден"
     USE_DOCKER=false
 fi
@@ -107,7 +119,7 @@ esac
 install_backend() {
     log_info "Установка Backend..."
     
-    cd backend
+    cd "$SCRIPT_DIR/backend"
     
     # Install dependencies
     log_info "Установка зависимостей..."
@@ -125,14 +137,14 @@ install_backend() {
     npm run build
     
     log_info "Backend установлен"
-    cd ..
+    cd "$SCRIPT_DIR"
 }
 
 # Frontend installation
 install_frontend() {
     log_info "Установка Frontend..."
     
-    cd frontend
+    cd "$SCRIPT_DIR/frontend"
     
     # Install dependencies
     log_info "Установка зависимостей..."
@@ -149,14 +161,14 @@ install_frontend() {
     npm run build
     
     log_info "Frontend установлен"
-    cd ..
+    cd "$SCRIPT_DIR"
 }
 
 # WASM installation
 install_wasm() {
     log_info "Сборка WASM ядра..."
     
-    cd wasm_core
+    cd "$SCRIPT_DIR/wasm_core"
     
     if ! check_command emcc; then
         log_warn "Emscripten не установлен. WASM не будет собран"
@@ -166,12 +178,14 @@ install_wasm() {
         log_info "WASM ядро собрано"
     fi
     
-    cd ..
+    cd "$SCRIPT_DIR"
 }
 
 # Docker installation
 install_docker() {
     log_info "Установка с Docker..."
+    
+    cd "$SCRIPT_DIR"
     
     # Check docker-compose file
     if [ ! -f docker-compose.yml ]; then
@@ -187,11 +201,11 @@ install_docker() {
     
     # Build images
     log_info "Сборка Docker образов..."
-    docker-compose build
+    $DOCKER_COMPOSE_CMD build
     
     # Start services
     log_info "Запуск сервисов..."
-    docker-compose up -d
+    $DOCKER_COMPOSE_CMD up -d
     
     log_info "Docker контейнеры запущены"
     
@@ -211,9 +225,9 @@ install_docker() {
     echo "  Frontend: http://localhost:3001"
     echo ""
     echo "Управление:"
-    echo "  Просмотр логов: docker-compose logs -f"
-    echo "  Остановка: docker-compose stop"
-    echo "  Перезапуск: docker-compose restart"
+    echo "  Просмотр логов: $DOCKER_COMPOSE_CMD logs -f"
+    echo "  Остановка: $DOCKER_COMPOSE_CMD stop"
+    echo "  Перезапуск: $DOCKER_COMPOSE_CMD restart"
 }
 
 # Execute installation
@@ -266,7 +280,7 @@ case $INSTALL_MODE in
 esac
 
 echo ""
-log_info "Документация: app/README.md"
-log_info "API документация: app/docs/API.md"
-log_info "Деплой: app/docs/DEPLOYMENT.md"
+log_info "Документация: README.md"
+log_info "API документация: docs/API.md"
+log_info "Деплой: docs/DEPLOYMENT.md"
 echo ""
