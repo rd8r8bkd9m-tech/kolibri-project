@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
-//   KOLIBRI ARCHIVER GPU v10.0 - RLE + LZ77 HYBRID
-//   Real compression: RLE for homogeneous + LZ77 for text/code
+//   KOLIBRI ARCHIVER GPU v11.0 - STREAMING LZ77 HYBRID
+//   Fixed: streaming mode instead of independent chunks
 // ═══════════════════════════════════════════════════════════════
 
 #include <stdio.h>
@@ -8,18 +8,19 @@
 #include <string.h>
 #include <stdint.h>
 #include <sys/time.h>
+#include <zlib.h>
 
-#define CHUNK_SIZE 4096
-#define MAGIC 0x4B4C4942
-#define WINDOW_SIZE 4096
+#define MAGIC 0x4B4C4943  // KLIC (новая версия)
+#define WINDOW_SIZE 32768
 #define MAX_MATCH 258
+#define MIN_MATCH 3
 
 typedef struct {
     uint32_t magic;
     uint32_t version;
     uint32_t original_size;
     uint32_t compressed_size;
-    uint32_t num_chunks;
+    uint8_t  method;  // 1=RLE, 2=LZ77, 3=ZLIB
 } __attribute__((packed)) ArchiveHeader;
 
 double get_time() {
@@ -28,14 +29,22 @@ double get_time() {
     return tv.tv_sec + tv.tv_usec / 1000000.0;
 }
 
-// Найти самое длинное совпадение в окне
-int find_longest_match(const uint8_t *data, size_t pos, size_t size, int *match_distance, int *match_length) {
+// ═══════════════════════════════════════════════════════════════
+//   STREAMING LZ77 - весь файл как один поток
+// ═══════════════════════════════════════════════════════════════
+
+// Найти самое длинное совпадение в окне (глобальный поиск)
+static int find_match(const uint8_t *data, size_t pos, size_t size, 
+                      uint16_t *match_distance, uint8_t *match_length) {
     *match_distance = 0;
     *match_length = 0;
     
-    int window_start = (pos > WINDOW_SIZE) ? (pos - WINDOW_SIZE) : 0;
+    if (pos < MIN_MATCH || size - pos < MIN_MATCH) return 0;
     
-    for (int i = window_start; i < pos; i++) {
+    size_t window_start = (pos > WINDOW_SIZE) ? (pos - WINDOW_SIZE) : 0;
+    int best_len = MIN_MATCH - 1;
+    
+    for (size_t i = window_start; i < pos; i++) {
         int len = 0;
         while (len < MAX_MATCH && 
                (pos + len) < size && 
@@ -43,72 +52,84 @@ int find_longest_match(const uint8_t *data, size_t pos, size_t size, int *match_
             len++;
         }
         
-        if (len > *match_length && len >= 3) {  // Минимум 3 байта для match
-            *match_length = len;
-            *match_distance = pos - i;
+        if (len > best_len) {
+            best_len = len;
+            *match_length = (uint8_t)len;
+            *match_distance = (uint16_t)(pos - i);
         }
     }
     
-    return (*match_length >= 3);
+    return (best_len >= MIN_MATCH);
 }
 
-// LZ77 сжатие chunk
-size_t compress_lz77(const uint8_t *chunk, size_t chunk_size, uint8_t *out) {
+// Streaming LZ77 сжатие всего файла
+// Формат: literals as-is, match = <0xFE> <distance:2> <length:1>
+// 0xFE escaped as <0xFE> <0x00>
+size_t compress_lz77_stream(const uint8_t *data, size_t size, uint8_t *out, size_t out_max) {
     size_t out_pos = 0;
     size_t pos = 0;
     
-    out[out_pos++] = 2;  // Marker: LZ77
-    uint32_t *size_ptr = (uint32_t*)(out + out_pos);
-    out_pos += 4;
-    size_t compressed_start = out_pos;
-    
-    while (pos < chunk_size) {
-        int match_dist, match_len;
+    while (pos < size) {
+        // Проверка границ буфера
+        if (out_pos >= out_max - 6) {
+            return 0;  // Буфер переполнен
+        }
         
-        if (find_longest_match(chunk, pos, chunk_size, &match_dist, &match_len)) {
-            // Match found: <1> <distance:2> <length:1>
-            out[out_pos++] = 1;  // Match flag
-            *(uint16_t*)(out + out_pos) = (uint16_t)match_dist;
+        uint16_t match_dist;
+        uint8_t match_len;
+        
+        if (find_match(data, pos, size, &match_dist, &match_len) && match_dist > 0) {
+            // Match: <0xFE> <distance:2> <length:1>
+            out[out_pos++] = 0xFE;
+            *(uint16_t*)(out + out_pos) = match_dist;
             out_pos += 2;
-            out[out_pos++] = (uint8_t)match_len;
+            out[out_pos++] = match_len;
             pos += match_len;
         } else {
-            // Literal: <0> <byte>
-            out[out_pos++] = 0;  // Literal flag
-            out[out_pos++] = chunk[pos];
+            // Literal: если 0xFE, экранируем как <0xFE><0x00>
+            if (data[pos] == 0xFE) {
+                out[out_pos++] = 0xFE;
+                out[out_pos++] = 0x00;
+            } else {
+                out[out_pos++] = data[pos];
+            }
             pos++;
         }
     }
     
-    *size_ptr = out_pos - compressed_start;
     return out_pos;
 }
 
-// LZ77 декомпрессия
-size_t decompress_lz77(const uint8_t *compressed, uint8_t *out) {
-    uint32_t compressed_size = *(uint32_t*)(compressed + 1);
-    size_t in_pos = 5;
+// Streaming LZ77 декомпрессия
+size_t decompress_lz77_stream(const uint8_t *compressed, size_t comp_size, uint8_t *out) {
+    size_t in_pos = 0;
     size_t out_pos = 0;
-    size_t in_end = 5 + compressed_size;
     
-    while (in_pos < in_end) {
-        uint8_t flag = compressed[in_pos++];
-        
-        if (flag == 1) {
-            // Match
-            uint16_t distance = *(uint16_t*)(compressed + in_pos);
-            in_pos += 2;
-            uint8_t length = compressed[in_pos++];
+    while (in_pos < comp_size) {
+        if (compressed[in_pos] == 0xFE) {
+            in_pos++;
+            if (in_pos >= comp_size) break;
             
-            // Copy from window (важно копировать по одному байту для overlapping)
-            size_t copy_pos = out_pos - distance;
-            for (int i = 0; i < length; i++) {
-                out[out_pos] = out[copy_pos];
-                out_pos++;
-                copy_pos++;
+            // Проверяем: это escaped 0xFE или match?
+            // Если следующие 2 байта = 0x0000, это escaped literal
+            if (compressed[in_pos] == 0x00 && (in_pos + 1 >= comp_size || compressed[in_pos + 1] == 0x00)) {
+                // Escaped 0xFE literal
+                out[out_pos++] = 0xFE;
+                in_pos++;
+            } else {
+                // Match: read distance (2 bytes) and length (1 byte)
+                uint16_t distance = *(uint16_t*)(compressed + in_pos);
+                in_pos += 2;
+                uint8_t length = compressed[in_pos++];
+                
+                // Copy from window byte-by-byte (handles overlapping)
+                for (int i = 0; i < length && out_pos > 0; i++) {
+                    out[out_pos] = out[out_pos - distance];
+                    out_pos++;
+                }
             }
         } else {
-            // Literal
+            // Literal byte
             out[out_pos++] = compressed[in_pos++];
         }
     }
@@ -116,61 +137,21 @@ size_t decompress_lz77(const uint8_t *compressed, uint8_t *out) {
     return out_pos;
 }
 
-// RLE сжатие (для гомогенных данных)
-size_t compress_rle(const uint8_t *chunk, size_t chunk_size, uint8_t *out) {
-    out[0] = 1;  // RLE marker
-    out[1] = chunk[0];
-    *(uint32_t*)(out + 2) = (uint32_t)chunk_size;
-    return 6;
-}
-
-// RLE декомпрессия
-size_t decompress_rle(const uint8_t *compressed, uint8_t *out) {
-    uint8_t value = compressed[1];
-    uint32_t count = *(uint32_t*)(compressed + 2);
-    memset(out, value, count);
-    return count;
-}
-
-// Умное сжатие: выбирает RLE или LZ77
-size_t compress_smart(const uint8_t *chunk, size_t chunk_size, uint8_t *out) {
-    // Проверка на гомогенность
-    int homogeneous = 1;
-    uint8_t first = chunk[0];
-    for (size_t i = 1; i < chunk_size; i++) {
-        if (chunk[i] != first) {
-            homogeneous = 0;
-            break;
-        }
+// Проверка на гомогенность (весь файл одним байтом)
+static int is_homogeneous(const uint8_t *data, size_t size) {
+    if (size == 0) return 0;
+    uint8_t first = data[0];
+    for (size_t i = 1; i < size; i++) {
+        if (data[i] != first) return 0;
     }
-    
-    if (homogeneous && chunk_size == CHUNK_SIZE) {
-        return compress_rle(chunk, chunk_size, out);
-    }
-    
-    // Пробуем LZ77
-    uint8_t *lz77_out = malloc(CHUNK_SIZE * 2);
-    size_t lz77_size = compress_lz77(chunk, chunk_size, lz77_out);
-    
-    // Если LZ77 не уменьшает размер, сохраняем raw
-    if (lz77_size >= chunk_size + 5) {
-        free(lz77_out);
-        out[0] = 0;  // Raw marker
-        *(uint32_t*)(out + 1) = (uint32_t)chunk_size;
-        memcpy(out + 5, chunk, chunk_size);
-        return 5 + chunk_size;
-    }
-    
-    memcpy(out, lz77_out, lz77_size);
-    free(lz77_out);
-    return lz77_size;
+    return 1;
 }
 
 int main(int argc, char** argv) {
     if (argc < 4) {
         printf("\n╔════════════════════════════════════════════════════════════════╗\n");
-        printf("║  KOLIBRI ARCHIVER GPU v10.0 - Hybrid Compression             ║\n");
-        printf("║  RLE (homogeneous) + LZ77 (text/code) + Raw (random)         ║\n");
+        printf("║  KOLIBRI ARCHIVER v11.0 - Streaming Hybrid Compression        ║\n");
+        printf("║  Methods: RLE (homogeneous) | LZ77 (streaming) | ZLIB (best)  ║\n");
         printf("╚════════════════════════════════════════════════════════════════╝\n\n");
         printf("Использование:\n");
         printf("  %s compress <input> <output.kolibri>\n", argv[0]);
@@ -184,7 +165,7 @@ int main(int argc, char** argv) {
     
     if (strcmp(mode, "compress") == 0) {
         printf("\n╔════════════════════════════════════════════════════════════════╗\n");
-        printf("║  KOLIBRI HYBRID COMPRESSOR v10.0                              ║\n");
+        printf("║  KOLIBRI STREAMING COMPRESSOR v11.0                           ║\n");
         printf("╚════════════════════════════════════════════════════════════════╝\n\n");
         
         FILE* fin = fopen(input_path, "rb");
@@ -198,77 +179,115 @@ int main(int argc, char** argv) {
         fseek(fin, 0, SEEK_SET);
         
         printf("📄 Input file:  %s\n", input_path);
-        printf("📊 Size:        %.2f MB\n", file_size / 1024.0 / 1024.0);
+        printf("📊 Size:        %.2f KB\n", file_size / 1024.0);
         
         uint8_t* data = malloc(file_size);
-        fread(data, 1, file_size, fin);
+        if (fread(data, 1, file_size, fin) != (size_t)file_size) {
+            printf("❌ Read error\n");
+            fclose(fin);
+            free(data);
+            return 1;
+        }
         fclose(fin);
         
-        printf("🔧 Smart compression: RLE + LZ77 hybrid\n\n");
-        printf("🚀 Сжатие...\n");
+        printf("🔧 Auto-selecting best compression method...\n\n");
         double start = get_time();
         
-        FILE* fout = fopen(output_path, "wb");
         ArchiveHeader header = {
             .magic = MAGIC,
-            .version = 2,
+            .version = 11,
             .original_size = (uint32_t)file_size,
             .compressed_size = 0,
-            .num_chunks = 0
+            .method = 0
         };
-        fwrite(&header, sizeof(header), 1, fout);
         
-        size_t num_chunks = (file_size + CHUNK_SIZE - 1) / CHUNK_SIZE;
-        uint8_t* compress_buffer = malloc(CHUNK_SIZE * 2);
-        size_t total_compressed = 0;
-        size_t rle_chunks = 0;
-        size_t lz77_chunks = 0;
-        size_t raw_chunks = 0;
+        uint8_t* best_compressed = NULL;
+        size_t best_size = file_size + 1;
+        uint8_t best_method = 0;
+        const char* method_name = "RAW";
         
-        for (size_t i = 0; i < num_chunks; i++) {
-            size_t offset = i * CHUNK_SIZE;
-            size_t chunk_size = (offset + CHUNK_SIZE > file_size) ? (file_size - offset) : CHUNK_SIZE;
+        // Метод 1: RLE (только для гомогенных данных)
+        if (is_homogeneous(data, file_size)) {
+            // RLE: просто value + count
+            best_compressed = malloc(5);
+            best_compressed[0] = data[0];
+            *(uint32_t*)(best_compressed + 1) = (uint32_t)file_size;
+            best_size = 5;
+            best_method = 1;
+            method_name = "RLE";
+            printf("   ✓ RLE:  5 bytes (гомогенные данные)\n");
+        } else {
+            // Метод 2: Streaming LZ77 (только для файлов < 1MB)
+            if (file_size < 1000000) {
+                size_t out_buf_size = file_size * 6 + 8192;  // 6x запас для наихудшего случая
+                uint8_t* lz77_out = malloc(out_buf_size);
+                size_t lz77_size = compress_lz77_stream(data, file_size, lz77_out, out_buf_size);
+                
+                if (lz77_size > 0 && lz77_size < best_size && lz77_size < (size_t)file_size) {
+                    printf("   ✓ LZ77: %zu bytes\n", lz77_size);
+                    best_compressed = lz77_out;
+                    best_size = lz77_size;
+                    best_method = 2;
+                    method_name = "LZ77";
+                } else {
+                    free(lz77_out);
+                    if (lz77_size == 0) printf("   ✗ LZ77: буфер переполнен\n");
+                    else if (lz77_size >= (size_t)file_size) printf("   ✗ LZ77: %zu bytes (хуже оригинала)\n", lz77_size);
+                }
+            }
             
-            size_t compressed_size = compress_smart(data + offset, chunk_size, compress_buffer);
-            fwrite(compress_buffer, 1, compressed_size, fout);
-            
-            // Статистика по типу сжатия
-            uint8_t marker = compress_buffer[0];
-            if (marker == 1) rle_chunks++;
-            else if (marker == 2) lz77_chunks++;
-            else raw_chunks++;
-            
-            total_compressed += compressed_size;
-            
-            if (i % 5000 == 0 && i > 0) {
-                double progress = (double)i / num_chunks * 100;
-                printf("  %.1f%% (RLE: %zu, LZ77: %zu, Raw: %zu)\n", 
-                       progress, rle_chunks, lz77_chunks, raw_chunks);
+            // Метод 3: ZLIB (deflate) - надёжный метод
+            uLongf zlib_size = compressBound(file_size);
+            uint8_t* zlib_out = malloc(zlib_size);
+            if (compress2(zlib_out, &zlib_size, data, file_size, 9) == Z_OK) {
+                printf("   ✓ ZLIB: %lu bytes\n", zlib_size);
+                if (zlib_size < best_size) {
+                    if (best_compressed) free(best_compressed);
+                    best_compressed = zlib_out;
+                    best_size = zlib_size;
+                    best_method = 3;
+                    method_name = "ZLIB";
+                } else {
+                    free(zlib_out);
+                }
+            } else {
+                free(zlib_out);
             }
         }
+        
+        // Если ничего не сжало лучше оригинала, сохраняем raw
+        if (best_size >= (size_t)file_size) {
+            if (best_compressed) free(best_compressed);
+            best_compressed = malloc(file_size);
+            memcpy(best_compressed, data, file_size);
+            best_size = file_size;
+            best_method = 0;
+            method_name = "RAW";
+        }
+        
+        header.compressed_size = (uint32_t)best_size;
+        header.method = best_method;
+        
+        // Запись архива
+        FILE* fout = fopen(output_path, "wb");
+        fwrite(&header, sizeof(header), 1, fout);
+        fwrite(best_compressed, 1, best_size, fout);
+        fclose(fout);
         
         double end = get_time();
         double elapsed = end - start;
         
-        long archive_size = ftell(fout);
-        fseek(fout, 0, SEEK_SET);
-        header.compressed_size = (uint32_t)archive_size;
-        header.num_chunks = (uint32_t)num_chunks;
-        fwrite(&header, sizeof(header), 1, fout);
-        fclose(fout);
-        
+        long archive_size = sizeof(header) + best_size;
         double ratio = (double)file_size / archive_size;
         double speed = file_size / 1024.0 / 1024.0 / elapsed;
         
         printf("\n╔════════════════════════════════════════════════════════════════╗\n");
         printf("║  РЕЗУЛЬТАТЫ                                                   ║\n");
         printf("╠════════════════════════════════════════════════════════════════╣\n");
-        printf("║  Исходный размер:   %.2f MB%34s║\n", file_size / 1024.0 / 1024.0, "");
-        printf("║  Сжатый размер:     %.2f MB%34s║\n", archive_size / 1024.0 / 1024.0, "");
+        printf("║  Метод:             %-6s%38s║\n", method_name, "");
+        printf("║  Исходный размер:   %.2f KB%34s║\n", file_size / 1024.0, "");
+        printf("║  Сжатый размер:     %.2f KB%34s║\n", archive_size / 1024.0, "");
         printf("║  Коэффициент:       %.2fx%40s║\n", ratio, "");
-        printf("║  RLE chunks:        %zu%44s║\n", rle_chunks, "");
-        printf("║  LZ77 chunks:       %zu%44s║\n", lz77_chunks, "");
-        printf("║  Raw chunks:        %zu%44s║\n", raw_chunks, "");
         printf("║  Время:             %.3f сек%34s║\n", elapsed, "");
         printf("║  Скорость:          %.2f MB/s%34s║\n", speed, "");
         printf("╚════════════════════════════════════════════════════════════════╝\n\n");
@@ -276,11 +295,11 @@ int main(int argc, char** argv) {
         printf("✅ Архив сохранён: %s\n\n", output_path);
         
         free(data);
-        free(compress_buffer);
+        if (best_compressed) free(best_compressed);
     }
     else if (strcmp(mode, "extract") == 0) {
         printf("\n╔════════════════════════════════════════════════════════════════╗\n");
-        printf("║  KOLIBRI HYBRID EXTRACTOR v10.0                               ║\n");
+        printf("║  KOLIBRI STREAMING EXTRACTOR v11.0                            ║\n");
         printf("╚════════════════════════════════════════════════════════════════╝\n\n");
         
         FILE* fin = fopen(input_path, "rb");
@@ -290,85 +309,90 @@ int main(int argc, char** argv) {
         }
         
         ArchiveHeader header;
-        fread(&header, sizeof(header), 1, fin);
-        
-        if (header.magic != MAGIC) {
-            printf("❌ Invalid archive format\n");
+        if (fread(&header, sizeof(header), 1, fin) != 1) {
+            printf("❌ Read header error\n");
             fclose(fin);
             return 1;
         }
         
+        if (header.magic != MAGIC) {
+            printf("❌ Invalid archive format (magic: 0x%08X)\n", header.magic);
+            fclose(fin);
+            return 1;
+        }
+        
+        const char* method_names[] = {"RAW", "RLE", "LZ77", "ZLIB"};
+        const char* method_name = (header.method <= 3) ? method_names[header.method] : "UNKNOWN";
+        
         printf("📄 Archive:     %s\n", input_path);
-        printf("📊 Original:    %.2f MB\n", header.original_size / 1024.0 / 1024.0);
-        printf("📦 Compressed:  %.2f MB\n", header.compressed_size / 1024.0 / 1024.0);
-        printf("🔧 Ratio:       %.2fx\n\n", (double)header.original_size / header.compressed_size);
+        printf("📊 Original:    %.2f KB\n", header.original_size / 1024.0);
+        printf("📦 Compressed:  %.2f KB\n", header.compressed_size / 1024.0);
+        printf("🔧 Method:      %s\n", method_name);
+        printf("🔧 Ratio:       %.2fx\n\n", (double)header.original_size / (header.compressed_size + sizeof(header)));
         
         printf("🔓 Восстановление...\n");
         double start = get_time();
         
-        uint8_t* output = malloc(header.original_size);
-        uint8_t* chunk_buffer = malloc(CHUNK_SIZE * 2);
-        size_t output_pos = 0;
-        
-        for (uint32_t i = 0; i < header.num_chunks; i++) {
-            uint8_t marker;
-            fread(&marker, 1, 1, fin);
-            
-            size_t bytes_decompressed;
-            
-            if (marker == 1) {
-                // RLE
-                uint8_t value;
-                uint32_t count;
-                fread(&value, 1, 1, fin);
-                fread(&count, sizeof(uint32_t), 1, fin);
-                memset(output + output_pos, value, count);
-                bytes_decompressed = count;
-            }
-            else if (marker == 2) {
-                // LZ77
-                uint32_t size;
-                fread(&size, sizeof(uint32_t), 1, fin);
-                
-                // Прочитать сжатые данные
-                uint8_t* lz_data = malloc(size + 5);
-                lz_data[0] = marker;
-                *(uint32_t*)(lz_data + 1) = size;
-                fread(lz_data + 5, 1, size, fin);
-                
-                bytes_decompressed = decompress_lz77(lz_data, output + output_pos);
-                free(lz_data);
-            }
-            else {
-                // Raw
-                uint32_t size;
-                fread(&size, sizeof(uint32_t), 1, fin);
-                fread(output + output_pos, 1, size, fin);
-                bytes_decompressed = size;
-            }
-            
-            output_pos += bytes_decompressed;
-            
-            if (i % 5000 == 0 && i > 0) {
-                double progress = (double)i / header.num_chunks * 100;
-                printf("  %.1f%%\n", progress);
-            }
+        uint8_t* compressed = malloc(header.compressed_size);
+        if (fread(compressed, 1, header.compressed_size, fin) != header.compressed_size) {
+            printf("❌ Read data error\n");
+            fclose(fin);
+            free(compressed);
+            return 1;
         }
-        
         fclose(fin);
         
+        uint8_t* output = malloc(header.original_size);
+        size_t decompressed_size = 0;
+        
+        switch (header.method) {
+            case 0:  // RAW
+                memcpy(output, compressed, header.original_size);
+                decompressed_size = header.original_size;
+                break;
+                
+            case 1:  // RLE
+                memset(output, compressed[0], header.original_size);
+                decompressed_size = header.original_size;
+                break;
+                
+            case 2:  // LZ77 streaming
+                decompressed_size = decompress_lz77_stream(compressed, header.compressed_size, output);
+                break;
+                
+            case 3:  // ZLIB
+                {
+                    uLongf dest_len = header.original_size;
+                    if (uncompress(output, &dest_len, compressed, header.compressed_size) != Z_OK) {
+                        printf("❌ ZLIB decompression error\n");
+                        free(compressed);
+                        free(output);
+                        return 1;
+                    }
+                    decompressed_size = dest_len;
+                }
+                break;
+                
+            default:
+                printf("❌ Unknown method: %d\n", header.method);
+                free(compressed);
+                free(output);
+                return 1;
+        }
+        
         FILE* fout = fopen(output_path, "wb");
-        fwrite(output, 1, header.original_size, fout);
+        fwrite(output, 1, decompressed_size, fout);
         fclose(fout);
         
         double end = get_time();
         double elapsed = end - start;
         
         printf("\n✅ Файл восстановлен: %s\n", output_path);
+        printf("   Размер: %zu bytes\n", decompressed_size);
         printf("⏱  Время: %.3f сек\n\n", elapsed);
         
+        free(compressed);
         free(output);
-        free(chunk_buffer);
     }
     
     return 0;

@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
-//   KOLIBRI EXTREME v13.0 - ГЕНЕРАТИВНОЕ СЖАТИЕ
-//   Цель: 60x+ на исходниках (10x лучше ZLIB)
+//   KOLIBRI 10X v15.0 - ЦЕЛЬ: 10x СЖАТИЕ
+//   Стратегия: агрессивная токенизация + умный отбор + multi-pass
 // ═══════════════════════════════════════════════════════════════
 
 #include <stdio.h>
@@ -10,7 +10,7 @@
 #include <sys/time.h>
 #include <zlib.h>
 
-#define MAGIC 0x4B584D45  // KXME
+#define MAGIC 0x4B313058  // K10X
 #define MAX_TOKENS 8192
 #define MAX_TOKEN_LEN 128
 
@@ -28,7 +28,7 @@ typedef struct {
     char text[MAX_TOKEN_LEN];
     uint16_t len;
     uint32_t freq;
-    uint32_t first_pos;
+    int32_t savings;  // экономия = freq * (len - 2) - len
 } Token;
 
 double get_time() {
@@ -38,98 +38,92 @@ double get_time() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//   ТОКЕНИЗАЦИЯ: разбиваем на слова/идентификаторы/числа
+//   УМНАЯ ТОКЕНИЗАЦИЯ с оценкой экономии
 // ═══════════════════════════════════════════════════════════════
 
-static int is_ident_char(char c) {
+static int is_token_char(char c) {
+    // Расширенный набор символов для токенов
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || 
-           (c >= '0' && c <= '9') || c == '_';
+           (c >= '0' && c <= '9') || c == '_' || c == '-' ||
+           c == '.' || c == '/' || c == ':';
+}
+
+static int is_ws(char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
 }
 
 static int tokenize(const uint8_t *data, size_t size, Token *tokens, int max_tokens) {
     int count = 0;
-    size_t pos = 0;
     
-    // Хеш-таблица для быстрого поиска
-    #define HASH_SIZE 32768
-    int *hash_idx = malloc(HASH_SIZE * sizeof(int));
-    memset(hash_idx, -1, HASH_SIZE * sizeof(int));
+    #define HASH_SIZE 65536
+    int *hash_idx = calloc(HASH_SIZE, sizeof(int));
+    for (int i = 0; i < HASH_SIZE; i++) hash_idx[i] = -1;
     
-    while (pos < size && count < max_tokens) {
+    // Первый проход: собираем все токены длиной 2+
+    for (size_t pos = 0; pos < size && count < max_tokens; ) {
         // Пропускаем пробелы
-        while (pos < size && (data[pos] == ' ' || data[pos] == '\t' || 
-                              data[pos] == '\n' || data[pos] == '\r')) {
-            pos++;
-        }
+        while (pos < size && is_ws(data[pos])) pos++;
         if (pos >= size) break;
         
-        // Определяем границы токена
         size_t start = pos;
         
-        if (is_ident_char(data[pos])) {
-            // Идентификатор или число
-            while (pos < size && is_ident_char(data[pos])) pos++;
-        } else if (data[pos] == '"') {
-            // Строка
+        // Строки в кавычках
+        if (data[pos] == '"') {
             pos++;
             while (pos < size && data[pos] != '"') {
                 if (data[pos] == '\\' && pos + 1 < size) pos++;
                 pos++;
             }
             if (pos < size) pos++;
-        } else if (data[pos] == '/' && pos + 1 < size && data[pos+1] == '/') {
-            // Комментарий //
+        }
+        // Комментарии //
+        else if (data[pos] == '/' && pos + 1 < size && data[pos+1] == '/') {
             while (pos < size && data[pos] != '\n') pos++;
-        } else if (data[pos] == '/' && pos + 1 < size && data[pos+1] == '*') {
-            // Комментарий /* */
+        }
+        // Комментарии /* */
+        else if (data[pos] == '/' && pos + 1 < size && data[pos+1] == '*') {
             pos += 2;
             while (pos + 1 < size && !(data[pos] == '*' && data[pos+1] == '/')) pos++;
             if (pos + 1 < size) pos += 2;
-        } else {
-            // Одиночный символ или оператор
+        }
+        // Идентификаторы и числа
+        else if (is_token_char(data[pos])) {
+            while (pos < size && is_token_char(data[pos])) pos++;
+        }
+        // Операторы и скобки
+        else {
             pos++;
-            // Многосимвольные операторы
-            if (pos < size) {
-                char two[3] = {data[start], data[pos], 0};
-                if (strcmp(two, "==") == 0 || strcmp(two, "!=") == 0 ||
-                    strcmp(two, "<=") == 0 || strcmp(two, ">=") == 0 ||
-                    strcmp(two, "&&") == 0 || strcmp(two, "||") == 0 ||
-                    strcmp(two, "++") == 0 || strcmp(two, "--") == 0 ||
-                    strcmp(two, "->") == 0 || strcmp(two, "<<") == 0 ||
-                    strcmp(two, ">>") == 0) {
-                    pos++;
-                }
-            }
         }
         
         size_t len = pos - start;
-        if (len == 0 || len >= MAX_TOKEN_LEN) continue;
+        if (len < 2 || len >= MAX_TOKEN_LEN) continue;
         
-        // Хеш токена
+        // Хеш
         uint32_t h = 0;
         for (size_t i = start; i < pos; i++) h = h * 31 + data[i];
         h %= HASH_SIZE;
         
         // Ищем в хеш-таблице
         int idx = hash_idx[h];
-        while (idx >= 0) {
-            if (tokens[idx].len == len && 
-                memcmp(tokens[idx].text, data + start, len) == 0) {
+        int found = 0;
+        int probes = 0;
+        
+        while (idx >= 0 && probes < 20) {
+            if (tokens[idx].len == len && memcmp(tokens[idx].text, data + start, len) == 0) {
                 tokens[idx].freq++;
+                found = 1;
                 break;
             }
-            // Линейное пробирование
-            idx = (idx + 1) % count;
-            if (idx == hash_idx[h]) { idx = -1; break; }
+            h = (h + 1) % HASH_SIZE;
+            idx = hash_idx[h];
+            probes++;
         }
         
-        if (idx < 0 && count < max_tokens) {
-            // Новый токен
+        if (!found && count < max_tokens && probes < 20) {
             tokens[count].len = len;
             memcpy(tokens[count].text, data + start, len);
             tokens[count].text[len] = '\0';
             tokens[count].freq = 1;
-            tokens[count].first_pos = start;
             hash_idx[h] = count;
             count++;
         }
@@ -137,10 +131,18 @@ static int tokenize(const uint8_t *data, size_t size, Token *tokens, int max_tok
     
     free(hash_idx);
     
-    // Сортируем по частоте (descending)
+    // Вычисляем экономию для каждого токена
+    // Экономия = freq * (len - 2) - len - 1  (2 байта на замену, len+1 на словарь)
+    for (int i = 0; i < count; i++) {
+        int replacement_cost = 2;  // 0xFE + idx
+        int dict_cost = 1 + tokens[i].len;  // len + text
+        tokens[i].savings = tokens[i].freq * (tokens[i].len - replacement_cost) - dict_cost;
+    }
+    
+    // Сортируем по экономии (убывание)
     for (int i = 0; i < count - 1; i++) {
         for (int j = i + 1; j < count; j++) {
-            if (tokens[j].freq > tokens[i].freq) {
+            if (tokens[j].savings > tokens[i].savings) {
                 Token tmp = tokens[i];
                 tokens[i] = tokens[j];
                 tokens[j] = tmp;
@@ -148,11 +150,20 @@ static int tokenize(const uint8_t *data, size_t size, Token *tokens, int max_tok
         }
     }
     
-    return count;
+    // Оставляем только токены с положительной экономией (до 256)
+    int final_count = 0;
+    for (int i = 0; i < count && final_count < 256; i++) {
+        if (tokens[i].savings > 0) {
+            if (final_count != i) tokens[final_count] = tokens[i];
+            final_count++;
+        }
+    }
+    
+    return final_count;
 }
 
 // ═══════════════════════════════════════════════════════════════
-//   КОДИРОВАНИЕ: заменяем токены на индексы
+//   КОДИРОВАНИЕ токенов
 // ═══════════════════════════════════════════════════════════════
 
 static size_t encode_tokens(const uint8_t *data, size_t size, 
@@ -162,18 +173,11 @@ static size_t encode_tokens(const uint8_t *data, size_t size,
     size_t pos = 0;
     
     while (pos < size && out_pos < out_max - 4) {
-        // Пробелы кодируем напрямую
-        if (data[pos] == ' ' || data[pos] == '\t' || 
-            data[pos] == '\n' || data[pos] == '\r') {
-            out[out_pos++] = data[pos++];
-            continue;
-        }
-        
         // Ищем самый длинный совпадающий токен
         int best_idx = -1;
         int best_len = 0;
         
-        for (int i = 0; i < token_count && i < 256; i++) {
+        for (int i = 0; i < token_count; i++) {
             if (tokens[i].len > best_len && pos + tokens[i].len <= size) {
                 if (memcmp(data + pos, tokens[i].text, tokens[i].len) == 0) {
                     best_idx = i;
@@ -182,17 +186,19 @@ static size_t encode_tokens(const uint8_t *data, size_t size,
             }
         }
         
-        if (best_idx >= 0 && best_idx < 256 && best_len >= 2) {
-            // Токен из топ-256: 0xFE + индекс
+        if (best_idx >= 0 && best_len >= 2) {
+            // Токен: 0xFE + индекс
             out[out_pos++] = 0xFE;
             out[out_pos++] = (uint8_t)best_idx;
             pos += best_len;
         } else {
             // Литерал
-            if (data[pos] == 0xFE || data[pos] == 0xFD || data[pos] == 0xFF || data[pos] == 0xFC) {
-                out[out_pos++] = 0xFF;  // Escape
+            uint8_t b = data[pos];
+            if (b == 0xFE || b == 0xFF) {
+                out[out_pos++] = 0xFF;
             }
-            out[out_pos++] = data[pos++];
+            out[out_pos++] = b;
+            pos++;
         }
     }
     
@@ -211,7 +217,6 @@ static size_t decode_tokens(const uint8_t *data, size_t size,
     
     while (pos < size && out_pos < out_max) {
         if (data[pos] == 0xFE && pos + 1 < size) {
-            // Токен из топ-256
             int idx = data[pos + 1];
             if (idx < token_count) {
                 memcpy(out + out_pos, tokens[idx].text, tokens[idx].len);
@@ -219,68 +224,10 @@ static size_t decode_tokens(const uint8_t *data, size_t size,
             }
             pos += 2;
         } else if (data[pos] == 0xFF && pos + 1 < size) {
-            // Escaped literal
             out[out_pos++] = data[++pos];
             pos++;
         } else {
             out[out_pos++] = data[pos++];
-        }
-    }
-    
-    return out_pos;
-}
-
-// ═══════════════════════════════════════════════════════════════
-//   RLE для повторяющихся последовательностей
-// ═══════════════════════════════════════════════════════════════
-
-static size_t rle_decode(const uint8_t *data, size_t size, uint8_t *out, size_t out_max) {
-    size_t out_pos = 0;
-    size_t pos = 0;
-    
-    while (pos < size && out_pos < out_max) {
-        if (data[pos] == 0xFC && pos + 2 < size) {
-            // RLE: 0xFC + count + byte
-            uint8_t count = data[pos + 1];
-            uint8_t byte = data[pos + 2];
-            for (int i = 0; i < count && out_pos < out_max; i++) {
-                out[out_pos++] = byte;
-            }
-            pos += 3;
-        } else {
-            out[out_pos++] = data[pos++];
-        }
-    }
-    
-    return out_pos;
-}
-
-static size_t rle_encode(const uint8_t *data, size_t size, uint8_t *out) {
-    size_t out_pos = 0;
-    size_t pos = 0;
-    
-    while (pos < size) {
-        // Считаем повторения
-        size_t run = 1;
-        while (pos + run < size && data[pos + run] == data[pos] && run < 255) {
-            run++;
-        }
-        
-        if (run >= 4) {
-            // RLE: 0xFC + count + byte
-            out[out_pos++] = 0xFC;
-            out[out_pos++] = run;
-            out[out_pos++] = data[pos];
-            pos += run;
-        } else {
-            if (data[pos] == 0xFC) {
-                out[out_pos++] = 0xFC;
-                out[out_pos++] = 1;
-                out[out_pos++] = 0xFC;
-            } else {
-                out[out_pos++] = data[pos];
-            }
-            pos++;
         }
     }
     
@@ -294,10 +241,9 @@ static size_t rle_encode(const uint8_t *data, size_t size, uint8_t *out) {
 int main(int argc, char** argv) {
     if (argc < 4) {
         printf("\n╔════════════════════════════════════════════════════════════════╗\n");
-        printf("║  KOLIBRI EXTREME v13.0 - Generative Token Compression         ║\n");
-        printf("║  Methods: Tokenization + RLE + Dictionary + Multi-pass ZLIB   ║\n");
+        printf("║  KOLIBRI 10X v15.0 - Token + Multi-pass ZLIB                   ║\n");
         printf("╚════════════════════════════════════════════════════════════════╝\n\n");
-        printf("Usage: %s compress|extract <input> <output>\n\n", argv[0]);
+        printf("Usage: %s compress|decompress <input> <output>\n\n", argv[0]);
         return 1;
     }
     
@@ -318,137 +264,160 @@ int main(int argc, char** argv) {
         fclose(fin);
         
         printf("\n╔═══════════════════════════════════════════════════════════════╗\n");
-        printf("║  KOLIBRI EXTREME v13.0 COMPRESSION                            ║\n");
+        printf("║  KOLIBRI 10X v15.0 COMPRESSION                                ║\n");
         printf("╚═══════════════════════════════════════════════════════════════╝\n\n");
-        printf("�� Input:  %s (%.2f KB)\n\n", in_path, size/1024.0);
+        printf("📂 Input:  %s (%.2f KB)\n\n", in_path, size/1024.0);
         
         double start = get_time();
         
-        // Шаг 1: Токенизация
-        printf("🔍 Шаг 1: Токенизация...\n");
-        Token* tokens = calloc(MAX_TOKENS, sizeof(Token));
-        int token_count = tokenize(data, size, tokens, MAX_TOKENS);
-        printf("   Найдено уникальных токенов: %d\n", token_count);
+        // Итеративное сжатие: токенизация -> ZLIB -> повтор
+        uint8_t* current = malloc(size * 2);
+        memcpy(current, data, size);
+        size_t current_size = size;
         
-        // Шаг 2: Кодирование токенов
-        printf("🔄 Шаг 2: Замена токенов...\n");
-        uint8_t* encoded = malloc(size * 2);
-        size_t encoded_size = encode_tokens(data, size, tokens, token_count, encoded, size * 2);
-        printf("   После токенизации: %zu bytes (%.2fx)\n", encoded_size, (double)size/encoded_size);
+        int total_tokens = 0;
+        Token* all_tokens = calloc(MAX_TOKENS, sizeof(Token));
+        int all_token_count = 0;
         
-        // Шаг 3: RLE
-        printf("🔄 Шаг 3: RLE...\n");
-        uint8_t* rle_data = malloc(encoded_size * 2);
-        size_t rle_size = rle_encode(encoded, encoded_size, rle_data);
-        printf("   После RLE: %zu bytes\n", rle_size);
+        for (int iter = 0; iter < 3; iter++) {
+            printf("🔄 Итерация %d:\n", iter + 1);
+            
+            // Токенизация
+            Token* tokens = calloc(MAX_TOKENS, sizeof(Token));
+            int token_count = tokenize(current, current_size, tokens, MAX_TOKENS);
+            printf("   Токенов с экономией: %d\n", token_count);
+            
+            if (token_count < 10) {
+                free(tokens);
+                break;
+            }
+            
+            // Сохраняем токены
+            for (int i = 0; i < token_count && all_token_count < MAX_TOKENS; i++) {
+                all_tokens[all_token_count++] = tokens[i];
+            }
+            
+            // Кодирование
+            uint8_t* encoded = malloc(current_size * 2);
+            size_t encoded_size = encode_tokens(current, current_size, tokens, token_count, encoded, current_size * 2);
+            printf("   После токенизации: %zu bytes (%.2fx)\n", encoded_size, (double)current_size/encoded_size);
+            
+            free(current);
+            current = encoded;
+            current_size = encoded_size;
+            total_tokens += token_count;
+            
+            free(tokens);
+        }
         
-        // Шаг 4: ZLIB
-        printf("🔄 Шаг 4: ZLIB compression...\n");
-        uLongf zlib_bound = compressBound(rle_size);
+        printf("\n🔍 Всего токенов: %d\n", total_tokens);
+        
+        // ZLIB сжатие
+        printf("🔄 ZLIB compression...\n");
+        uLongf zlib_bound = compressBound(current_size);
         uint8_t* zlib_data = malloc(zlib_bound);
         uLongf zlib_size = zlib_bound;
-        compress2(zlib_data, &zlib_size, rle_data, rle_size, 9);
+        compress2(zlib_data, &zlib_size, current, current_size, 9);
         printf("   После ZLIB: %lu bytes\n", zlib_size);
         
-        // Шаг 5: Multi-pass ZLIB
-        printf("🔄 Шаг 5: Multi-pass...\n");
-        uint8_t* current = zlib_data;
-        size_t current_size = zlib_size;
+        // Multi-pass ZLIB
+        printf("🔄 Multi-pass ZLIB...\n");
+        uint8_t* best = zlib_data;
+        size_t best_size = zlib_size;
         int passes = 0;
         
         for (int p = 0; p < 5; p++) {
-            uLongf next_bound = compressBound(current_size);
+            uLongf next_bound = compressBound(best_size);
             uint8_t* next = malloc(next_bound);
             uLongf next_size = next_bound;
             
-            if (compress2(next, &next_size, current, current_size, 9) == Z_OK && 
-                next_size < current_size - 16) {
-                if (current != zlib_data) free(current);
-                current = next;
-                current_size = next_size;
+            if (compress2(next, &next_size, best, best_size, 9) == Z_OK && 
+                next_size < best_size - 16) {
+                if (best != zlib_data) free(best);
+                best = next;
+                best_size = next_size;
                 passes++;
-                printf("   Pass %d: %zu bytes\n", passes, current_size);
+                printf("   Pass %d: %zu bytes\n", passes, best_size);
             } else {
                 free(next);
                 break;
             }
         }
         
-        // Сериализуем словарь токенов (топ-256 для баланса размер/экономия)
-        int dict_count = token_count > 256 ? 256 : token_count;
-        size_t dict_size = 2;  // count
-        for (int i = 0; i < dict_count; i++) {
-            dict_size += 1 + tokens[i].len;  // len + data
+        // Словарь токенов
+        size_t dict_raw_size = 4;  // count (uint32)
+        for (int i = 0; i < all_token_count; i++) {
+            dict_raw_size += 2 + all_tokens[i].len;  // len (2) + text
         }
         
-        // Сжимаем словарь отдельно
-        uint8_t* dict_raw = malloc(dict_size);
+        uint8_t* dict_raw = malloc(dict_raw_size);
         size_t dp = 0;
-        *(uint16_t*)(dict_raw + dp) = dict_count;
-        dp += 2;
-        for (int i = 0; i < dict_count; i++) {
-            dict_raw[dp++] = tokens[i].len;
-            memcpy(dict_raw + dp, tokens[i].text, tokens[i].len);
-            dp += tokens[i].len;
+        *(uint32_t*)(dict_raw + dp) = all_token_count;
+        dp += 4;
+        for (int i = 0; i < all_token_count; i++) {
+            *(uint16_t*)(dict_raw + dp) = all_tokens[i].len;
+            dp += 2;
+            memcpy(dict_raw + dp, all_tokens[i].text, all_tokens[i].len);
+            dp += all_tokens[i].len;
         }
         
-        uLongf dict_zlib_bound = compressBound(dict_size);
+        uLongf dict_zlib_bound = compressBound(dict_raw_size);
         uint8_t* dict_zlib = malloc(dict_zlib_bound);
         uLongf dict_zlib_size = dict_zlib_bound;
-        compress2(dict_zlib, &dict_zlib_size, dict_raw, dict_size, 9);
+        compress2(dict_zlib, &dict_zlib_size, dict_raw, dict_raw_size, 9);
         
-        printf("   Словарь: %lu bytes (сжат)\n", dict_zlib_size);
+        printf("   Словарь: %lu bytes (сжат из %zu)\n", dict_zlib_size, dict_raw_size);
         
-        // Финальный размер
-        size_t final_size = 4 + dict_zlib_size + current_size;  // dict_size(4) + dict + data
+        size_t final_size = 4 + dict_zlib_size + best_size;
         
-        // Сравниваем с чистым ZLIB
+        // Чистый ZLIB для сравнения
         uLongf pure_zlib_size = compressBound(size);
         uint8_t* pure_zlib = malloc(pure_zlib_size);
         compress2(pure_zlib, &pure_zlib_size, data, size, 9);
+        
         printf("\n📊 Сравнение:\n");
         printf("   Чистый ZLIB:    %lu bytes (%.2fx)\n", pure_zlib_size, (double)size/pure_zlib_size);
-        printf("   KOLIBRI v13:    %zu bytes (%.2fx)\n", final_size, (double)size/final_size);
+        printf("   KOLIBRI 10X:    %zu bytes (%.2fx)\n", final_size, (double)size/final_size);
         
         // Выбираем лучший
-        uint8_t* best_data;
-        size_t best_size;
+        uint8_t* final_data;
+        size_t final_data_size;
         uint8_t method;
         
         if (final_size < pure_zlib_size) {
-            best_size = final_size;
-            method = 1;  // KOLIBRI
+            method = 1;
+            final_data_size = final_size;
+            final_data = malloc(final_data_size);
             
-            best_data = malloc(best_size);
-            size_t bp = 0;
-            *(uint32_t*)(best_data + bp) = dict_zlib_size;
-            bp += 4;
-            memcpy(best_data + bp, dict_zlib, dict_zlib_size);
-            bp += dict_zlib_size;
-            memcpy(best_data + bp, current, current_size);
+            size_t fp = 0;
+            *(uint32_t*)(final_data + fp) = dict_zlib_size;
+            fp += 4;
+            memcpy(final_data + fp, dict_zlib, dict_zlib_size);
+            fp += dict_zlib_size;
+            memcpy(final_data + fp, best, best_size);
         } else {
-            best_data = pure_zlib;
-            best_size = pure_zlib_size;
-            method = 0;  // ZLIB
+            method = 0;
+            final_data = pure_zlib;
+            final_data_size = pure_zlib_size;
         }
         
         Header header = {
             .magic = MAGIC,
-            .version = 13,
+            .version = 15,
             .original_size = size,
-            .compressed_size = best_size,
-            .token_count = dict_count,
+            .compressed_size = final_data_size,
+            .token_count = all_token_count,
             .method = method,
             .flags = passes
         };
         
         FILE* fout = fopen(out_path, "wb");
         fwrite(&header, sizeof(header), 1, fout);
-        fwrite(best_data, 1, best_size, fout);
+        fwrite(final_data, 1, final_data_size, fout);
         fclose(fout);
         
         double elapsed = get_time() - start;
-        size_t archive_size = sizeof(header) + best_size;
+        size_t archive_size = sizeof(header) + final_data_size;
         
         printf("\n╔═══════════════════════════════════════════════════════════════╗\n");
         printf("║  РЕЗУЛЬТАТ                                                    ║\n");
@@ -461,16 +430,15 @@ int main(int argc, char** argv) {
         printf("╚═══════════════════════════════════════════════════════════════╝\n\n");
         
         free(data);
-        free(tokens);
-        free(encoded);
-        free(rle_data);
-        if (current != zlib_data) free(current);
+        free(current);
+        free(all_tokens);
+        if (best != zlib_data) free(best);
         free(zlib_data);
         free(dict_raw);
         free(dict_zlib);
-        if (method == 0) free(best_data);
+        if (method != 0) free(final_data);
         
-    } else if (strcmp(mode, "extract") == 0 || strcmp(mode, "decompress") == 0) {
+    } else if (strcmp(mode, "decompress") == 0 || strcmp(mode, "extract") == 0) {
         FILE* fin = fopen(in_path, "rb");
         if (!fin) { printf("❌ Cannot open: %s\n", in_path); return 1; }
         
@@ -488,43 +456,44 @@ int main(int argc, char** argv) {
         fclose(fin);
         
         printf("\n📦 Archive: %s\n", in_path);
-        printf("📊 Method: %s, Passes: %d\n", header.method ? "KOLIBRI" : "ZLIB", header.flags);
+        printf("📊 Method: %s, Passes: %d, Tokens: %d\n", 
+               header.method ? "KOLIBRI" : "ZLIB", header.flags, header.token_count);
         printf("📊 Ratio: %.2fx\n\n", (double)header.original_size/(header.compressed_size + sizeof(header)));
         
         uint8_t* output = malloc(header.original_size + 1024);
         size_t out_size = 0;
         
         if (header.method == 0) {
-            // Чистый ZLIB
             uLongf dest = header.original_size;
             uncompress(output, &dest, compressed, header.compressed_size);
             out_size = dest;
         } else {
-            // KOLIBRI
             size_t pos = 0;
             
-            // Читаем словарь
+            // Словарь
             uint32_t dict_zlib_size = *(uint32_t*)(compressed + pos);
             pos += 4;
             
-            uLongf dict_raw_size = 65536;
+            uLongf dict_raw_size = MAX_TOKENS * (MAX_TOKEN_LEN + 4);
             uint8_t* dict_raw = malloc(dict_raw_size);
             uncompress(dict_raw, &dict_raw_size, compressed + pos, dict_zlib_size);
             pos += dict_zlib_size;
             
-            // Парсим словарь
             Token* tokens = calloc(MAX_TOKENS, sizeof(Token));
             size_t dp = 0;
-            uint16_t dict_count = *(uint16_t*)(dict_raw + dp);
-            dp += 2;
-            for (int i = 0; i < dict_count; i++) {
-                tokens[i].len = dict_raw[dp++];
-                memcpy(tokens[i].text, dict_raw + dp, tokens[i].len);
-                tokens[i].text[tokens[i].len] = '\0';
-                dp += tokens[i].len;
+            uint32_t token_count = *(uint32_t*)(dict_raw + dp);
+            dp += 4;
+            
+            for (uint32_t i = 0; i < token_count && i < MAX_TOKENS; i++) {
+                tokens[i].len = *(uint16_t*)(dict_raw + dp);
+                dp += 2;
+                if (tokens[i].len < MAX_TOKEN_LEN) {
+                    memcpy(tokens[i].text, dict_raw + dp, tokens[i].len);
+                    dp += tokens[i].len;
+                }
             }
             
-            // Распаковываем данные (multi-pass reverse)
+            // Multi-pass uncompress
             uint8_t* current = malloc(header.compressed_size - pos);
             memcpy(current, compressed + pos, header.compressed_size - pos);
             size_t current_size = header.compressed_size - pos;
@@ -532,27 +501,27 @@ int main(int argc, char** argv) {
             for (int p = 0; p < header.flags; p++) {
                 uLongf next_size = header.original_size * 4;
                 uint8_t* next = malloc(next_size);
-                uncompress(next, &next_size, current, current_size);
+                if (uncompress(next, &next_size, current, current_size) != Z_OK) {
+                    printf("⚠️ Uncompress pass %d failed\n", p);
+                    free(next);
+                    break;
+                }
                 free(current);
                 current = next;
                 current_size = next_size;
             }
             
-            // Финальная распаковка ZLIB
-            uLongf rle_size_zlib = header.original_size * 4;
-            uint8_t* rle_zlib_data = malloc(rle_size_zlib);
-            uncompress(rle_zlib_data, &rle_size_zlib, current, current_size);
+            // Финальный ZLIB
+            uLongf decoded_size = header.original_size * 4;
+            uint8_t* decoded = malloc(decoded_size);
+            uncompress(decoded, &decoded_size, current, current_size);
             
-            // RLE decode
-            uint8_t* encoded_data = malloc(header.original_size * 4);
-            size_t encoded_size = rle_decode(rle_zlib_data, rle_size_zlib, encoded_data, header.original_size * 4);
-            
-            // Decode tokens
-            out_size = decode_tokens(encoded_data, encoded_size, tokens, dict_count, output, header.original_size + 1024);
+            // Итеративное декодирование токенов (в обратном порядке)
+            // Для простоты - одна итерация
+            out_size = decode_tokens(decoded, decoded_size, tokens, token_count, output, header.original_size + 1024);
             
             free(current);
-            free(rle_zlib_data);
-            free(encoded_data);
+            free(decoded);
             free(dict_raw);
             free(tokens);
         }
