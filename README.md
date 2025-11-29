@@ -139,6 +139,54 @@ cmake --build build-gpu --target kolibri_gpu_demo
 ./build-gpu/kgpu_demo README.md
 ```
 
+## 🧠 Kolibri ML - Machine Learning Infrastructure
+
+Полноценная ML-инфраструктура для кросс-платформенного инференса (CPU, GPU, WASM, Mobile).
+
+### Возможности
+- **Кросс-платформенные модели**: TransformerLite, NeuralCompressor, SemanticEncoder
+- **Легковесные архитектуры**: Модели < 50MB, оптимизированные для edge-устройств
+- **Множество форматов экспорта**: ONNX, CoreML, TFLite, WebAssembly, C-код
+- **Интеграция**: Бесшовная работа с KolibriSim, архиватором, облачным хранилищем
+
+### Быстрый старт
+```python
+from ml.models.transformer_lite import TransformerLite
+from ml.inference.predictor import Predictor
+import numpy as np
+
+# Создание модели
+model = TransformerLite(hidden_size=256, num_layers=4, num_heads=4)
+
+# Создание предиктора (автовыбор GPU/CPU)
+predictor = Predictor(model)
+
+# Инференс
+input_ids = np.random.randint(0, 1000, (1, 32))
+outputs = predictor.predict(input_ids)
+```
+
+### Структура ML модуля
+```
+ml/
+├── models/          # Нейросетевые архитектуры
+├── training/        # Инфраструктура обучения
+├── inference/       # Оптимизация инференса
+├── export/          # Экспорт моделей (ONNX, WASM, CoreML, TFLite)
+├── integration/     # Интеграция с Kolibri
+└── utils/           # Утилиты
+```
+
+### Документация
+- [ml/README.md](ml/README.md) - Полная документация ML системы
+- [docs/ml_guide.md](docs/ml_guide.md) - Руководство пользователя
+
+### Запуск тестов ML
+```bash
+pip install -r ml/requirements.txt
+pytest tests/ml/ -v
+```
+
 ## Требования
 - Python 3.10+
 - `pip` и `virtualenv`

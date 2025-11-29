@@ -1,0 +1,59 @@
+# Kolibri ML Configuration
+# Default settings for ML system
+
+ml:
+  default_device: auto  # auto, cpu, cuda, metal, wasm
+  model_cache: ~/.kolibri/ml_models
+  quantization: fp16
+  batch_size: 32
+
+models:
+  transformer_lite:
+    hidden_size: 256
+    num_layers: 4
+    num_heads: 4
+    intermediate_size: 1024
+    max_seq_length: 512
+    vocab_size: 32000
+    dropout: 0.1
+
+  neural_compressor:
+    context_size: 1024
+    prediction_mode: adaptive
+    hidden_size: 128
+    num_layers: 2
+
+  semantic_encoder:
+    embedding_dim: 384
+    hidden_size: 256
+    num_layers: 2
+    normalize_output: true
+
+  classifier:
+    hidden_dims: [128, 64]
+    dropout: 0.1
+
+inference:
+  use_onnx: true
+  optimize_for_latency: true
+  max_batch_size: 32
+  num_threads: 4
+
+training:
+  learning_rate: 0.0001
+  weight_decay: 0.01
+  warmup_steps: 100
+  max_grad_norm: 1.0
+  seed: 42
+
+export:
+  onnx:
+    opset_version: 14
+    optimize: true
+    quantize: false
+  wasm:
+    simd: true
+    threads: false
+  tflite:
+    quantize: true
+    quantize_mode: dynamic

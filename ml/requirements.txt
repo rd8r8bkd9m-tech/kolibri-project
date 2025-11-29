@@ -1,0 +1,31 @@
+# Kolibri ML Dependencies
+
+# Core ML Framework
+numpy>=1.24.0
+
+# Optional: Deep Learning (install separately for GPU support)
+# torch>=2.0.0
+# onnx>=1.14.0
+# onnxruntime>=1.15.0
+
+# Optimization
+scipy>=1.10.0
+
+# Export Tools (optional)
+# coremltools>=7.0
+# tensorflow>=2.13.0
+
+# Vector Search (optional)
+# faiss-cpu>=1.7.4
+
+# Utilities
+tqdm>=4.65.0
+pyyaml>=6.0
+
+# Testing
+pytest>=8.0.0
+coverage>=7.0.0
+
+# Development
+ruff>=0.4.0
+pyright>=1.1.350

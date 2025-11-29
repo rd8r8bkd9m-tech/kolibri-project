@@ -107,3 +107,4 @@ benchmarks/bench_neon
 benchmarks/results/*.json
 benchmarks/results/*.md
 !benchmarks/results/BENCHMARK_REPORT_TEMPLATE.md
+kolibri_trace.jsonl
