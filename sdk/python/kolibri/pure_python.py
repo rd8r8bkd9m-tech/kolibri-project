@@ -4,7 +4,7 @@ Kolibri pure Python implementation.
 A slow but portable reference implementation for byte-to-decimal encoding.
 Used as a baseline for benchmarking against the C extension.
 
-Typical throughput: ~50 MB/s
+Typical throughput: ~5 MB/s (varies by hardware)
 """
 
 

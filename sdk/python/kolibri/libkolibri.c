@@ -2,7 +2,7 @@
  * Kolibri Python C Extension
  *
  * High-performance byte-to-decimal encoding for Python.
- * Achieves ~27,700 MB/s throughput compared to ~50 MB/s pure Python.
+ * Significantly faster than pure Python implementation (100-300x speedup).
  *
  * Copyright (c) 2025 Kolibri Project
  */

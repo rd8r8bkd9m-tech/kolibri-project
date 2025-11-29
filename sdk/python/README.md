@@ -6,13 +6,13 @@ Ultra-fast byte-to-decimal encoding for Python.
 
 The Kolibri Python SDK provides high-performance byte-to-decimal encoding and decoding. Each byte (0-255) is converted to a 3-digit decimal string (000-255).
 
-**Performance comparison:**
+**Performance comparison (varies by hardware):**
 
 | Implementation | Throughput |
 |----------------|------------|
-| Pure Python    | ~50 MB/s   |
-| C Extension    | ~27,700 MB/s (27.7 GB/s) |
-| **Speedup**    | **~550x**  |
+| Pure Python    | ~5 MB/s    |
+| C Extension    | ~1 GB/s    |
+| **Speedup**    | **~100-300x**  |
 
 ## Installation
 

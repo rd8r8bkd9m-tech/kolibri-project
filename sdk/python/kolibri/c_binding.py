@@ -4,7 +4,7 @@ Kolibri C extension bindings.
 This module provides Python bindings to the optimized C extension.
 Falls back to pure Python implementation if the C extension is not available.
 
-Typical throughput with C extension: ~27,700 MB/s (27.7 GB/s)
+Significantly faster than pure Python (100-300x speedup, varies by hardware).
 """
 
 try:

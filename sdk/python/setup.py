@@ -47,7 +47,6 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
     author='Kolibri Project',
-    author_email='kolibri@example.com',
     url='https://github.com/kolibri-project/kolibri',
     packages=['kolibri'],
     ext_modules=[kolibri_module],
