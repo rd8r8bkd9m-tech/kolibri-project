@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: build test wasm frontend iso ci clean
+.PHONY: build test wasm frontend iso ci clean benchmark benchmark-quick benchmark-full report
 
 build:
 	cmake -S . -B build -G Ninja
@@ -28,3 +28,17 @@ ci: build test frontend iso
 
 clean:
 	rm -rf build frontend/dist frontend/node_modules
+	$(MAKE) -C benchmarks clean
+
+# Benchmark targets
+benchmark:
+	$(MAKE) -C benchmarks benchmark
+
+benchmark-quick:
+	$(MAKE) -C benchmarks benchmark-quick
+
+benchmark-full:
+	$(MAKE) -C benchmarks benchmark-full
+
+report:
+	$(MAKE) -C benchmarks report

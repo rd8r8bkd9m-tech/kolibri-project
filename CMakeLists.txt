@@ -294,6 +294,16 @@ if(KOLIBRI_ENABLE_TESTS)
     target_link_libraries(test_archive_restore_demo PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_archive_restore_demo COMMAND test_archive_restore_demo)
 
+    # CORRECTNESS TESTS - проверка корректности кодирования
+    add_executable(test_correctness tests/test_correctness.c)
+    target_link_libraries(test_correctness PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_correctness COMMAND test_correctness)
+
+    # STRESS TESTS - стресс-тестирование многопоточности
+    add_executable(test_stress tests/test_stress.c)
+    target_link_libraries(test_stress PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_stress COMMAND test_stress --quick)
+
     configure_file(tests/ks_compiler_roundtrip.cmake
                    ${CMAKE_CURRENT_BINARY_DIR}/ks_compiler_roundtrip.cmake
                    @ONLY)
@@ -332,6 +342,15 @@ endif()
 if(TARGET kolibri_tests)
   target_sources(kolibri_tests PRIVATE tests/test_digits.c)
 endif()
+
+# Benchmark executables (not part of ctest, run manually)
+add_executable(kolibri_benchmark_suite benchmarks/kolibri_benchmark_suite.c)
+target_include_directories(kolibri_benchmark_suite PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/backend/include)
+target_link_libraries(kolibri_benchmark_suite PRIVATE m)
+
+add_executable(compare_with_competitors benchmarks/compare_with_competitors.c)
+target_include_directories(compare_with_competitors PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/backend/include)
+target_link_libraries(compare_with_competitors PRIVATE m)
 
 if(KOLIBRI_ENABLE_FUZZ)
   add_executable(kolibri_fuzz_script tests/fuzz_script.c)
