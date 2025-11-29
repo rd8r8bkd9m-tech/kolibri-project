@@ -15,7 +15,7 @@
 
 /* Magic number for compressed data format */
 #define KOLIBRI_COMPRESS_MAGIC 0x4B4C4252 /* "KLBR" */
-#define KOLIBRI_COMPRESS_VERSION 1
+#define KOLIBRI_COMPRESS_VERSION 40
 
 /* Compression header */
 typedef struct {
@@ -513,7 +513,8 @@ int kolibri_decompress(const uint8_t *input,
     if (header->magic != KOLIBRI_COMPRESS_MAGIC) {
         return -1; /* Invalid format */
     }
-    if (header->version != KOLIBRI_COMPRESS_VERSION) {
+    /* Support versions 1-40 for backward compatibility */
+    if (header->version < 1 || header->version > KOLIBRI_COMPRESS_VERSION) {
         return -1; /* Unsupported version */
     }
 
@@ -619,7 +620,7 @@ int kolibri_decompress(const uint8_t *input,
 
 /* Archive management implementation */
 #define KOLIBRI_ARCHIVE_MAGIC 0x4B415243 /* "KARC" */
-#define KOLIBRI_ARCHIVE_VERSION 1
+#define KOLIBRI_ARCHIVE_VERSION 40
 #define KOLIBRI_ARCHIVE_MAX_ENTRIES 1024
 
 typedef struct {
@@ -677,7 +678,7 @@ KolibriArchive *kolibri_archive_open(const char *filename) {
     KolibriArchiveHeader header;
     if (fread(&header, sizeof(header), 1, file) != 1 ||
         header.magic != KOLIBRI_ARCHIVE_MAGIC ||
-        header.version != KOLIBRI_ARCHIVE_VERSION) {
+        header.version < 1 || header.version > KOLIBRI_ARCHIVE_VERSION) {
         fclose(file);
         return NULL;
     }

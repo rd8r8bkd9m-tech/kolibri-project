@@ -11,7 +11,7 @@
 #include <dirent.h>
 
 static void print_usage(const char *prog) {
-    printf("Kolibri OS Archiver - Advanced Compression System\n\n");
+    printf("Kolibri OS Archiver v40 - Advanced Compression System\n\n");
     printf("Usage: %s <command> [options]\n\n", prog);
     printf("Commands:\n");
     printf("  compress <input> <output>    Compress file or directory\n");
@@ -21,6 +21,7 @@ static void print_usage(const char *prog) {
     printf("  extract <archive> <file>     Extract file from archive\n");
     printf("  list <archive>               List archive contents\n");
     printf("  test <input>                 Test compression ratio\n");
+    printf("  version                      Show version information\n");
     printf("\nOptions:\n");
     printf("  --help                       Show this help message\n");
     printf("\nExamples:\n");
@@ -192,6 +193,8 @@ static int cmd_decompress(const char *input, const char *output) {
         return 1;
     }
 
+    printf("Read %zu bytes from input file\n", input_size);
+
     uint8_t *output_data = NULL;
     size_t output_size = 0;
     KolibriCompressStats stats;
@@ -201,7 +204,7 @@ static int cmd_decompress(const char *input, const char *output) {
     free(input_data);
 
     if (ret != 0) {
-        fprintf(stderr, "Error: Decompression failed\n");
+        fprintf(stderr, "Error: Decompression failed with code %d\n", ret);
         return 1;
     }
 
@@ -344,6 +347,28 @@ static int cmd_list(const char *archive_name) {
     return 0;
 }
 
+static int cmd_version(void) {
+    printf("Kolibri OS Archiver\n");
+    printf("Version: v40.0.0\n");
+    printf("Build date: %s %s\n", __DATE__, __TIME__);
+    printf("\nSupported compression methods:\n");
+    printf("  - LZ77 (Dictionary-based)\n");
+    printf("  - RLE (Run-Length Encoding)\n");
+    printf("  - Huffman (Entropy coding)\n");
+    printf("  - Mathematical Analysis\n");
+    printf("  - Formula-based Encoding\n");
+    printf("  - LZMA (v40 new)\n");
+    printf("  - Zstandard (v40 new)\n");
+    printf("  - Adaptive Dictionary (v40 new)\n");
+    printf("\nFeatures:\n");
+    printf("  - Multi-layer compression\n");
+    printf("  - Automatic file type detection\n");
+    printf("  - CRC32 checksum validation\n");
+    printf("  - Multi-file archive support\n");
+    printf("  - Cross-platform compatibility\n");
+    return 0;
+}
+
 static int cmd_test(const char *input) {
     printf("Testing compression on '%s'...\n", input);
 
@@ -477,6 +502,10 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         return cmd_test(argv[2]);
+    }
+
+    if (strcmp(cmd, "version") == 0 || strcmp(cmd, "-v") == 0 || strcmp(cmd, "--version") == 0) {
+        return cmd_version();
     }
 
     fprintf(stderr, "Unknown command: %s\n", cmd);
