@@ -176,7 +176,11 @@ class KolibriModel {{
     }}
 
     _forward(input) {{
-        // Placeholder - implement actual inference
+        // NOTE: This is a placeholder implementation.
+        // For production use, replace with actual model inference logic that:
+        // 1. Applies the neural network layers using loaded weights
+        // 2. Implements the specific architecture (transformer, MLP, etc.)
+        // 3. Uses WebGL/WebGPU for acceleration when available
         const inputShape = this.modelConfig.input_shape;
         const outputShape = this.modelConfig.output_shape;
         const batchSize = input.length / inputShape.reduce((a, b) => a * b, 1);

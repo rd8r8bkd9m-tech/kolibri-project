@@ -265,8 +265,9 @@ class NeuralCompressor(BaseModel):
             for i in range(targets.shape[1]):
                 total_log_prob += log_probs[0, i, targets[0, i]]
 
-        # Convert to bits per byte
-        bits_per_byte = -total_log_prob / (len(byte_array) - 1) / np.log(2)
+        # Convert to bits per byte (handle edge case of very short data)
+        divisor = max(len(byte_array) - 1, 1)
+        bits_per_byte = -total_log_prob / divisor / np.log(2)
         return float(bits_per_byte)
 
     def compress_context(self, data: bytes) -> Dict[str, Any]:

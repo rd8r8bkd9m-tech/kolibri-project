@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 from ..models.semantic_encoder import SemanticEncoder
 from ..models.neural_compressor import NeuralCompressor
 from ..utils.logger import get_logger
+from ..utils.tokenizer import simple_tokenize
 
 
 class KolibriCoreBridge:
@@ -70,14 +71,8 @@ class KolibriCoreBridge:
         return embedding[0]
 
     def _tokenize(self, text: str) -> List[int]:
-        """Simple tokenization by converting chars to IDs."""
-        tokens = []
-        for char in text.lower():
-            if char.isalnum():
-                tokens.append(ord(char) % 32000)
-            elif char == " ":
-                tokens.append(0)
-        return tokens[:512] if tokens else [0]
+        """Tokenize text using shared utility."""
+        return simple_tokenize(text, vocab_size=32000, max_length=512)
 
     def enhance_teaching(
         self,

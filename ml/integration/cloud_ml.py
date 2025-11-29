@@ -10,6 +10,7 @@ import numpy as np
 
 from ..models.semantic_encoder import SemanticEncoder
 from ..utils.logger import get_logger
+from ..utils.tokenizer import simple_tokenize
 
 
 @dataclass
@@ -106,14 +107,8 @@ class CloudMLSearch:
         return self.encoder.encode(token_ids)[0]
 
     def _tokenize(self, text: str) -> List[int]:
-        """Simple tokenization."""
-        tokens = []
-        for char in text.lower()[:512]:
-            if char.isalnum():
-                tokens.append(ord(char) % 32000)
-            elif char == " ":
-                tokens.append(0)
-        return tokens if tokens else [0]
+        """Tokenize text using shared utility."""
+        return simple_tokenize(text, vocab_size=32000, max_length=512)
 
     def search(
         self,

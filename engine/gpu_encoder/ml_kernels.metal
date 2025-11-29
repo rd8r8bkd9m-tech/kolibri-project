@@ -41,7 +41,7 @@ kernel void ml_softmax(
     }
     
     /* Normalize */
-    float inv_sum = 1.0f / sum;
+    float inv_sum = sum > 0.0f ? 1.0f / sum : 0.0f;
     for (uint i = 0; i < hidden_size; i++) {
         out_row[i] *= inv_sum;
     }
