@@ -253,14 +253,18 @@ EOF
 
 # Parse comparison.json if available
 if [[ -f "$RESULTS_DIR/comparison.json" ]]; then
-    # Extract data from JSON using grep/sed (portable approach)
-    python3 -c "
+    # Check if python3 is available for JSON parsing
+    if command -v python3 &> /dev/null; then
+        python3 -c "
 import json
 with open('$RESULTS_DIR/comparison.json') as f:
     data = json.load(f)
 for r in data.get('results', []):
     print(f\"| {r['name']} | {r['encode_gbps']:.2f} | {r['decode_gbps']:.2f} | {r['expansion_ratio']:.2f}x |\")
 " 2>/dev/null >> "$REPORT_FILE" || echo "| (unable to parse results) |" >> "$REPORT_FILE"
+    else
+        echo "| (python3 not available to parse JSON) |" >> "$REPORT_FILE"
+    fi
 fi
 
 if [[ $GPU_MODE -eq 1 ]] && [[ -f "$RESULTS_DIR/gpu_results.json" ]]; then
@@ -272,13 +276,17 @@ if [[ $GPU_MODE -eq 1 ]] && [[ -f "$RESULTS_DIR/gpu_results.json" ]]; then
 |------|------------|------------|---------|
 EOF
 
-    python3 -c "
+    if command -v python3 &> /dev/null; then
+        python3 -c "
 import json
 with open('$RESULTS_DIR/gpu_results.json') as f:
     data = json.load(f)
 for r in data.get('results', []):
     print(f\"| {r['test']} | {r['cpu_gbps']:.2f} | {r['gpu_gbps']:.2f} | {r['speedup']:.1f}x |\")
 " 2>/dev/null >> "$REPORT_FILE" || echo "| (unable to parse results) |" >> "$REPORT_FILE"
+    else
+        echo "| (python3 not available to parse JSON) |" >> "$REPORT_FILE"
+    fi
 fi
 
 cat >> "$REPORT_FILE" << EOF

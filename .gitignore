@@ -94,3 +94,13 @@ cloud-storage/server.log
 token.txt
 auth.token
 _codeql_build_dir/
+
+# Benchmark binaries (should be built locally)
+benchmarks/kolibri_benchmark_suite
+benchmarks/compare_with_competitors
+benchmarks/kolibri_gpu_benchmark
+benchmarks/test_correctness
+benchmarks/test_stress
+benchmarks/results/*.json
+benchmarks/results/*.md
+!benchmarks/results/BENCHMARK_REPORT_TEMPLATE.md
