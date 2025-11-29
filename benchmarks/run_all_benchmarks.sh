@@ -1,7 +1,13 @@
 #!/bin/bash
 #
-# Kolibri Benchmark Suite Runner
-# Run all benchmarks and generate reports
+# Kolibri Benchmark Suite Runner v2.0
+# Run all benchmarks (SIMD-optimized) and generate reports
+#
+# Features:
+# - SIMD-optimized CPU benchmarks (8x unrolled LUT + prefetch)
+# - Competitor comparison (Base64, Hex)
+# - GPU benchmark (Metal/macOS only)
+# - Existing SIMD/NEON benchmarks from tests/
 #
 # Usage:
 #   ./run_all_benchmarks.sh [options]
@@ -10,6 +16,7 @@
 #   --quick     Run quick benchmarks only (1KB, 1MB)
 #   --full      Run full benchmarks (up to 100MB/1GB)
 #   --gpu       Include GPU benchmark (macOS only)
+#   --simd      Run all existing SIMD benchmarks from tests/
 #   --clean     Clean build artifacts before running
 #   --help      Show this help
 
@@ -23,6 +30,7 @@ RESULTS_DIR="$SCRIPT_DIR/results"
 QUICK_MODE=0
 FULL_MODE=0
 GPU_MODE=0
+SIMD_MODE=0
 CLEAN_MODE=0
 
 # Colors for output
@@ -47,12 +55,16 @@ while [[ $# -gt 0 ]]; do
             GPU_MODE=1
             shift
             ;;
+        --simd)
+            SIMD_MODE=1
+            shift
+            ;;
         --clean)
             CLEAN_MODE=1
             shift
             ;;
         --help)
-            echo "Kolibri Benchmark Suite Runner"
+            echo "Kolibri Benchmark Suite Runner v2.0 (SIMD-Optimized)"
             echo ""
             echo "Usage: $0 [options]"
             echo ""
@@ -60,6 +72,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --quick     Run quick benchmarks only (1KB, 1MB)"
             echo "  --full      Run full benchmarks (up to 100MB/1GB)"
             echo "  --gpu       Include GPU benchmark (macOS only)"
+            echo "  --simd      Run all existing SIMD/NEON benchmarks from tests/"
             echo "  --clean     Clean build artifacts before running"
             echo "  --help      Show this help"
             exit 0
@@ -74,7 +87,7 @@ done
 # Print banner
 echo ""
 echo "╔═══════════════════════════════════════════════════════════════════════════╗"
-echo "║     KOLIBRI BENCHMARK SUITE RUNNER                                        ║"
+echo "║     KOLIBRI BENCHMARK SUITE RUNNER v2.0 (SIMD-Optimized)                  ║"
 echo "╚═══════════════════════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -204,6 +217,61 @@ if [[ $GPU_MODE -eq 1 ]] && [[ -f "$SCRIPT_DIR/kolibri_gpu_benchmark" ]]; then
     echo -e "${BLUE}Running${NC} GPU Benchmark..."
     "$SCRIPT_DIR/kolibri_gpu_benchmark" $BENCH_FLAGS \
         --json="$RESULTS_DIR/gpu_results.json"
+    echo ""
+fi
+
+# Run existing SIMD benchmarks from tests/ directory
+if [[ $SIMD_MODE -eq 1 ]]; then
+    echo "═══════════════════════════════════════════════════════════════════════════════"
+    echo "  RUNNING EXISTING SIMD BENCHMARKS (tests/)"
+    echo "═══════════════════════════════════════════════════════════════════════════════"
+    echo ""
+    
+    # Try to compile and run bench_decimal_ultimate (LUT-optimized)
+    if [[ -f "$PROJECT_ROOT/tests/bench_decimal_ultimate.c" ]]; then
+        echo -e "${BLUE}Compiling${NC} bench_decimal_ultimate (LUT-optimized)..."
+        if $CC $CFLAGS -I"$PROJECT_ROOT/backend/include" \
+            "$PROJECT_ROOT/tests/bench_decimal_ultimate.c" \
+            -o "$SCRIPT_DIR/bench_decimal_ultimate" $LDFLAGS 2>/dev/null; then
+            echo -e "  ${GREEN}✓${NC} Compiled successfully"
+            echo -e "${BLUE}Running${NC} bench_decimal_ultimate..."
+            "$SCRIPT_DIR/bench_decimal_ultimate" 2>&1 || true
+            echo ""
+        else
+            echo -e "  ${YELLOW}⚠${NC} Compilation failed"
+        fi
+    fi
+    
+    # Try to compile and run bench_simd (SSE2) - only on x86_64
+    if [[ "$ARCH" == "x86_64" ]] && [[ -f "$PROJECT_ROOT/tests/bench_simd.c" ]]; then
+        echo -e "${BLUE}Compiling${NC} bench_simd (SSE2)..."
+        if $CC $CFLAGS -msse2 -I"$PROJECT_ROOT/backend/include" \
+            "$PROJECT_ROOT/tests/bench_simd.c" \
+            -o "$SCRIPT_DIR/bench_simd" $LDFLAGS 2>/dev/null; then
+            echo -e "  ${GREEN}✓${NC} Compiled successfully"
+            echo -e "${BLUE}Running${NC} bench_simd..."
+            "$SCRIPT_DIR/bench_simd" 2>&1 || true
+            echo ""
+        else
+            echo -e "  ${YELLOW}⚠${NC} Compilation failed"
+        fi
+    fi
+    
+    # Try to compile and run bench_neon (ARM NEON) - only on ARM64
+    if [[ "$ARCH" == "arm64" || "$ARCH" == "aarch64" ]] && [[ -f "$PROJECT_ROOT/tests/bench_neon.c" ]]; then
+        echo -e "${BLUE}Compiling${NC} bench_neon (ARM NEON)..."
+        if $CC $CFLAGS -I"$PROJECT_ROOT/backend/include" \
+            "$PROJECT_ROOT/tests/bench_neon.c" \
+            -o "$SCRIPT_DIR/bench_neon" $LDFLAGS 2>/dev/null; then
+            echo -e "  ${GREEN}✓${NC} Compiled successfully"
+            echo -e "${BLUE}Running${NC} bench_neon..."
+            "$SCRIPT_DIR/bench_neon" 2>&1 || true
+            echo ""
+        else
+            echo -e "  ${YELLOW}⚠${NC} Compilation failed"
+        fi
+    fi
+    
     echo ""
 fi
 
