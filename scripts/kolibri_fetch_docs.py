@@ -43,7 +43,8 @@ def extract_text(html_body: str) -> str:
 
 
 def fetch_url(url: str, timeout: float) -> str:
-    with httpx.Client(timeout=timeout, follow_redirects=True) as client:
+    headers = {"User-Agent": "KolibriKnowledgeBot/1.0 (https://kolibrios.org/; bot@kolibrios.org)"}
+    with httpx.Client(timeout=timeout, follow_redirects=True, headers=headers) as client:
         response = client.get(url)
         response.raise_for_status()
         content_type = response.headers.get("Content-Type", "")

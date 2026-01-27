@@ -38,37 +38,40 @@ static void assert_deterministic(void) {
 }
 
 static void test_feedback_adjustment(void) {
-  KolibriFormulaPool pool;
-  kf_pool_init(&pool, 321);
-  teach_linear_task(&pool);
-  kf_pool_tick(&pool, 64);
-  const KolibriFormula *best = kf_pool_best(&pool);
+  KolibriFormulaPool *pool = (KolibriFormulaPool *)malloc(sizeof(KolibriFormulaPool));
+  assert(pool != NULL);
+  kf_pool_init(pool, 321);
+  teach_linear_task(pool);
+  kf_pool_tick(pool, 64);
+  const KolibriFormula *best = kf_pool_best(pool);
   assert(best != NULL);
   KolibriGene snapshot = best->gene;
   double baseline = best->fitness;
-  assert(kf_pool_feedback(&pool, &snapshot, 0.3) == 0);
-  const KolibriFormula *after_reward = kf_pool_best(&pool);
+  assert(kf_pool_feedback(pool, &snapshot, 0.3) == 0);
+  const KolibriFormula *after_reward = kf_pool_best(pool);
   assert(after_reward != NULL);
   assert(after_reward->fitness >= baseline);
-  assert(kf_pool_feedback(&pool, &snapshot, -0.8) == 0);
-  const KolibriFormula *after_penalty = kf_pool_best(&pool);
+  assert(kf_pool_feedback(pool, &snapshot, -0.8) == 0);
+  const KolibriFormula *after_penalty = kf_pool_best(pool);
   assert(after_penalty != NULL);
   assert(after_penalty->fitness >= 0.0);
+  free(pool);
 }
 
 void test_formula(void) {
-  KolibriFormulaPool pool;
-  kf_pool_init(&pool, 77);
-  teach_linear_task(&pool);
-  const KolibriFormula *initial = kf_pool_best(&pool);
+  KolibriFormulaPool *pool = (KolibriFormulaPool *)malloc(sizeof(KolibriFormulaPool));
+  assert(pool != NULL);
+  kf_pool_init(pool, 77);
+  teach_linear_task(pool);
+  const KolibriFormula *initial = kf_pool_best(pool);
   int baseline_errors = 0;
   for (int i = 0; i < 4; ++i) {
     int local = 0;
     assert(kf_formula_apply(initial, i, &local) == 0);
     baseline_errors += abs((2 * i + 1) - local);
   }
-  kf_pool_tick(&pool, 128);
-  const KolibriFormula *best = kf_pool_best(&pool);
+  kf_pool_tick(pool, 128);
+  const KolibriFormula *best = kf_pool_best(pool);
   assert(best != NULL);
   int prediction = 0;
   assert(kf_formula_apply(best, 4, &prediction) == 0);
@@ -81,4 +84,5 @@ void test_formula(void) {
   assert(errors <= baseline_errors);
   assert_deterministic();
   test_feedback_adjustment();
+  free(pool);
 }

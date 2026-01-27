@@ -21,8 +21,8 @@ extern "C" {
 /* Максимальный размер батча для обучения */
 #define KOLIBRI_CORPUS_BATCH_SIZE 1000
 
-/* Максимальная длина текста для обработки */
-#define KOLIBRI_CORPUS_MAX_TEXT_SIZE (1024 * 1024) /* 1MB */
+/* Максимальная длина текста для обработки (256MB для Hyper-Scale) */
+#define KOLIBRI_CORPUS_MAX_TEXT_SIZE (256 * 1024 * 1024) 
 
 /**
  * Статистика обучения на корпусе

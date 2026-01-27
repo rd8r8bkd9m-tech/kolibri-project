@@ -355,9 +355,9 @@ static int parse_markdown_document(const char *path,
     size_t buffer_len = 0U;
     const unsigned char *cursor = (const unsigned char *)content;
     while (*cursor != '\0') {
-        if (isalnum(*cursor)) {
+        if (!isspace(*cursor) && !ispunct(*cursor)) {
             if (buffer_len < sizeof(buffer) - 1U) {
-                buffer[buffer_len++] = (char)tolower(*cursor);
+                buffer[buffer_len++] = (char)(*cursor > 127 ? *cursor : (unsigned char)tolower(*cursor));
             }
         } else {
             if (buffer_len > 0U) {

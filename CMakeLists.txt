@@ -54,6 +54,7 @@ add_library(kolibri_core_objects OBJECT
     backend/src/knowledge_queue.c
     backend/src/sim.c
     backend/src/semantic_digits.c
+    backend/src/phoneme.c
     backend/src/context_window.c
     backend/src/corpus_learning.c
     backend/src/text_generation.c
@@ -200,6 +201,18 @@ if(KOLIBRI_ENABLE_TESTS)
     add_executable(test_semantic tests/test_semantic.c)
     target_link_libraries(test_semantic PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_semantic COMMAND test_semantic)
+
+    add_executable(test_phoneme tests/test_phoneme.c)
+    target_link_libraries(test_phoneme PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_phoneme COMMAND test_phoneme)
+
+    add_executable(test_phase2 tests/test_phase2_phonetic.c)
+    target_link_libraries(test_phase2 PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_phase2 COMMAND test_phase2)
+
+    add_executable(test_kod_kot tests/test_kod_kot.c)
+    target_link_libraries(test_kod_kot PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_kod_kot COMMAND test_kod_kot)
     
     # AGI v2.0 Phase 1.2: Context window tests
     add_executable(test_context tests/test_context.c)

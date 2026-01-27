@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 typedef struct {
-    uint8_t digits[32];
+    uint8_t digits[1024];
     size_t length;
 } KolibriGene;
 
@@ -41,17 +41,20 @@ typedef struct {
 } KolibriFormula;
 
 typedef struct {
-    KolibriFormula formulas[24];
+    KolibriFormula formulas[64];
     size_t count;
     KolibriRng rng;
-    int inputs[64];
-    int targets[64];
+    int *inputs;
+    int *targets;
     size_t examples;
-    KolibriAssociation associations[KOLIBRI_POOL_MAX_ASSOCIATIONS];
+    size_t examples_capacity;
+    KolibriAssociation *associations;
     size_t association_count;
+    size_t association_capacity;
 } KolibriFormulaPool;
 
 void kf_pool_init(KolibriFormulaPool *pool, uint64_t seed);
+void kf_pool_free(KolibriFormulaPool *pool);
 void kf_pool_clear_examples(KolibriFormulaPool *pool);
 int kf_pool_add_example(KolibriFormulaPool *pool, int input, int target);
 int kf_pool_add_association(KolibriFormulaPool *pool,

@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html class="client-nojs" lang="ru" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<title>Эволюционные алгоритмы — Википедия</title>
+<script>(function(){var className="client-js";var cookie=document.cookie.match(/(?:^|; )ruwikimwclientpreferences=([^;]+)/);if(cookie){cookie[1].split('%2C').forEach(function(pref){className=className.replace(new RegExp('(^| )'+pref.replace(/-clientpref-\w+$|[^\w-]+/g,'')+'-clientpref-\\w+( |$)'),'$1'+pref+'$2');});}document.documentElement.className=className;}());RLCONF={"wgBreakFrames":false,"wgSeparatorTransformTable":[",\t."," \t,"],"wgDigitTransformTable":["",""],"wgDefaultDateFormat":"dmy","wgMonthNames":["","январь","февраль","март","апрель","май","июнь","июль","август","сентябрь","октябрь","ноябрь","декабрь"],"wgRequestId":"9adefeab-5055-4b48-b85e-0cabc80cbca6","wgCanonicalNamespace":"","wgCanonicalSpecialPageName":false,"wgNamespaceNumber":0,"wgPageName":"Эволюционные_алгоритмы","wgTitle":"Эволюционные алгоритмы","wgCurRevisionId":135363040,"wgRevisionId":135363040,"wgArticleId":1304904,"wgIsArticle":true,"wgIsRedirect":false,"wgAction":"view","wgUserName":null,"wgUserGroups":["*"],"wgCategories":["Википедия:Cite web (не указан язык)","Страницы, использующие волшебные ссылки ISBN","Википедия:Запросы на перевод с немецкого","Эволюционные алгоритмы"],"wgPageViewLanguage":"ru","wgPageContentLanguage":"ru","wgPageContentModel":"wikitext","wgRelevantPageName":"Эволюционные_алгоритмы","wgRelevantArticleId":1304904,"wgIsProbablyEditable":true,"wgRelevantPageIsProbablyEditable":true,"wgRestrictionEdit":[],"wgRestrictionMove":[],"wgRedirectedFrom":"Эволюционный_алгоритм","wgNoticeProject":"wikipedia","wgFlaggedRevsParams":{"tags":{"accuracy":{"levels":1}}},"wgStableRevisionId":72175726,"wgConfirmEditCaptchaNeededForGenericEdit":false,"wgMediaViewerOnClick":true,"wgMediaViewerEnabledByDefault":true,"wgPopupsFlags":0,"wgVisualEditor":{"pageLanguageCode":"ru","pageLanguageDir":"ltr","pageVariantFallbacks":"ru"},"wgMFDisplayWikibaseDescriptions":{"search":true,"watchlist":true,"tagline":false,"nearby":true},"wgWMESchemaEditAttemptStepOversample":false,"wgWMEPageLength":10000,"wgInternalRedirectTargetUrl":"/w/index.php?title=%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B\u0026printable=yes","wgEditSubmitButtonLabelPublish":true,"wgVisualEditorPageIsDisambiguation":false,"wgULSPosition":"interlanguage","wgULSisCompactLinksEnabled":true,"wgVector2022LanguageInHeader":false,"wgULSisLanguageSelectorEmpty":false,"wgWikibaseItemId":"Q14489129","wgCheckUserClientHintsHeadersJsApi":["brands","architecture","bitness","fullVersionList","mobile","model","platform","platformVersion"],"GEHomepageSuggestedEditsEnableTopics":true,"wgGESuggestedEditsTaskTypes":{"taskTypes":["copyedit"],"unavailableTaskTypes":[]},"wgGETopicsMatchModeEnabled":false,"wgGELevelingUpEnabledForUser":false,"wgGEUseMetricsPlatformExtension":true,"wgMetricsPlatformUserExperiments":{"active_experiments":[],"overrides":[],"enrolled":[],"assigned":[],"subject_ids":[],"sampling_units":[],"coordinator":[]},"wgTestKitchenUserExperiments":{"active_experiments":[],"overrides":[],"enrolled":[],"assigned":[],"subject_ids":[],"sampling_units":[],"coordinator":[]}};
+RLSTATE={"ext.gadget.common-site":"ready","ext.gadget.logo":"ready","ext.globalCssJs.user.styles":"ready","site.styles":"ready","user.styles":"ready","ext.globalCssJs.user":"ready","user":"ready","user.options":"loading","mediawiki.codex.messagebox.styles":"ready","ext.cite.styles":"ready","skins.vector.styles.legacy":"ready","ext.flaggedRevs.basic":"ready","ext.visualEditor.desktopArticleTarget.noscript":"ready","ext.uls.interlanguage":"ready","wikibase.client.init":"ready"};RLPAGEMODULES=["mediawiki.action.view.redirect","ext.cite.ux-enhancements","site","mediawiki.page.ready","mediawiki.toc","skins.vector.legacy.js","ext.centralNotice.geoIP","ext.centralNotice.startUp","ext.flaggedRevs.advanced","ext.gadget.collapserefs","ext.gadget.directLinkToCommons","ext.gadget.referenceTooltips","ext.gadget.edittop","ext.gadget.navboxDefaultGadgets","ext.gadget.WP25Banner","ext.gadget.wikibugs","ext.urlShortener.toolbar","ext.centralauth.centralautologin","mmv.bootstrap","ext.popups","ext.visualEditor.desktopArticleTarget.init","ext.echo.centralauth","ext.eventLogging","ext.wikimediaEvents","ext.navigationTiming","ext.uls.compactlinks","ext.uls.interface","ext.cx.eventlogging.campaigns","wikibase.databox.fromWikidata","ext.checkUser.clientHints","ext.growthExperiments.SuggestedEditSession","ext.xLab","ext.testKitchen"];</script>
+<script>(RLQ=window.RLQ||[]).push(function(){mw.loader.impl(function(){return["user.options@12s5i",function($,jQuery,require,module){mw.user.tokens.set({"patrolToken":"+\\","watchToken":"+\\","csrfToken":"+\\"});
+}];});});</script>
+<link rel="stylesheet" href="/w/load.php?lang=ru&amp;modules=ext.cite.styles%7Cext.flaggedRevs.basic%7Cext.uls.interlanguage%7Cext.visualEditor.desktopArticleTarget.noscript%7Cmediawiki.codex.messagebox.styles%7Cskins.vector.styles.legacy%7Cwikibase.client.init&amp;only=styles&amp;printable=1&amp;skin=vector">
+<script async="" src="/w/load.php?lang=ru&amp;modules=startup&amp;only=scripts&amp;printable=1&amp;raw=1&amp;skin=vector"></script>
+<meta name="ResourceLoaderDynamicStyles" content="">
+<link rel="stylesheet" href="/w/load.php?lang=ru&amp;modules=ext.gadget.common-site%2Clogo&amp;only=styles&amp;printable=1&amp;skin=vector">
+<link rel="stylesheet" href="/w/load.php?lang=ru&amp;modules=site.styles&amp;only=styles&amp;printable=1&amp;skin=vector">
+<noscript><link rel="stylesheet" href="/w/load.php?lang=ru&amp;modules=noscript&amp;only=styles&amp;printable=1&amp;skin=vector"></noscript>
+<meta name="generator" content="MediaWiki 1.46.0-wmf.12">
+<meta name="referrer" content="origin">
+<meta name="referrer" content="origin-when-cross-origin">
+<meta name="robots" content="noindex,follow,max-image-preview:standard">
+<meta name="format-detection" content="telephone=no">
+<meta name="viewport" content="width=1120">
+<meta property="og:title" content="Эволюционные алгоритмы — Википедия">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="//upload.wikimedia.org">
+<link rel="alternate" type="application/x-wiki" title="Править" href="/w/index.php?title=%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B&amp;action=edit">
+<link rel="apple-touch-icon" href="/static/apple-touch/wikipedia.png">
+<link rel="icon" href="/static/favicon/wikipedia.ico">
+<link rel="search" type="application/opensearchdescription+xml" href="/w/rest.php/v1/search" title="Википедия (ru)">
+<link rel="EditURI" type="application/rsd+xml" href="//ru.wikipedia.org/w/api.php?action=rsd">
+<link rel="canonical" href="https://ru.wikipedia.org/wiki/%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B">
+<link rel="license" href="https://creativecommons.org/licenses/by-sa/4.0/deed.ru">
+<link rel="alternate" type="application/atom+xml" title="Википедия — Atom-лента" href="/w/index.php?title=%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:%D0%A1%D0%B2%D0%B5%D0%B6%D0%B8%D0%B5_%D0%BF%D1%80%D0%B0%D0%B2%D0%BA%D0%B8&amp;feed=atom">
+<link rel="dns-prefetch" href="//meta.wikimedia.org" />
+<link rel="dns-prefetch" href="auth.wikimedia.org">
+</head>
+<body class="skin-vector-legacy mediawiki ltr sitedir-ltr mw-hide-empty-elt ns-0 ns-subject mw-editable page-Эволюционные_алгоритмы rootpage-Эволюционные_алгоритмы skin-vector action-view">
+<div id="mw-aria-live-region" class="mw-aria-live-region" aria-live="polite"></div><div id="mw-page-base" class="noprint"></div>
+<div id="mw-head-base" class="noprint"></div>
+<div id="content" class="mw-body" role="main">
+	<a id="top"></a>
+	<div id="siteNotice"><!-- CentralNotice --></div>
+	<div class="mw-indicators">
+	</div>
+	<h1 id="firstHeading" class="firstHeading mw-first-heading"><span class="mw-page-title-main">Эволюционные алгоритмы</span></h1>
+	<div id="bodyContent" class="vector-body">
+		<div id="siteSub" class="noprint">Материал из Википедии — свободной энциклопедии</div>
+		<div id="contentSub"><div id="mw-content-subtitle"><span class="mw-redirectedfrom">(перенаправлено с «<a href="/w/index.php?title=%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC&amp;redirect=no" class="mw-redirect" title="Эволюционный алгоритм">Эволюционный алгоритм</a>»)</span></div></div>
+		<div id="contentSub2"></div>
+		
+		<div id="jump-to-nav"></div>
+		<a class="mw-jump-link" href="#mw-head">Перейти к навигации</a>
+		<a class="mw-jump-link" href="#searchInput">Перейти к поиску</a>
+		<div id="mw-content-text" class="mw-body-content"><div class="cdx-message--warning cdx-message cdx-message--block"><span class="cdx-message__icon"></span><div class="cdx-message__content">Версия для печати больше не поддерживается и может содержать ошибки обработки. Обновите закладки браузера и используйте вместо этого функцию печати браузера по умолчанию.</div></div><div class="mw-content-ltr mw-parser-output" lang="ru" dir="ltr"><p><b>Эволюционные алгоритмы</b>&#160;— направление в искусственном интеллекте (раздел <a href="/wiki/%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D0%BE%D0%B5_%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5" title="Эволюционное моделирование">эволюционного моделирования</a>), которое использует и моделирует процессы <a href="/wiki/%D0%95%D1%81%D1%82%D0%B5%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9_%D0%BE%D1%82%D0%B1%D0%BE%D1%80" title="Естественный отбор">естественного отбора</a>.
+</p>
+<div id="toc" class="toc" role="navigation" aria-labelledby="mw-toc-heading"><input type="checkbox" role="button" id="toctogglecheckbox" class="toctogglecheckbox" style="display:none" /><div class="toctitle" lang="ru" dir="ltr"><h2 id="mw-toc-heading">Содержание</h2><span class="toctogglespan"><label class="toctogglelabel" for="toctogglecheckbox"></label></span></div>
+<ul>
+<li class="toclevel-1 tocsection-1"><a href="#Виды_алгоритмов"><span class="tocnumber">1</span> <span class="toctext">Виды алгоритмов</span></a></li>
+<li class="toclevel-1 tocsection-2"><a href="#Отрасли_использования"><span class="tocnumber">2</span> <span class="toctext">Отрасли использования</span></a></li>
+<li class="toclevel-1 tocsection-3"><a href="#Примечания"><span class="tocnumber">3</span> <span class="toctext">Примечания</span></a></li>
+<li class="toclevel-1 tocsection-4"><a href="#Литература"><span class="tocnumber">4</span> <span class="toctext">Литература</span></a></li>
+<li class="toclevel-1 tocsection-5"><a href="#Ссылки"><span class="tocnumber">5</span> <span class="toctext">Ссылки</span></a></li>
+</ul>
+</div>
+
+<div class="mw-heading mw-heading2"><h2 id="Виды_алгоритмов"><span id=".D0.92.D0.B8.D0.B4.D1.8B_.D0.B0.D0.BB.D0.B3.D0.BE.D1.80.D0.B8.D1.82.D0.BC.D0.BE.D0.B2"></span>Виды алгоритмов</h2></div>
+<ul><li><a href="/wiki/%D0%93%D0%B5%D0%BD%D0%B5%D1%82%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B8%D0%B5_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B" class="mw-redirect" title="Генетические алгоритмы">генетические алгоритмы</a>&#160;— <a href="/wiki/%D0%AD%D0%B2%D1%80%D0%B8%D1%81%D1%82%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B8%D0%B9_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC" title="Эвристический алгоритм">эвристический алгоритм</a> поиска, используемый для решения задач оптимизации и моделирования путём случайного подбора, комбинирования и вариации искомых параметров;</li>
+<li><a href="/wiki/%D0%93%D0%B5%D0%BD%D0%B5%D1%82%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%BE%D0%B5_%D0%BF%D1%80%D0%BE%D0%B3%D1%80%D0%B0%D0%BC%D0%BC%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5" title="Генетическое программирование">генетическое программирование</a>&#160;— автоматическое создание или изменение программ с помощью генетических алгоритмов;</li>
+<li><a href="/wiki/%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D0%BE%D0%B5_%D0%BF%D1%80%D0%BE%D0%B3%D1%80%D0%B0%D0%BC%D0%BC%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5" title="Эволюционное программирование">эволюционное программирование</a>&#160;— аналогично генетическому программированию, но структура программы постоянна, изменяются только числовые значения;</li>
+<li><a href="/w/index.php?title=%D0%9F%D1%80%D0%BE%D0%B3%D1%80%D0%B0%D0%BC%D0%BC%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5_%D1%8D%D0%BA%D1%81%D0%BF%D1%80%D0%B5%D1%81%D1%81%D0%B8%D0%B8_%D0%B3%D0%B5%D0%BD%D0%BE%D0%B2&amp;action=edit&amp;redlink=1" class="new" title="Программирование экспрессии генов (страница отсутствует)">программирование экспрессии генов</a></li>
+<li><a href="/wiki/%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5_%D1%81%D1%82%D1%80%D0%B0%D1%82%D0%B5%D0%B3%D0%B8%D0%B8" class="mw-redirect" title="Эволюционные стратегии">эволюционные стратегии</a>&#160;— похожи на генетические алгоритмы, но в следующее поколение передаются только положительные мутации;</li>
+<li><a href="/wiki/%D0%94%D0%B8%D1%84%D1%84%D0%B5%D1%80%D0%B5%D0%BD%D1%86%D0%B8%D0%B0%D0%BB%D1%8C%D0%BD%D0%B0%D1%8F_%D1%8D%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D1%8F" title="Дифференциальная эволюция">дифференциальная эволюция</a></li>
+<li><a href="/wiki/%D0%9D%D0%B5%D0%B9%D1%80%D0%BE%D1%8D%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D1%8F" title="Нейроэволюция">нейроэволюция</a>&#160;— аналогично генетическому программированию, но геномы представляют собой <a href="/wiki/%D0%98%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%B0%D1%8F_%D0%BD%D0%B5%D0%B9%D1%80%D0%BE%D0%BD%D0%BD%D0%B0%D1%8F_%D1%81%D0%B5%D1%82%D1%8C" class="mw-redirect" title="Искусственная нейронная сеть">искусственные нейронные сети</a>, в которых происходит эволюция весов при заданной <a href="/wiki/%D0%A2%D0%BE%D0%BF%D0%BE%D0%BB%D0%BE%D0%B3%D0%B8%D1%8F" title="Топология">топологии</a> сети, или помимо эволюции весов также производится эволюция топологии;</li>
+<li><a href="/w/index.php?title=%D0%A1%D0%B8%D1%81%D1%82%D0%B5%D0%BC%D1%8B_%D0%BA%D0%BB%D0%B0%D1%81%D1%81%D0%B8%D1%84%D0%B8%D0%BA%D0%B0%D1%82%D0%BE%D1%80%D0%BE%D0%B2&amp;action=edit&amp;redlink=1" class="new" title="Системы классификаторов (страница отсутствует)">системы классификаторов</a>;</li></ul>
+<p>Все они моделируют базовые положения в теории биологической эволюции&#160;— процессы отбора, мутации и воспроизводства. Поведение агентов определяется окружающей средой. Множество агентов принято называть популяцией. Такая популяция эволюционирует в соответствии с правилами отбора в соответствии с целевой функцией, задаваемой окружающей средой. Таким образом, каждому агенту (индивидууму) популяции назначается значение его пригодности в окружающей среде. Размножаются только наиболее пригодные виды. Рекомбинация и мутация позволяют изменяться агентам и приспособляться к среде. Такие алгоритмы относятся к адаптивным поисковым механизмам.
+</p><p>Эволюционные алгоритмы успешно использовались для задач типа функциональной оптимизации и могут легко быть описаны на математическом языке.
+</p>
+<div class="mw-heading mw-heading2"><h2 id="Отрасли_использования"><span id=".D0.9E.D1.82.D1.80.D0.B0.D1.81.D0.BB.D0.B8_.D0.B8.D1.81.D0.BF.D0.BE.D0.BB.D1.8C.D0.B7.D0.BE.D0.B2.D0.B0.D0.BD.D0.B8.D1.8F"></span>Отрасли использования</h2></div>
+<p>Эволюционные алгоритмы используются при <a href="/wiki/%D0%9A%D0%BE%D0%BC%D0%B1%D0%B8%D0%BD%D0%B0%D1%82%D0%BE%D1%80%D0%BD%D0%B0%D1%8F_%D0%BE%D0%BF%D1%82%D0%B8%D0%BC%D0%B8%D0%B7%D0%B0%D1%86%D0%B8%D1%8F" title="Комбинаторная оптимизация">комбинаторной оптимизации</a>, в частности при решении классических <a href="/wiki/NP-%D0%BF%D0%BE%D0%BB%D0%BD%D0%B0%D1%8F_%D0%B7%D0%B0%D0%B4%D0%B0%D1%87%D0%B0" title="NP-полная задача">NP-полных проблем</a>, таких как <a href="/wiki/%D0%97%D0%B0%D0%B4%D0%B0%D1%87%D0%B0_%D0%BA%D0%BE%D0%BC%D0%BC%D0%B8%D0%B2%D0%BE%D1%8F%D0%B6%D0%B5%D1%80%D0%B0" class="mw-redirect" title="Задача коммивояжера">задача коммивояжера</a>, <a href="/wiki/%D0%97%D0%B0%D0%B4%D0%B0%D1%87%D0%B0_%D0%BE_%D1%80%D0%B0%D0%BD%D1%86%D0%B5" class="mw-redirect" title="Задача о ранце">задача упаковки ранца</a>, разбитие чисел, максимально независимое множество и <a href="/w/index.php?title=%D0%97%D0%B0%D1%80%D0%B8%D1%81%D0%BE%D0%B2%D0%BA%D0%B0_%D0%B3%D1%80%D0%B0%D1%84%D0%BE%D0%B2&amp;action=edit&amp;redlink=1" class="new" title="Зарисовка графов (страница отсутствует)">зарисовка графов</a>.<sup id="cite&#95;ref-bioinsp&#95;1-0" class="reference"><a href="#cite_note-bioinsp-1"><span class="cite-bracket">&#91;</span>1<span class="cite-bracket">&#93;</span></a></sup>
+</p><p>Возможность использования эволюционных алгоритмов в музыке активно исследуется в <a href="/wiki/%D0%90%D0%B2%D1%81%D1%82%D1%80%D0%B8%D1%8F" title="Австрия">Австрии</a>, в первую очередь при попытках моделирования игры на музыкальных инструментах известными людьми разных эпох.<sup id="cite&#95;ref-2" class="reference"><a href="#cite_note-2"><span class="cite-bracket">&#91;</span>2<span class="cite-bracket">&#93;</span></a></sup>
+</p>
+<div class="mw-heading mw-heading2"><h2 id="Примечания"><span id=".D0.9F.D1.80.D0.B8.D0.BC.D0.B5.D1.87.D0.B0.D0.BD.D0.B8.D1.8F"></span>Примечания</h2></div>
+<div class="reflist columns" style="list-style-type: decimal;">
+<div class="mw-references-wrap"><ol class="references">
+<li id="cite&#95;note-bioinsp-1"><span class="mw-cite-backlink"><a href="#cite_ref-bioinsp_1-0">↑</a></span> <span class="reference-text"><style data-mw-deduplicate="TemplateStyles:r150646110">.mw-parser-output cite.citation{font-style:inherit;word-wrap:break-word}.mw-parser-output .citation q{quotes:"«""»""„""“"}.mw-parser-output .citation:target{background-color:rgba(0,127,255,0.133)}.mw-parser-output .id-lock-free a::after,.mw-parser-output .id-lock-limited a::after,.mw-parser-output .id-lock-registration a::after,.mw-parser-output .id-lock-subscription a::after,.mw-parser-output .cs1-ws-icon a::after{content:"";width:1.1em;height:1.1em;display:inline-block;vertical-align:middle;background-position:center;background-repeat:no-repeat;background-size:contain}.mw-parser-output .id-lock-free.id-lock-free a::after{background-image:url("//upload.wikimedia.org/wikipedia/commons/6/65/Lock-green.svg")}.mw-parser-output .id-lock-limited.id-lock-limited a::after,.mw-parser-output .id-lock-registration.id-lock-registration a::after{background-image:url("//upload.wikimedia.org/wikipedia/commons/d/d6/Lock-gray-alt-2.svg")}.mw-parser-output .id-lock-subscription.id-lock-subscription a::after{background-image:url("//upload.wikimedia.org/wikipedia/commons/a/aa/Lock-red-alt-2.svg")}.mw-parser-output .cs1-ws-icon a::after{background-image:url("//upload.wikimedia.org/wikipedia/commons/4/4c/Wikisource-logo.svg")}.mw-parser-output .cs1-code{color:inherit;background:inherit;border:none;padding:inherit}.mw-parser-output .cs1-hidden-error{display:none;color:var(--color-error,#d33)}.mw-parser-output .cs1-visible-error{color:var(--color-error,#d33)}.mw-parser-output .cs1-maint{display:none;color:#085;margin-left:0.3em}.mw-parser-output .cs1-kern-left{padding-left:0.2em}.mw-parser-output .cs1-kern-right{padding-right:0.2em}.mw-parser-output .citation .mw-selflink{font-weight:inherit}@media screen{.mw-parser-output .cs1-format{font-size:95%}html.skin-theme-clientpref-night .mw-parser-output .cs1-maint{color:#18911f}html.skin-theme-clientpref-night .mw-parser-output .id-lock-free a::after,html.skin-theme-clientpref-night .mw-parser-output .id-lock-limited a::after,html.skin-theme-clientpref-night .mw-parser-output .id-lock-registration a::after,html.skin-theme-clientpref-night .mw-parser-output .id-lock-subscription a::after{filter:invert(1)hue-rotate(180deg)}}@media screen and (prefers-color-scheme:dark){html.skin-theme-clientpref-os .mw-parser-output .cs1-maint{color:#18911f}html.skin-theme-clientpref-os .mw-parser-output .id-lock-free a::after,html.skin-theme-clientpref-os .mw-parser-output .id-lock-limited a::after,html.skin-theme-clientpref-os .mw-parser-output .id-lock-registration a::after,html.skin-theme-clientpref-os .mw-parser-output .id-lock-subscription a::after{filter:invert(1)hue-rotate(180deg)}}</style><span class="citation no-wikidata" data-wikidata-property-id="P1343"><i>Olariu Stephan, Zomaya Albert Y.</i>&#32;Handbook of Bioinspired Algorithms and Applications (Chapman  Hall/Crc Computer  Information Science)&#160;<span class="ref-info" title="на английском языке" style="cursor:help;">(англ.)</span>.&#160;— Chapman  Hall/CRC.&#160;— <a href="/wiki/%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:%D0%98%D1%81%D1%82%D0%BE%D1%87%D0%BD%D0%B8%D0%BA%D0%B8_%D0%BA%D0%BD%D0%B8%D0%B3/1584884754" class="internal mw-magiclink-isbn">ISBN 1-58488-475-4</a>.</span></span>
+</li>
+<li id="cite&#95;note-2"><span class="mw-cite-backlink"><a href="#cite_ref-2">↑</a></span> <span class="reference-text"><span class="citation"><span lang="und"><a rel="nofollow" class="external text" href="http://www.insota.com/fileadmin/publications/Evolutionary-Search-for-Musical-Parallelism.pdf">Madsen, S. T. and Widmer, G.: <i>Evolutionary Search for Musical Parallelism</i>, Applications of Evolutionary Computing, proceedings of the EvoWorkshops 2005, LNCS 3449 p. 488—497, Lausanne, Switzerland, 30 March&#160;— 1 April 2005. Springer Verlag.</a></span><span class="hidden-ref" style="display:none;">&#160;</span>&#32;Дата обращения: 20 марта 2013.&#32;<a rel="nofollow" class="external text" href="https://web.archive.org/web/20140407064023/http://www.insota.com/fileadmin/publications/Evolutionary-Search-for-Musical-Parallelism.pdf">Архивировано</a> 7 апреля 2014 года.</span></span>
+</li>
+</ol></div></div>
+<div class="mw-heading mw-heading2"><h2 id="Литература"><span id=".D0.9B.D0.B8.D1.82.D0.B5.D1.80.D0.B0.D1.82.D1.83.D1.80.D0.B0"></span>Литература</h2></div>
+<ul><li><link rel="mw-deduplicated-inline-style" href="mw-data:TemplateStyles:r150646110" /><span class="citation no-wikidata" data-wikidata-property-id="P1343"><i>Емельянов В. В., Курейчик В. В., Курейчик В. М.</i>&#32;Теория и практика эволюционного моделирования.&#160;— <abbr title="Москва">М.</abbr>: Физматлит, 2003.&#160;— 432&#160;с.&#160;— <a href="/wiki/%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:%D0%98%D1%81%D1%82%D0%BE%D1%87%D0%BD%D0%B8%D0%BA%D0%B8_%D0%BA%D0%BD%D0%B8%D0%B3/5922103377" class="internal mw-magiclink-isbn">ISBN 5-9221-0337-7</a>.</span></li>
+<li><link rel="mw-deduplicated-inline-style" href="mw-data:TemplateStyles:r150646110" /><span class="citation no-wikidata" data-wikidata-property-id="P1343"><i>Курейчик В. М., Лебедев Б. К., Лебедев О. К.</i>&#32;Поисковая адаптация: теория и практика.&#160;— <abbr title="Москва">М.</abbr>: Физматлит, 2006.&#160;— 272&#160;с.&#160;— <a href="/wiki/%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:%D0%98%D1%81%D1%82%D0%BE%D1%87%D0%BD%D0%B8%D0%BA%D0%B8_%D0%BA%D0%BD%D0%B8%D0%B3/5922107496" class="internal mw-magiclink-isbn">ISBN 5-9221-0749-6</a>.</span></li>
+<li><link rel="mw-deduplicated-inline-style" href="mw-data:TemplateStyles:r150646110" /><span class="citation no-wikidata" data-wikidata-property-id="P1343"><i>Гладков Л. А., Курейчик В. В., Курейчик В. М.</i>&#32;Генетические алгоритмы: Учебное пособие.&#160;— 2-е изд..&#160;— <abbr title="Москва">М.</abbr>: Физматлит, 2006.&#160;— 320&#160;с.&#160;— <a href="/wiki/%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:%D0%98%D1%81%D1%82%D0%BE%D1%87%D0%BD%D0%B8%D0%BA%D0%B8_%D0%BA%D0%BD%D0%B8%D0%B3/5922105108" class="internal mw-magiclink-isbn">ISBN 5-9221-0510-8</a>.</span></li>
+<li><link rel="mw-deduplicated-inline-style" href="mw-data:TemplateStyles:r150646110" /><span class="citation no-wikidata" data-wikidata-property-id="P1343"><i>Гладков Л. А., Курейчик В. В, Курейчик В. М. и др.</i>&#32;Биоинспирированные методы в оптимизации: монография.&#160;— <abbr title="Москва">М.</abbr>: Физматлит, 2009.&#160;— 384&#160;с.&#160;— <a href="/wiki/%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:%D0%98%D1%81%D1%82%D0%BE%D1%87%D0%BD%D0%B8%D0%BA%D0%B8_%D0%BA%D0%BD%D0%B8%D0%B3/9785922111010" class="internal mw-magiclink-isbn">ISBN 978-5-9221-1101-0</a>.</span></li>
+<li><link rel="mw-deduplicated-inline-style" href="mw-data:TemplateStyles:r150646110" /><span class="citation no-wikidata" data-wikidata-property-id="P1343"><i>Рутковская Д., Пилиньский М., Рутковский Л.</i>&#32;Нейронные сети, генетические алгоритмы и нечеткие системы&#32;&#61;&#32;Sieci neuronowe, algorytmy genetyczne i systemy rozmyte.&#160;— 2-е изд..&#160;— <abbr title="Москва">М.</abbr>: Горячая линия-Телеком, 2008.&#160;— 452&#160;с.&#160;— <a href="/wiki/%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:%D0%98%D1%81%D1%82%D0%BE%D1%87%D0%BD%D0%B8%D0%BA%D0%B8_%D0%BA%D0%BD%D0%B8%D0%B3/5935171031" class="internal mw-magiclink-isbn">ISBN 5-93517-103-1</a>.</span></li>
+<li><link rel="mw-deduplicated-inline-style" href="mw-data:TemplateStyles:r150646110" /><span class="citation no-wikidata" data-wikidata-property-id="P1343"><i>Рутковский Л.</i>&#32;Методы и технологии искусственного интеллекта.&#160;— <abbr title="Москва">М.</abbr>: Горячая линия-Телеком, 2010.&#160;— 520&#160;с.&#160;— <a href="/wiki/%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:%D0%98%D1%81%D1%82%D0%BE%D1%87%D0%BD%D0%B8%D0%BA%D0%B8_%D0%BA%D0%BD%D0%B8%D0%B3/5991201056" class="internal mw-magiclink-isbn">ISBN 5-9912-0105-6</a>.</span></li>
+<li><span class="citation"><i><a href="/wiki/%D0%92%D0%BE%D0%BB%D0%BE%D0%B2%D0%B8%D1%87,_%D0%98%D0%B3%D0%BE%D1%80%D1%8C_%D0%92%D0%B0%D1%81%D0%B8%D0%BB%D1%8C%D0%B5%D0%B2%D0%B8%D1%87" title="Волович, Игорь Васильевич">Волович И. В.</a>, Хохлова М. Н.</i>&#32;O теории моделирования и гиперграфе классов&#160;// Труды Математического института им. В.А.Стеклова.&#160;— 2004.&#160;— <span class="nowrap">Т. 245</span>.&#160;— <span class="nowrap">С. 281—287</span>.</span></li></ul>
+<div class="mw-heading mw-heading2"><h2 id="Ссылки"><span id=".D0.A1.D1.81.D1.8B.D0.BB.D0.BA.D0.B8"></span>Ссылки</h2></div>
+<ul><li><a rel="nofollow" class="external text" href="http://www.csit.narod.ru/subject/mag_SShI/mono.pdf">Субботін С. О., Олійник А. О., Олійник О.&#160;О.&#160;Неітеративні, еволюційні та мультиагентні методи синтезу нечіткологічних і нейромережних моделей: Монографія / Під заг. ред. С.&#160;О.&#160;Субботіна.&#160;— Запоріжжя: ЗНТУ, 2009.&#160;— 375 с.</a></li>
+<li><a rel="nofollow" class="external text" href="http://algolist.manual.ru/ai/ga/ga1.php">Популярно о генетических алгоритмах</a></li>
+<li><a rel="nofollow" class="external text" href="https://web.archive.org/web/20100614094926/http://www.artint.com.ua/index_a.htm">Основы теории и применение эволюционных алгоритмов в практических приложениях</a></li></ul>
+<style data-mw-deduplicate="TemplateStyles:r148513636">.mw-parser-output .ambox{align-items:center;border:1px solid var(--border-color-base,#a2a9b1);border-left:10px solid #36c;background:var(--background-color-neutral-subtle,#f8f9fa);box-sizing:border-box;display:flex;margin:0 10%}html body.mediawiki.skin-minerva .mw-parser-output .ambox{border-width:0 0 0 4px}.mw-parser-output .ambox+link+.ambox,.mw-parser-output .ambox+link+style+.ambox,.mw-parser-output .ambox+link+link+.ambox,.mw-parser-output .ambox+.mw-empty-elt+link+.ambox,.mw-parser-output .ambox+.mw-empty-elt+link+style+.ambox,.mw-parser-output .ambox+.mw-empty-elt+link+link+.ambox{margin-top:-1px}html body.mediawiki .mw-parser-output .ambox.mbox-small-left{margin:4px 1em 4px 0;overflow:hidden;width:238px;border-collapse:collapse;font-size:88%;line-height:1.25em}.mw-parser-output .ambox-speedy{border-left:10px solid var(--border-color-error,#b32424);background-color:var(--background-color-error-subtle,#fee7e6)}.mw-parser-output .ambox-delete{border-left:10px solid var(--border-color-error,#b32424)}.mw-parser-output .ambox-content{border-left:10px solid #f28500}.mw-parser-output .ambox-style{border-left:10px solid var(--color-warning,#edab00)}.mw-parser-output .ambox-good{border-left:10px solid #66cc44}.mw-parser-output .ambox-discussion{border-left:10px solid #339966}.mw-parser-output .ambox-merge{border-left:10px solid #9932cc}.mw-parser-output .ambox-move{border-left:10px solid #9932cc}.mw-parser-output .ambox-protection{border-left:10px solid #a2a9b1}.mw-parser-output .ambox .mbox-text{border:none;padding:0.25em 0.5em;width:100%}.mw-parser-output .ambox .mbox-image{border:none;padding:2px 0 2px 0.5em;text-align:center}.mw-parser-output .ambox .mbox-imageright{border:none;padding:2px 0.5em 2px 0;text-align:center}.mw-parser-output .ambox .mbox-empty-cell{border:none;padding:0;width:1px}.mw-parser-output .ambox .mbox-image-div{width:52px}.mw-parser-output .ambox .mbox-textsmall-div{font-size:90%}html.client-js body.skin-minerva .mw-parser-output .mbox-text-span{margin-left:23px!important}@media(max-width:1366px){.mw-parser-output .ambox{margin-left:6%;margin-right:6%}}@media(max-width:719px){.mw-parser-output .ambox{margin-left:0;margin-right:0}}</style><div class="mbox-Перевести plainlinks metadata ambox ambox-notice"><div class="mbox-image"><div class="mbox-image-div"><span class="skin-invert-image" typeof="mw:File"><span><img alt="" src="//upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Translation_arrow.svg/60px-Translation_arrow.svg.png" decoding="async" width="50" height="17" class="mw-file-element" srcset="//upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Translation_arrow.svg/120px-Translation_arrow.svg.png 1.5x" data-file-width="60" data-file-height="20" /></span></span></div></div><div class="mbox-text"><div class="mbox-text-div">В другом языковом разделе <b>есть более полная статья <a href="https://de.wikipedia.org/wiki/Evolution%C3%A4rer_Algorithmus" class="extiw" title="de:Evolutionärer Algorithmus">Evolutionärer Algorithmus</a> &#160;<span class="ref-info" title="на немецком языке" style="cursor:help;">(нем.)</span></b>.</div><div class="mbox-textsmall-div hide-when-compact"><span class="hide-when-compact"> Вы можете помочь проекту, расширив текущую статью <a href="/wiki/%D0%92%D0%B8%D0%BA%D0%B8%D0%BF%D0%B5%D0%B4%D0%B8%D1%8F:%D0%9F%D0%B5%D1%80%D0%B5%D0%B2%D0%BE%D0%B4_%D1%81%D1%82%D0%B0%D1%82%D0%B5%D0%B9" title="Википедия:Перевод статей">с помощью перевода</a></span></div></div></div>
+<div role="navigation" class="navbox" aria-labelledby="Искусственный&#95;интеллект" data-name="Искусственный интеллект"><table class="nowraplinks collapsible collapsed navbox-inner" style="border-spacing:0;background:transparent;color:inherit"><tbody><tr><th scope="colgroup" class="navbox-title" colspan="3"><span class="navbox-gear" style="float:left;text-align:left;width:5em;margin-right:0.5em"><span class="noprint skin-invert-image" typeof="mw:File"><a href="/wiki/%D0%A8%D0%B0%D0%B1%D0%BB%D0%BE%D0%BD:%D0%98%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82" title="Перейти к шаблону «Искусственный интеллект»"><img alt="Перейти к шаблону «Искусственный интеллект»" src="//upload.wikimedia.org/wikipedia/commons/thumb/c/c9/Wikipedia_interwiki_section_gear_icon.svg/20px-Wikipedia_interwiki_section_gear_icon.svg.png" decoding="async" width="14" height="14" class="mw-file-element" srcset="//upload.wikimedia.org/wikipedia/commons/thumb/c/c9/Wikipedia_interwiki_section_gear_icon.svg/40px-Wikipedia_interwiki_section_gear_icon.svg.png 1.5x" data-file-width="14" data-file-height="14" /></a></span></span><div id="Искусственный&#95;интеллект" style="font-size:114%;margin:0 5em"><a href="/wiki/%D0%98%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82" title="Искусственный интеллект">Искусственный интеллект</a></div></th></tr><tr><th scope="row" class="navbox-group" style="width:1px"><a href="/wiki/%D0%98%D1%81%D1%82%D0%BE%D1%80%D0%B8%D1%8F_%D0%B8%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B3%D0%BE_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82%D0%B0" title="История искусственного интеллекта">История</a></th><td class="navbox-list navbox-odd hlist" style="text-align:left;border-left-width:2px;border-left-style:solid;width:100%;padding:0px"><div style="padding:0em 0.25em">
+<ul><li><a href="/wiki/%D0%92%D1%8B%D1%87%D0%B8%D1%81%D0%BB%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D1%8B%D0%B5_%D0%BC%D0%B0%D1%88%D0%B8%D0%BD%D1%8B_%D0%B8_%D1%80%D0%B0%D0%B7%D1%83%D0%BC" title="Вычислительные машины и разум">Вычислительные машины и разум</a></li>
+<li><a href="/wiki/%D0%97%D0%B8%D0%BC%D0%B0_%D0%B8%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B3%D0%BE_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82%D0%B0" title="Зима искусственного интеллекта">Зима искусственного интеллекта</a></li>
+<li><a href="/wiki/%D0%91%D1%83%D0%BC_%D0%B8%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B3%D0%BE_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82%D0%B0" title="Бум искусственного интеллекта">Бум искусственного интеллекта</a></li>
+<li><a href="/wiki/%D0%94%D0%B6%D0%BE%D1%80%D0%B4%D0%B6%D1%82%D0%B0%D1%83%D0%BD%D1%81%D0%BA%D0%B8%D0%B9_%D1%8D%D0%BA%D1%81%D0%BF%D0%B5%D1%80%D0%B8%D0%BC%D0%B5%D0%BD%D1%82" title="Джорджтаунский эксперимент">Джорджтаунский эксперимент</a></li>
+<li><a href="/wiki/%D0%94%D0%B0%D1%80%D1%82%D0%BC%D1%83%D1%82%D1%81%D0%BA%D0%B8%D0%B9_%D1%81%D0%B5%D0%BC%D0%B8%D0%BD%D0%B0%D1%80" title="Дартмутский семинар">Дартмутский семинар</a></li>
+<li><a href="/wiki/%D0%9E%D1%82%D1%87%D1%91%D1%82_%D0%9B%D0%B0%D0%B9%D1%82%D1%85%D0%B8%D0%BB%D0%BB%D0%B0" title="Отчёт Лайтхилла">Отчёт Лайтхилла</a></li>
+<li><a href="/wiki/%D0%A0%D0%B5%D0%B3%D0%BB%D0%B0%D0%BC%D0%B5%D0%BD%D1%82_%D0%95%D0%B2%D1%80%D0%BE%D0%BF%D0%B5%D0%B9%D1%81%D0%BA%D0%BE%D0%B3%D0%BE_%D1%81%D0%BE%D1%8E%D0%B7%D0%B0_%D0%BE%D0%B1_%D0%B8%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%BC_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82%D0%B5" class="mw-redirect" title="Регламент Европейского союза об искусственном интеллекте">Регламент ЕС</a></li>
+<li><a href="/wiki/%D0%93%D0%BE%D0%BD%D0%BA%D0%B0_%D0%B2%D0%BE%D0%BE%D1%80%D1%83%D0%B6%D0%B5%D0%BD%D0%B8%D0%B9_%D0%B2_%D0%BE%D0%B1%D0%BB%D0%B0%D1%81%D1%82%D0%B8_%D0%B8%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B3%D0%BE_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82%D0%B0" title="Гонка вооружений в области искусственного интеллекта">Гонка вооружений в области искусственного интеллекта</a></li>
+<li><a href="/wiki/%D0%A5%D0%BE%D0%BB%D0%BE%D0%B4%D0%BD%D0%B0%D1%8F_%D0%B2%D0%BE%D0%B9%D0%BD%D0%B0_%D0%B7%D0%B0_%D0%B8%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82" title="Холодная война за искусственный интеллект">Холодная война за искусственный интеллект</a></li></ul>
+</div></td><td class="navbox-image" rowspan="5" style="width:1px;padding:0px 0px 0px 7px"><div><span typeof="mw:File"><a href="/wiki/%D0%9F%D0%BE%D1%80%D1%82%D0%B0%D0%BB:%D0%98%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82" title="Портал:Искусственный интеллект"><img alt="П:" src="//upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Nuvola_apps_Talk.PNG/105px-Nuvola_apps_Talk.PNG" decoding="async" width="89" height="90" class="mw-file-element" srcset="//upload.wikimedia.org/wikipedia/commons/2/2c/Nuvola_apps_Talk.PNG 1.5x" data-file-width="105" data-file-height="106" /></a></span></div></td></tr><tr><th scope="row" class="navbox-group" style="width:1px"><a href="/wiki/%D0%A4%D0%B8%D0%BB%D0%BE%D1%81%D0%BE%D1%84%D0%B8%D1%8F_%D0%B8%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B3%D0%BE_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82%D0%B0" title="Философия искусственного интеллекта">Философия</a></th><td class="navbox-list navbox-even hlist" style="text-align:left;border-left-width:2px;border-left-style:solid;width:100%;padding:0px"><div style="padding:0em 0.25em">
+<ul><li><a href="/wiki/%D0%A2%D0%B5%D1%81%D1%82_%D0%A2%D1%8C%D1%8E%D1%80%D0%B8%D0%BD%D0%B3%D0%B0" title="Тест Тьюринга">Тест Тьюринга</a></li>
+<li><a href="/wiki/%D0%9A%D0%B8%D1%82%D0%B0%D0%B9%D1%81%D0%BA%D0%B0%D1%8F_%D0%BA%D0%BE%D0%BC%D0%BD%D0%B0%D1%82%D0%B0" title="Китайская комната">Китайская комната</a></li>
+<li><a href="/wiki/%D0%A1%D0%B8%D0%BB%D1%8C%D0%BD%D1%8B%D0%B9_%D0%B8_%D1%81%D0%BB%D0%B0%D0%B1%D1%8B%D0%B9_%D0%B8%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B5_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82%D1%8B" title="Сильный и слабый искусственные интеллекты">Сильный и слабый искусственные интеллекты</a></li>
+<li><a href="/wiki/%D0%94%D1%80%D1%83%D0%B6%D0%B5%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B8%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82" title="Дружественный искусственный интеллект">Дружественный искусственный интеллект</a></li>
+<li><a href="/wiki/%D0%AD%D1%82%D0%B8%D0%BA%D0%B0_%D0%B8%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B3%D0%BE_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82%D0%B0" title="Этика искусственного интеллекта">Этика искусственного интеллекта</a></li>
+<li><a href="/wiki/%D0%9F%D1%80%D0%BE%D0%B1%D0%BB%D0%B5%D0%BC%D0%B0_%D0%BA%D0%BE%D0%BD%D1%82%D1%80%D0%BE%D0%BB%D1%8F_%D0%B8%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B3%D0%BE_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82%D0%B0" title="Проблема контроля искусственного интеллекта">Проблема контроля</a></li></ul>
+</div></td></tr><tr><th scope="row" class="navbox-group" style="width:1px">Направления</th><td class="navbox-list navbox-odd hlist" style="text-align:left;border-left-width:2px;border-left-style:solid;width:100%;padding:0px"><div style="padding:0em 0.25em">
+<ul><li><a href="/wiki/%D0%9C%D0%BD%D0%BE%D0%B3%D0%BE%D0%B0%D0%B3%D0%B5%D0%BD%D1%82%D0%BD%D0%B0%D1%8F_%D1%81%D0%B8%D1%81%D1%82%D0%B5%D0%BC%D0%B0" title="Многоагентная система">Агентный подход</a></li>
+<li><a href="/wiki/%D0%90%D0%B4%D0%B0%D0%BF%D1%82%D0%B8%D0%B2%D0%BD%D0%BE%D0%B5_%D1%83%D0%BF%D1%80%D0%B0%D0%B2%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5" title="Адаптивное управление">Адаптивное управление</a></li>
+<li><a href="/wiki/%D0%93%D0%B5%D0%BD%D0%B5%D1%80%D0%B0%D1%82%D0%B8%D0%B2%D0%BD%D1%8B%D0%B9_%D0%B8%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82" title="Генеративный искусственный интеллект">Генеративный ИИ</a></li>
+<li><a href="/wiki/%D0%98%D0%BD%D0%B6%D0%B5%D0%BD%D0%B5%D1%80%D0%B8%D1%8F_%D0%B7%D0%BD%D0%B0%D0%BD%D0%B8%D0%B9" title="Инженерия знаний">Инженерия знаний</a></li>
+<li><a href="/wiki/%D0%9C%D0%BE%D0%B4%D0%B5%D0%BB%D1%8C_%D0%B6%D0%B8%D0%B7%D0%BD%D0%B5%D1%81%D0%BF%D0%BE%D1%81%D0%BE%D0%B1%D0%BD%D0%BE%D0%B9_%D1%81%D0%B8%D1%81%D1%82%D0%B5%D0%BC%D1%8B" title="Модель жизнеспособной системы">Модель жизнеспособной системы</a></li>
+<li><a href="/wiki/%D0%9C%D0%B0%D1%88%D0%B8%D0%BD%D0%BD%D0%BE%D0%B5_%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5" title="Машинное обучение">Машинное обучение</a></li>
+<li><a href="/wiki/%D0%9D%D0%B5%D0%B9%D1%80%D0%BE%D0%BD%D0%BD%D0%B0%D1%8F_%D1%81%D0%B5%D1%82%D1%8C" title="Нейронная сеть">Нейронная сеть</a></li>
+<li><a href="/wiki/%D0%9D%D0%B5%D1%87%D1%91%D1%82%D0%BA%D0%B0%D1%8F_%D0%BB%D0%BE%D0%B3%D0%B8%D0%BA%D0%B0" title="Нечёткая логика">Нечёткая логика</a></li>
+<li><a href="/wiki/%D0%9E%D0%B1%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%BA%D0%B0_%D0%B5%D1%81%D1%82%D0%B5%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B3%D0%BE_%D1%8F%D0%B7%D1%8B%D0%BA%D0%B0" title="Обработка естественного языка">Обработка естественного языка</a></li>
+<li><a href="/wiki/%D0%9F%D0%B5%D1%80%D1%81%D0%BE%D0%BD%D0%B0%D0%BB%D1%8C%D0%BD%D1%8B%D0%B9_%D0%B8%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82" title="Персональный искусственный интеллект">Персональный искусственный интеллект</a></li>
+<li><a href="/wiki/%D0%A2%D0%B5%D0%BE%D1%80%D0%B8%D1%8F_%D1%80%D0%B0%D1%81%D0%BF%D0%BE%D0%B7%D0%BD%D0%B0%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F_%D0%BE%D0%B1%D1%80%D0%B0%D0%B7%D0%BE%D0%B2" title="Теория распознавания образов">Распознавание образов</a></li>
+<li><a href="/wiki/%D0%A0%D0%BE%D0%B5%D0%B2%D0%BE%D0%B9_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82" title="Роевой интеллект">Роевой интеллект</a></li>
+<li><a href="/wiki/%D0%A1%D0%B8%D0%BC%D0%B2%D0%BE%D0%BB%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B8%D0%B9_%D0%B8%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82" title="Символический искусственный интеллект">Символический ИИ</a></li>
+<li><a class="mw-selflink selflink">Эволюционные алгоритмы</a></li>
+<li><a href="/wiki/%D0%AD%D0%BA%D1%81%D0%BF%D0%B5%D1%80%D1%82%D0%BD%D0%B0%D1%8F_%D1%81%D0%B8%D1%81%D1%82%D0%B5%D0%BC%D0%B0" title="Экспертная система">Экспертная система</a></li></ul>
+</div></td></tr><tr><th scope="row" class="navbox-group" style="width:1px">Применение</th><td class="navbox-list navbox-even hlist" style="text-align:left;border-left-width:2px;border-left-style:solid;width:100%;padding:0px"><div style="padding:0em 0.25em">
+<ul><li><a href="/wiki/%D0%93%D0%BE%D0%BB%D0%BE%D1%81%D0%BE%D0%B2%D0%BE%D0%B5_%D1%83%D0%BF%D1%80%D0%B0%D0%B2%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5" title="Голосовое управление">Голосовое управление</a></li>
+<li><a href="/wiki/%D0%97%D0%B0%D0%B4%D0%B0%D1%87%D0%B0_%D0%BA%D0%BB%D0%B0%D1%81%D1%81%D0%B8%D1%84%D0%B8%D0%BA%D0%B0%D1%86%D0%B8%D0%B8" title="Задача классификации">Задача классификации</a></li>
+<li><a href="/wiki/%D0%9A%D0%BB%D0%B0%D1%81%D1%81%D0%B8%D1%84%D0%B8%D0%BA%D0%B0%D1%86%D0%B8%D1%8F_%D0%B4%D0%BE%D0%BA%D1%83%D0%BC%D0%B5%D0%BD%D1%82%D0%BE%D0%B2" title="Классификация документов">Классификация документов</a></li>
+<li><a href="/wiki/%D0%9A%D0%BB%D0%B0%D1%81%D1%82%D0%B5%D1%80%D0%B8%D0%B7%D0%B0%D1%86%D0%B8%D1%8F_%D0%B4%D0%BE%D0%BA%D1%83%D0%BC%D0%B5%D0%BD%D1%82%D0%BE%D0%B2" title="Кластеризация документов">Кластеризация документов</a></li>
+<li><a href="/wiki/%D0%9A%D0%BB%D0%B0%D1%81%D1%82%D0%B5%D1%80%D0%BD%D1%8B%D0%B9_%D0%B0%D0%BD%D0%B0%D0%BB%D0%B8%D0%B7" title="Кластерный анализ">Кластерный анализ</a></li>
+<li><a href="/wiki/%D0%9B%D0%BE%D0%BA%D0%B0%D0%BB%D1%8C%D0%BD%D1%8B%D0%B9_%D0%BF%D0%BE%D0%B8%D1%81%D0%BA_(%D0%BE%D0%BF%D1%82%D0%B8%D0%BC%D0%B8%D0%B7%D0%B0%D1%86%D0%B8%D1%8F)" title="Локальный поиск (оптимизация)">Локальный поиск</a></li>
+<li><a href="/wiki/%D0%9C%D0%B0%D1%88%D0%B8%D0%BD%D0%BD%D1%8B%D0%B9_%D0%BF%D0%B5%D1%80%D0%B5%D0%B2%D0%BE%D0%B4" title="Машинный перевод">Машинный перевод</a></li>
+<li><a href="/wiki/%D0%9E%D0%BF%D1%82%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%BE%D0%B5_%D1%80%D0%B0%D1%81%D0%BF%D0%BE%D0%B7%D0%BD%D0%B0%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5_%D1%81%D0%B8%D0%BC%D0%B2%D0%BE%D0%BB%D0%BE%D0%B2" title="Оптическое распознавание символов">Оптическое распознавание символов</a></li>
+<li><a href="/wiki/%D0%A0%D0%B0%D1%81%D0%BF%D0%BE%D0%B7%D0%BD%D0%B0%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5_%D1%80%D0%B5%D1%87%D0%B8" title="Распознавание речи">Распознавание речи</a></li>
+<li><a href="/wiki/%D0%A0%D0%B0%D1%81%D0%BF%D0%BE%D0%B7%D0%BD%D0%B0%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5_%D1%80%D1%83%D0%BA%D0%BE%D0%BF%D0%B8%D1%81%D0%BD%D0%BE%D0%B3%D0%BE_%D0%B2%D0%B2%D0%BE%D0%B4%D0%B0" title="Распознавание рукописного ввода">Распознавание рукописного ввода</a></li>
+<li><a href="/wiki/%D0%98%D0%B3%D1%80%D0%BE%D0%B2%D0%BE%D0%B9_%D0%B8%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82" title="Игровой искусственный интеллект">Игровой ИИ</a></li></ul>
+</div></td></tr><tr><th scope="row" class="navbox-group" style="width:1px"><a href="/wiki/%D0%9A%D0%B0%D1%82%D0%B5%D0%B3%D0%BE%D1%80%D0%B8%D1%8F:%D0%A1%D0%BF%D0%B5%D1%86%D0%B8%D0%B0%D0%BB%D0%B8%D1%81%D1%82%D1%8B_%D0%BF%D0%BE_%D0%B8%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%BC%D1%83_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82%D1%83" title="Категория:Специалисты по искусственному интеллекту">Исследователи</a></th><td class="navbox-list navbox-odd hlist" style="text-align:left;border-left-width:2px;border-left-style:solid;width:100%;padding:0px"><div style="padding:0em 0.25em">
+<ul><li><a href="/wiki/%D0%91%D1%8D%D0%B1%D0%B1%D0%B8%D0%B4%D0%B6,_%D0%A7%D0%B0%D1%80%D0%BB%D0%B7" title="Бэббидж, Чарлз">Чарлз Бэббидж</a></li>
+<li><a href="/wiki/%D0%92%D0%B0%D0%BF%D0%BD%D0%B8%D0%BA,_%D0%92%D0%BB%D0%B0%D0%B4%D0%B8%D0%BC%D0%B8%D1%80_%D0%9D%D0%B0%D1%83%D0%BC%D0%BE%D0%B2%D0%B8%D1%87" title="Вапник, Владимир Наумович">Владимир Вапник</a></li>
+<li><a href="/wiki/%D0%92%D0%B5%D0%B9%D1%86%D0%B5%D0%BD%D0%B1%D0%B0%D1%83%D0%BC,_%D0%94%D0%B6%D0%BE%D0%B7%D0%B5%D1%84" title="Вейценбаум, Джозеф">Джозеф Вейценбаум</a></li>
+<li><a href="/wiki/%D0%92%D0%B8%D0%BD%D0%B5%D1%80,_%D0%9D%D0%BE%D1%80%D0%B1%D0%B5%D1%80%D1%82" title="Винер, Норберт">Норберт Винер</a></li>
+<li><a href="/wiki/%D0%93%D0%BB%D1%83%D1%88%D0%BA%D0%BE%D0%B2,_%D0%92%D0%B8%D0%BA%D1%82%D0%BE%D1%80_%D0%9C%D0%B8%D1%85%D0%B0%D0%B9%D0%BB%D0%BE%D0%B2%D0%B8%D1%87" title="Глушков, Виктор Михайлович">Виктор Глушков</a></li>
+<li><a href="/wiki/%D0%93%D0%BE%D1%80%D0%BE%D0%B4%D0%B5%D1%86%D0%BA%D0%B8%D0%B9,_%D0%92%D0%BB%D0%B0%D0%B4%D0%B8%D0%BC%D0%B8%D1%80_%D0%98%D0%B2%D0%B0%D0%BD%D0%BE%D0%B2%D0%B8%D1%87_(%D1%83%D1%87%D1%91%D0%BD%D1%8B%D0%B9)" title="Городецкий, Владимир Иванович (учёный)">Владимир Городецкий</a></li>
+<li><a href="/wiki/%D0%9A%D1%83%D1%80%D1%86%D0%B2%D0%B5%D0%B9%D0%BB,_%D0%A0%D1%8D%D0%B9%D0%BC%D0%BE%D0%BD%D0%B4" title="Курцвейл, Рэймонд">Рэймонд Курцвейл</a></li>
+<li><a href="/wiki/%D0%9B%D0%B5%D0%BA%D1%83%D0%BD,_%D0%AF%D0%BD" title="Лекун, Ян">Ян Лекун</a></li>
+<li><a href="/wiki/%D0%9B%D1%8F%D0%BF%D1%83%D0%BD%D0%BE%D0%B2,_%D0%90%D0%BB%D0%B5%D0%BA%D1%81%D0%B5%D0%B9_%D0%90%D0%BD%D0%B4%D1%80%D0%B5%D0%B5%D0%B2%D0%B8%D1%87" title="Ляпунов, Алексей Андреевич">Алексей Ляпунов</a></li>
+<li><a href="/wiki/%D0%9C%D0%B0%D0%BA%D0%BA%D0%B0%D1%80%D1%82%D0%B8,_%D0%94%D0%B6%D0%BE%D0%BD" title="Маккарти, Джон">Джон Маккарти</a></li>
+<li><a href="/wiki/%D0%9C%D0%B8%D0%BD%D1%81%D0%BA%D0%B8%D0%B9,_%D0%9C%D0%B0%D1%80%D0%B2%D0%B8%D0%BD_%D0%9B%D0%B8" title="Минский, Марвин Ли">Марвин Мински</a></li>
+<li><a href="/wiki/%D0%9D%D1%8C%D1%8E%D1%8D%D0%BB%D0%BB,_%D0%90%D0%BB%D0%BB%D0%B5%D0%BD" title="Ньюэлл, Аллен">Аллен Ньюэлл</a></li>
+<li><a href="/wiki/%D0%9F%D0%B5%D0%B9%D0%BF%D0%B5%D1%80%D1%82,_%D0%A1%D0%B5%D0%B9%D0%BC%D1%83%D1%80" title="Пейперт, Сеймур">Сеймур Пейперт</a></li>
+<li><a href="/wiki/%D0%9F%D0%B5%D1%80%D0%BB,_%D0%94%D0%B6%D1%83%D0%B4%D0%B0" title="Перл, Джуда">Джуда Перл</a></li>
+<li><a href="/wiki/%D0%9F%D0%BE%D1%81%D0%BF%D0%B5%D0%BB%D0%BE%D0%B2,_%D0%93%D0%B5%D1%80%D0%BC%D0%BE%D0%B3%D0%B5%D0%BD_%D0%A1%D0%B5%D1%80%D0%B3%D0%B5%D0%B5%D0%B2%D0%B8%D1%87" title="Поспелов, Гермоген Сергеевич">Гермоген Поспелов</a></li>
+<li><a href="/wiki/%D0%9F%D0%BE%D1%81%D0%BF%D0%B5%D0%BB%D0%BE%D0%B2,_%D0%94%D0%BC%D0%B8%D1%82%D1%80%D0%B8%D0%B9_%D0%90%D0%BB%D0%B5%D0%BA%D1%81%D0%B0%D0%BD%D0%B4%D1%80%D0%BE%D0%B2%D0%B8%D1%87" title="Поспелов, Дмитрий Александрович">Дмитрий Поспелов</a></li>
+<li><a href="/wiki/%D0%A0%D0%BE%D0%B7%D0%B5%D0%BD%D0%B1%D0%BB%D0%B0%D1%82%D1%82,_%D0%A4%D1%80%D1%8D%D0%BD%D0%BA" title="Розенблатт, Фрэнк">Фрэнк Розенблатт</a></li>
+<li><a href="/wiki/%D0%A1%D0%B0%D0%B9%D0%BC%D0%BE%D0%BD,_%D0%93%D0%B5%D1%80%D0%B1%D0%B5%D1%80%D1%82_%D0%90%D0%BB%D0%B5%D0%BA%D1%81%D0%B0%D0%BD%D0%B4%D0%B5%D1%80" title="Саймон, Герберт Александер">Герберт Саймон</a></li>
+<li><a href="/wiki/%D0%A2%D1%8C%D1%8E%D1%80%D0%B8%D0%BD%D0%B3,_%D0%90%D0%BB%D0%B0%D0%BD" title="Тьюринг, Алан">Алан Тьюринг</a></li>
+<li><a href="/wiki/%D0%A3%D0%B8%D0%BD%D1%81%D1%82%D0%BE%D0%BD,_%D0%9F%D0%B0%D1%82%D1%80%D0%B8%D0%BA" title="Уинстон, Патрик">Патрик Уинстон</a></li>
+<li><a href="/wiki/%D0%A4%D0%B8%D0%BD%D0%BD,_%D0%92%D0%B8%D0%BA%D1%82%D0%BE%D1%80_%D0%9A%D0%BE%D0%BD%D1%81%D1%82%D0%B0%D0%BD%D1%82%D0%B8%D0%BD%D0%BE%D0%B2%D0%B8%D1%87" title="Финн, Виктор Константинович">Виктор Финн</a></li>
+<li><a href="/wiki/%D0%A4%D0%BE%D0%BC%D0%B8%D0%BD,_%D0%A1%D0%B5%D1%80%D0%B3%D0%B5%D0%B9_%D0%92%D0%B0%D1%81%D0%B8%D0%BB%D1%8C%D0%B5%D0%B2%D0%B8%D1%87" title="Фомин, Сергей Васильевич">Сергей Фомин</a></li>
+<li><a href="/wiki/%D0%A5%D0%B0%D1%81%D1%81%D0%B0%D0%B1%D0%B8%D1%81,_%D0%94%D0%B5%D0%BC%D0%B8%D1%81" title="Хассабис, Демис">Демис Хассабис</a></li>
+<li><a href="/wiki/%D0%A5%D0%B8%D0%BD%D1%82%D0%BE%D0%BD,_%D0%94%D0%B6%D0%B5%D1%84%D1%84%D1%80%D0%B8" title="Хинтон, Джеффри"> Джеффри Хинтон</a></li>
+<li><a href="/wiki/%D0%A5%D0%BE%D0%BC%D1%81%D0%BA%D0%B8%D0%B9,_%D0%9D%D0%BE%D0%B0%D0%BC" title="Хомский, Ноам">Ноам Хомский</a></li>
+<li><a href="/wiki/%D0%A8%D0%B5%D0%BD%D0%BD%D0%BE%D0%BD,_%D0%9A%D0%BB%D0%BE%D0%B4" title="Шеннон, Клод">Клод Шеннон</a></li>
+<li><a href="/wiki/%D0%AB%D0%BD,_%D0%AD%D0%BD%D0%B4%D1%80%D1%8E" title="Ын, Эндрю">Эндрю Ын</a></li>
+<li><a href="/wiki/%D0%AE%D0%B4%D0%BA%D0%BE%D0%B2%D1%81%D0%BA%D0%B8%D0%B9,_%D0%AD%D0%BB%D0%B8%D0%B5%D0%B7%D0%B5%D1%80" title="Юдковский, Элиезер">Элиезер Юдковский</a></li></ul>
+</div></td></tr></tbody></table></div>
+<div role="navigation" class="navbox" aria-labelledby="Машинное&#95;обучение&#95;и&#95;data&#95;mining" data-name="Машинное обучение"><table class="nowraplinks collapsible collapsed navbox-inner" style="border-spacing:0;background:transparent;color:inherit"><tbody><tr><th scope="colgroup" class="navbox-title" colspan="2"><span class="navbox-gear" style="float:left;text-align:left;width:5em;margin-right:0.5em"><span class="noprint skin-invert-image" typeof="mw:File"><a href="/wiki/%D0%A8%D0%B0%D0%B1%D0%BB%D0%BE%D0%BD:%D0%9C%D0%B0%D1%88%D0%B8%D0%BD%D0%BD%D0%BE%D0%B5_%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5" title="Перейти к шаблону «Машинное обучение»"><img alt="Перейти к шаблону «Машинное обучение»" src="//upload.wikimedia.org/wikipedia/commons/thumb/c/c9/Wikipedia_interwiki_section_gear_icon.svg/20px-Wikipedia_interwiki_section_gear_icon.svg.png" decoding="async" width="14" height="14" class="mw-file-element" srcset="//upload.wikimedia.org/wikipedia/commons/thumb/c/c9/Wikipedia_interwiki_section_gear_icon.svg/40px-Wikipedia_interwiki_section_gear_icon.svg.png 1.5x" data-file-width="14" data-file-height="14" /></a></span></span><div id="Машинное&#95;обучение&#95;и&#95;data&#95;mining" style="font-size:114%;margin:0 5em"><a href="/wiki/%D0%9C%D0%B0%D1%88%D0%B8%D0%BD%D0%BD%D0%BE%D0%B5_%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5" title="Машинное обучение">Машинное обучение</a> и <a href="/wiki/Data_mining" title="Data mining">data mining</a></div></th></tr><tr><th scope="row" class="navbox-group" style="width:1px">Задачи</th><td class="navbox-list navbox-odd hlist hlist-items-nowrap" style="text-align:left;border-left-width:2px;border-left-style:solid;width:100%;padding:0px"><div style="padding:0em 0.25em">
+<ul><li><a href="/wiki/%D0%97%D0%B0%D0%B4%D0%B0%D1%87%D0%B0_%D0%BA%D0%BB%D0%B0%D1%81%D1%81%D0%B8%D1%84%D0%B8%D0%BA%D0%B0%D1%86%D0%B8%D0%B8" title="Задача классификации">Задача классификации</a></li>
+<li><a href="/wiki/%D0%9E%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5_%D0%B1%D0%B5%D0%B7_%D1%83%D1%87%D0%B8%D1%82%D0%B5%D0%BB%D1%8F" title="Обучение без учителя">Обучение без учителя</a></li>
+<li><a href="/wiki/%D0%9E%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5_%D1%81_%D1%87%D0%B0%D1%81%D1%82%D0%B8%D1%87%D0%BD%D1%8B%D0%BC_%D0%BF%D1%80%D0%B8%D0%B2%D0%BB%D0%B5%D1%87%D0%B5%D0%BD%D0%B8%D0%B5%D0%BC_%D1%83%D1%87%D0%B8%D1%82%D0%B5%D0%BB%D1%8F" title="Обучение с частичным привлечением учителя">Обучение с частичным привлечением учителя</a></li>
+<li><a href="/wiki/%D0%A0%D0%B5%D0%B3%D1%80%D0%B5%D1%81%D1%81%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B0%D0%BD%D0%B0%D0%BB%D0%B8%D0%B7" title="Регрессионный анализ">Регрессионный анализ</a></li>
+<li><a href="/wiki/%D0%90%D0%B2%D1%82%D0%BE%D0%BC%D0%B0%D1%82%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%BE%D0%B5_%D0%BC%D0%B0%D1%88%D0%B8%D0%BD%D0%BD%D0%BE%D0%B5_%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5" title="Автоматическое машинное обучение">AutoML</a></li>
+<li><a href="/wiki/%D0%9E%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5_%D0%B0%D1%81%D1%81%D0%BE%D1%86%D0%B8%D0%B0%D1%82%D0%B8%D0%B2%D0%BD%D1%8B%D0%BC_%D0%BF%D1%80%D0%B0%D0%B2%D0%B8%D0%BB%D0%B0%D0%BC" title="Обучение ассоциативным правилам">Ассоциативные правила</a></li>
+<li><a href="/wiki/%D0%92%D1%8B%D0%B4%D0%B5%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5_%D0%BF%D1%80%D0%B8%D0%B7%D0%BD%D0%B0%D0%BA%D0%BE%D0%B2" title="Выделение признаков">Выделение признаков</a></li>
+<li><a href="/wiki/%D0%9E%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5_%D0%BF%D1%80%D0%B8%D0%B7%D0%BD%D0%B0%D0%BA%D0%B0%D0%BC" title="Обучение признакам">Обучение признакам</a></li>
+<li><a href="/wiki/%D0%9E%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5_%D1%80%D0%B0%D0%BD%D0%B6%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D1%8E" title="Обучение ранжированию">Обучение ранжированию</a></li>
+<li><a href="/wiki/%D0%93%D1%80%D0%B0%D0%BC%D0%BC%D0%B0%D1%82%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B8%D0%B9_%D0%B2%D1%8B%D0%B2%D0%BE%D0%B4" title="Грамматический вывод">Грамматический вывод</a></li>
+<li><a href="/wiki/%D0%9E%D0%BD%D0%BB%D0%B0%D0%B9%D0%BD%D0%BE%D0%B2%D0%BE%D0%B5_%D0%BC%D0%B0%D1%88%D0%B8%D0%BD%D0%BD%D0%BE%D0%B5_%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5" title="Онлайновое машинное обучение">Онлайновое обучение</a></li></ul>
+</div></td></tr><tr><th scope="row" class="navbox-group" style="width:1px"><a href="/wiki/%D0%9E%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5_%D1%81_%D1%83%D1%87%D0%B8%D1%82%D0%B5%D0%BB%D0%B5%D0%BC" title="Обучение с учителем">Обучение с учителем</a></th><td class="navbox-list navbox-even hlist hlist-items-nowrap" style="text-align:left;border-left-width:2px;border-left-style:solid;width:100%;padding:0px"><div style="padding:0em 0.25em">
+<ul><li><a href="/wiki/%D0%9C%D0%B5%D1%82%D0%BE%D0%B4_k_%D0%B1%D0%BB%D0%B8%D0%B6%D0%B0%D0%B9%D1%88%D0%B8%D1%85_%D1%81%D0%BE%D1%81%D0%B5%D0%B4%D0%B5%D0%B9" title="Метод k ближайших соседей">Метод k ближайших соседей</a></li>
+<li><a href="/wiki/%D0%9D%D0%B0%D0%B8%D0%B2%D0%BD%D1%8B%D0%B9_%D0%B1%D0%B0%D0%B9%D0%B5%D1%81%D0%BE%D0%B2%D1%81%D0%BA%D0%B8%D0%B9_%D0%BA%D0%BB%D0%B0%D1%81%D1%81%D0%B8%D1%84%D0%B8%D0%BA%D0%B0%D1%82%D0%BE%D1%80" title="Наивный байесовский классификатор">Наивный байесовский классификатор</a></li>
+<li><a href="/wiki/%D0%94%D0%B5%D1%80%D0%B5%D0%B2%D0%BE_%D1%80%D0%B5%D1%88%D0%B5%D0%BD%D0%B8%D0%B9" title="Дерево решений">Дерево решений</a></li>
+<li><a href="/wiki/%D0%9C%D0%B5%D1%82%D0%BE%D0%B4_%D0%BE%D0%BF%D0%BE%D1%80%D0%BD%D1%8B%D1%85_%D0%B2%D0%B5%D0%BA%D1%82%D0%BE%D1%80%D0%BE%D0%B2" title="Метод опорных векторов">Метод опорных векторов</a></li>
+<li><a href="/wiki/%D0%9B%D0%B8%D0%BD%D0%B5%D0%B9%D0%BD%D0%B0%D1%8F_%D1%80%D0%B5%D0%B3%D1%80%D0%B5%D1%81%D1%81%D0%B8%D1%8F" title="Линейная регрессия">Линейная регрессия</a></li>
+<li><a href="/wiki/%D0%9B%D0%BE%D0%B3%D0%B8%D1%81%D1%82%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B0%D1%8F_%D1%80%D0%B5%D0%B3%D1%80%D0%B5%D1%81%D1%81%D0%B8%D1%8F" title="Логистическая регрессия">Логистическая регрессия</a></li>
+<li><a href="/wiki/%D0%9F%D0%B5%D1%80%D1%86%D0%B5%D0%BF%D1%82%D1%80%D0%BE%D0%BD" title="Перцептрон">Перцептрон</a></li>
+<li><a href="/wiki/%D0%90%D0%BD%D1%81%D0%B0%D0%BC%D0%B1%D0%BB%D0%B5%D0%B2%D0%BE%D0%B5_%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5" title="Ансамблевое обучение">Ансамблевое обучение</a>
+<ul><li><a href="/wiki/%D0%91%D1%8D%D0%B3%D0%B3%D0%B8%D0%BD%D0%B3" title="Бэггинг">Бэггинг</a></li>
+<li><a href="/wiki/%D0%91%D1%83%D1%81%D1%82%D0%B8%D0%BD%D0%B3" title="Бустинг">Бустинг</a></li>
+<li><a href="/wiki/%D0%9C%D0%B5%D1%82%D0%BE%D0%B4_%D1%81%D0%BB%D1%83%D1%87%D0%B0%D0%B9%D0%BD%D0%BE%D0%B3%D0%BE_%D0%BB%D0%B5%D1%81%D0%B0" title="Метод случайного леса">Метод случайного леса</a></li></ul></li>
+<li><a href="/wiki/%D0%9C%D0%B5%D1%82%D0%BE%D0%B4_%D1%80%D0%B5%D0%BB%D0%B5%D0%B2%D0%B0%D0%BD%D1%82%D0%BD%D1%8B%D1%85_%D0%B2%D0%B5%D0%BA%D1%82%D0%BE%D1%80%D0%BE%D0%B2" title="Метод релевантных векторов">Метод релевантных векторов</a></li></ul>
+</div></td></tr><tr><th scope="row" class="navbox-group" style="width:1px"><a href="/wiki/%D0%9A%D0%BB%D0%B0%D1%81%D1%82%D0%B5%D1%80%D0%BD%D1%8B%D0%B9_%D0%B0%D0%BD%D0%B0%D0%BB%D0%B8%D0%B7" title="Кластерный анализ">Кластерный анализ</a></th><td class="navbox-list navbox-odd hlist hlist-items-nowrap" style="text-align:left;border-left-width:2px;border-left-style:solid;width:100%;padding:0px"><div style="padding:0em 0.25em">
+<ul><li><a href="/wiki/%D0%9C%D0%B5%D1%82%D0%BE%D0%B4_k-%D1%81%D1%80%D0%B5%D0%B4%D0%BD%D0%B8%D1%85" title="Метод k-средних">Метод k-средних</a></li>
+<li><a href="/wiki/%D0%9C%D0%B5%D1%82%D0%BE%D0%B4_%D0%BD%D0%B5%D1%87%D1%91%D1%82%D0%BA%D0%BE%D0%B9_%D0%BA%D0%BB%D0%B0%D1%81%D1%82%D0%B5%D1%80%D0%B8%D0%B7%D0%B0%D1%86%D0%B8%D0%B8_C-%D1%81%D1%80%D0%B5%D0%B4%D0%BD%D0%B8%D1%85" title="Метод нечёткой кластеризации C-средних">Метод нечёткой кластеризации</a></li>
+<li><a href="/wiki/%D0%98%D0%B5%D1%80%D0%B0%D1%80%D1%85%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B0%D1%8F_%D0%BA%D0%BB%D0%B0%D1%81%D1%82%D0%B5%D1%80%D0%B8%D0%B7%D0%B0%D1%86%D0%B8%D1%8F" title="Иерархическая кластеризация">Иерархическая кластеризация</a></li>
+<li><a href="/wiki/EM-%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC" title="EM-алгоритм">EM-алгоритм</a></li>
+<li><a href="/wiki/BIRCH" title="BIRCH">BIRCH</a></li>
+<li><a href="/wiki/%D0%90%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC_CURE" title="Алгоритм CURE">CURE</a></li>
+<li><a href="/wiki/DBSCAN" title="DBSCAN">DBSCAN</a></li>
+<li><a href="/wiki/%D0%90%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC_%D0%BA%D0%BB%D0%B0%D1%81%D1%82%D0%B5%D1%80%D0%B8%D0%B7%D0%B0%D1%86%D0%B8%D0%B8_OPTICS" title="Алгоритм кластеризации OPTICS">OPTICS</a></li>
+<li><a href="/wiki/%D0%A1%D0%B4%D0%B2%D0%B8%D0%B3_%D1%81%D1%80%D0%B5%D0%B4%D0%BD%D0%B5%D0%B3%D0%BE_%D0%B7%D0%BD%D0%B0%D1%87%D0%B5%D0%BD%D0%B8%D1%8F" title="Сдвиг среднего значения">Mean-shift</a></li></ul>
+</div></td></tr><tr><th scope="row" class="navbox-group" style="width:1px"><a href="/wiki/%D0%A1%D0%BD%D0%B8%D0%B6%D0%B5%D0%BD%D0%B8%D0%B5_%D1%80%D0%B0%D0%B7%D0%BC%D0%B5%D1%80%D0%BD%D0%BE%D1%81%D1%82%D0%B8" title="Снижение размерности">Снижение размерности</a></th><td class="navbox-list navbox-even hlist hlist-items-nowrap" style="text-align:left;border-left-width:2px;border-left-style:solid;width:100%;padding:0px"><div style="padding:0em 0.25em">
+<ul><li><a href="/wiki/%D0%A4%D0%B0%D0%BA%D1%82%D0%BE%D1%80%D0%BD%D1%8B%D0%B9_%D0%B0%D0%BD%D0%B0%D0%BB%D0%B8%D0%B7" title="Факторный анализ">Факторный анализ</a></li>
+<li><a href="/wiki/%D0%9C%D0%B5%D1%82%D0%BE%D0%B4_%D0%B3%D0%BB%D0%B0%D0%B2%D0%BD%D1%8B%D1%85_%D0%BA%D0%BE%D0%BC%D0%BF%D0%BE%D0%BD%D0%B5%D0%BD%D1%82" title="Метод главных компонент">Метод главных компонент</a></li>
+<li><a href="/wiki/%D0%9A%D0%B0%D0%BD%D0%BE%D0%BD%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B8%D0%B9_%D0%BA%D0%BE%D1%80%D1%80%D0%B5%D0%BB%D1%8F%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B0%D0%BD%D0%B0%D0%BB%D0%B8%D0%B7" title="Канонический корреляционный анализ">CCA</a></li>
+<li><a href="/wiki/%D0%90%D0%BD%D0%B0%D0%BB%D0%B8%D0%B7_%D0%BD%D0%B5%D0%B7%D0%B0%D0%B2%D0%B8%D1%81%D0%B8%D0%BC%D1%8B%D1%85_%D0%BA%D0%BE%D0%BC%D0%BF%D0%BE%D0%BD%D0%B5%D0%BD%D1%82" title="Анализ независимых компонент">ICA</a></li>
+<li><a href="/wiki/%D0%9B%D0%B8%D0%BD%D0%B5%D0%B9%D0%BD%D1%8B%D0%B9_%D0%B4%D0%B8%D1%81%D0%BA%D1%80%D0%B8%D0%BC%D0%B8%D0%BD%D0%B0%D0%BD%D1%82%D0%BD%D1%8B%D0%B9_%D0%B0%D0%BD%D0%B0%D0%BB%D0%B8%D0%B7" title="Линейный дискриминантный анализ">LDA</a></li>
+<li><a href="/wiki/%D0%9D%D0%B5%D0%BE%D1%82%D1%80%D0%B8%D1%86%D0%B0%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D0%BE%D0%B5_%D0%BC%D0%B0%D1%82%D1%80%D0%B8%D1%87%D0%BD%D0%BE%D0%B5_%D1%80%D0%B0%D0%B7%D0%BB%D0%BE%D0%B6%D0%B5%D0%BD%D0%B8%D0%B5" title="Неотрицательное матричное разложение">Неотрицательное матричное разложение</a></li>
+<li><a href="/wiki/%D0%A1%D1%82%D0%BE%D1%85%D0%B0%D1%81%D1%82%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%BE%D0%B5_%D0%B2%D0%BB%D0%BE%D0%B6%D0%B5%D0%BD%D0%B8%D0%B5_%D1%81%D0%BE%D1%81%D0%B5%D0%B4%D0%B5%D0%B9_%D1%81_t-%D1%80%D0%B0%D1%81%D0%BF%D1%80%D0%B5%D0%B4%D0%B5%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5%D0%BC" title="Стохастическое вложение соседей с t-распределением">t-SNE</a></li></ul>
+</div></td></tr><tr><th scope="row" class="navbox-group" style="width:1px"><a href="/wiki/%D0%A1%D1%82%D1%80%D1%83%D0%BA%D1%82%D1%83%D1%80%D0%BD%D0%BE%D0%B5_%D0%BF%D1%80%D0%BE%D0%B3%D0%BD%D0%BE%D0%B7%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5" title="Структурное прогнозирование">Структурное прогнозирование</a></th><td class="navbox-list navbox-odd hlist hlist-items-nowrap" style="text-align:left;border-left-width:2px;border-left-style:solid;width:100%;padding:0px"><div style="padding:0em 0.25em">
+<ul><li><a href="/wiki/%D0%93%D1%80%D0%B0%D1%84%D0%BE%D0%B2%D0%B0%D1%8F_%D0%B2%D0%B5%D1%80%D0%BE%D1%8F%D1%82%D0%BD%D0%BE%D1%81%D1%82%D0%BD%D0%B0%D1%8F_%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D1%8C" title="Графовая вероятностная модель">Графовая вероятностная модель</a>
+<ul><li><a href="/wiki/%D0%91%D0%B0%D0%B9%D0%B5%D1%81%D0%BE%D0%B2%D1%81%D0%BA%D0%B0%D1%8F_%D1%81%D0%B5%D1%82%D1%8C" title="Байесовская сеть">Байесовская сеть</a></li>
+<li><a href="/wiki/%D0%A1%D0%BA%D1%80%D1%8B%D1%82%D0%B0%D1%8F_%D0%BC%D0%B0%D1%80%D0%BA%D0%BE%D0%B2%D1%81%D0%BA%D0%B0%D1%8F_%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D1%8C" title="Скрытая марковская модель">Скрытая марковская модель</a></li>
+<li><a href="/w/index.php?title=Conditional_random_field&amp;action=edit&amp;redlink=1" class="new" title="Conditional random field (страница отсутствует)">CRF</a></li></ul></li></ul>
+</div></td></tr><tr><th scope="row" class="navbox-group" style="width:1px"><a href="/wiki/%D0%92%D1%8B%D1%8F%D0%B2%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5_%D0%B0%D0%BD%D0%BE%D0%BC%D0%B0%D0%BB%D0%B8%D0%B9" title="Выявление аномалий">Выявление аномалий</a></th><td class="navbox-list navbox-even hlist hlist-items-nowrap" style="text-align:left;border-left-width:2px;border-left-style:solid;width:100%;padding:0px"><div style="padding:0em 0.25em">
+<ul><li><a href="/wiki/%D0%9C%D0%B5%D1%82%D0%BE%D0%B4_k_%D0%B1%D0%BB%D0%B8%D0%B6%D0%B0%D0%B9%D1%88%D0%B8%D1%85_%D1%81%D0%BE%D1%81%D0%B5%D0%B4%D0%B5%D0%B9" title="Метод k ближайших соседей">Метод k ближайших соседей</a></li>
+<li><a href="/wiki/%D0%9B%D0%BE%D0%BA%D0%B0%D0%BB%D1%8C%D0%BD%D1%8B%D0%B9_%D1%83%D1%80%D0%BE%D0%B2%D0%B5%D0%BD%D1%8C_%D0%B2%D1%8B%D0%B1%D1%80%D0%BE%D1%81%D0%B0" title="Локальный уровень выброса">Локальный уровень выброса</a></li></ul>
+</div></td></tr><tr><th scope="row" class="navbox-group" style="width:1px"><a href="/wiki/%D0%93%D1%80%D0%B0%D1%84%D0%BE%D0%B2%D0%B0%D1%8F_%D0%B2%D0%B5%D1%80%D0%BE%D1%8F%D1%82%D0%BD%D0%BE%D1%81%D1%82%D0%BD%D0%B0%D1%8F_%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D1%8C" title="Графовая вероятностная модель">Графовые вероятностные модели</a></th><td class="navbox-list navbox-odd hlist hlist-items-nowrap" style="text-align:left;border-left-width:2px;border-left-style:solid;width:100%;padding:0px"><div style="padding:0em 0.25em">
+<ul><li><a href="/wiki/%D0%91%D0%B0%D0%B9%D0%B5%D1%81%D0%BE%D0%B2%D1%81%D0%BA%D0%B0%D1%8F_%D1%81%D0%B5%D1%82%D1%8C" title="Байесовская сеть">Байесовская сеть</a></li>
+<li><a href="/wiki/%D0%9C%D0%B0%D1%80%D0%BA%D0%BE%D0%B2%D1%81%D0%BA%D0%B0%D1%8F_%D1%81%D0%B5%D1%82%D1%8C" title="Марковская сеть">Марковская сеть</a></li>
+<li><a href="/wiki/%D0%A1%D0%BA%D1%80%D1%8B%D1%82%D0%B0%D1%8F_%D0%BC%D0%B0%D1%80%D0%BA%D0%BE%D0%B2%D1%81%D0%BA%D0%B0%D1%8F_%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D1%8C" title="Скрытая марковская модель">Скрытая марковская модель</a></li></ul>
+</div></td></tr><tr><th scope="row" class="navbox-group" style="width:1px"><a href="/wiki/%D0%9D%D0%B5%D0%B9%D1%80%D0%BE%D0%BD%D0%BD%D0%B0%D1%8F_%D1%81%D0%B5%D1%82%D1%8C" title="Нейронная сеть">Нейронные сети</a></th><td class="navbox-list navbox-even hlist hlist-items-nowrap" style="text-align:left;border-left-width:2px;border-left-style:solid;width:100%;padding:0px"><div style="padding:0em 0.25em">
+<ul><li><a href="/wiki/%D0%9E%D0%B3%D1%80%D0%B0%D0%BD%D0%B8%D1%87%D0%B5%D0%BD%D0%BD%D0%B0%D1%8F_%D0%BC%D0%B0%D1%88%D0%B8%D0%BD%D0%B0_%D0%91%D0%BE%D0%BB%D1%8C%D1%86%D0%BC%D0%B0%D0%BD%D0%B0" title="Ограниченная машина Больцмана">Ограниченная машина Больцмана</a></li>
+<li><a href="/wiki/%D0%A1%D0%B0%D0%BC%D0%BE%D0%BE%D1%80%D0%B3%D0%B0%D0%BD%D0%B8%D0%B7%D1%83%D1%8E%D1%89%D0%B0%D1%8F%D1%81%D1%8F_%D0%BA%D0%B0%D1%80%D1%82%D0%B0_%D0%9A%D0%BE%D1%85%D0%BE%D0%BD%D0%B5%D0%BD%D0%B0" title="Самоорганизующаяся карта Кохонена">Самоорганизующаяся карта</a></li>
+<li><a href="/wiki/%D0%A4%D1%83%D0%BD%D0%BA%D1%86%D0%B8%D1%8F_%D0%B0%D0%BA%D1%82%D0%B8%D0%B2%D0%B0%D1%86%D0%B8%D0%B8" title="Функция активации">Функция активации</a>
+<ul><li><a href="/wiki/%D0%A1%D0%B8%D0%B3%D0%BC%D0%BE%D0%B8%D0%B4%D0%B0" title="Сигмоида">Сигмоида</a></li>
+<li><a href="/wiki/%D0%9C%D0%BD%D0%BE%D0%B3%D0%BE%D0%BF%D0%B5%D1%80%D0%B5%D0%BC%D0%B5%D0%BD%D0%BD%D0%B0%D1%8F_%D0%BB%D0%BE%D0%B3%D0%B8%D1%81%D1%82%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B0%D1%8F_%D1%84%D1%83%D0%BD%D0%BA%D1%86%D0%B8%D1%8F" title="Многопеременная логистическая функция">Softmax</a></li>
+<li><a href="/wiki/%D0%A0%D0%B0%D0%B4%D0%B8%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE-%D0%B1%D0%B0%D0%B7%D0%B8%D1%81%D0%BD%D0%B0%D1%8F_%D1%84%D1%83%D0%BD%D0%BA%D1%86%D0%B8%D1%8F" title="Радиально-базисная функция">Радиально-базисная функция</a></li></ul></li>
+<li><a href="/wiki/%D0%9C%D0%B5%D1%82%D0%BE%D0%B4_%D0%BE%D0%B1%D1%80%D0%B0%D1%82%D0%BD%D0%BE%D0%B3%D0%BE_%D1%80%D0%B0%D1%81%D0%BF%D1%80%D0%BE%D1%81%D1%82%D1%80%D0%B0%D0%BD%D0%B5%D0%BD%D0%B8%D1%8F_%D0%BE%D1%88%D0%B8%D0%B1%D0%BA%D0%B8" title="Метод обратного распространения ошибки">Метод обратного распространения ошибки</a></li>
+<li><a href="/wiki/%D0%93%D0%BB%D1%83%D0%B1%D0%BE%D0%BA%D0%BE%D0%B5_%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5" title="Глубокое обучение">Глубокое обучение</a></li>
+<li><a href="/wiki/%D0%9C%D0%BD%D0%BE%D0%B3%D0%BE%D1%81%D0%BB%D0%BE%D0%B9%D0%BD%D1%8B%D0%B9_%D0%BF%D0%B5%D1%80%D1%86%D0%B5%D0%BF%D1%82%D1%80%D0%BE%D0%BD_%D0%A0%D1%83%D0%BC%D0%B5%D0%BB%D1%8C%D1%85%D0%B0%D1%80%D1%82%D0%B0" title="Многослойный перцептрон Румельхарта">Многослойный перцептрон</a></li>
+<li><a href="/wiki/%D0%A0%D0%B5%D0%BA%D1%83%D1%80%D1%80%D0%B5%D0%BD%D1%82%D0%BD%D0%B0%D1%8F_%D0%BD%D0%B5%D0%B9%D1%80%D0%BE%D0%BD%D0%BD%D0%B0%D1%8F_%D1%81%D0%B5%D1%82%D1%8C" title="Рекуррентная нейронная сеть">Рекуррентная нейронная сеть</a>
+<ul><li><a href="/wiki/%D0%94%D0%BE%D0%BB%D0%B3%D0%B0%D1%8F_%D0%BA%D1%80%D0%B0%D1%82%D0%BA%D0%BE%D1%81%D1%80%D0%BE%D1%87%D0%BD%D0%B0%D1%8F_%D0%BF%D0%B0%D0%BC%D1%8F%D1%82%D1%8C" title="Долгая краткосрочная память">Долгая краткосрочная память</a></li>
+<li><a href="/wiki/%D0%A3%D0%BF%D1%80%D0%B0%D0%B2%D0%BB%D1%8F%D0%B5%D0%BC%D1%8B%D0%B9_%D1%80%D0%B5%D0%BA%D1%83%D1%80%D1%80%D0%B5%D0%BD%D1%82%D0%BD%D1%8B%D0%B9_%D0%B1%D0%BB%D0%BE%D0%BA" title="Управляемый рекуррентный блок">Управляемый рекуррентный блок</a></li></ul></li>
+<li><a href="/wiki/%D0%A1%D0%B2%D1%91%D1%80%D1%82%D0%BE%D1%87%D0%BD%D0%B0%D1%8F_%D0%BD%D0%B5%D0%B9%D1%80%D0%BE%D0%BD%D0%BD%D0%B0%D1%8F_%D1%81%D0%B5%D1%82%D1%8C" title="Свёрточная нейронная сеть">Свёрточная нейронная сеть</a>
+<ul><li><a href="/wiki/U-Net" title="U-Net">U-Net</a></li></ul></li>
+<li><a href="/wiki/%D0%90%D0%B2%D1%82%D0%BE%D0%BA%D0%BE%D0%B4%D0%B8%D1%80%D0%BE%D0%B2%D1%89%D0%B8%D0%BA" title="Автокодировщик">Автокодировщик</a></li></ul>
+</div></td></tr><tr><th scope="row" class="navbox-group" style="width:1px"><a href="/wiki/%D0%9E%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5_%D1%81_%D0%BF%D0%BE%D0%B4%D0%BA%D1%80%D0%B5%D0%BF%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5%D0%BC" title="Обучение с подкреплением">Обучение с подкреплением</a></th><td class="navbox-list navbox-odd hlist hlist-items-nowrap" style="text-align:left;border-left-width:2px;border-left-style:solid;width:100%;padding:0px"><div style="padding:0em 0.25em">
+<ul><li><a href="/wiki/%D0%9C%D0%B0%D1%80%D0%BA%D0%BE%D0%B2%D1%81%D0%BA%D0%B8%D0%B9_%D0%BF%D1%80%D0%BE%D1%86%D0%B5%D1%81%D1%81" title="Марковский процесс">Марковский процесс</a></li>
+<li><a href="/wiki/%D0%A3%D1%80%D0%B0%D0%B2%D0%BD%D0%B5%D0%BD%D0%B8%D0%B5_%D0%91%D0%B5%D0%BB%D0%BB%D0%BC%D0%B0%D0%BD%D0%B0" title="Уравнение Беллмана">Уравнение Беллмана</a></li>
+<li><a href="/wiki/%D0%96%D0%B0%D0%B4%D0%BD%D1%8B%D0%B9_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC" title="Жадный алгоритм">Жадный алгоритм</a></li>
+<li><a href="/wiki/Q-%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5" title="Q-обучение">Q-обучение</a></li>
+<li><a href="/w/index.php?title=State%E2%80%93action%E2%80%93reward%E2%80%93state%E2%80%93action&amp;action=edit&amp;redlink=1" class="new" title="State–action–reward–state–action (страница отсутствует)">SARSA</a></li>
+<li><a href="/w/index.php?title=Temporal_difference_learning&amp;action=edit&amp;redlink=1" class="new" title="Temporal difference learning (страница отсутствует)">Temporal difference (TD)</a></li></ul>
+</div></td></tr><tr><th scope="row" class="navbox-group" style="width:1px">Теория</th><td class="navbox-list navbox-even hlist hlist-items-nowrap" style="text-align:left;border-left-width:2px;border-left-style:solid;width:100%;padding:0px"><div style="padding:0em 0.25em">
+<ul><li><a href="/wiki/%D0%A0%D0%B0%D0%B7%D0%BC%D0%B5%D1%80%D0%BD%D0%BE%D1%81%D1%82%D1%8C_%D0%92%D0%B0%D0%BF%D0%BD%D0%B8%D0%BA%D0%B0_%E2%80%94_%D0%A7%D0%B5%D1%80%D0%B2%D0%BE%D0%BD%D0%B5%D0%BD%D0%BA%D0%B8%D1%81%D0%B0" title="Размерность Вапника — Червоненкиса">Размерность Вапника — Червоненкиса</a></li>
+<li><a href="/wiki/%D0%94%D0%B8%D0%BB%D0%B5%D0%BC%D0%BC%D0%B0_%D1%81%D0%BC%D0%B5%D1%89%D0%B5%D0%BD%D0%B8%D1%8F-%D0%B4%D0%B8%D1%81%D0%BF%D0%B5%D1%80%D1%81%D0%B8%D0%B8" title="Дилемма смещения-дисперсии">Дилемма смещения–дисперсии</a></li>
+<li><a href="/wiki/%D0%A2%D0%B5%D0%BE%D1%80%D0%B8%D1%8F_%D0%B2%D1%8B%D1%87%D0%B8%D1%81%D0%BB%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D0%BE%D0%B3%D0%BE_%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D1%8F" title="Теория вычислительного обучения">Теория вычислительного обучения</a></li>
+<li><a href="/wiki/%D0%9C%D0%B8%D0%BD%D0%B8%D0%BC%D0%B8%D0%B7%D0%B0%D1%86%D0%B8%D1%8F_%D1%8D%D0%BC%D0%BF%D0%B8%D1%80%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%BE%D0%B3%D0%BE_%D1%80%D0%B8%D1%81%D0%BA%D0%B0" title="Минимизация эмпирического риска">Минимизация эмпирического риска</a></li>
+<li><a href="/wiki/%D0%9E%D0%BA%D0%BA%D0%B0%D0%BC%D0%BE%D0%B2%D0%BE_%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5" title="Оккамово обучение">Оккамово обучение</a></li>
+<li><a href="/wiki/%D0%92%D0%B5%D1%80%D0%BE%D1%8F%D1%82%D0%BD%D0%BE_%D0%BF%D1%80%D0%B8%D0%B1%D0%BB%D0%B8%D0%B6%D1%91%D0%BD%D0%BD%D0%BE_%D0%BA%D0%BE%D1%80%D1%80%D0%B5%D0%BA%D1%82%D0%BD%D0%BE%D0%B5_%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5" title="Вероятно приближённо корректное обучение">PAC learning</a></li>
+<li><a href="/wiki/%D0%A1%D1%82%D0%B0%D1%82%D0%B8%D1%81%D1%82%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B0%D1%8F_%D1%82%D0%B5%D0%BE%D1%80%D0%B8%D1%8F_%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D1%8F" title="Статистическая теория обучения">Статистическая теория обучения</a></li></ul>
+</div></td></tr><tr><th scope="row" class="navbox-group" style="width:1px">Журналы и конференции</th><td class="navbox-list navbox-odd hlist hlist-items-nowrap" style="text-align:left;border-left-width:2px;border-left-style:solid;width:100%;padding:0px"><div style="padding:0em 0.25em">
+<ul><li><a href="/w/index.php?title=Conference_on_Neural_Information_Processing_Systems&amp;action=edit&amp;redlink=1" class="new" title="Conference on Neural Information Processing Systems (страница отсутствует)">NeurIPS</a></li>
+<li><a href="/w/index.php?title=International_Conference_on_Machine_Learning&amp;action=edit&amp;redlink=1" class="new" title="International Conference on Machine Learning (страница отсутствует)">ICML</a></li>
+<li><a href="/w/index.php?title=Machine_Learning_(journal)&amp;action=edit&amp;redlink=1" class="new" title="Machine Learning (journal) (страница отсутствует)">ML</a></li>
+<li><a href="/wiki/Journal_of_Machine_Learning_Research" title="Journal of Machine Learning Research">JMLR</a></li>
+<li><a rel="nofollow" class="external text" href="https://arxiv.org/list/cs.LG/recent">ArXiv:cs.LG</a></li></ul>
+</div></td></tr></tbody></table></div>
+<!-- 
+NewPP limit report
+Parsed by mw‐web.eqiad.main‐687cb475c4‐xrzbw
+Cached time: 20260125091154
+Cache expiry: 2592000
+Reduced expiry: false
+Complications: [show‐toc]
+CPU time usage: 0.251 seconds
+Real time usage: 0.309 seconds
+Preprocessor visited node count: 3858/1000000
+Revision size: 9726/2097152 bytes
+Post‐expand include size: 67300/2097152 bytes
+Template argument size: 6024/2097152 bytes
+Highest expansion depth: 14/100
+Expensive parser function count: 1/500
+Unstrip recursion depth: 1/20
+Unstrip post‐expand size: 23692/5000000 bytes
+Lua time usage: 0.070/10.000 seconds
+Lua memory usage: 2935181/52428800 bytes
+Number of Wikibase entities loaded: 0/500
+-->
+<!--
+Transclusion expansion time report (%,ms,calls,template)
+100.00%  244.486      1 -total
+ 43.92%  107.372      7 Шаблон:Книга
+ 39.17%   95.773      1 Шаблон:Примечания
+ 21.15%   51.707      1 Шаблон:Перевести
+ 18.89%   46.194      1 Шаблон:Mbox
+ 16.13%   39.431      1 Шаблон:Статья
+ 13.35%   32.645      2 Шаблон:Бсокр
+  7.71%   18.850      2 Шаблон:Навигационная_таблица
+  6.91%   16.886      1 Шаблон:Искусственный_интеллект
+  5.82%   14.224      1 Шаблон:Cite_web
+-->
+
+<!-- Saved in parser cache with key ruwiki:pcache:1304904:|#|:idhash:canonical and timestamp 20260125091154 and revision id 135363040. Rendering was triggered because: page_view
+ -->
+</div><noscript><img src="https://ru.wikipedia.org/wiki/Special:CentralAutoLogin/start?useformat=desktop&amp;type=1x1&amp;usesul3=1" alt="" width="1" height="1" style="border: none; position: absolute;"></noscript>
+<div class="printfooter" data-nosnippet="">Источник — <a dir="ltr" href="https://ru.wikipedia.org/w/index.php?title=Эволюционные_алгоритмы&amp;oldid=135363040">https://ru.wikipedia.org/w/index.php?title=Эволюционные_алгоритмы&amp;oldid=135363040</a></div></div>
+		<div id="catlinks" class="catlinks" data-mw-interface=""><div id="mw-normal-catlinks" class="mw-normal-catlinks"><a href="/wiki/%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:%D0%9A%D0%B0%D1%82%D0%B5%D0%B3%D0%BE%D1%80%D0%B8%D0%B8" title="Служебная:Категории">Категория</a>: <ul><li><a href="/wiki/%D0%9A%D0%B0%D1%82%D0%B5%D0%B3%D0%BE%D1%80%D0%B8%D1%8F:%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B" title="Категория:Эволюционные алгоритмы">Эволюционные алгоритмы</a></li></ul></div><div id="mw-hidden-catlinks" class="mw-hidden-catlinks mw-hidden-cats-hidden">Скрытые категории: <ul><li><a href="/wiki/%D0%9A%D0%B0%D1%82%D0%B5%D0%B3%D0%BE%D1%80%D0%B8%D1%8F:%D0%92%D0%B8%D0%BA%D0%B8%D0%BF%D0%B5%D0%B4%D0%B8%D1%8F:Cite_web_(%D0%BD%D0%B5_%D1%83%D0%BA%D0%B0%D0%B7%D0%B0%D0%BD_%D1%8F%D0%B7%D1%8B%D0%BA)" title="Категория:Википедия:Cite web (не указан язык)">Википедия:Cite web (не указан язык)</a></li><li><a href="/wiki/%D0%9A%D0%B0%D1%82%D0%B5%D0%B3%D0%BE%D1%80%D0%B8%D1%8F:%D0%A1%D1%82%D1%80%D0%B0%D0%BD%D0%B8%D1%86%D1%8B,_%D0%B8%D1%81%D0%BF%D0%BE%D0%BB%D1%8C%D0%B7%D1%83%D1%8E%D1%89%D0%B8%D0%B5_%D0%B2%D0%BE%D0%BB%D1%88%D0%B5%D0%B1%D0%BD%D1%8B%D0%B5_%D1%81%D1%81%D1%8B%D0%BB%D0%BA%D0%B8_ISBN" title="Категория:Страницы, использующие волшебные ссылки ISBN">Страницы, использующие волшебные ссылки ISBN</a></li><li><a href="/wiki/%D0%9A%D0%B0%D1%82%D0%B5%D0%B3%D0%BE%D1%80%D0%B8%D1%8F:%D0%92%D0%B8%D0%BA%D0%B8%D0%BF%D0%B5%D0%B4%D0%B8%D1%8F:%D0%97%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D1%8B_%D0%BD%D0%B0_%D0%BF%D0%B5%D1%80%D0%B5%D0%B2%D0%BE%D0%B4_%D1%81_%D0%BD%D0%B5%D0%BC%D0%B5%D1%86%D0%BA%D0%BE%D0%B3%D0%BE" title="Категория:Википедия:Запросы на перевод с немецкого">Википедия:Запросы на перевод с немецкого</a></li></ul></div></div>
+	</div>
+</div>
+
+<div id="mw-navigation">
+	<h2>Навигация</h2>
+	<div id="mw-head">
+		
+<nav id="p-personal" class="mw-portlet mw-portlet-personal vector-user-menu-legacy vector-menu" aria-labelledby="p-personal-label"  >
+	<h3
+		id="p-personal-label"
+		
+		class="vector-menu-heading "
+	>
+		<span class="vector-menu-heading-label">Персональные инструменты</span>
+	</h3>
+	<div class="vector-menu-content">
+		
+		<ul class="vector-menu-content-list">
+			
+			<li id="pt-anonuserpage" class="mw-list-item"><span title="Страница участника для моего IP">Вы не представились системе</span></li><li id="pt-anontalk" class="mw-list-item"><a href="/wiki/%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:%D0%9C%D0%BE%D1%91_%D0%BE%D0%B1%D1%81%D1%83%D0%B6%D0%B4%D0%B5%D0%BD%D0%B8%D0%B5" title="Страница обсуждений для моего IP [n]" accesskey="n"><span>Обсуждение</span></a></li><li id="pt-anoncontribs" class="mw-list-item"><a href="/wiki/%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:%D0%9C%D0%BE%D0%B9_%D0%B2%D0%BA%D0%BB%D0%B0%D0%B4" title="Список правок, сделанных с этого IP-адреса [y]" accesskey="y"><span>Вклад</span></a></li><li id="pt-createaccount" class="mw-list-item"><a href="/w/index.php?title=%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:%D0%A1%D0%BE%D0%B7%D0%B4%D0%B0%D1%82%D1%8C_%D1%83%D1%87%D1%91%D1%82%D0%BD%D1%83%D1%8E_%D0%B7%D0%B0%D0%BF%D0%B8%D1%81%D1%8C&amp;returnto=%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5+%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B&amp;returntoquery=printable%3Dyes" title="Мы предлагаем вам создать учётную запись и войти в систему, хотя это и не обязательно."><span>Создать учётную запись</span></a></li><li id="pt-login" class="mw-list-item"><a href="/w/index.php?title=%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:%D0%92%D1%85%D0%BE%D0%B4&amp;returnto=%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5+%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B&amp;returntoquery=printable%3Dyes" title="Здесь можно зарегистрироваться в системе, но это необязательно. [o]" accesskey="o"><span>Войти</span></a></li>
+		</ul>
+		
+	</div>
+</nav>
+
+		<div id="left-navigation">
+			
+<nav id="p-namespaces" class="mw-portlet mw-portlet-namespaces vector-menu-tabs vector-menu-tabs-legacy vector-menu" aria-labelledby="p-namespaces-label"  >
+	<h3
+		id="p-namespaces-label"
+		
+		class="vector-menu-heading "
+	>
+		<span class="vector-menu-heading-label">Пространства имён</span>
+	</h3>
+	<div class="vector-menu-content">
+		
+		<ul class="vector-menu-content-list">
+			
+			<li id="ca-nstab-main" class="selected mw-list-item"><a href="/wiki/%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B" title="Просмотреть контентную страницу [c]" accesskey="c"><span>Статья</span></a></li><li id="ca-talk" class="new mw-list-item"><a href="/w/index.php?title=%D0%9E%D0%B1%D1%81%D1%83%D0%B6%D0%B4%D0%B5%D0%BD%D0%B8%D0%B5:%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B&amp;action=edit&amp;redlink=1" rel="discussion" class="new" title="Обсуждение основной страницы (страница отсутствует) [t]" accesskey="t"><span>Обсуждение</span></a></li>
+		</ul>
+		
+	</div>
+</nav>
+
+			
+<nav id="p-variants" class="mw-portlet mw-portlet-variants emptyPortlet vector-menu-dropdown vector-menu" aria-labelledby="p-variants-label"  >
+	<input type="checkbox"
+		id="p-variants-checkbox"
+		role="button"
+		aria-haspopup="true"
+		data-event-name="ui.dropdown-p-variants"
+		class="vector-menu-checkbox"
+		aria-labelledby="p-variants-label"
+	>
+	<label
+		id="p-variants-label"
+		
+		class="vector-menu-heading "
+	>
+		<span class="vector-menu-heading-label">русский</span>
+	</label>
+	<div class="vector-menu-content">
+		
+		<ul class="vector-menu-content-list">
+			
+			
+		</ul>
+		
+	</div>
+</nav>
+
+		</div>
+		<div id="right-navigation">
+			
+<nav id="p-views" class="mw-portlet mw-portlet-views vector-menu-tabs vector-menu-tabs-legacy vector-menu" aria-labelledby="p-views-label"  >
+	<h3
+		id="p-views-label"
+		
+		class="vector-menu-heading "
+	>
+		<span class="vector-menu-heading-label">Просмотры</span>
+	</h3>
+	<div class="vector-menu-content">
+		
+		<ul class="vector-menu-content-list">
+			
+			<li id="ca-view" class="mw-list-item"><a href="/w/index.php?title=%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B&amp;stable=1"><span>Читать</span></a></li><li id="ca-current" class="collapsible selected mw-list-item"><a href="/w/index.php?title=%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B&amp;stable=0&amp;redirect=no" title="Показать текущую версию этой страницы [v]" accesskey="v"><span>Текущая версия</span></a></li><li id="ca-ve-edit" class="mw-list-item"><a href="/w/index.php?title=%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B&amp;veaction=edit" title="Редактировать данную страницу [v]" accesskey="v"><span>Править</span></a></li><li id="ca-edit" class="collapsible mw-list-item"><a href="/w/index.php?title=%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B&amp;action=edit" title="Править исходный текст этой страницы [e]" accesskey="e"><span>Править код</span></a></li><li id="ca-history" class="icon mw-list-item"><a href="/w/index.php?title=%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B&amp;action=history" title="Журнал изменений страницы [h]" accesskey="h"><span>История</span></a></li>
+		</ul>
+		
+	</div>
+</nav>
+
+			
+<nav id="p-cactions" class="mw-portlet mw-portlet-cactions emptyPortlet vector-menu-dropdown vector-menu" aria-labelledby="p-cactions-label"  title="Больше возможностей" >
+	<input type="checkbox"
+		id="p-cactions-checkbox"
+		role="button"
+		aria-haspopup="true"
+		data-event-name="ui.dropdown-p-cactions"
+		class="vector-menu-checkbox"
+		aria-labelledby="p-cactions-label"
+	>
+	<label
+		id="p-cactions-label"
+		
+		class="vector-menu-heading "
+	>
+		<span class="vector-menu-heading-label">Ещё</span>
+	</label>
+	<div class="vector-menu-content">
+		
+		<ul class="vector-menu-content-list">
+			
+			
+		</ul>
+		
+	</div>
+</nav>
+
+			
+<div id="p-search" role="search" class="vector-search-box-vue  vector-search-box-show-thumbnail vector-search-box-auto-expand-width vector-search-box">
+	<h3 >Поиск</h3>
+	<form action="/w/index.php" id="searchform" class="vector-search-box-form">
+		<div id="simpleSearch"
+			class="vector-search-box-inner"
+			 data-search-loc="header-navigation">
+			<input class="vector-search-box-input"
+				 type="search" name="search" placeholder="Искать в Википедии" aria-label="Искать в Википедии" autocapitalize="none" spellcheck="false" title="Искать в Википедии [f]" accesskey="f" id="searchInput"
+			>
+			<input type="hidden" name="title" value="Служебная:Поиск">
+			<input id="mw-searchButton"
+				 class="searchButton mw-fallbackSearchButton" type="submit" name="fulltext" title="Найти страницы, содержащие указанный текст" value="Найти">
+			<input id="searchButton"
+				 class="searchButton" type="submit" name="go" title="Перейти к странице, имеющей в точности такое название" value="Перейти">
+		</div>
+	</form>
+</div>
+
+		</div>
+	</div>
+	
+<div id="mw-panel" class="vector-legacy-sidebar">
+	<div id="p-logo" role="banner">
+		<a class="mw-wiki-logo" href="/wiki/%D0%97%D0%B0%D0%B3%D0%BB%D0%B0%D0%B2%D0%BD%D0%B0%D1%8F_%D1%81%D1%82%D1%80%D0%B0%D0%BD%D0%B8%D1%86%D0%B0"
+			title="Перейти на заглавную страницу"></a>
+	</div>
+	
+<nav id="p-navigation" class="mw-portlet mw-portlet-navigation vector-menu-portal portal vector-menu" aria-labelledby="p-navigation-label"  >
+	<h3
+		id="p-navigation-label"
+		
+		class="vector-menu-heading "
+	>
+		<span class="vector-menu-heading-label">Навигация</span>
+	</h3>
+	<div class="vector-menu-content">
+		
+		<ul class="vector-menu-content-list">
+			
+			<li id="n-mainpage-description" class="mw-list-item"><a href="/wiki/%D0%97%D0%B0%D0%B3%D0%BB%D0%B0%D0%B2%D0%BD%D0%B0%D1%8F_%D1%81%D1%82%D1%80%D0%B0%D0%BD%D0%B8%D1%86%D0%B0" title="Перейти на заглавную страницу [z]" accesskey="z"><span>Заглавная страница</span></a></li><li id="n-content" class="mw-list-item"><a href="/wiki/%D0%92%D0%B8%D0%BA%D0%B8%D0%BF%D0%B5%D0%B4%D0%B8%D1%8F:%D0%A1%D0%BE%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D0%BD%D0%B8%D0%B5"><span>Содержание</span></a></li><li id="n-featured" class="mw-list-item"><a href="/wiki/%D0%92%D0%B8%D0%BA%D0%B8%D0%BF%D0%B5%D0%B4%D0%B8%D1%8F:%D0%98%D0%B7%D0%B1%D1%80%D0%B0%D0%BD%D0%BD%D1%8B%D0%B5_%D1%81%D1%82%D0%B0%D1%82%D1%8C%D0%B8" title="Статьи, считающиеся лучшими статьями проекта"><span>Избранные статьи</span></a></li><li id="n-randompage" class="mw-list-item"><a href="/wiki/%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:%D0%A1%D0%BB%D1%83%D1%87%D0%B0%D0%B9%D0%BD%D0%B0%D1%8F_%D1%81%D1%82%D1%80%D0%B0%D0%BD%D0%B8%D1%86%D0%B0" title="Посмотреть случайно выбранную страницу [x]" accesskey="x"><span>Случайная статья</span></a></li><li id="n-currentevents" class="mw-list-item"><a href="/wiki/%D0%9F%D0%BE%D1%80%D1%82%D0%B0%D0%BB:%D0%A2%D0%B5%D0%BA%D1%83%D1%89%D0%B8%D0%B5_%D1%81%D0%BE%D0%B1%D1%8B%D1%82%D0%B8%D1%8F" title="Статьи о текущих событиях в мире"><span>Текущие события</span></a></li><li id="n-sitesupport" class="mw-list-item"><a href="https://donate.wikimedia.org/?wmf_source=donate&amp;wmf_medium=sidebar&amp;wmf_campaign=ru.wikipedia.org&amp;uselang=ru" title="Поддержите нас"><span>Пожертвовать</span></a></li>
+		</ul>
+		
+	</div>
+</nav>
+
+	
+<nav id="p-participation" class="mw-portlet mw-portlet-participation vector-menu-portal portal vector-menu" aria-labelledby="p-participation-label"  >
+	<h3
+		id="p-participation-label"
+		
+		class="vector-menu-heading "
+	>
+		<span class="vector-menu-heading-label">Участие</span>
+	</h3>
+	<div class="vector-menu-content">
+		
+		<ul class="vector-menu-content-list">
+			
+			<li id="n-bug_in_article" class="mw-list-item"><a href="/wiki/%D0%92%D0%B8%D0%BA%D0%B8%D0%BF%D0%B5%D0%B4%D0%B8%D1%8F:%D0%A1%D0%BE%D0%BE%D0%B1%D1%89%D0%B5%D0%BD%D0%B8%D1%8F_%D0%BE%D0%B1_%D0%BE%D1%88%D0%B8%D0%B1%D0%BA%D0%B0%D1%85" title="Сообщить об ошибке в этой статье"><span>Сообщить об ошибке</span></a></li><li id="n-introduction" class="mw-list-item"><a href="/wiki/%D0%A1%D0%BF%D1%80%D0%B0%D0%B2%D0%BA%D0%B0:%D0%92%D0%B2%D0%B5%D0%B4%D0%B5%D0%BD%D0%B8%D0%B5"><span>Как править статьи</span></a></li><li id="n-portal" class="mw-list-item"><a href="/wiki/%D0%92%D0%B8%D0%BA%D0%B8%D0%BF%D0%B5%D0%B4%D0%B8%D1%8F:%D0%A1%D0%BE%D0%BE%D0%B1%D1%89%D0%B5%D1%81%D1%82%D0%B2%D0%BE" title="О проекте, о том, чем здесь можно заниматься, а также — где что находится"><span>Сообщество</span></a></li><li id="n-forum" class="mw-list-item"><a href="/wiki/%D0%92%D0%B8%D0%BA%D0%B8%D0%BF%D0%B5%D0%B4%D0%B8%D1%8F:%D0%A4%D0%BE%D1%80%D1%83%D0%BC" title="Форум участников Википедии"><span>Форум</span></a></li><li id="n-help" class="mw-list-item"><a href="/wiki/%D0%92%D0%B8%D0%BA%D0%B8%D0%BF%D0%B5%D0%B4%D0%B8%D1%8F:%D0%A1%D0%BF%D1%80%D0%B0%D0%B2%D0%BA%D0%B0" title="Место расположения Справки"><span>Справка</span></a></li><li id="n-recentchanges" class="mw-list-item"><a href="/wiki/%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:%D0%A1%D0%B2%D0%B5%D0%B6%D0%B8%D0%B5_%D0%BF%D1%80%D0%B0%D0%B2%D0%BA%D0%B8" title="Список последних изменений [r]" accesskey="r"><span>Свежие правки</span></a></li><li id="n-newpages" class="mw-list-item"><a href="/wiki/%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:%D0%9D%D0%BE%D0%B2%D1%8B%D0%B5_%D1%81%D1%82%D1%80%D0%B0%D0%BD%D0%B8%D1%86%D1%8B" title="Список недавно созданных страниц"><span>Новые страницы</span></a></li><li id="n-specialpages" class="mw-list-item"><a href="/wiki/%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:%D0%A1%D0%BF%D0%B5%D1%86%D1%81%D1%82%D1%80%D0%B0%D0%BD%D0%B8%D1%86%D1%8B"><span>Служебные страницы</span></a></li>
+		</ul>
+		
+	</div>
+</nav>
+
+<nav id="p-tb" class="mw-portlet mw-portlet-tb vector-menu-portal portal vector-menu" aria-labelledby="p-tb-label"  >
+	<h3
+		id="p-tb-label"
+		
+		class="vector-menu-heading "
+	>
+		<span class="vector-menu-heading-label">Инструменты</span>
+	</h3>
+	<div class="vector-menu-content">
+		
+		<ul class="vector-menu-content-list">
+			
+			<li id="t-whatlinkshere" class="mw-list-item"><a href="/wiki/%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:%D0%A1%D1%81%D1%8B%D0%BB%D0%BA%D0%B8_%D1%81%D1%8E%D0%B4%D0%B0/%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B" title="Список всех страниц, ссылающихся на данную [j]" accesskey="j"><span>Ссылки сюда</span></a></li><li id="t-recentchangeslinked" class="mw-list-item"><a href="/wiki/%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:%D0%A1%D0%B2%D1%8F%D0%B7%D0%B0%D0%BD%D0%BD%D1%8B%D0%B5_%D0%BF%D1%80%D0%B0%D0%B2%D0%BA%D0%B8/%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B" rel="nofollow" title="Последние изменения в страницах, на которые ссылается эта страница [k]" accesskey="k"><span>Связанные правки</span></a></li><li id="t-permalink" class="mw-list-item"><a href="/w/index.php?title=%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B&amp;oldid=135363040" title="Постоянная ссылка на эту версию страницы"><span>Постоянная ссылка</span></a></li><li id="t-info" class="mw-list-item"><a href="/w/index.php?title=%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B&amp;action=info" title="Подробнее об этой странице"><span>Сведения о странице</span></a></li><li id="t-cite" class="mw-list-item"><a href="/w/index.php?title=%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:%D0%A6%D0%B8%D1%82%D0%B0%D1%82%D0%B0&amp;page=%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B&amp;id=135363040&amp;wpFormIdentifier=titleform" title="Информация о том, как цитировать эту страницу"><span>Цитировать страницу</span></a></li><li id="t-urlshortener" class="mw-list-item"><a href="/w/index.php?title=%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:UrlShortener&amp;url=https%3A%2F%2Fru.wikipedia.org%2Fw%2Findex.php%3Ftitle%3D%25D0%25AD%25D0%25B2%25D0%25BE%25D0%25BB%25D1%258E%25D1%2586%25D0%25B8%25D0%25BE%25D0%25BD%25D0%25BD%25D1%258B%25D0%25B5_%25D0%25B0%25D0%25BB%25D0%25B3%25D0%25BE%25D1%2580%25D0%25B8%25D1%2582%25D0%25BC%25D1%258B%26printable%3Dyes"><span>Получить короткий URL</span></a></li><li id="t-urlshortener-qrcode" class="mw-list-item"><a href="/w/index.php?title=%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:QrCode&amp;url=https%3A%2F%2Fru.wikipedia.org%2Fw%2Findex.php%3Ftitle%3D%25D0%25AD%25D0%25B2%25D0%25BE%25D0%25BB%25D1%258E%25D1%2586%25D0%25B8%25D0%25BE%25D0%25BD%25D0%25BD%25D1%258B%25D0%25B5_%25D0%25B0%25D0%25BB%25D0%25B3%25D0%25BE%25D1%2580%25D0%25B8%25D1%2582%25D0%25BC%25D1%258B%26printable%3Dyes"><span>Скачать QR-код</span></a></li>
+		</ul>
+		
+	</div>
+</nav>
+
+<nav id="p-coll-print_export" class="mw-portlet mw-portlet-coll-print_export vector-menu-portal portal vector-menu" aria-labelledby="p-coll-print_export-label"  >
+	<h3
+		id="p-coll-print_export-label"
+		
+		class="vector-menu-heading "
+	>
+		<span class="vector-menu-heading-label">Печать/экспорт</span>
+	</h3>
+	<div class="vector-menu-content">
+		
+		<ul class="vector-menu-content-list">
+			
+			<li id="coll-download-as-rl" class="mw-list-item"><a href="/w/index.php?title=%D0%A1%D0%BB%D1%83%D0%B6%D0%B5%D0%B1%D0%BD%D0%B0%D1%8F:DownloadAsPdf&amp;page=%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B&amp;action=show-download-screen" title="Скачать эту страницу как файл PDF"><span>Скачать как PDF</span></a></li>
+		</ul>
+		
+	</div>
+</nav>
+
+<nav id="p-wikibase-otherprojects" class="mw-portlet mw-portlet-wikibase-otherprojects vector-menu-portal portal vector-menu" aria-labelledby="p-wikibase-otherprojects-label"  >
+	<h3
+		id="p-wikibase-otherprojects-label"
+		
+		class="vector-menu-heading "
+	>
+		<span class="vector-menu-heading-label">В других проектах</span>
+	</h3>
+	<div class="vector-menu-content">
+		
+		<ul class="vector-menu-content-list">
+			
+			<li class="wb-otherproject-link wb-otherproject-commons mw-list-item"><a href="https://commons.wikimedia.org/wiki/Category:Evolutionary_algorithms" hreflang="en"><span>Викисклад</span></a></li><li id="t-wikibase" class="wb-otherproject-link wb-otherproject-wikibase-dataitem mw-list-item"><a href="https://www.wikidata.org/wiki/Special:EntityPage/Q14489129" title="Ссылка на связанный элемент репозитория данных [g]" accesskey="g"><span>Элемент Викиданных</span></a></li>
+		</ul>
+		
+	</div>
+</nav>
+
+	
+<nav id="p-lang" class="mw-portlet mw-portlet-lang vector-menu-portal portal vector-menu" aria-labelledby="p-lang-label"  >
+	<h3
+		id="p-lang-label"
+		
+		class="vector-menu-heading "
+	>
+		<span class="vector-menu-heading-label">На других языках</span>
+	</h3>
+	<div class="vector-menu-content">
+		
+		<ul class="vector-menu-content-list">
+			
+			<li class="interlanguage-link interwiki-ar mw-list-item"><a href="https://ar.wikipedia.org/wiki/%D8%AE%D9%88%D8%A7%D8%B1%D8%B2%D9%85%D9%8A%D8%A9_%D8%AA%D8%B7%D9%88%D8%B1%D9%8A%D8%A9" title="خوارزمية تطورية — арабский" lang="ar" hreflang="ar" data-title="خوارزمية تطورية" data-language-autonym="العربية" data-language-local-name="арабский" class="interlanguage-link-target"><span>العربية</span></a></li><li class="interlanguage-link interwiki-az mw-list-item"><a href="https://az.wikipedia.org/wiki/T%C9%99kam%C3%BCl_alqoritml%C9%99ri" title="Təkamül alqoritmləri — азербайджанский" lang="az" hreflang="az" data-title="Təkamül alqoritmləri" data-language-autonym="Azərbaycanca" data-language-local-name="азербайджанский" class="interlanguage-link-target"><span>Azərbaycanca</span></a></li><li class="interlanguage-link interwiki-bar mw-list-item"><a href="https://bar.wikipedia.org/wiki/Evolution%C3%A4ra_Algorithmus" title="Evolutionära Algorithmus — Bavarian" lang="bar" hreflang="bar" data-title="Evolutionära Algorithmus" data-language-autonym="Boarisch" data-language-local-name="Bavarian" class="interlanguage-link-target"><span>Boarisch</span></a></li><li class="interlanguage-link interwiki-ca mw-list-item"><a href="https://ca.wikipedia.org/wiki/Algorisme_evolutiu" title="Algorisme evolutiu — каталанский" lang="ca" hreflang="ca" data-title="Algorisme evolutiu" data-language-autonym="Català" data-language-local-name="каталанский" class="interlanguage-link-target"><span>Català</span></a></li><li class="interlanguage-link interwiki-de mw-list-item"><a href="https://de.wikipedia.org/wiki/Evolution%C3%A4rer_Algorithmus" title="Evolutionärer Algorithmus — немецкий" lang="de" hreflang="de" data-title="Evolutionärer Algorithmus" data-language-autonym="Deutsch" data-language-local-name="немецкий" class="interlanguage-link-target"><span>Deutsch</span></a></li><li class="interlanguage-link interwiki-en mw-list-item"><a href="https://en.wikipedia.org/wiki/Evolutionary_algorithm" title="Evolutionary algorithm — английский" lang="en" hreflang="en" data-title="Evolutionary algorithm" data-language-autonym="English" data-language-local-name="английский" class="interlanguage-link-target"><span>English</span></a></li><li class="interlanguage-link interwiki-es mw-list-item"><a href="https://es.wikipedia.org/wiki/Algoritmo_evolutivo" title="Algoritmo evolutivo — испанский" lang="es" hreflang="es" data-title="Algoritmo evolutivo" data-language-autonym="Español" data-language-local-name="испанский" class="interlanguage-link-target"><span>Español</span></a></li><li class="interlanguage-link interwiki-eu mw-list-item"><a href="https://eu.wikipedia.org/wiki/Algoritmo_ebolutibo" title="Algoritmo ebolutibo — баскский" lang="eu" hreflang="eu" data-title="Algoritmo ebolutibo" data-language-autonym="Euskara" data-language-local-name="баскский" class="interlanguage-link-target"><span>Euskara</span></a></li><li class="interlanguage-link interwiki-fa mw-list-item"><a href="https://fa.wikipedia.org/wiki/%D8%A7%D9%84%DA%AF%D9%88%D8%B1%DB%8C%D8%AA%D9%85_%D9%81%D8%B1%DA%AF%D8%B4%D8%AA%DB%8C" title="الگوریتم فرگشتی — персидский" lang="fa" hreflang="fa" data-title="الگوریتم فرگشتی" data-language-autonym="فارسی" data-language-local-name="персидский" class="interlanguage-link-target"><span>فارسی</span></a></li><li class="interlanguage-link interwiki-fi mw-list-item"><a href="https://fi.wikipedia.org/wiki/Evoluutioalgoritmi" title="Evoluutioalgoritmi — финский" lang="fi" hreflang="fi" data-title="Evoluutioalgoritmi" data-language-autonym="Suomi" data-language-local-name="финский" class="interlanguage-link-target"><span>Suomi</span></a></li><li class="interlanguage-link interwiki-fr mw-list-item"><a href="https://fr.wikipedia.org/wiki/Algorithme_%C3%A9volutionniste" title="Algorithme évolutionniste — французский" lang="fr" hreflang="fr" data-title="Algorithme évolutionniste" data-language-autonym="Français" data-language-local-name="французский" class="interlanguage-link-target"><span>Français</span></a></li><li class="interlanguage-link interwiki-gl mw-list-item"><a href="https://gl.wikipedia.org/wiki/Algoritmo_evolutivo" title="Algoritmo evolutivo — галисийский" lang="gl" hreflang="gl" data-title="Algoritmo evolutivo" data-language-autonym="Galego" data-language-local-name="галисийский" class="interlanguage-link-target"><span>Galego</span></a></li><li class="interlanguage-link interwiki-hi mw-list-item"><a href="https://hi.wikipedia.org/wiki/%E0%A4%B5%E0%A4%BF%E0%A4%95%E0%A4%BE%E0%A4%B8%E0%A4%BE%E0%A4%A4%E0%A5%8D%E0%A4%AE%E0%A4%95_%E0%A4%95%E0%A4%B2%E0%A4%A8%E0%A4%B5%E0%A4%BF%E0%A4%A7%E0%A4%BF" title="विकासात्मक कलनविधि — хинди" lang="hi" hreflang="hi" data-title="विकासात्मक कलनविधि" data-language-autonym="हिन्दी" data-language-local-name="хинди" class="interlanguage-link-target"><span>हिन्दी</span></a></li><li class="interlanguage-link interwiki-hr mw-list-item"><a href="https://hr.wikipedia.org/wiki/Evolucijski_algoritam" title="Evolucijski algoritam — хорватский" lang="hr" hreflang="hr" data-title="Evolucijski algoritam" data-language-autonym="Hrvatski" data-language-local-name="хорватский" class="interlanguage-link-target"><span>Hrvatski</span></a></li><li class="interlanguage-link interwiki-id mw-list-item"><a href="https://id.wikipedia.org/wiki/Algoritma_evolusioner" title="Algoritma evolusioner — индонезийский" lang="id" hreflang="id" data-title="Algoritma evolusioner" data-language-autonym="Bahasa Indonesia" data-language-local-name="индонезийский" class="interlanguage-link-target"><span>Bahasa Indonesia</span></a></li><li class="interlanguage-link interwiki-it mw-list-item"><a href="https://it.wikipedia.org/wiki/Algoritmo_evolutivo" title="Algoritmo evolutivo — итальянский" lang="it" hreflang="it" data-title="Algoritmo evolutivo" data-language-autonym="Italiano" data-language-local-name="итальянский" class="interlanguage-link-target"><span>Italiano</span></a></li><li class="interlanguage-link interwiki-ja mw-list-item"><a href="https://ja.wikipedia.org/wiki/%E9%80%B2%E5%8C%96%E7%9A%84%E3%82%A2%E3%83%AB%E3%82%B4%E3%83%AA%E3%82%BA%E3%83%A0" title="進化的アルゴリズム — японский" lang="ja" hreflang="ja" data-title="進化的アルゴリズム" data-language-autonym="日本語" data-language-local-name="японский" class="interlanguage-link-target"><span>日本語</span></a></li><li class="interlanguage-link interwiki-ko mw-list-item"><a href="https://ko.wikipedia.org/wiki/%EC%A7%84%ED%99%94_%EC%95%8C%EA%B3%A0%EB%A6%AC%EC%A6%98" title="진화 알고리즘 — корейский" lang="ko" hreflang="ko" data-title="진화 알고리즘" data-language-autonym="한국어" data-language-local-name="корейский" class="interlanguage-link-target"><span>한국어</span></a></li><li class="interlanguage-link interwiki-pl mw-list-item"><a href="https://pl.wikipedia.org/wiki/Algorytm_ewolucyjny" title="Algorytm ewolucyjny — польский" lang="pl" hreflang="pl" data-title="Algorytm ewolucyjny" data-language-autonym="Polski" data-language-local-name="польский" class="interlanguage-link-target"><span>Polski</span></a></li><li class="interlanguage-link interwiki-ps mw-list-item"><a href="https://ps.wikipedia.org/wiki/%D8%AF_%D8%A7%D8%B1%D8%AA%D9%82%D8%A7%D8%A1_%D8%A7%D9%84%DA%AB%D9%88%D8%B1%D9%8A%D8%AA%D9%85" title="د ارتقاء الګوريتم — пушту" lang="ps" hreflang="ps" data-title="د ارتقاء الګوريتم" data-language-autonym="پښتو" data-language-local-name="пушту" class="interlanguage-link-target"><span>پښتو</span></a></li><li class="interlanguage-link interwiki-pt mw-list-item"><a href="https://pt.wikipedia.org/wiki/Algoritmo_evolutivo" title="Algoritmo evolutivo — португальский" lang="pt" hreflang="pt" data-title="Algoritmo evolutivo" data-language-autonym="Português" data-language-local-name="португальский" class="interlanguage-link-target"><span>Português</span></a></li><li class="interlanguage-link interwiki-simple mw-list-item"><a href="https://simple.wikipedia.org/wiki/Evolutionary_algorithm" title="Evolutionary algorithm — Simple English" lang="en-simple" hreflang="en-simple" data-title="Evolutionary algorithm" data-language-autonym="Simple English" data-language-local-name="Simple English" class="interlanguage-link-target"><span>Simple English</span></a></li><li class="interlanguage-link interwiki-sl mw-list-item"><a href="https://sl.wikipedia.org/wiki/Evolucijski_algoritem" title="Evolucijski algoritem — словенский" lang="sl" hreflang="sl" data-title="Evolucijski algoritem" data-language-autonym="Slovenščina" data-language-local-name="словенский" class="interlanguage-link-target"><span>Slovenščina</span></a></li><li class="interlanguage-link interwiki-sr mw-list-item"><a href="https://sr.wikipedia.org/wiki/%D0%95%D0%B2%D0%BE%D0%BB%D1%83%D1%86%D0%B8%D0%BE%D0%BD%D0%B8_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%B0%D0%BC" title="Еволуциони алгоритам — сербский" lang="sr" hreflang="sr" data-title="Еволуциони алгоритам" data-language-autonym="Српски / srpski" data-language-local-name="сербский" class="interlanguage-link-target"><span>Српски / srpski</span></a></li><li class="interlanguage-link interwiki-th mw-list-item"><a href="https://th.wikipedia.org/wiki/%E0%B8%82%E0%B8%B1%E0%B9%89%E0%B8%99%E0%B8%95%E0%B8%AD%E0%B8%99%E0%B8%A7%E0%B8%B4%E0%B8%98%E0%B8%B5%E0%B9%80%E0%B8%8A%E0%B8%B4%E0%B8%87%E0%B8%A7%E0%B8%B4%E0%B8%A7%E0%B8%B1%E0%B8%92%E0%B8%99%E0%B8%B2%E0%B8%81%E0%B8%B2%E0%B8%A3" title="ขั้นตอนวิธีเชิงวิวัฒนาการ — тайский" lang="th" hreflang="th" data-title="ขั้นตอนวิธีเชิงวิวัฒนาการ" data-language-autonym="ไทย" data-language-local-name="тайский" class="interlanguage-link-target"><span>ไทย</span></a></li><li class="interlanguage-link interwiki-tr mw-list-item"><a href="https://tr.wikipedia.org/wiki/Evrimsel_algoritma" title="Evrimsel algoritma — турецкий" lang="tr" hreflang="tr" data-title="Evrimsel algoritma" data-language-autonym="Türkçe" data-language-local-name="турецкий" class="interlanguage-link-target"><span>Türkçe</span></a></li><li class="interlanguage-link interwiki-uk mw-list-item"><a href="https://uk.wikipedia.org/wiki/%D0%95%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D1%96%D0%B9%D0%BD%D0%B8%D0%B9_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC" title="Еволюційний алгоритм — украинский" lang="uk" hreflang="uk" data-title="Еволюційний алгоритм" data-language-autonym="Українська" data-language-local-name="украинский" class="interlanguage-link-target"><span>Українська</span></a></li><li class="interlanguage-link interwiki-zh mw-list-item"><a href="https://zh.wikipedia.org/wiki/%E8%BF%9B%E5%8C%96%E7%AE%97%E6%B3%95" title="进化算法 — китайский" lang="zh" hreflang="zh" data-title="进化算法" data-language-autonym="中文" data-language-local-name="китайский" class="interlanguage-link-target"><span>中文</span></a></li><li class="interlanguage-link interwiki-zh-min-nan mw-list-item"><a href="https://zh-min-nan.wikipedia.org/wiki/Ch%C3%ACn-h%C3%B2a_i%C3%A1n-s%C7%B9g-hoat" title="Chìn-hòa ián-sǹg-hoat — миньнань" lang="nan" hreflang="nan" data-title="Chìn-hòa ián-sǹg-hoat" data-language-autonym="閩南語 / Bân-lâm-gí" data-language-local-name="миньнань" class="interlanguage-link-target"><span>閩南語 / Bân-lâm-gí</span></a></li><li class="interlanguage-link interwiki-zh-yue mw-list-item"><a href="https://zh-yue.wikipedia.org/wiki/%E9%80%B2%E5%8C%96%E6%BC%94%E7%AE%97%E6%B3%95" title="進化演算法 — кантонский" lang="yue" hreflang="yue" data-title="進化演算法" data-language-autonym="粵語" data-language-local-name="кантонский" class="interlanguage-link-target"><span>粵語</span></a></li>
+		</ul>
+		<div class="after-portlet after-portlet-lang"><span class="wb-langlinks-edit wb-langlinks-link"><a href="https://www.wikidata.org/wiki/Special:EntityPage/Q14489129#sitelinks-wikipedia" title="Править ссылки на другие языки" class="wbc-editpage">Править ссылки</a></span></div>
+	</div>
+</nav>
+
+</div>
+
+</div>
+
+<footer id="footer" class="mw-footer" >
+	<ul id="footer-info">
+	<li id="footer-info-lastmod"> Эта страница в последний раз была отредактирована 5 января 2024 года в 12:40.</li>
+	<li id="footer-info-copyright">Текст доступен по <a rel="nofollow" class="external text" href="//creativecommons.org/licenses/by-sa/4.0/deed.ru">лицензии Creative Commons «С указанием авторства — С сохранением условий» (CC BY-SA)</a>; в отдельных случаях могут действовать дополнительные условия.
+<span class="noprint">Подробнее см. <a class="external text" href="https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use/ru">Условия использования</a>.</span><br />
+Wikipedia®&#160;— зарегистрированный товарный знак некоммерческой организации <a rel="nofollow" class="external text" href="https://wikimediafoundation.org/ru/">«Фонд Викимедиа» (Wikimedia Foundation, Inc.)</a></li>
+</ul>
+
+	<ul id="footer-places">
+	<li id="footer-places-privacy"><a href="https://foundation.wikimedia.org/wiki/Special:MyLanguage/Policy:Privacy_policy/ru">Политика конфиденциальности</a></li>
+	<li id="footer-places-about"><a href="/wiki/%D0%92%D0%B8%D0%BA%D0%B8%D0%BF%D0%B5%D0%B4%D0%B8%D1%8F:%D0%9E%D0%BF%D0%B8%D1%81%D0%B0%D0%BD%D0%B8%D0%B5">Описание Википедии</a></li>
+	<li id="footer-places-disclaimers"><a href="/wiki/%D0%92%D0%B8%D0%BA%D0%B8%D0%BF%D0%B5%D0%B4%D0%B8%D1%8F:%D0%9E%D1%82%D0%BA%D0%B0%D0%B7_%D0%BE%D1%82_%D0%BE%D1%82%D0%B2%D0%B5%D1%82%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D1%81%D1%82%D0%B8">Отказ от ответственности</a></li>
+	<li id="footer-places-contact"><a href="//ru.wikipedia.org/wiki/Википедия:Контакты">Свяжитесь с нами</a></li>
+	<li id="footer-places-wm-codeofconduct"><a href="https://foundation.wikimedia.org/wiki/Policy:Universal_Code_of_Conduct/ru">Кодекс поведения</a></li>
+	<li id="footer-places-developers"><a href="https://developer.wikimedia.org">Разработчики</a></li>
+	<li id="footer-places-statslink"><a href="https://stats.wikimedia.org/#/ru.wikipedia.org">Статистика</a></li>
+	<li id="footer-places-cookiestatement"><a href="https://foundation.wikimedia.org/wiki/Special:MyLanguage/Policy:Cookie_statement">Заявление о куки</a></li>
+	<li id="footer-places-mobileview"><a href="//ru.wikipedia.org/w/index.php?title=%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B&amp;printable=yes&amp;mobileaction=toggle_view_mobile" class="noprint stopMobileRedirectToggle">Мобильная версия</a></li>
+</ul>
+
+	<ul id="footer-icons" class="noprint">
+	<li id="footer-copyrightico"><a href="https://www.wikimedia.org/" class="cdx-button cdx-button--fake-button cdx-button--size-large cdx-button--fake-button--enabled"><picture><source media="(min-width: 500px)" srcset="/static/images/footer/wikimedia-button.svg" width="84" height="29"><img src="/static/images/footer/wikimedia.svg" width="25" height="25" alt="Wikimedia Foundation" lang="en" loading="lazy"></picture></a></li>
+	<li id="footer-poweredbyico"><a href="https://www.mediawiki.org/" class="cdx-button cdx-button--fake-button cdx-button--size-large cdx-button--fake-button--enabled"><picture><source media="(min-width: 500px)" srcset="/w/resources/assets/poweredby_mediawiki.svg" width="88" height="31"><img src="/w/resources/assets/mediawiki_compact.svg" alt="Powered by MediaWiki" lang="en" width="25" height="25" loading="lazy"></picture></a></li>
+</ul>
+
+</footer>
+
+<div class="mw-portlet mw-portlet-dock-bottom emptyPortlet vector-menu-portal portal" id="p-dock-bottom">
+	<ul>
+		
+	</ul>
+</div>
+<script>(RLQ=window.RLQ||[]).push(function(){mw.config.set({"wgHostname":"mw-web.eqiad.main-cd6bf7485-ztck6","wgBackendResponseTime":170,"wgPageParseReport":{"limitreport":{"cputime":"0.251","walltime":"0.309","ppvisitednodes":{"value":3858,"limit":1000000},"revisionsize":{"value":9726,"limit":2097152},"postexpandincludesize":{"value":67300,"limit":2097152},"templateargumentsize":{"value":6024,"limit":2097152},"expansiondepth":{"value":14,"limit":100},"expensivefunctioncount":{"value":1,"limit":500},"unstrip-depth":{"value":1,"limit":20},"unstrip-size":{"value":23692,"limit":5000000},"entityaccesscount":{"value":0,"limit":500},"timingprofile":["100.00%  244.486      1 -total"," 43.92%  107.372      7 Шаблон:Книга"," 39.17%   95.773      1 Шаблон:Примечания"," 21.15%   51.707      1 Шаблон:Перевести"," 18.89%   46.194      1 Шаблон:Mbox"," 16.13%   39.431      1 Шаблон:Статья"," 13.35%   32.645      2 Шаблон:Бсокр","  7.71%   18.850      2 Шаблон:Навигационная_таблица","  6.91%   16.886      1 Шаблон:Искусственный_интеллект","  5.82%   14.224      1 Шаблон:Cite_web"]},"scribunto":{"limitreport-timeusage":{"value":"0.070","limit":"10.000"},"limitreport-memusage":{"value":2935181,"limit":52428800}},"cachereport":{"origin":"mw-web.eqiad.main-687cb475c4-xrzbw","timestamp":"20260125091154","ttl":2592000,"transientcontent":false}}});});</script>
+<script type="application/ld+json">{"@context":"https:\/\/schema.org","@type":"Article","name":"\u042d\u0432\u043e\u043b\u044e\u0446\u0438\u043e\u043d\u043d\u044b\u0435 \u0430\u043b\u0433\u043e\u0440\u0438\u0442\u043c\u044b","url":"https:\/\/ru.wikipedia.org\/wiki\/%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B5_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D1%8B","sameAs":"http:\/\/www.wikidata.org\/entity\/Q14489129","mainEntity":"http:\/\/www.wikidata.org\/entity\/Q14489129","author":{"@type":"Organization","name":"Contributors to Wikimedia projects"},"publisher":{"@type":"Organization","name":"\u0424\u043e\u043d\u0434 \u0412\u0438\u043a\u0438\u043c\u0435\u0434\u0438\u0430","logo":{"@type":"ImageObject","url":"https:\/\/www.wikimedia.org\/static\/images\/wmf-hor-googpub.png"}},"datePublished":"2008-07-17T23:29:10Z","dateModified":"2024-01-05T12:40:43Z"}</script>
+</body>
+</html>

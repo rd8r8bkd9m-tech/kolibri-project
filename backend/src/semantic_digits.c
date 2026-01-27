@@ -18,6 +18,7 @@ void k_semantic_pattern_init(KolibriSemanticPattern *pattern) {
     if (!pattern) return;
     
     memset(pattern->pattern, 0, sizeof(pattern->pattern));
+    pattern->phonetics.count = 0;
     pattern->context_weight = 0.0;
     pattern->usage_count = 0;
     memset(pattern->word, 0, sizeof(pattern->word));
@@ -151,6 +152,9 @@ int k_semantic_learn(const char *word,
     k_semantic_pattern_init(pattern);
     strncpy(pattern->word, word, sizeof(pattern->word) - 1);
     
+    /* Фаза 2: Извлекаем фонетический облик слова */
+    k_phoneme_encode(word, &pattern->phonetics);
+    
     /* Кодируем слово в цифры */
     size_t word_len = strlen(word);
     uint8_t word_buffer[1024];
@@ -235,7 +239,7 @@ double k_semantic_similarity(const KolibriSemanticPattern *p1,
                             const KolibriSemanticPattern *p2) {
     if (!p1 || !p2) return 0.0;
     
-    /* Вычисляем процент совпадающих цифр */
+    /* Вычисляем процент совпадающих цифр семантического паттерна */
     size_t matches = 0;
     for (size_t i = 0; i < KOLIBRI_SEMANTIC_PATTERN_SIZE; i++) {
         if (p1->pattern[i] == p2->pattern[i]) {
@@ -243,7 +247,27 @@ double k_semantic_similarity(const KolibriSemanticPattern *p1,
         }
     }
     
-    return (double)matches / (double)KOLIBRI_SEMANTIC_PATTERN_SIZE;
+    double semantic_sim = (double)matches / (double)KOLIBRI_SEMANTIC_PATTERN_SIZE;
+    
+    /* Добавляем фонетическое сходство (Фаза 2) */
+    double phonetic_sim = 0.0;
+    size_t max_phonetic = (p1->phonetics.count > p2->phonetics.count) ? 
+                           p1->phonetics.count : p2->phonetics.count;
+    
+    if (max_phonetic > 0) {
+        size_t min_phonetic = (p1->phonetics.count < p2->phonetics.count) ? 
+                               p1->phonetics.count : p2->phonetics.count;
+        size_t p_matches = 0;
+        for (size_t i = 0; i < min_phonetic; i++) {
+            if (p1->phonetics.phonemes[i] == p2->phonetics.phonemes[i]) {
+                p_matches++;
+            }
+        }
+        phonetic_sim = (double)p_matches / (double)max_phonetic;
+    }
+    
+    /* Итоговое сходство: 70% смысл, 30% звучание */
+    return (0.7 * semantic_sim) + (0.3 * phonetic_sim);
 }
 
 int k_semantic_find_nearest(const KolibriSemanticPattern *pattern,

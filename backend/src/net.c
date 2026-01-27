@@ -141,19 +141,39 @@ size_t kn_message_encode_formula(uint8_t *buffer, size_t buffer_len,
   return header + offset;
 }
 
-size_t kn_message_encode_ack(uint8_t *buffer, size_t buffer_len,
-                             uint8_t status) {
-  if (!buffer) {
-    return 0;
-  }
-  uint8_t payload[1] = {status};
-  size_t header = kolibri_write_header(buffer, buffer_len, KOLIBRI_MSG_ACK,
-                                       sizeof(payload));
-  if (header == 0 || buffer_len < header + sizeof(payload)) {
-    return 0;
-  }
-  memcpy(buffer + header, payload, sizeof(payload));
-  return header + sizeof(payload);
+size_t kn_message_encode_knowledge(uint8_t *buffer, size_t buffer_len, const char *q, const char *a) {
+  if (!buffer || !q || !a) return 0;
+  uint8_t payload[256];
+  memset(payload, 0, sizeof(payload));
+  size_t qlen = strlen(q);
+  size_t alen = strlen(a);
+  if (qlen > 60) qlen = 60;
+  if (alen > 120) alen = 120;
+  
+  uint32_t ih = (uint32_t)kf_hash_from_text(q);
+  uint32_t oh = (uint32_t)kf_hash_from_text(a);
+  uint32_t be_ih = htonl(ih);
+  uint32_t be_oh = htonl(oh);
+
+  size_t offset = 0;
+  memcpy(payload + offset, &be_ih, 4); offset += 4;
+  memcpy(payload + offset, &be_oh, 4); offset += 4;
+  payload[offset++] = (uint8_t)qlen;
+  memcpy(payload + offset, q, qlen); offset += qlen;
+  payload[offset++] = (uint8_t)alen;
+  memcpy(payload + offset, a, alen); offset += alen;
+
+  size_t header = kolibri_write_header(buffer, buffer_len, KOLIBRI_MSG_SWARM_KNOWLEDGE, (uint16_t)offset);
+  if (header == 0 || buffer_len < header + offset) return 0;
+  memcpy(buffer + header, payload, offset);
+  return header + offset;
+}
+
+size_t kn_message_encode_ack(uint8_t *buffer, size_t buffer_len, uint8_t status) {
+  size_t header = kolibri_write_header(buffer, buffer_len, KOLIBRI_MSG_ACK, 1);
+  if (header == 0 || buffer_len < header + 1) return 0;
+  buffer[header] = status;
+  return header + 1;
 }
 
 int kn_message_decode(const uint8_t *buffer, size_t buffer_len,
@@ -185,7 +205,6 @@ int kn_message_decode(const uint8_t *buffer, size_t buffer_len,
     break;
   }
   case KOLIBRI_MSG_MIGRATE_RULE: {
-
     if (payload_len < sizeof(uint32_t) + 1 + sizeof(uint64_t)) {
       return -1;
     }
@@ -209,6 +228,25 @@ int kn_message_decode(const uint8_t *buffer, size_t buffer_len,
     memcpy(&fitness_value, &fitness_raw, sizeof(fitness_value));
     out_message->data.formula.node_id = ntohl(node_raw);
     out_message->data.formula.fitness = fitness_value;
+    break;
+  }
+  case KOLIBRI_MSG_SWARM_KNOWLEDGE: {
+    if (payload_len < 11) return -1;
+    size_t offset = 0;
+    uint32_t ih, oh;
+    memcpy(&ih, payload, 4); offset += 4;
+    memcpy(&oh, payload + offset, 4); offset += 4;
+    out_message->data.knowledge.input_hash = (int)ntohl(ih);
+    out_message->data.knowledge.output_hash = (int)ntohl(oh);
+    uint8_t qlen = payload[offset++];
+    if (offset + qlen > payload_len) return -1;
+    memcpy(out_message->data.knowledge.question, payload + offset, qlen);
+    out_message->data.knowledge.question[qlen] = '\0';
+    offset += qlen;
+    uint8_t alen = payload[offset++];
+    if (offset + alen > payload_len) return -1;
+    memcpy(out_message->data.knowledge.answer, payload + offset, alen);
+    out_message->data.knowledge.answer[alen] = '\0';
     break;
   }
   case KOLIBRI_MSG_ACK: {
@@ -237,41 +275,40 @@ int kn_share_formula(const char *host, uint16_t port, uint32_t node_id,
   if (!host || !formula) {
     return -1;
   }
-
   int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-  if (sockfd < 0) {
-    return -1;
-  }
-
+  if (sockfd < 0) return -1;
   struct sockaddr_in addr;
   memset(&addr, 0, sizeof(addr));
   addr.sin_family = AF_INET;
   addr.sin_port = htons(port);
-  if (inet_pton(AF_INET, host, &addr.sin_addr) <= 0) {
-    close(sockfd);
-    return -1;
-  }
-
-  if (connect(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-    close(sockfd);
-    return -1;
-  }
-
-  uint8_t buffer[KOLIBRI_HEADER_SIZE + KOLIBRI_MAX_PAYLOAD];
-  size_t len = kn_message_encode_hello(buffer, sizeof(buffer), node_id);
-  if (len == 0 || kn_send_message(sockfd, buffer, len) != 0) {
-    close(sockfd);
-    return -1;
-  }
-
-  len = kn_message_encode_formula(buffer, sizeof(buffer), node_id, formula);
-  if (len == 0 || kn_send_message(sockfd, buffer, len) != 0) {
-    close(sockfd);
-    return -1;
-  }
-
+  if (inet_pton(AF_INET, host, &addr.sin_addr) <= 0) { close(sockfd); return -1; }
+  struct timeval tv = {2, 0};
+  setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+  if (connect(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) { close(sockfd); return -1; }
+  uint8_t buffer[KOLIBRI_MAX_PAYLOAD + 10];
+  size_t len = kn_message_encode_formula(buffer, sizeof(buffer), node_id, formula);
+  int status = kn_send_message(sockfd, buffer, len);
   close(sockfd);
-  return 0;
+  return status;
+}
+
+int kn_share_knowledge(const char *host, uint16_t port, const char *q, const char *a) {
+  if (!host || !q || !a) return -1;
+  int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+  if (sockfd < 0) return -1;
+  struct sockaddr_in addr;
+  memset(&addr, 0, sizeof(addr));
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(port);
+  if (inet_pton(AF_INET, host, &addr.sin_addr) <= 0) { close(sockfd); return -1; }
+  struct timeval tv = {2, 0};
+  setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+  if (connect(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) { close(sockfd); return -1; }
+  uint8_t buffer[512];
+  size_t len = kn_message_encode_knowledge(buffer, sizeof(buffer), q, a);
+  int status = kn_send_message(sockfd, buffer, len);
+  close(sockfd);
+  return status;
 }
 
 int kn_listener_start(KolibriNetListener *listener, uint16_t port) {

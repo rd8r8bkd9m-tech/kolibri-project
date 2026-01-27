@@ -17,7 +17,8 @@ extern "C" {
 typedef enum {
     KOLIBRI_MSG_HELLO = 1,
     KOLIBRI_MSG_MIGRATE_RULE = 2,
-    KOLIBRI_MSG_ACK = 3
+    KOLIBRI_MSG_ACK = 3,
+    KOLIBRI_MSG_SWARM_KNOWLEDGE = 4
 } KolibriNetMessageType;
 
 typedef struct {
@@ -33,6 +34,12 @@ typedef struct {
             double fitness;
         } formula;
         struct {
+            char question[64];
+            char answer[128];
+            int input_hash;
+            int output_hash;
+        } knowledge;
+        struct {
             uint8_t status;
         } ack;
     } data;
@@ -40,10 +47,12 @@ typedef struct {
 
 size_t kn_message_encode_hello(uint8_t *buffer, size_t buffer_len, uint32_t node_id);
 size_t kn_message_encode_formula(uint8_t *buffer, size_t buffer_len, uint32_t node_id, const KolibriFormula *formula);
+size_t kn_message_encode_knowledge(uint8_t *buffer, size_t buffer_len, const char *q, const char *a);
 size_t kn_message_encode_ack(uint8_t *buffer, size_t buffer_len, uint8_t status);
 int kn_message_decode(const uint8_t *buffer, size_t buffer_len, KolibriNetMessage *out_message);
 
 int kn_share_formula(const char *host, uint16_t port, uint32_t node_id, const KolibriFormula *formula);
+int kn_share_knowledge(const char *host, uint16_t port, const char *q, const char *a);
 
 typedef struct {
     int socket_fd;

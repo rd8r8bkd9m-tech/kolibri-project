@@ -92,11 +92,12 @@ import sys
 index_path, output_path = sys.argv[1], sys.argv[2]
 docs = []
 
-with open(index_path, "r", encoding="utf-8") as f:
+with open(index_path, "r", encoding="utf-8", errors="replace") as f:
     payload = json.load(f)
     docs = payload.get("documents", [])
 
-docs = docs[:12]
+# По умолчанию обрабатываем всё, что нашли
+docs = docs[:1000]
 
 def escape(text: str) -> str:
     return text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\n")

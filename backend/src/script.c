@@ -2517,6 +2517,7 @@ static int kolibri_execute_evaluate_formula(KolibriScript *script, const Kolibri
         free(task_text);
         kolibri_value_free(&task_value);
         kolibri_script_log(script, "SCRIPT_ERROR", "Формула вернула ошибку");
+        fprintf(stderr, "[KolibriScript] kf_formula_apply failed for task %d\n", task_int);
         return -1;
     }
     char answer_buffer[512];
@@ -2659,6 +2660,7 @@ static int kolibri_execute_statement(KolibriScript *script, const KolibriStateme
 static int kolibri_execute_block(KolibriScript *script, const KolibriStatementList *list) {
     for (size_t i = 0; i < list->count; ++i) {
         if (kolibri_execute_statement(script, list->items[i]) != 0) {
+            fprintf(stderr, "[KolibriScript] Error in statement %zu\n", i);
             return -1;
         }
     }

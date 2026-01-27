@@ -15,11 +15,12 @@
 #include <stdint.h>
 
 void test_script(void) {
-    KolibriFormulaPool pool;
-    kf_pool_init(&pool, 424242ULL);
+    KolibriFormulaPool *pool = (KolibriFormulaPool *)malloc(sizeof(KolibriFormulaPool));
+    assert(pool != NULL);
+    kf_pool_init(pool, 424242ULL);
 
     KolibriScript skript;
-    assert(ks_init(&skript, &pool, NULL) == 0);
+    assert(ks_init(&skript, pool, NULL) == 0);
 
     const char *programma =
         "начало:\n"
@@ -47,15 +48,17 @@ void test_script(void) {
 
     ks_free(&skript);
 
-    const KolibriFormula *luchshaja = kf_pool_best(&pool);
+    const KolibriFormula *luchshaja = kf_pool_best(pool);
     assert(luchshaja != NULL);
     assert(strstr(bufer, "Kolibri приветствует Архитектора") != NULL);
     assert(strstr(bufer, "4") != NULL);
+    free(pool);
 }
 
 void test_script_crystal_cycle(void) {
-    KolibriFormulaPool pool;
-    kf_pool_init(&pool, 777777ULL);
+    KolibriFormulaPool *pool = (KolibriFormulaPool *)malloc(sizeof(KolibriFormulaPool));
+    assert(pool != NULL);
+    kf_pool_init(pool, 777777ULL);
 
     char template_path[] = "/tmp/kolibri_crystalXXXXXX";
     int fd = mkstemp(template_path);
@@ -67,14 +70,14 @@ void test_script_crystal_cycle(void) {
     assert(kg_open(&genome, template_path, key, sizeof(key) - 1U) == 0);
 
     KolibriScript skript;
-    assert(ks_init(&skript, &pool, &genome) == 0);
+    assert(ks_init(&skript, pool, &genome) == 0);
 
     const char *programma =
         "начало:\n"
         "    обучить связь \"привет\" -> \"здравствуй\"\n"
         "    создать формулу ответ из \"ассоциация\"\n"
         "    оценить ответ на задаче \"привет\"\n"
-        "    верифицировать \"Здравствуй.\"\n"
+        "    верифицировать \"здравствуй\"\n"
         "конец.\n";
 
     FILE *vyvod = tmpfile();
@@ -115,6 +118,7 @@ void test_script_crystal_cycle(void) {
     assert(verify_found);
 
     remove(template_path);
+    free(pool);
 }
 
 static void zapisat_skript_text(char *path, size_t path_dlina, const char *programma) {
@@ -131,11 +135,12 @@ static void zapisat_skript_text(char *path, size_t path_dlina, const char *progr
 }
 
 void test_script_load_file(void) {
-    KolibriFormulaPool pool;
-    kf_pool_init(&pool, 171717ULL);
+    KolibriFormulaPool *pool = (KolibriFormulaPool *)malloc(sizeof(KolibriFormulaPool));
+    assert(pool != NULL);
+    kf_pool_init(pool, 171717ULL);
 
     KolibriScript skript;
-    assert(ks_init(&skript, &pool, NULL) == 0);
+    assert(ks_init(&skript, pool, NULL) == 0);
 
     const char *programma =
         "начало:\n"
@@ -155,4 +160,5 @@ void test_script_load_file(void) {
 
     remove(vremya);
     ks_free(&skript);
+    free(pool);
 }

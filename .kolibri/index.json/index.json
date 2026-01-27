@@ -1,0 +1,22 @@
+{
+  "document_count": 2,
+  "tokens": 11043,
+  "documents": [
+    {
+      "id": "https-ru-wikipedia-org-wiki-D0-AD-D0-B2-D0-BE-D0-BB-D1-8E-D1",
+      "title": "Source: https://ru.wikipedia.org/wiki/%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D1%8F",
+      "source": "data/wiki/https-ru-wikipedia-org-wiki-D0-AD-D0-B2-D0-BE-D0-BB-D1-8E-D1.md",
+      "content": "# Source: https://ru.wikipedia.org/wiki/%D0%AD%D0%B2%D0%BE%D0%BB%D1%8E%D1%86%D0%B8%D1%8F\n_Fetched: 2026-01-26T21:52:27.801668Z_\nЭволюция — Википедия (function(){var className=\"client-js\";var cookie=document.cookie.match(/(?:^|; )ruwikimwclientpreferences=([^;]+)/);if(cookie){cookie[1].split('%2C').forEach(function(pref){className=className.replace(new RegExp('(^| )'+pref.replace(/-clientpref-\\w+$|[^\\w-]+/g,'')+'-clientpref-\\\\w+(…",
+      "terms": [{"token": " —", "weight": 0.038309}, {"token": "↑", "weight": 0.014147}, {"token": "в", "weight": 0.013581}, {"token": "и", "weight": 0.012845}, {"token": "Архивировано", "weight": 0.010865}, {"token": "of", "weight": 0.010582}, {"token": "the", "weight": 0.008714}, {"token": "С", "weight": 0.006904}, {"token": "Т", "weight": 0.006338}, {"token": "evolution", "weight": 0.006044}, {"token": "and", "weight": 0.005489}, {"token": "a", "weight": 0.005432}, {"token": "эволюции", "weight": 0.005408}, {"token": "p", "weight": 0.005376}, {"token": "англ", "weight": 0.005263}, {"token": "22 января", "weight": 0.005090}, {"token": "генов", "weight": 0.005010}, {"token": "mw", "weight": 0.004697}, {"token": "на", "weight": 0.004470}, {"token": "2019 года", "weight": 0.004470}, {"token": "к", "weight": 0.004357}, {"token": "parser", "weight": 0.004187}, {"token": "output", "weight": 0.004187}, {"token": "vol", "weight": 0.004074}, {"token": "2017 года", "weight": 0.003904}, {"token": "с", "weight": 0.003565}, {"token": "in", "weight": 0.003565}, {"token": "организмов", "weight": 0.003499}, {"token": "1", "weight": 0.003452}, {"token": "править", "weight": 0.003452}, {"token": "№", "weight": 0.003452}, {"token": "что", "weight": 0.003225}],
+      "norm": 0.058008
+    },
+    {
+      "id": "https-ru-wikipedia-org-wiki-D0-98-D1-81-D0-BA-D1-83-D1-81-D1",
+      "title": "Source: https://ru.wikipedia.org/wiki/%D0%98%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82",
+      "source": "data/wiki/https-ru-wikipedia-org-wiki-D0-98-D1-81-D0-BA-D1-83-D1-81-D1.md",
+      "content": "# Source: https://ru.wikipedia.org/wiki/%D0%98%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82\n_Fetched: 2026-01-26T21:52:27.679742Z_\nИскусственный интеллект — Википедия (function(){var className=\"client-js\";var cookie=document.cookie.match(/(?:^|; )ruwikimwclientpreferences=([^;]+)/);if(cookie){cookie[1].split('%2C').forEach(function(pref){className=className.replace(new RegExp('(^| )'+pref.replace(/-clientpref-\\w+$|[^\\w-]+/g,'')+'-clientpref-\\\\w+(…",
+      "terms": [{"token": "и", "weight": 0.022510}, {"token": "в", "weight": 0.019069}, {"token": "интеллекта", "weight": 0.012786}, {"token": " —", "weight": 0.009447}, {"token": "искусственного", "weight": 0.008981}, {"token": "на", "weight": 0.008806}, {"token": "править", "weight": 0.008806}, {"token": "↑", "weight": 0.007756}, {"token": "интеллект", "weight": 0.007458}, {"token": "с", "weight": 0.006823}, {"token": "mw", "weight": 0.006765}, {"token": "parser", "weight": 0.006240}, {"token": "output", "weight": 0.006240}, {"token": "1", "weight": 0.005365}, {"token": "для", "weight": 0.005132}, {"token": "В", "weight": 0.005132}, {"token": "код", "weight": 0.004490}, {"token": "Дата", "weight": 0.004374}, {"token": "обращения", "weight": 0.004374}, {"token": "ts", "weight": 0.004140}, {"token": "искусственный", "weight": 0.003852}, {"token": "0", "weight": 0.003849}, {"token": "как", "weight": 0.003849}, {"token": "по", "weight": 0.003791}, {"token": "ИИ", "weight": 0.003688}, {"token": "Архивировано", "weight": 0.003616}, {"token": "англ", "weight": 0.003557}, {"token": "5", "weight": 0.003441}, {"token": "2", "weight": 0.003266}, {"token": "10", "weight": 0.003149}, {"token": "intelligence", "weight": 0.003033}, {"token": "не", "weight": 0.003032}],
+      "norm": 0.048886
+    }
+  ]
+}

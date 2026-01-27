@@ -11,6 +11,7 @@
 #include "kolibri/decimal.h"
 #include "kolibri/digits.h"
 #include "kolibri/formula.h"
+#include "kolibri/phoneme.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -30,6 +31,7 @@ extern "C" {
  */
 typedef struct {
     uint8_t pattern[KOLIBRI_SEMANTIC_PATTERN_SIZE]; /* Числовой паттерн 0-9 */
+    KolibriPhoneticSignature phonetics;              /* Фонетический облик слова (Фаза 2) */
     double context_weight;                           /* Вес в текущем контексте */
     size_t usage_count;                              /* Частота использования */
     char word[128];                                  /* Само слово (для отладки) */

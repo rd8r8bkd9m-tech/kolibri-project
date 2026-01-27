@@ -352,22 +352,385 @@ int k_gen_decompress_pattern(KolibriGenerationContext *ctx,
 }
 
 int k_gen_next_token(KolibriGenerationContext *ctx, char *output, size_t output_size) {
-    if (!ctx || !output || output_size == 0) return -1;
-    output[0] = '\0';
+    if (!ctx || !ctx->corpus || !output || output_size == 0) return -1;
+    
+    /* Если корпус пустой, ничего не сгенерируем */
+    if (ctx->corpus->store.count == 0) return -1;
+    
+    /* 
+     * Идея генерации:
+     * 1. Берем усредненный семантический паттерн текущего контекстного окна.
+     * 2. Ищем в корпусе слово с максимально похожим паттерном.
+     * 3. Учитываем температуру для добавления случайности.
+     */
+    
+    KolibriSemanticPattern context_pattern;
+    k_semantic_pattern_init(&context_pattern);
+    
+    if (ctx->context && ctx->context->token_count > 0) {
+        /* Усредняем паттерны из окна с учетом весов внимания и позиции */
+        double weight_sum = 0.0;
+        double accumulated[KOLIBRI_SEMANTIC_PATTERN_SIZE] = {0};
+        
+        for (size_t i = 0; i < ctx->context->token_count; i++) {
+            /* Динамический вес: базовое внимание + затухание по времени */
+            double position_decay = (double)(i + 1) / (double)ctx->context->token_count;
+            double w = ctx->context->tokens[i].attention_weight * position_decay;
+            if (w < 0.01) w = 0.01;
+            
+            for (size_t j = 0; j < KOLIBRI_SEMANTIC_PATTERN_SIZE; j++) {
+                accumulated[j] += (double)ctx->context->tokens[i].pattern.pattern[j] * w;
+            }
+            weight_sum += w;
+        }
+        
+        if (weight_sum > 0) {
+            for (size_t j = 0; j < KOLIBRI_SEMANTIC_PATTERN_SIZE; j++) {
+                context_pattern.pattern[j] = (uint8_t)(accumulated[j] / weight_sum + 0.5);
+            }
+        }
+    } else {
+        /* Если контекста нет, выбираем случайное начало или используем пустой паттерн */
+        for (size_t j = 0; j < KOLIBRI_SEMANTIC_PATTERN_SIZE; j++) {
+            context_pattern.pattern[j] = (uint8_t)(rand() % 10);
+        }
+    }
+
+    /* Поиск лучшего соответствия с учетом Top-K и штрафов */
+    size_t top_k_indices[10];
+    double top_k_sims[10];
+    size_t k_found = 0;
+    
+    for (size_t i = 0; i < ctx->corpus->store.count; i++) {
+        double sim = k_semantic_similarity(&context_pattern, &ctx->corpus->store.patterns[i]);
+        
+        /* Штраф за повторение (через семантическое сходство) */
+        if (ctx->context) {
+            size_t start_check = ctx->context->token_count > 10 ? ctx->context->token_count - 10 : 0;
+            for (size_t j = start_check; j < ctx->context->token_count; j++) {
+                double repeat_sim = k_semantic_similarity(&ctx->corpus->store.patterns[i], &ctx->context->tokens[j].pattern);
+                if (repeat_sim > 0.95) {
+                    sim -= 0.5; /* Штраф за слишком похожий или тот же токен */
+                    break;
+                }
+            }
+        }
+
+        /* Поддерживаем Top-K */
+        if (k_found < 10) {
+            top_k_indices[k_found] = i;
+            top_k_sims[k_found] = sim;
+            k_found++;
+        } else {
+            /* Ищем худший в текущем Top-K */
+            size_t worst_idx = 0;
+            for (size_t j = 1; j < 10; j++) {
+                if (top_k_sims[j] < top_k_sims[worst_idx]) worst_idx = j;
+            }
+            if (sim > top_k_sims[worst_idx]) {
+                top_k_indices[worst_idx] = i;
+                top_k_sims[worst_idx] = sim;
+            }
+        }
+    }
+
+    size_t best_idx = 0;
+    if (k_found == 0) return -1;
+
+    if (ctx->strategy == KOLIBRI_GEN_SAMPLING) {
+        double exp_sims[10];
+        double total_exp = 0.0;
+        for (size_t i = 0; i < k_found; i++) {
+            exp_sims[i] = exp(top_k_sims[i] / ctx->temperature);
+            total_exp += exp_sims[i];
+        }
+        
+        double r = (double)rand() / (double)RAND_MAX * total_exp;
+        double acc = 0.0;
+        for (size_t i = 0; i < k_found; i++) {
+            acc += exp_sims[i];
+            if (acc >= r) {
+                best_idx = top_k_indices[i];
+                break;
+            }
+        }
+    } else if (ctx->strategy == KOLIBRI_GEN_BEAM) {
+        /* В режиме Beam Search следующий токен выбирается как наиболее 
+         * вероятный из найденного пучка кандидатов (greedy beam step) */
+        size_t max_idx = 0;
+        for (size_t i = 1; i < k_found; i++) {
+            if (top_k_sims[i] > top_k_sims[max_idx]) max_idx = i;
+        }
+        best_idx = top_k_indices[max_idx];
+    } else {
+        /* Greedy среди Top-K */
+        size_t max_idx = 0;
+        for (size_t i = 1; i < k_found; i++) {
+            if (top_k_sims[i] > top_k_sims[max_idx]) max_idx = i;
+        }
+        best_idx = top_k_indices[max_idx];
+    }
+    
+    strncpy(output, ctx->corpus->store.words[best_idx], output_size - 1);
+    output[output_size - 1] = '\0';
+    
+    /* Обновляем контекстное окно новым токеном */
+    if (ctx->context) {
+        k_context_window_add_token(ctx->context, output, &ctx->corpus->store.patterns[best_idx]);
+    }
+    
+    ctx->tokens_generated++;
     return 0;
 }
 
 int k_gen_generate(KolibriGenerationContext *ctx, const char *prompt, size_t num_tokens,
                   char *output, size_t output_size) {
     if (!ctx || !output || output_size == 0) return -1;
+    
     output[0] = '\0';
+    size_t pos = 0;
+    
+    /* Сбрасываем контекст для новой генерации, если есть промпт */
+    if (prompt && prompt[0] != '\0' && ctx->context) {
+        /* Очистка контекста может быть слишком агрессивной, просто добавляем промпт */
+        char **tokens = NULL;
+        size_t token_count = 0;
+        if (k_corpus_tokenize(prompt, strlen(prompt), &tokens, &token_count) == 0) {
+            for (size_t i = 0; i < token_count; i++) {
+                KolibriSemanticPattern *p = NULL;
+                for (size_t j = 0; j < ctx->corpus->store.count; j++) {
+                    if (strcmp(ctx->corpus->store.words[j], tokens[i]) == 0) {
+                        p = &ctx->corpus->store.patterns[j];
+                        break;
+                    }
+                }
+                if (p) k_context_window_add_token(ctx->context, tokens[i], p);
+                free(tokens[i]);
+            }
+            free(tokens);
+        }
+    }
+    
+    if (ctx->strategy == KOLIBRI_GEN_BEAM) {
+        /* Улучшенный Beam Search с сохранением состояния контекста */
+        typedef struct {
+            char sentence[512];
+            double total_score;
+            size_t token_indices[16];
+            size_t length;
+        } BeamPath;
+
+        BeamPath *paths = calloc(10, sizeof(BeamPath));
+        BeamPath *next_paths = calloc(10, sizeof(BeamPath));
+        size_t active_paths = 1;
+        size_t b_size = ctx->beam_size;
+        if (b_size == 0 || b_size > 10) b_size = 5;
+
+        paths[0].total_score = 0.0;
+        paths[0].length = 0;
+        paths[0].sentence[0] = '\0';
+
+        for (size_t step = 0; step < num_tokens && step < 16; step++) {
+            size_t candidate_count = 0;
+            struct {
+                size_t parent_path;
+                size_t corpus_idx;
+                double score;
+            } candidates[100];
+
+            for (size_t p = 0; p < active_paths; p++) {
+                size_t original_count = ctx->context->token_count;
+                /* Симуляция контекста для текущего пути */
+                for (size_t l = 0; l < paths[p].length; l++) {
+                    size_t c_idx = paths[p].token_indices[l];
+                    k_context_window_add_token(ctx->context, ctx->corpus->store.words[c_idx], &ctx->corpus->store.patterns[c_idx]);
+                }
+
+                KolibriGenerationCandidate step_candidates[10];
+                size_t n = 0;
+                k_gen_beam_search(ctx, step_candidates, &n);
+
+                for (size_t c = 0; c < n && candidate_count < 100; c++) {
+                    candidates[candidate_count].parent_path = p;
+                    /* Поиск индекса слова в корпусе */
+                    size_t c_idx = 0;
+                    for (size_t j = 0; j < ctx->corpus->store.count; j++) {
+                        if (strcmp(ctx->corpus->store.words[j], step_candidates[c].token) == 0) {
+                            c_idx = j;
+                            break;
+                        }
+                    }
+                    candidates[candidate_count].corpus_idx = c_idx;
+                    /* Набираем очки: средняя похожесть + длина */
+                    candidates[candidate_count].score = paths[p].total_score + step_candidates[c].score;
+                    candidate_count++;
+                }
+                ctx->context->token_count = original_count; /* Восстановление */
+            }
+
+            if (candidate_count == 0) break;
+
+            /* Отбор лучших расширений */
+            size_t next_active = 0;
+            while (next_active < b_size && next_active < candidate_count) {
+                int best_c = -1;
+                for (size_t j = 0; j < (int)candidate_count; j++) {
+                    if (candidates[j].score > -900.0 && (best_c == -1 || candidates[j].score > candidates[best_c].score)) {
+                        best_c = j;
+                    }
+                }
+                if (best_c == -1) break;
+
+                BeamPath *src = &paths[candidates[best_c].parent_path];
+                BeamPath *dst = &next_paths[next_active];
+                memcpy(dst, src, sizeof(BeamPath));
+                
+                size_t c_idx = candidates[best_c].corpus_idx;
+                if (dst->length > 0) strncat(dst->sentence, " ", 511 - strlen(dst->sentence));
+                strncat(dst->sentence, ctx->corpus->store.words[c_idx], 511 - strlen(dst->sentence));
+                
+                dst->token_indices[dst->length] = c_idx;
+                dst->total_score = candidates[best_c].score;
+                dst->length++;
+                
+                next_active++;
+                candidates[best_c].score = -1000.0;
+            }
+
+            if (next_active == 0) break;
+            memcpy(paths, next_paths, 10 * sizeof(BeamPath));
+            active_paths = next_active;
+        }
+
+        if (active_paths > 0) {
+            strncpy(output, paths[0].sentence, output_size - 1);
+            pos = strlen(output);
+        } else {
+            strncpy(output, "[Пустой путь]", output_size - 1);
+            pos = strlen(output);
+        }
+        free(paths);
+        free(next_paths);
+    } else {
+        for (size_t i = 0; i < num_tokens && i < ctx->max_length; i++) {
+            char token[128];
+            if (k_gen_next_token(ctx, token, sizeof(token)) != 0) break;
+            
+            size_t token_len = strlen(token);
+            if (pos + token_len + 2 >= output_size) break;
+            
+            if (pos > 0) output[pos++] = ' ';
+            memcpy(output + pos, token, token_len);
+            pos += token_len;
+        }
+    }
+    
+    output[pos] = '\0';
     return 0;
 }
 
 int k_gen_beam_search(KolibriGenerationContext *ctx, KolibriGenerationCandidate *candidates,
                       size_t *num_candidates) {
-    if (!ctx || !candidates || !num_candidates) return -1;
-    *num_candidates = 0;
+    if (!ctx || !candidates || !num_candidates || !ctx->corpus) return -1;
+    
+    size_t beam_size = ctx->beam_size;
+    if (beam_size == 0) beam_size = 5;
+    if (beam_size > 10) beam_size = 10;
+
+    /* 1. Получаем контекст и предсказание формул */
+    KolibriSemanticPattern context_pattern;
+    k_semantic_pattern_init(&context_pattern);
+    
+    int context_hash = 0;
+    int predictions[4] = {0};
+    int prediction_count = 0;
+
+    if (ctx->context && ctx->context->token_count > 0) {
+        double weight_sum = 0.0;
+        double accumulated[KOLIBRI_SEMANTIC_PATTERN_SIZE] = {0};
+        
+        /* Вычисляем хеш последних 4 токенов для формул */
+        size_t start_idx = ctx->context->token_count > 4 ? ctx->context->token_count - 4 : 0;
+        for (size_t i = 0; i < ctx->context->token_count; i++) {
+            double position_decay = (double)(i + 1) / (double)ctx->context->token_count;
+            double w = ctx->context->tokens[i].attention_weight * position_decay;
+            if (w < 0.01) w = 0.01;
+            for (size_t j = 0; j < KOLIBRI_SEMANTIC_PATTERN_SIZE; j++) {
+                accumulated[j] += (double)ctx->context->tokens[i].pattern.pattern[j] * w;
+            }
+            weight_sum += w;
+            
+            if (i >= start_idx) {
+                for (size_t j = 0; j < 4; j++) context_hash ^= (ctx->context->tokens[i].pattern.pattern[j] << (j * 8));
+            }
+        }
+        if (weight_sum > 0) {
+            for (size_t j = 0; j < KOLIBRI_SEMANTIC_PATTERN_SIZE; j++) {
+                context_pattern.pattern[j] = (uint8_t)(accumulated[j] / weight_sum + 0.5);
+            }
+        }
+
+        /* Опрашиваем ансамбль формул (Numerical AGI) */
+        if (ctx->formula_pool) {
+            /* Берём 3 лучшие формулы */
+            for (size_t f = 0; f < 3 && f < ctx->formula_pool->count; f++) {
+                int pred = 0;
+                if (kf_formula_apply(&ctx->formula_pool->formulas[f], context_hash, &pred) == 0) {
+                    predictions[prediction_count++] = pred;
+                }
+            }
+        }
+    } else {
+        for (size_t j = 0; j < KOLIBRI_SEMANTIC_PATTERN_SIZE; j++) context_pattern.pattern[j] = (uint8_t)(rand() % 10);
+    }
+
+    /* 2. Поиск Top-K кандидатов с учетом рекомендаций формул */
+    size_t k_found = 0;
+    double global_max_sim = -1.0;
+    for (size_t i = 0; i < ctx->corpus->store.count; i++) {
+        double sim = k_semantic_similarity(&context_pattern, &ctx->corpus->store.patterns[i]);
+        
+        /* Numerical Boost: если хеш слова совпал с прогнозом формулы */
+        if (prediction_count > 0) {
+            int word_hash = kf_hash_from_text(ctx->corpus->store.words[i]);
+            for (int p = 0; p < prediction_count; p++) {
+                if (word_hash == predictions[p]) {
+                    sim += 0.45; /* Резонанс с формулой! */
+                    break;
+                }
+            }
+        }
+
+        if (sim > global_max_sim) global_max_sim = sim;
+        
+        /* Штраф за повторение */
+        if (ctx->context) {
+            size_t start_check = ctx->context->token_count > 8 ? ctx->context->token_count - 8 : 0;
+            for (size_t j = start_check; j < ctx->context->token_count; j++) {
+                if (k_semantic_similarity(&ctx->corpus->store.patterns[i], &ctx->context->tokens[j].pattern) > 0.95) {
+                    sim -= 0.7;
+                    break;
+                }
+            }
+        }
+
+        if (k_found < beam_size) {
+            size_t idx = k_found++;
+            strncpy(candidates[idx].token, ctx->corpus->store.words[i], sizeof(candidates[idx].token)-1);
+            candidates[idx].pattern = ctx->corpus->store.patterns[i];
+            candidates[idx].score = sim + ((double)(rand() % 100) / 20000.0);
+        } else {
+            size_t worst = 0;
+            for (size_t j = 1; j < k_found; j++) if (candidates[j].score < candidates[worst].score) worst = j;
+            if (sim > candidates[worst].score) {
+                strncpy(candidates[worst].token, ctx->corpus->store.words[i], sizeof(candidates[worst].token)-1);
+                candidates[worst].pattern = ctx->corpus->store.patterns[i];
+                candidates[worst].score = sim + ((double)(rand() % 100) / 20000.0);
+            }
+        }
+    }
+    
+    *num_candidates = k_found;
     return 0;
 }
 

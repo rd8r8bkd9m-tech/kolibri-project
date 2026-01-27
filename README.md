@@ -48,6 +48,26 @@ gcc tools/kolibri_archiver_v10.c -o kolibri -O3
 - [docs/reports/](docs/reports/) - Результаты тестирования всех архиваторов
 - [benchmarks/](benchmarks/) - Сравнение с ZIP, Bzip2, XZ, Zstd
 - [docs/analysis/kolibri_ai_masterplan.md](docs/analysis/kolibri_ai_masterplan.md) — план запуска локального Kolibri AI с GPU-ускорением
+
+## 🤖 Kolibri AI (Фаза 1: Завершено)
+
+Колибри теперь обладает способностью к текстовому общению!
+
+### Основные возможности Фазы 1:
+- **Численное мышление**: Переход от NLP к цифровым геномам.
+- **Интеграция знаний**: Индексация документации, Википедии и словаря Даля.
+- **Интерфейс общения**: Усовершенствованный CLI (узел `kolibri_node`) с поддержкой текстовых ответов и генетического синтеза.
+- **Масштаб знаний**: Поддержка до 1000 документов одновременно в памяти узла.
+
+**Попробовать сейчас:**
+```bash
+# Автоматическое обучение на всей базе (Docs, Wikipedia, словарь Даля)
+./scripts/auto_train.sh --ticks 500
+
+# Запуск чата (режим :ask)
+./build/kolibri_node --genome build/training/auto_genome.dat --bootstrap build/training/bootstrap.ks
+```
+Внутри узла введите: `:ask АВОСЬ` или `:ask Искусственный интеллект`.
 - [engine/gpu_encoder/](engine/gpu_encoder/) — кодер/декодер ReasonBlock на CUDA/Metal
 - [scripts/spectral_fingerprint.py](scripts/spectral_fingerprint.py) — спектральный анализ входных знаний
 
