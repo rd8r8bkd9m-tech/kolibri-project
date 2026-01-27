@@ -269,9 +269,13 @@ static void parse_query(const char *path, char *query_buffer, size_t query_size,
 }
 
 static void send_response(int client_fd, int status_code, const char *content_type, const char *body) {
-    char header[256];
+    char header[512];
     int header_len = snprintf(header, sizeof(header),
-                              "HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %zu\r\nConnection: close\r\n\r\n",
+                              "HTTP/1.1 %d %s\r\n"
+                              "Content-Type: %s\r\n"
+                              "Access-Control-Allow-Origin: *\r\n"
+                              "Content-Length: %zu\r\n"
+                              "Connection: close\r\n\r\n",
                               status_code,
                               status_code == 200 ? "OK" : "Error",
                               content_type,

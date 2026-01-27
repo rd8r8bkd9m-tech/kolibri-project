@@ -1,0 +1,3 @@
+:script knowledge_bootstrap.ks
+:ask Kolibri FAQ / Часто задаваемые вопросы
+:quit

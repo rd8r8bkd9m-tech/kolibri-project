@@ -290,16 +290,28 @@ static size_t tokenize_query(const char *query, char tokens[][64], size_t max_to
     size_t length = query ? strlen(query) : 0U;
     size_t i = 0;
     while (i < length && count < max_tokens) {
-        while (i < length && !isalnum((unsigned char)query[i])) {
+        /* Skip non-alphanumeric, but allow UTF-8 multibyte sequences (high bit set) */
+        while (i < length) {
+            unsigned char c = (unsigned char)query[i];
+            if (isalnum(c) || c >= 0x80) {
+                break;
+            }
             ++i;
         }
+
         if (i >= length) {
             break;
         }
         size_t start = i;
-        while (i < length && isalnum((unsigned char)query[i])) {
+        /* Consume word characters and UTF-8 bytes */
+        while (i < length) {
+            unsigned char c = (unsigned char)query[i];
+            if (!isalnum(c) && c < 0x80) {
+                break;
+            }
             ++i;
         }
+
         size_t token_length = i - start;
         if (token_length > 0) {
             if (token_length >= 64U) {

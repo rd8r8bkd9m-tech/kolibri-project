@@ -766,56 +766,54 @@ static void node_handle_stats(KolibriNode *node) {
     }
 }
 
-static void node_deep_think(KolibriNode *node, const char *question) {
-    printf("[DeepThink] Анализ вопроса: '%s' на 64-ядерной архитектуре...\n", question);
-    
-    // Эмуляция параллельной обработки (в реальной версии тут нужны pthreads/OpenMP)
-    // Но мы ускорим эволюцию за счет объема
-    size_t iterations = 10000; // Увеличиваем глубину в 100 раз
-    
-    printf("[DeepThink] Запуск %zu эволюционных циклов...\n", iterations);
-    
-    // Интенсивная мутация под конкретный вопрос
-    int q_hash = kf_hash_from_text(question);
-    
-    // Временно фокусируем весь пул на одной задаче
-    for(size_t i=0; i<iterations; i++) {
-        // Симуляция "размышления" - быстрая мутация без ввода-вывода
-        kf_pool_tick(&node->pool, 1);
-        
-        const KolibriFormula *best = kf_pool_best(&node->pool);
-        if (best && best->fitness > 0.95) {
-             printf("[DeepThink] Эврика! Найден ответ с точностью 95%% на шаге %zu\n", i);
-             break;
-        }
-    }
-    
-    const KolibriFormula *final_best = kf_pool_best(&node->pool);
-    if (final_best) {
-        printf("[DeepThink] Результат (Фитнес: %.4f): ", final_best->fitness);
-        char answer[512];
-        if (kf_formula_lookup_answer(final_best, q_hash, answer, sizeof(answer)) == 0) {
-            printf("'%s'\n", answer);
-        } else {
-            // Если точного текстового ответа нет, выводим сырой вывод формулы
-            int raw_out = 0;
-            kf_formula_apply(final_best, q_hash, &raw_out);
-            printf("Числовой концепт [%d]\n", raw_out);
-        }
-    } else {
-        printf("[DeepThink] Решение не найдено, требуется больше данных.\n");
-    }
-}
-
 static void node_handle_ask(KolibriNode *node, const char *payload) {
     if (!payload || payload[0] == '\0') {
         printf("[Вопрос] требуется аргумент\n");
         return;
     }
+    int value = 0;
+    if (!parse_int32(payload, &value)) {
+        /* Если не число, пробуем как текст через хеш */
+        value = kf_hash_from_text(payload);
+        printf("[Вопрос] Текстовый запрос: \"%s\" (hash: %d)\n", payload, value);
+    }
+    const KolibriFormula *best = kf_pool_best(&node->pool);
+    if (!best) {
+        printf("[Вопрос] эволюция ещё не дала формулы\n");
+        return;
+    }
+    int result = 0;
+    if (kf_formula_apply(best, value, &result) != 0) {
+        printf("[Вопрос] формула не смогла ответить\n");
+        return;
+    }
     
-    // Запускаем режим глубокого мышления
-    node_deep_think(node, payload);
+    /* Пробуем найти текст для ответа */
+    char ans_text[256];
+    ans_text[0] = '\0';
     
+    /* Ищем в корпусе */
+    for (size_t i = 0; i < node->corpus.store.count; i++) {
+        if (kf_hash_from_text(node->corpus.store.words[i]) == result) {
+            strncpy(ans_text, node->corpus.store.words[i], sizeof(ans_text)-1);
+            break;
+        }
+    }
+
+    if (ans_text[0] != '\0') {
+        printf("[Ответ] %s -> %s\n", payload, ans_text);
+    } else {
+        printf("[Ответ] f(%d) = %d\n", value, result);
+    }
+    
+    node->last_gene = best->gene;
+    node->last_gene_valid = true;
+    node->last_question = value;
+    node->last_answer = result;
+    char description[128];
+    if (kf_formula_describe(best, description, sizeof(description)) == 0) {
+        printf("[Пояснение] %s\n", description);
+    }
     node_record_event(node, "ASK", "вопрос обработан");
 }
 

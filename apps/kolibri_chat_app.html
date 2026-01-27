@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Колибри ИИ - Тест Знаний</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #f5f5f7; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        h1 { color: #1d1d1f; margin-bottom: 24px; font-size: 24px; display: flex; align-items: center; gap: 10px; }
+        input[type="text"] { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #d2d2d7; border-radius: 8px; margin-bottom: 16px; box-sizing: border-box; }
+        button { background: #0071e3; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 8px; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: #0077ed; }
+        #results { margin-top: 30px; }
+        .snippet { border-bottom: 1px solid #e5e5e5; padding: 16px 0; }
+        .snippet:last-child { border-bottom: none; }
+        .title { font-weight: 600; color: #1d1d1f; margin-bottom: 4px; }
+        .source { color: #86868b; font-size: 12px; margin-bottom: 8px; font-family: monospace; }
+        .content { color: #333; line-height: 1.5; white-space: pre-wrap; font-size: 14px; }
+        .loading { text-align: center; color: #86868b; display: none; margin-top: 20px; }
+        .status-pill { display: inline-block; padding: 4px 8px; background: #e5f9e7; color: #2da44e; border-radius: 12px; font-size: 12px; margin-left: auto; }
+        .no-results { color: #86868b; text-align: center; padding: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            <span>🐦 Колибри ИИ</span>
+            <span class="status-pill" id="serverStatus">Проверка связи...</span>
+        </h1>
+        <p>Тестирование автономной памяти и поискового индекса</p>
+        
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="queryInput" placeholder="Введите вопрос (например: доступен ли Gemini в России?)" onkeypress="if(event.key === 'Enter') search()">
+            <button onclick="search()">Спросить</button>
+        </div>
+
+        <div id="loading" class="loading">Ищу ответ в памяти...</div>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        // Используем относительный путь, так как запросы теперь идут через Python-прокси на том же порту (8081)
+        const API_URL = '/api/knowledge/search';
+
+        // Проверка статуса сервера
+        fetch(API_URL + '?q=test&limit=1')
+            .then(() => {
+                const el = document.getElementById('serverStatus');
+                el.textContent = 'Сервер онлайн';
+                el.style.background = '#e5f9e7';
+                el.style.color = '#2da44e';
+            })
+            .catch(() => {
+                const el = document.getElementById('serverStatus');
+                el.textContent = 'Сервер недоступен';
+                el.style.background = '#ffebe9';
+                el.style.color = '#cf222e';
+            });
+
+        async function search() {
+            const query = document.getElementById('queryInput').value.trim();
+            if (!query) return;
+
+            const resultsDiv = document.getElementById('results');
+            const loadingDiv = document.getElementById('loading');
+            
+            resultsDiv.innerHTML = '';
+            loadingDiv.style.display = 'block';
+
+            try {
+                const response = await fetch(`${API_URL}?q=${encodeURIComponent(query)}&limit=3`);
+                const data = await response.json();
+                
+                loadingDiv.style.display = 'none';
+
+                if (!data.snippets || data.snippets.length === 0) {
+                    resultsDiv.innerHTML = '<div class="no-results">Ответов в памяти не найдено. Попробуйте обучить Колибри новым ссылкам.</div>';
+                    return;
+                }
+
+                data.snippets.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'snippet';
+                    
+                    // Подсветить ответ
+                    let content = item.content;
+                    if (content.length > 500) content = content.substring(0, 500) + '...';
+
+                    div.innerHTML = `
+                        <div class="title">${item.title || 'Документ без названия'}</div>
+                        <div class="source">Источник: ${item.source} (Релевантность: ${(item.score * 100).toFixed(0)}%)</div>
+                        <div class="content">${escapeHtml(content)}</div>
+                    `;
+                    resultsDiv.appendChild(div);
+                });
+            } catch (err) {
+                loadingDiv.style.display = 'none';
+                resultsDiv.innerHTML = `<div class="no-results" style="color:red">Ошибка соединения с сервером Колибри: ${err.message}. Убедитесь, что сервер запущен на порту 8000.</div>`;
+            }
+        }
+
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>

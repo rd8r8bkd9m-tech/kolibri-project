@@ -467,7 +467,7 @@ void kf_pool_init(KolibriFormulaPool *pool, uint64_t seed) {
         return;
     }
     memset(pool, 0, sizeof(*pool));
-    pool->count = 64;
+    pool->count = KOLIBRI_FORMULA_CAPACITY;
     k_rng_seed(&pool->rng, seed);
     
     pool->examples_capacity = 1000;

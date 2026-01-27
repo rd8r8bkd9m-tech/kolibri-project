@@ -1,0 +1,5 @@
+:mass-learn
+:evolve 2000
+:ask Колибри
+:why
+:quit
