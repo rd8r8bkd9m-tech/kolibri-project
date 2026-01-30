@@ -71,6 +71,11 @@ gcc tools/kolibri_archiver_v10.c -o kolibri -O3
 - [engine/gpu_encoder/](engine/gpu_encoder/) — кодер/декодер ReasonBlock на CUDA/Metal
 - [scripts/spectral_fingerprint.py](scripts/spectral_fingerprint.py) — спектральный анализ входных знаний
 
+### 📌 Что реально реализовано как AI
+- Kolibri OS — экспериментальная платформа с числовыми семантическими паттернами, формулами и индексом знаний.
+- Локальные ответы строятся детерминированными алгоритмами (без нейросетевой модели).
+- Режим LLM — это прокси к внешнему LLM-сервису; в репозитории нет собственной обученной LLM.
+
 ## 📦 Kolibri Archiver - Advanced Compression System
 
 Kolibri OS теперь включает мощную систему архивирования с многоуровневым сжатием:
@@ -236,4 +241,3 @@ npm --prefix frontend run dev
 ```
 
 Если `VITE_KOLIBRI_RESPONSE_MODE` не равен `llm`, интерфейс автоматически вернётся к KolibriScript. При ошибке LLM фронтенд повторит запрос через KolibriScript и дополнит ответ примечанием о деградации.
-
