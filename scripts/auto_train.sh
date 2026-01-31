@@ -135,6 +135,10 @@ if [[ -f "$custom_model" ]]; then
         exit 1
     fi
     tmp_bootstrap="$(mktemp -p "$(dirname "$bootstrap_script")" "bootstrap.tmp.XXXXXX")"
+    if [[ -z "$tmp_bootstrap" || ! -f "$tmp_bootstrap" ]]; then
+        echo "[auto-train] Failed to create temporary bootstrap file" >&2
+        exit 1
+    fi
     if ! {
         cat "$bootstrap_script"
         echo ""
@@ -144,7 +148,7 @@ if [[ -f "$custom_model" ]]; then
         rm -f "$tmp_bootstrap"
         exit 1
     fi
-    backup_bootstrap="${bootstrap_script}.bak"
+    backup_bootstrap="${bootstrap_script}.bak.$(date +%Y%m%d%H%M%S)"
     if ! cp -f "$bootstrap_script" "$backup_bootstrap"; then
         echo "[auto-train] Failed to backup bootstrap script" >&2
         rm -f "$tmp_bootstrap"
