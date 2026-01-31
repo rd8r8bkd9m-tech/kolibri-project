@@ -134,13 +134,19 @@ if [[ -f "$custom_model" ]]; then
         echo "[auto-train] Custom model is not readable: $custom_model" >&2
         exit 1
     fi
-    tmp_bootstrap="$(mktemp -p "$(dirname "$bootstrap_script")" "bootstrap.custom.XXXXXX")"
+    tmp_bootstrap="$(mktemp -p "$(dirname "$bootstrap_script")" "bootstrap.tmp.XXXXXX")"
     if ! {
         cat "$bootstrap_script"
         echo ""
         cat "$custom_model"
     } > "$tmp_bootstrap"; then
         echo "[auto-train] Failed to build custom bootstrap" >&2
+        rm -f "$tmp_bootstrap"
+        exit 1
+    fi
+    backup_bootstrap="${bootstrap_script}.bak"
+    if ! cp -f "$bootstrap_script" "$backup_bootstrap"; then
+        echo "[auto-train] Failed to backup bootstrap script" >&2
         rm -f "$tmp_bootstrap"
         exit 1
     fi
