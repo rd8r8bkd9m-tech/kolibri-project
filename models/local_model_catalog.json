@@ -1,0 +1,26 @@
+[
+  {
+    "id": "auto_genome",
+    "source": "build/training/auto_genome.dat",
+    "question": "Kolibri принципы",
+    "description": "Автообученный геном из scripts/auto_train.sh"
+  },
+  {
+    "id": "knowledge_genome",
+    "source": "build/knowledge/knowledge_genome.dat",
+    "question": "Kolibri база знаний",
+    "description": "Геном из knowledge_pipeline.sh"
+  },
+  {
+    "id": "local_kolibri",
+    "source": ".kolibri/knowledge_genome.dat",
+    "question": "Kolibri локальная база",
+    "description": "Локальная база знаний пользователя"
+  },
+  {
+    "id": "custom_local",
+    "source": "models/local_sources/custom_genome.dat",
+    "question": "Kolibri кастомная модель",
+    "description": "Положите сюда собственный геном для форка"
+  }
+]
