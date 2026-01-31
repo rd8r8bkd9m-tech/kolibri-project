@@ -88,7 +88,7 @@ gcc tools/kolibri_archiver_v10.c -o kolibri -O3
   export KOLIBRI_LLM_MODEL="vendor/model-450b"
   export KOLIBRI_LLM_API_KEY="token"
   ```
-- Для «форка» разных моделей запускайте `scripts/llm_teacher.py` (см. `--help`) с разными `--llm-model` и фиксируйте ответы в базе знаний.
+- Для «форка» разных моделей запускайте скрипт `scripts/llm_teacher.py` (см. `--help`) с разными `--llm-model` и фиксируйте ответы в базе знаний.
 
 ⚠️ Репозиторий не содержит и не распространяет веса LLM; масштабирование до 450B — это внешняя инфраструктурная задача.
 
