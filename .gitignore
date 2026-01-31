@@ -60,6 +60,7 @@ data.json.bak
 *.pid
 *.seed
 *.dat
+.kolibri/
 models/local_sources/
 models/forked/
 

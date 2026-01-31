@@ -7,8 +7,8 @@ Usage: run_local_model_fork.sh [options]
 
 Options:
   --base-genome PATH   Base genome to fork (or set KOLIBRI_LOCAL_MODEL_PATH)
-  --fork-genome PATH   Output genome path (default: build/training/local_fork_genome.dat)
-  --bootstrap PATH     Bootstrap script path (default: build/training/local_fork_bootstrap.ks)
+  --fork-genome PATH   Output genome path (default: .kolibri/forks/local_fork_genome.dat)
+  --bootstrap PATH     Bootstrap script path (default: .kolibri/forks/local_fork_bootstrap.ks)
   --question TEXT      Question to ask after bootstrap (default: "Kolibri принципы")
   --seed N             Seed for kolibri_node (default: 20250923)
   -h, --help           Show this message
@@ -21,8 +21,8 @@ build_dir="$project_root/build"
 node_bin="$build_dir/kolibri_node"
 
 base_genome="${KOLIBRI_LOCAL_MODEL_PATH:-}"
-fork_genome="$build_dir/training/local_fork_genome.dat"
-bootstrap_script="$build_dir/training/local_fork_bootstrap.ks"
+fork_genome="$project_root/.kolibri/forks/local_fork_genome.dat"
+bootstrap_script="$project_root/.kolibri/forks/local_fork_bootstrap.ks"
 question="Kolibri принципы"
 seed=20250923
 

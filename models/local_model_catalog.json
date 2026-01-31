@@ -19,7 +19,7 @@
   },
   {
     "id": "custom_local",
-    "source": "models/local_sources/custom_genome.dat",
+    "source": ".kolibri/local_sources/custom_genome.dat",
     "question": "Kolibri кастомная модель",
     "description": "Положите сюда собственный геном для форка"
   }
