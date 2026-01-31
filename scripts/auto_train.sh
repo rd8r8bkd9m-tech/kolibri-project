@@ -126,7 +126,15 @@ PY
 custom_model="$project_root/training/custom_model.ks"
 if [[ -f "$custom_model" ]]; then
     echo "[auto-train] Appending custom model: $custom_model"
-    tmp_bootstrap="$(mktemp "${bootstrap_script}.tmp.XXXX")"
+    if [[ ! -r "$bootstrap_script" ]]; then
+        echo "[auto-train] Bootstrap script is not readable: $bootstrap_script" >&2
+        exit 1
+    fi
+    if [[ ! -r "$custom_model" ]]; then
+        echo "[auto-train] Custom model is not readable: $custom_model" >&2
+        exit 1
+    fi
+    tmp_bootstrap="$(mktemp -p "$(dirname "$bootstrap_script")" "bootstrap.custom.XXXXXX")"
     if ! {
         cat "$bootstrap_script"
         echo ""
