@@ -9,7 +9,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-DB_PATH = Path("build/knowledge/kolibri.db")
+DB_PATH = Path(".kolibri/knowledge/kolibri.db")
 
 router = APIRouter(prefix="/api/gpu", tags=["gpu-store"])
 

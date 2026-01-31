@@ -7,8 +7,8 @@ Usage: fork_local_models.sh [options]
 
 Options:
   --catalog PATH     Catalog JSON (default: models/local_model_catalog.json)
-  --sources-dir DIR  Local sources root (default: models/local_sources)
-  --output-dir DIR   Output directory (default: models/forked)
+  --sources-dir DIR  Local sources root (default: .kolibri/local_sources)
+  --output-dir DIR   Output directory (default: .kolibri/forked)
   --dry-run          Print planned actions without copying
   -h, --help         Show this message
 
@@ -22,8 +22,8 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 project_root="$(cd "$script_dir/.." && pwd)"
 
 catalog="$project_root/models/local_model_catalog.json"
-sources_dir="$project_root/models/local_sources"
-output_dir="$project_root/models/forked"
+sources_dir="$project_root/.kolibri/local_sources"
+output_dir="$project_root/.kolibri/forked"
 dry_run=0
 
 while [[ $# -gt 0 ]]; do

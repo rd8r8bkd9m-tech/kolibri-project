@@ -34,13 +34,13 @@
     При необходимости обновите пары `обучить связь` и свои правила эволюции. Сценарий должен завершаться сохранением результата в геном.
 
 3a. **Список локальных моделей и форк без скачивания**  
-    Для требования «сам составь список моделей и полностью форкни» используйте каталог `models/local_model_catalog.json` и скрипт `scripts/fork_local_models.sh`. Он копирует только локальные файлы, не выполняя сетевых запросов.
+    Для требования «сам составь список моделей и полностью форкни» используйте каталог `models/local_model_catalog.json` и скрипт `scripts/fork_local_models.sh`. Он копирует только локальные файлы, не выполняя сетевых запросов, и хранит артефакты в codespace (директория `.kolibri/`).
 
     ```
-    mkdir -p models/local_sources
-    # Скопируйте сюда свои .dat геномы, затем обновите models/local_model_catalog.json
+    mkdir -p .kolibri/local_sources
+    # Скопируйте сюда свои .dat геномы, затем обновите models/local_model_catalog.json (путь .kolibri/local_sources)
     ./scripts/fork_local_models.sh --dry-run
-    ./scripts/fork_local_models.sh --output-dir models/forked
+    ./scripts/fork_local_models.sh --output-dir .kolibri/forked
     ```
 
     Скрипт пропускает отсутствующие источники, выводит предупреждения и продолжает работу.
