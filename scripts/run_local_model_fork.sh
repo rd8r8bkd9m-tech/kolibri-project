@@ -76,7 +76,7 @@ select_best_genome() {
     for candidate in "${candidates[@]}"; do
         if [[ -f "$candidate" ]]; then
             local size
-            size=$(stat -c%s "$candidate" 2>/dev/null || echo 0)
+            size=$(wc -c < "$candidate" 2>/dev/null | tr -d ' ')
             if (( size > best_size )); then
                 best_size=$size
                 best_path="$candidate"
