@@ -241,3 +241,13 @@ npm --prefix frontend run dev
 ```
 
 Если `VITE_KOLIBRI_RESPONSE_MODE` не равен `llm`, интерфейс автоматически вернётся к KolibriScript. При ошибке LLM фронтенд повторит запрос через KolibriScript и дополнит ответ примечанием о деградации.
+
+### Локальный форк модели (KolibriScript)
+Чтобы "форкнуть" лучшую локальную модель и применить принципы Kolibri, используйте готовый скрипт. Он копирует самый крупный локальный genome (или путь из `KOLIBRI_LOCAL_MODEL_PATH`), добавляет bootstrap с принципами Колибри и запускает `kolibri_node`.
+
+```bash
+export KOLIBRI_LOCAL_MODEL_PATH="build/training/auto_genome.dat"  # опционально
+./scripts/run_local_model_fork.sh --question "Kolibri принципы"
+```
+
+Скрипт сохранит форк в `build/training/local_fork_genome.dat` и bootstrap в `build/training/local_fork_bootstrap.ks`. Если `KOLIBRI_LOCAL_MODEL_PATH` не задан, будет выбран наиболее крупный из `build/training/auto_genome.dat`, `build/knowledge/knowledge_genome.dat`, `.kolibri/knowledge_genome.dat`.
