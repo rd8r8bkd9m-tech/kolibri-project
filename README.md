@@ -87,7 +87,7 @@ gcc tools/kolibri_archiver_v10.c -o kolibri -O3
   export KOLIBRI_LLM_ENDPOINT="https://your-llm-endpoint/v1/chat"
   export KOLIBRI_LLM_MODEL="vendor/model-450b"
   # Пример через .env (файл держите в .gitignore).
-  # KOLIBRI_LLM_API_KEY=${YOUR_API_KEY}
+  # KOLIBRI_LLM_API_KEY=${YOUR_API_KEY}  # Не добавляйте реальные ключи в репозиторий.
   set -a && source .env && set +a
   ```
 - Для «форка» разных моделей запускайте скрипт `scripts/llm_teacher.py` (он запрашивает внешний LLM и обучает Kolibri через teach/feedback), затем фиксируйте ответы в базе знаний. Пример:
