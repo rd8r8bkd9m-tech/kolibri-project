@@ -86,12 +86,14 @@ gcc tools/kolibri_archiver_v10.c -o kolibri -O3
   export KOLIBRI_RESPONSE_MODE=llm
   export KOLIBRI_LLM_ENDPOINT="https://your-llm-endpoint/v1/chat"
   export KOLIBRI_LLM_MODEL="vendor/model-450b"
-  export KOLIBRI_LLM_API_KEY="${YOUR_API_KEY}"  # Используйте .env (в .gitignore) или менеджер секретов, не храните токены в репозитории.
+  # Пример через .env (файл держите в .gitignore).
+  # KOLIBRI_LLM_API_KEY=${YOUR_API_KEY}
+  set -a && source .env && set +a
   ```
 - Для «форка» разных моделей запускайте скрипт `scripts/llm_teacher.py` (он запрашивает внешний LLM и обучает Kolibri через teach/feedback), затем фиксируйте ответы в базе знаний. Пример:
   ```bash
-  ./scripts/llm_teacher.py "Колибри принципы" --backend http --llm-model vendor/model-450b
-  ./scripts/llm_teacher.py "Колибри принципы" --backend http --llm-model vendor/model-70b
+  python3 ./scripts/llm_teacher.py "Колибри принципы" --backend http --llm-model vendor/model-450b
+  python3 ./scripts/llm_teacher.py "Колибри принципы" --backend http --llm-model vendor/model-70b
   ```
   Параметр `--llm-model` задает модель для `llm_teacher.py`, а `KOLIBRI_LLM_MODEL` используется backend-прокси сервисом.
 
