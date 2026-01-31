@@ -123,6 +123,17 @@ with open(output_path, "w", encoding="utf-8") as out:
     out.write("\n".join(lines))
 PY
 
+custom_model="$project_root/training/custom_model.ks"
+if [[ -f "$custom_model" ]]; then
+    echo "[auto-train] Appending custom model: $custom_model"
+    {
+        cat "$bootstrap_script"
+        echo ""
+        cat "$custom_model"
+    } > "${bootstrap_script}.tmp"
+    mv "${bootstrap_script}.tmp" "$bootstrap_script"
+fi
+
 echo "[auto-train] Running Kolibri node bootstrap and evolution"
 {
     echo ":tick $ticks"
