@@ -274,3 +274,17 @@ export KOLIBRI_LOCAL_MODEL_PATH="build/training/auto_genome.dat"  # опцион
 ```
 
 Скрипт сохранит форк в `build/training/local_fork_genome.dat` и bootstrap в `build/training/local_fork_bootstrap.ks`. Если `KOLIBRI_LOCAL_MODEL_PATH` не задан, будет выбран наиболее крупный из `build/training/auto_genome.dat`, `build/knowledge/knowledge_genome.dat`, `.kolibri/knowledge_genome.dat`.
+
+### Список локальных моделей и полный форк
+Чтобы «самостоятельно составить список моделей и полностью форкнуть их» без скачивания, используется каталог `models/local_model_catalog.json` и скрипт `scripts/fork_local_models.sh`.
+
+1. Скопируйте локальные геномы в `models/local_sources/` или укажите пути прямо в каталоге.
+2. Обновите `models/local_model_catalog.json`, добавив свои источники.
+3. Запустите форк:
+
+```bash
+./scripts/fork_local_models.sh --dry-run
+./scripts/fork_local_models.sh --output-dir models/forked
+```
+
+Скрипт копирует найденные локальные файлы в `models/forked/<id>/genome.dat`, пишет манифест и предупреждает о пропущенных источниках, продолжая работу.
