@@ -126,12 +126,21 @@ PY
 custom_model="$project_root/training/custom_model.ks"
 if [[ -f "$custom_model" ]]; then
     echo "[auto-train] Appending custom model: $custom_model"
-    {
+    tmp_bootstrap="$(mktemp "${bootstrap_script}.tmp.XXXX")"
+    if ! {
         cat "$bootstrap_script"
         echo ""
         cat "$custom_model"
-    } > "${bootstrap_script}.tmp"
-    mv "${bootstrap_script}.tmp" "$bootstrap_script"
+    } > "$tmp_bootstrap"; then
+        echo "[auto-train] Failed to build custom bootstrap" >&2
+        rm -f "$tmp_bootstrap"
+        exit 1
+    fi
+    if ! mv "$tmp_bootstrap" "$bootstrap_script"; then
+        echo "[auto-train] Failed to update bootstrap script" >&2
+        rm -f "$tmp_bootstrap"
+        exit 1
+    fi
 fi
 
 echo "[auto-train] Running Kolibri node bootstrap and evolution"
