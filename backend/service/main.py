@@ -12,6 +12,7 @@ import httpx
 from fastapi import Depends, FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 from .gpu_store import router as gpu_router
+from .ml_api import router as ml_router
 
 
 @dataclass
@@ -71,6 +72,7 @@ class InferenceResponse(BaseModel):
 
 app = FastAPI(title="Kolibri AI backend", version="0.2.0")
 app.include_router(gpu_router)
+app.include_router(ml_router)
 
 
 def _extract_text(payload: Any) -> str:
