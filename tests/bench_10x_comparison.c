@@ -3,19 +3,31 @@
  * Tests both implementations to show actual speedup
  */
 
+/* Ensure POSIX clock_gettime()/CLOCK_MONOTONIC are visible on glibc. */
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <stdint.h>
+#include <sys/time.h>
 
 #define BENCH_ITERATIONS 50
 #define TEST_SIZE (10 * 1024 * 1024)  /* 10 MB per iteration */
 
 static uint64_t get_time_ns(void) {
+#if defined(CLOCK_MONOTONIC)
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+#else
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (uint64_t)tv.tv_sec * 1000000000ULL + (uint64_t)tv.tv_usec * 1000ULL;
+#endif
 }
 
 /* ===== ORIGINAL IMPLEMENTATION (from decimal.c) ===== */

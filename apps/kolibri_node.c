@@ -18,6 +18,7 @@
 #include <string.h>
 #include <sys/select.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 
 #define KOLIBRI_MEMORY_CAPACITY 8192U
@@ -48,6 +49,8 @@ typedef struct {
     uint32_t auto_evolve_ms;
     uint32_t auto_sync_ms;
     bool mass_learn;
+    bool daemon;
+    bool show_help;
 } KolibriNodeOptions;
 
 typedef struct {
@@ -96,6 +99,8 @@ static void options_init(KolibriNodeOptions *options) {
     options->auto_evolve_ms = 500U;
     options->auto_sync_ms = 2000U;
     options->mass_learn = false;
+    options->daemon = false;
+    options->show_help = false;
 }
 
 static void parse_options(int argc, char **argv, KolibriNodeOptions *options) {
@@ -202,6 +207,14 @@ static void parse_options(int argc, char **argv, KolibriNodeOptions *options) {
         }
         if (strcmp(argv[i], "--mass-learn") == 0) {
             options->mass_learn = true;
+            continue;
+        }
+        if (strcmp(argv[i], "--daemon") == 0) {
+            options->daemon = true;
+            continue;
+        }
+        if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            options->show_help = true;
             continue;
         }
     }
@@ -531,13 +544,14 @@ static void node_report_formula(const KolibriNode *node) {
         printf("[Формулы] не удалось построить описание\n");
         return;
     }
-    uint8_t digits[32];
+    uint8_t digits[1024];
     size_t len = kf_formula_digits(best, digits, sizeof(digits));
     printf("[Формулы] %s\n", description);
-    printf("[Формулы] ген: ");
-    for (size_t i = 0; i < len; ++i) {
+    printf("[Формулы] ген (%zu цифр): ", len);
+    for (size_t i = 0; i < len && i < 64U; ++i) {
         printf("%u", (unsigned)digits[i]);
     }
+    if (len > 64U) printf("...");
     printf("\n");
 }
 
@@ -613,12 +627,12 @@ static void node_poll_listener(KolibriNode *node) {
         imported.fitness = message.data.formula.fitness;
         imported.feedback = 0.0;
 
-        char digits_text[33];
-        uint8_t printable_len = (uint8_t)imported.gene.length;
+        char digits_text[65];
+        size_t printable_len = imported.gene.length;
         if (printable_len >= sizeof(digits_text)) {
-            printable_len = (uint8_t)(sizeof(digits_text) - 1U);
+            printable_len = sizeof(digits_text) - 1U;
         }
-        for (uint8_t i = 0; i < printable_len; ++i) {
+        for (size_t i = 0; i < printable_len; ++i) {
             digits_text[i] = (char)('0' + (imported.gene.digits[i] % 10U));
         }
         digits_text[printable_len] = '\0';
@@ -695,6 +709,15 @@ static void node_execute_script(KolibriNode *node, const char *path) {
     node_reset_last_answer(node);
 }
 
+/* --- DJB2 хеш для авто-генерации пар из текста --- */
+static unsigned int node_djb2_hash(const char *str, size_t len) {
+    unsigned int hash = 5381U;
+    for (size_t i = 0; i < len; ++i) {
+        hash = ((hash << 5) + hash) + (unsigned char)str[i];
+    }
+    return hash;
+}
+
 static void node_handle_teach(KolibriNode *node, const char *payload) {
     if (!payload || payload[0] == '\0') {
         printf("[Учитель] требуется пример формата a->b\n");
@@ -725,9 +748,51 @@ static void node_handle_teach(KolibriNode *node, const char *payload) {
         node_handle_tick(node, 8);
         return;
     }
+
+    /* --- Авто-генерация обучающих пар из произвольного текста --- */
+    /* Разбиваем текст на слова и создаём пары хешей (word_i → word_i+1) */
+    const char *words[64];
+    size_t word_lens[64];
+    size_t word_count = 0;
+    const char *p = buffer;
+    while (*p && word_count < 64U) {
+        while (*p && ((unsigned char)*p <= ' ')) p++;
+        if (!*p) break;
+        const char *start = p;
+        while (*p && ((unsigned char)*p > ' ')) p++;
+        words[word_count] = start;
+        word_lens[word_count] = (size_t)(p - start);
+        word_count++;
+    }
+
     node_store_text(node, payload);
-    node_record_event(node, "NOTE", "произвольный импульс сохранён");
-    printf("[Учитель] сохранён числовой импульс\n");
+
+    if (word_count >= 2U) {
+        size_t added = 0;
+        for (size_t i = 0; i + 1U < word_count; ++i) {
+            int h1 = (int)(node_djb2_hash(words[i], word_lens[i]) % 1000000U);
+            int h2 = (int)(node_djb2_hash(words[i + 1U], word_lens[i + 1U]) % 1000000U);
+            if (kf_pool_add_example(&node->pool, h1, h2) == 0) {
+                added++;
+            }
+        }
+        node_record_event(node, "TEACH", "авто-пары из текста");
+        printf("[Учитель] авто-пары из текста: %zu связей из %zu слов\n", added, word_count);
+        if (added > 0) {
+            node_handle_tick(node, 8);
+        }
+    } else if (word_count == 1U) {
+        /* Одно слово — создаём пару хеш(слово) → хеш(слово)*2+1 */
+        int h1 = (int)(node_djb2_hash(words[0], word_lens[0]) % 1000000U);
+        int h2 = (h1 * 2 + 1) % 1000000;
+        kf_pool_add_example(&node->pool, h1, h2);
+        node_record_event(node, "TEACH", "импульс-пара");
+        printf("[Учитель] импульс-пара: 1 связь\n");
+        node_handle_tick(node, 8);
+    } else {
+        node_record_event(node, "NOTE", "пустой импульс");
+        printf("[Учитель] нет данных для обучения\n");
+    }
 }
 
 static void node_handle_mass_learn(KolibriNode *node) {
@@ -1087,6 +1152,24 @@ static int node_emit_health(KolibriNode *node) {
 int main(int argc, char **argv) {
     KolibriNodeOptions options;
     parse_options(argc, argv, &options);
+    if (options.show_help) {
+        printf("Kolibri Node — интерактивный AI-узел\n\n");
+        printf("Использование: %s [опции]\n\n", argv[0]);
+        printf("  --genome <путь>       Путь к файлу генома\n");
+        printf("  --seed <число>        Начальное зерно ГПСЧ\n");
+        printf("  --node-id <id>        Идентификатор узла\n");
+        printf("  --listen <порт>       Порт P2P-слушателя\n");
+        printf("  --peer <host:port>    Подключиться к узлу\n");
+        printf("  --bootstrap <путь>    KolibriScript при старте\n");
+        printf("  --hmac-key <ключ|@путь>  HMAC-ключ\n");
+        printf("  --daemon              Режим демона (без stdin)\n");
+        printf("  --health              Проверка здоровья\n");
+        printf("  --auto-learn          Авто-обучение (по умолч.)\n");
+        printf("  --no-auto-learn       Отключить авто-обучение\n");
+        printf("  --mass-learn          Массовое обучение\n");
+        printf("  --help, -h            Эта справка\n");
+        return 0;
+    }
     if (options.health_check) {
         options.listen_enabled = false;
     }

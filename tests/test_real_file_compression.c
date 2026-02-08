@@ -51,7 +51,14 @@ int main(int argc, char *argv[]) {
     /* Читаем файл */
     FILE *f = fopen(filename, "r");
     if (!f) {
-        printf("ОШИБКА: Не удалось открыть файл %s\n", filename);
+        /* Попробуем в родительской директории (если запущено из build/) */
+        char alt_path[512];
+        snprintf(alt_path, sizeof(alt_path), "../%s", filename);
+        f = fopen(alt_path, "r");
+    }
+    
+    if (!f) {
+        printf("ОШИБКА: Не удалось открыть файл %s (и в %s тоже)\n", filename, "../" "backend/src/formula.c"); /* note: hacky but works for now */
         return 1;
     }
     

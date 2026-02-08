@@ -1,10 +1,8 @@
 import os
-import re
 import time
 import threading
 import ast
 import subprocess
-from collections import Counter, defaultdict
 
 def extract_python_entity_relations(filepath):
     relations = []

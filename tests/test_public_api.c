@@ -9,14 +9,15 @@
 #include <string.h>
 
 static void test_script_smoke(void) {
-    KolibriFormulaPool pool;
-    kf_pool_init(&pool, 1234U);
+    KolibriFormulaPool *pool = malloc(sizeof(KolibriFormulaPool));
+    assert(pool);
+    kf_pool_init(pool, 1234U);
 
     KolibriGenome genome;
     memset(&genome, 0, sizeof(genome));
 
     KolibriScript script;
-    int rc = ks_init(&script, &pool, &genome);
+    int rc = ks_init(&script, pool, &genome);
     assert(rc == 0);
 
     FILE *capture = tmpfile();
@@ -31,6 +32,7 @@ static void test_script_smoke(void) {
 
     fclose(capture);
     ks_free(&script);
+    free(pool);
 }
 
 static void test_genome_smoke(void) {

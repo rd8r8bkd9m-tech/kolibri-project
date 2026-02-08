@@ -159,3 +159,243 @@ void test_genome(void) {
   rc = kg_verify_file(template, key, sizeof(key) - 1);
   assert(rc == 1);
 }
+
+/* ============================================================================
+ * Тесты WAL (Write-Ahead Logging)
+ * ============================================================================ */
+
+void test_wal_enable_disable(void) {
+  char template[] = "/tmp/kolibri_wal_testXXXXXX";
+  int fd = mkstemp(template);
+  assert(fd != -1);
+  close(fd);
+
+  KolibriGenome genome;
+  const unsigned char key[] = "wal-test-key";
+  int rc = kg_open(&genome, template, key, sizeof(key) - 1);
+  assert(rc == 0);
+
+  /* Включаем WAL */
+  rc = kg_wal_enable(&genome);
+  assert(rc == 0);
+  assert(genome.wal_enabled == 1);
+
+  /* Повторное включение не должно вызывать ошибку */
+  rc = kg_wal_enable(&genome);
+  assert(rc == 0);
+
+  /* Отключаем WAL */
+  rc = kg_wal_disable(&genome);
+  assert(rc == 0);
+  assert(genome.wal_enabled == 0);
+
+  kg_close(&genome);
+  remove(template);
+}
+
+void test_stream_append(void) {
+  char template[] = "/tmp/kolibri_stream_testXXXXXX";
+  int fd = mkstemp(template);
+  assert(fd != -1);
+  close(fd);
+
+  KolibriGenome genome;
+  const unsigned char key[] = "stream-key";
+  int rc = kg_open(&genome, template, key, sizeof(key) - 1);
+  assert(rc == 0);
+
+  /* Включаем WAL */
+  rc = kg_wal_enable(&genome);
+  assert(rc == 0);
+
+  /* Кодируем payload */
+  char payload[KOLIBRI_PAYLOAD_SIZE];
+  rc = kg_encode_payload("stream_test", payload, sizeof(payload));
+  assert(rc == 0);
+
+  /* Записываем через потоковый API */
+  ReasonBlock block;
+  rc = kg_stream_append(&genome, "STREAM", payload, &block);
+  assert(rc == 0);
+  assert(block.index == 0);
+
+  /* Записываем ещё несколько блоков */
+  for (int i = 0; i < 5; i++) {
+    char buf[64];
+    snprintf(buf, sizeof(buf), "block_%d", i);
+    rc = kg_encode_payload(buf, payload, sizeof(payload));
+    assert(rc == 0);
+    rc = kg_stream_append(&genome, "BATCH", payload, &block);
+    assert(rc == 0);
+    assert(block.index == (uint64_t)(i + 1));
+  }
+
+  kg_wal_disable(&genome);
+  kg_close(&genome);
+
+  /* Проверяем целостность */
+  rc = kg_verify_file(template, key, sizeof(key) - 1);
+  assert(rc == 0);
+
+  remove(template);
+}
+
+void test_genome_stats(void) {
+  char template[] = "/tmp/kolibri_stats_testXXXXXX";
+  int fd = mkstemp(template);
+  assert(fd != -1);
+  close(fd);
+
+  KolibriGenome genome;
+  const unsigned char key[] = "stats-key";
+  int rc = kg_open(&genome, template, key, sizeof(key) - 1);
+  assert(rc == 0);
+
+  /* Записываем несколько блоков */
+  char payload[KOLIBRI_PAYLOAD_SIZE];
+  for (int i = 0; i < 10; i++) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "stat_block_%d", i);
+    rc = kg_encode_payload(buf, payload, sizeof(payload));
+    assert(rc == 0);
+    rc = kg_append(&genome, "STATS", payload, NULL);
+    assert(rc == 0);
+  }
+
+  /* Проверяем статистику */
+  KolibriGenomeStats stats;
+  rc = kg_get_stats(&genome, &stats);
+  assert(rc == 0);
+  assert(stats.total_blocks == 10);
+  assert(stats.file_size_bytes == 10 * KOLIBRI_BLOCK_SIZE);
+  assert(stats.integrity_valid == 1);
+  assert(stats.first_timestamp > 0);
+  assert(stats.last_timestamp >= stats.first_timestamp);
+
+  kg_close(&genome);
+  remove(template);
+}
+
+void test_read_block(void) {
+  char template[] = "/tmp/kolibri_read_testXXXXXX";
+  int fd = mkstemp(template);
+  assert(fd != -1);
+  close(fd);
+
+  KolibriGenome genome;
+  const unsigned char key[] = "read-key";
+  int rc = kg_open(&genome, template, key, sizeof(key) - 1);
+  assert(rc == 0);
+
+  /* Записываем блоки */
+  char payload[KOLIBRI_PAYLOAD_SIZE];
+  ReasonBlock written_blocks[5];
+  for (int i = 0; i < 5; i++) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "read_test_%d", i);
+    rc = kg_encode_payload(buf, payload, sizeof(payload));
+    assert(rc == 0);
+    rc = kg_append(&genome, "READ_TEST", payload, &written_blocks[i]);
+    assert(rc == 0);
+  }
+
+  /* Читаем и проверяем блоки */
+  for (int i = 0; i < 5; i++) {
+    ReasonBlock read_block;
+    rc = kg_read_block(&genome, (uint64_t)i, &read_block);
+    assert(rc == 0);
+    assert(read_block.index == written_blocks[i].index);
+    assert(read_block.timestamp == written_blocks[i].timestamp);
+    assert(memcmp(read_block.hmac, written_blocks[i].hmac, KOLIBRI_HASH_SIZE) == 0);
+  }
+
+  /* Попытка чтения несуществующего блока */
+  ReasonBlock bad_block;
+  rc = kg_read_block(&genome, 100, &bad_block);
+  assert(rc == -1);
+
+  kg_close(&genome);
+  remove(template);
+}
+
+static int iterate_counter = 0;
+static int iterate_callback(const ReasonBlock *block, void *user_data) {
+  (void)block;
+  int *count = (int *)user_data;
+  (*count)++;
+  iterate_counter++;
+  return 0;
+}
+
+void test_iterate_blocks(void) {
+  char template[] = "/tmp/kolibri_iter_testXXXXXX";
+  int fd = mkstemp(template);
+  assert(fd != -1);
+  close(fd);
+
+  KolibriGenome genome;
+  const unsigned char key[] = "iter-key";
+  int rc = kg_open(&genome, template, key, sizeof(key) - 1);
+  assert(rc == 0);
+
+  /* Записываем блоки */
+  char payload[KOLIBRI_PAYLOAD_SIZE];
+  for (int i = 0; i < 7; i++) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "iter_%d", i);
+    rc = kg_encode_payload(buf, payload, sizeof(payload));
+    assert(rc == 0);
+    rc = kg_append(&genome, "ITER", payload, NULL);
+    assert(rc == 0);
+  }
+
+  /* Итерируем */
+  int counter = 0;
+  iterate_counter = 0;
+  int result = kg_iterate_blocks(&genome, iterate_callback, &counter);
+  assert(result == 7);
+  assert(counter == 7);
+  assert(iterate_counter == 7);
+
+  kg_close(&genome);
+  remove(template);
+}
+
+void test_wal_checkpoint(void) {
+  char template[] = "/tmp/kolibri_chk_testXXXXXX";
+  int fd = mkstemp(template);
+  assert(fd != -1);
+  close(fd);
+
+  KolibriGenome genome;
+  const unsigned char key[] = "checkpoint-key";
+  int rc = kg_open(&genome, template, key, sizeof(key) - 1);
+  assert(rc == 0);
+
+  rc = kg_wal_enable(&genome);
+  assert(rc == 0);
+
+  /* Записываем через потоковый API */
+  char payload[KOLIBRI_PAYLOAD_SIZE];
+  for (int i = 0; i < 10; i++) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "checkpoint_%d", i);
+    rc = kg_encode_payload(buf, payload, sizeof(payload));
+    assert(rc == 0);
+    rc = kg_stream_append(&genome, "CHECKPOINT", payload, NULL);
+    assert(rc == 0);
+  }
+
+  /* Принудительный checkpoint */
+  rc = kg_wal_checkpoint(&genome);
+  assert(rc >= 0);
+
+  kg_wal_disable(&genome);
+  kg_close(&genome);
+
+  /* Проверяем целостность */
+  rc = kg_verify_file(template, key, sizeof(key) - 1);
+  assert(rc == 0);
+
+  remove(template);
+}

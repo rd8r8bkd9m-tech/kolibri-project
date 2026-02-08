@@ -13,9 +13,23 @@ void test_knowledge_queue(void);
 void test_sim(void);
 void test_public_api(void);
 
+/* WAL тесты */
+void test_wal_enable_disable(void);
+void test_stream_append(void);
+void test_genome_stats(void);
+void test_read_block(void);
+void test_iterate_blocks(void);
+void test_wal_checkpoint(void);
+
 int main(void) {
   test_decimal();
   test_genome();
+  test_wal_enable_disable();
+  test_stream_append();
+  test_genome_stats();
+  test_read_block();
+  test_iterate_blocks();
+  test_wal_checkpoint();
   test_formula();
   test_digits();
   test_net();

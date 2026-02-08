@@ -136,6 +136,22 @@ MetaFormula* mf_create_relation_deriver(
     const char *inference_rule
 );
 
+/* Создать мета-формулу для генерации констант */
+MetaFormula* mf_create_constant_generator(const char *value);
+
+/* Создать мета-формулу для эволюции паттерна */
+MetaFormula* mf_create_pattern_evolver(
+    const char *source_pattern_id,
+    double mutation_rate,
+    int generations
+);
+
+/* Создать мета-формулу для сжатия логики */
+MetaFormula* mf_create_logic_compressor(
+    const char *target_logic_id,
+    const char *compression_strategy
+);
+
 /* Создать пустую мета-формулу */
 MetaFormula* mf_create_meta_formula(void);
 

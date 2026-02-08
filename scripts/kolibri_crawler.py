@@ -7,11 +7,9 @@ import datetime as dt
 import html
 import logging
 import sqlite3
-import sys
 import time
 import urllib.parse
 import urllib.robotparser
-from collections import deque
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Iterable

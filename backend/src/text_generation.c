@@ -110,7 +110,9 @@ double k_gen_compress_text(KolibriGenerationContext *ctx,
     
     /* Добавляем если уникальный */
     if (!found && ctx->formula_pool->association_count < KOLIBRI_POOL_MAX_ASSOCIATIONS) {
-        ctx->formula_pool->associations[ctx->formula_pool->association_count++] = assoc;
+        if (kf_pool_ensure_association_capacity(ctx->formula_pool, ctx->formula_pool->association_count + 1) == 0) {
+            ctx->formula_pool->associations[ctx->formula_pool->association_count++] = assoc;
+        }
     }
     
     return (double)ctx->formula_pool->association_count;
@@ -182,7 +184,9 @@ double k_gen_compress_pattern(KolibriGenerationContext *ctx,
     /* Добавляем новую если не найдена */
     if (!found) {
         if (ctx->formula_pool->association_count < KOLIBRI_POOL_MAX_ASSOCIATIONS) {
-            ctx->formula_pool->associations[ctx->formula_pool->association_count++] = assoc;
+            if (kf_pool_ensure_association_capacity(ctx->formula_pool, ctx->formula_pool->association_count + 1) == 0) {
+                ctx->formula_pool->associations[ctx->formula_pool->association_count++] = assoc;
+            }
         } else {
             /* Вытесняем старую (циклический буфер) */
             memmove(&ctx->formula_pool->associations[0], 
@@ -489,6 +493,7 @@ int k_gen_generate(KolibriGenerationContext *ctx, const char *prompt, size_t num
     
     output[0] = '\0';
     size_t pos = 0;
+    size_t tokens_count = 0;
     
     /* Сбрасываем контекст для новой генерации, если есть промпт */
     if (prompt && prompt[0] != '\0' && ctx->context) {
@@ -605,9 +610,11 @@ int k_gen_generate(KolibriGenerationContext *ctx, const char *prompt, size_t num
         if (active_paths > 0) {
             strncpy(output, paths[0].sentence, output_size - 1);
             pos = strlen(output);
+            tokens_count = paths[0].length;
         } else {
             strncpy(output, "[Пустой путь]", output_size - 1);
             pos = strlen(output);
+            tokens_count = 0;
         }
         free(paths);
         free(next_paths);
@@ -622,11 +629,12 @@ int k_gen_generate(KolibriGenerationContext *ctx, const char *prompt, size_t num
             if (pos > 0) output[pos++] = ' ';
             memcpy(output + pos, token, token_len);
             pos += token_len;
+            tokens_count++;
         }
     }
     
     output[pos] = '\0';
-    return 0;
+    return (int)tokens_count;
 }
 
 int k_gen_beam_search(KolibriGenerationContext *ctx, KolibriGenerationCandidate *candidates,

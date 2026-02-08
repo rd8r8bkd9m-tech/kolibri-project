@@ -28,7 +28,7 @@ def scan_project_for_numbers(root_dir):
 def send_examples_to_kolibri_sim(examples):
     # Пример: подаём пары (x, x+1) как обучающие примеры
     for x in examples:
-        target = x + 1
+        x + 1
         subprocess.run([
             './build/kolibri_sim', 'tick', '--seed', str(x)
         ], check=False)

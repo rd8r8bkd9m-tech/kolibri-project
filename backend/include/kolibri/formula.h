@@ -32,6 +32,60 @@ typedef struct {
 #define KOLIBRI_FORMULA_MAX_ASSOCIATIONS 1000
 #define KOLIBRI_POOL_MAX_ASSOCIATIONS 100000
 
+/* ============================================================================
+ * Конфигурация эволюционного реактора
+ * ============================================================================ */
+
+typedef enum {
+    KOLIBRI_MUTATION_POINT = 0,    /* Точечная мутация одной цифры */
+    KOLIBRI_MUTATION_SWAP,         /* Обмен двух цифр местами */
+    KOLIBRI_MUTATION_INVERT,       /* Инверсия сегмента */
+    KOLIBRI_MUTATION_SCRAMBLE,     /* Перемешивание сегмента */
+    KOLIBRI_MUTATION_SHIFT,        /* Сдвиг всех цифр */
+    KOLIBRI_MUTATION_COUNT
+} KolibriMutationType;
+
+typedef enum {
+    KOLIBRI_CROSSOVER_SINGLE_POINT = 0,  /* Одноточечный кроссовер */
+    KOLIBRI_CROSSOVER_TWO_POINT,         /* Двухточечный кроссовер */
+    KOLIBRI_CROSSOVER_UNIFORM,           /* Равномерный кроссовер */
+    KOLIBRI_CROSSOVER_COUNT
+} KolibriCrossoverType;
+
+typedef struct {
+    /* Параметры мутации */
+    double mutation_rate;              /* Вероятность мутации [0.0-1.0] */
+    double mutation_strength;          /* Сила мутации (кол-во изменений) */
+    KolibriMutationType mutation_type; /* Тип мутации */
+    
+    /* Параметры кроссовера */
+    double crossover_rate;             /* Вероятность кроссовера */
+    KolibriCrossoverType crossover_type;
+    
+    /* Параметры селекции */
+    double elite_ratio;                /* Доля элиты [0.1-0.5] */
+    double tournament_size;            /* Размер турнира (как доля) */
+    
+    /* Параметры цикла */
+    uint64_t generations_per_tick;     /* Поколений за один tick */
+    int adaptive_mutation;             /* Адаптивная мутация? */
+} KolibriEvolutionConfig;
+
+/* Метрики эволюции */
+typedef struct {
+    uint64_t total_generations;        /* Всего поколений */
+    uint64_t total_mutations;          /* Всего мутаций */
+    uint64_t beneficial_mutations;     /* Полезных мутаций */
+    uint64_t neutral_mutations;        /* Нейтральных мутаций */
+    uint64_t harmful_mutations;        /* Вредных мутаций */
+    double evolution_speed;            /* Скорость роста fitness */
+    double mutation_energy;            /* Средняя "энергия" мутаций */
+    double best_fitness;               /* Лучший fitness */
+    double avg_fitness;                /* Средний fitness */
+    double fitness_variance;           /* Дисперсия fitness */
+    uint64_t stagnation_count;         /* Поколений без улучшения */
+} KolibriEvolutionMetrics;
+
 typedef struct {
     KolibriGene gene;
     double fitness;
@@ -51,12 +105,19 @@ typedef struct {
     KolibriAssociation *associations;
     size_t association_count;
     size_t association_capacity;
+    
+    /* Эволюционный реактор */
+    KolibriEvolutionConfig config;
+    KolibriEvolutionMetrics metrics;
+    double prev_best_fitness;
 } KolibriFormulaPool;
 
+/* --- Основные функции --- */
 void kf_pool_init(KolibriFormulaPool *pool, uint64_t seed);
 void kf_pool_free(KolibriFormulaPool *pool);
 void kf_pool_clear_examples(KolibriFormulaPool *pool);
 int kf_pool_add_example(KolibriFormulaPool *pool, int input, int target);
+int kf_pool_ensure_association_capacity(KolibriFormulaPool *pool, size_t count);
 int kf_pool_add_association(KolibriFormulaPool *pool,
                             KolibriSymbolTable *symbols,
                             const char *question,
@@ -73,5 +134,32 @@ int kf_formula_lookup_answer(const KolibriFormula *formula, int input,
                              char *buffer, size_t buffer_len);
 int kf_hash_from_text(const char *text);
 
+/* --- Функции эволюционного реактора --- */
+
+/** Инициализация конфигурации по умолчанию */
+void kf_config_default(KolibriEvolutionConfig *config);
+
+/** Установка конфигурации реактора */
+int kf_pool_set_config(KolibriFormulaPool *pool, const KolibriEvolutionConfig *config);
+
+/** Получение текущей конфигурации */
+int kf_pool_get_config(const KolibriFormulaPool *pool, KolibriEvolutionConfig *config);
+
+/** Получение метрик эволюции */
+int kf_pool_get_metrics(const KolibriFormulaPool *pool, KolibriEvolutionMetrics *metrics);
+
+/** Сброс метрик */
+void kf_pool_reset_metrics(KolibriFormulaPool *pool);
+
+/** Автономный эволюционный цикл (запуск реактора на N поколений) */
+int kf_reactor_run(KolibriFormulaPool *pool, size_t max_generations,
+                   double target_fitness);
+
+/** Экспорт метрик в цифровом формате (для логирования в геном) */
+int kf_metrics_to_digits(const KolibriEvolutionMetrics *metrics,
+                         char *buffer, size_t buffer_len);
+
+/** Адаптивная настройка параметров на основе метрик */
+void kf_config_adapt(KolibriFormulaPool *pool);
 
 #endif /* KOLIBRI_FORMULA_H */

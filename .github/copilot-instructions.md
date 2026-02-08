@@ -1,47 +1,63 @@
 # Kolibri OS - AI Agent Instructions
 
-## 🧠 Project Context
-Kolibri OS is an **experimental evolutionary platform** focusing on:
-1.  **Extreme Compression**: Multi-stage archivers (LZ77/RLE/Formula) achieving ultra-high ratios for AGI knowledge.
-2.  **AGI v2.0**: "Thinking in numbers" - 64-digit semantic genomes (`genome.c`), not NLP tokens.
-3.  **Hybrid Stack**: C11 Core (efficiency) + Python (orchestration) + WASM (web bridge).
+## 🧠 Core Architecture
+Kolibri OS is a hybrid **C23 / Python / WASM** platform focusing on evolutionary compression ("Number-Thinking") and AGI.
 
-## 🗺️ Codebase Map
-- **Core (C11)**: `backend/src/` (Logic) & `backend/include/kolibri/` (Public Headers).
-  - **AI**: `genome.c`, `formula.c`, `semantic_digits.c`.
-  - **Compression**: `compress.c`, `decimal_fast10x.c` (Performance critical).
-  - **Systems**: `net.c` (P2P), `knowledge.c` (DB), `context_window.c`.
-- **Archivers**: `tools/` (Evolutionary tools v3-v40) & `apps/kolibri_archiver.c` (CLI).
-- **Servers**: 
-  - `apps/kolibri_node.c`: Distributed P2P node (Port 4050+).
-  - `backend/src/knowledge_server.c`: C Knowledge Engine (Port 8000).
-  - `backend/service/main.py`: Python LLM Proxy (Port 8000, mutally exclusive).
-- **Frontend**: `frontend/` (React/Vite/TS) bridging to C via compiled WASM.
+- **Core Library (C23)**: `backend/src/`. Implements the "ReasonBlock" genome logic, math kernels, and memory management.
+- **Public API (C23)**: `backend/include/kolibri/`. **ONLY** import headers from here when writing apps or bindings.
+- **Executables (C23)**: `apps/`. Standalone applications like `kolibri_node.c` (AI Node) and `kolibri_archiver.c`. Link against the core library.
+- **Orchestration (Python)**: `backend/service/` (FastAPI services) & `scripts/`. Type-hinted glue code for training and swarming.
+- **Frontend (React)**: `frontend/`. A Vite + TypeScript application that bridges to C via WebAssembly (`kolibri.wasm`).
+- **Archiver Research**: `kolibri-archiver/`. Specialized high-performance compression codebase with its own `Makefile` and `src/`.
+- **Content Factory**: `content_factory_mvp/`. Microservice architecture for content generation (Python/Docker).
 
 ## 🛠️ Critical Workflows
-**Run all commands from root (`/workspaces/kolibri-project`).**
+**Always run from root: `/workspaces/kolibri-project`**
 
 ### Build
-- **Standard (C)**: `cmake -S . -B build -G Ninja && cmake --build build`
-- **WASM (Required for Web)**: `./scripts/build_wasm.sh` (Output: `build/wasm/kolibri.wasm`)
-- **Frontend**: `make frontend` (Requires WASM first).
+- **Native (C)**: `cmake -S . -B build -G Ninja && cmake --build build`
+- **WASM (Web)**: `./scripts/build_wasm.sh` (Target: `build/wasm/kolibri.wasm`).
+- **Frontend**: `make frontend` (Builds WASM first, then installs/builds frontend assets).
+- **Archiver Standalone**: `cd kolibri-archiver && make`
 
-### Test
-- **Full Suite**: `make test` (Runs C tests via ctest + Python via pytest + Lint via ruff).
-- **Quick C Test**: `ctest --test-dir build`
-- **Archiver Validation**: `make benchmark` or `./test_all_archivers.sh` (Warning: Takes time).
+### Test & Quality
+- **Full Suite**: `make test` (Runs CTest, Pytest, Ruff, Pyright, Vitest).
+- **C Tests**: `ctest --test-dir build --output-on-failure`.
+- **Python Lint**: `ruff check .` and `pyright`.
+- **Benchmark**: `make benchmark` (Required for compression algorithms usage verification).
+- **Policy**: Prefer project-specific implementations (`backend/**`, `frontend/**`) over generic external patterns.
 
-### Run
-- **Stack**: `./scripts/run_kolibri_stack.sh` (Recommended).
-- **Dev Servers**: `python -m uvicorn backend.service.main:app --reload` (Python API).
+### Run & Interaction
+- **AI Node**: `./build/kolibri_node --genome build/training/auto_genome.dat`
+- **AI Training**: `./scripts/auto_train.sh --ticks 500`
+- **Archiver via CLI**: `./build/kolibri_archiver compress <input> <output>`
 
 ## ⚠️ Conventions & Rules
-1.  **Languages**: 
-    - **C**: C11, `snake_case`. **Russian comments are standard/expected** (do not remove).
-    - **Python**: 3.10+, strictly type-hinted.
-2.  **Architecture**:
-    - **No Shared State**: C/Python communicate via HTTP or signed `.dat` files (`.kolibri/` dir).
-    - **Determinism**: WASM execution must exactly match Native C.
-    - **Keys**: HMAC keys required for node communication (`root.key` or defaults).
-3.  **Dependencies**: Use `backend/include/kolibri/` headers only. No external C libs (except OpenSSL via CMake).
-4.  **Policy**: Prefer existing patterns over external suggestions. Maintain <60MB WASM budget.
+
+### 1. C Programming (Strict C23)
+- **Russian Comments**: **MANDATORY** for high-level logic and headers (e.g., `/* --- Утилиты --- */`). Do not translate existing Russian comments.
+- **Style**: Strict `snake_case`. Standard C23 (use `auto`, `constexpr`, `nullptr` where helpful).
+- **Memory**: Pure manual management (`malloc`/`free`). No smart pointers.
+- **Dependencies**: Restricted. Uses `openssl` (HMAC/SHA) but prefer zero-dependency for core logic.
+- **Context**: Most functions require a `Kolibri*` context struct (e.g., `KolibriFormulaPool *pool`).
+
+### 2. Python (3.10+)
+- **Type Hints**: **Strictly Required**. Use `from __future__ import annotations`.
+- **Linting**: Must pass `ruff` and `pyright`.
+- **Structure**: FastAPI services in `backend/service/` use Pydantic models.
+
+### 3. WebAssembly (WASM)
+- **Constraint**: Binary size must remain under **60MB** (61440 KB).
+- **Determinism**: WASM output must exactly match Native C builds.
+
+### 4. Domain Formats
+- **KolibriScript (.ks)**: Domain-specific language for AI instructions.
+- **Genomes**: 64-digit numeric semantic strings representing AI state.
+
+## 📂 Key Paths
+- `backend/src/{genome.c, formula.c}`: Core "Number-Thinking" engine logic.
+- `backend/include/kolibri/*.h`: Public headers.
+- `apps/kolibri_node.c`: Main entry point for the AI Node.
+- `kolibri-archiver/`: Separate high-performance compression research codebase.
+- `frontend/src/core/kolibri-bridge.ts`: WASM storage/bridge implementation.
+- `content_factory_mvp/`: Content generation microservices.

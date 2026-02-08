@@ -1,66 +1,24 @@
 """FastAPI application that proxies chat prompts to an upstream LLM."""
 from __future__ import annotations
 
-import json
-import os
-import time
-from dataclasses import dataclass
-from functools import lru_cache
-from typing import Any, Dict, Optional
+from typing import Optional
 
-import httpx
 from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from .gpu_store import router as gpu_router
-
-
-@dataclass
-class Settings:
-    """Runtime configuration for the LLM proxy service."""
-
-    response_mode: str = "script"
-    llm_endpoint: Optional[str] = None
-    llm_api_key: Optional[str] = None
-    llm_model: Optional[str] = None
-    llm_timeout: float = 30.0
-
-    @classmethod
-    def load(cls) -> "Settings":
-        response_mode = os.getenv("KOLIBRI_RESPONSE_MODE", "script").strip().lower()
-        llm_endpoint = os.getenv("KOLIBRI_LLM_ENDPOINT")
-        llm_api_key = os.getenv("KOLIBRI_LLM_API_KEY")
-        llm_model = os.getenv("KOLIBRI_LLM_MODEL")
-        timeout_raw = os.getenv("KOLIBRI_LLM_TIMEOUT", "30")
-
-        try:
-            llm_timeout = float(timeout_raw)
-        except ValueError as exc:  # pragma: no cover - defensive branch
-            raise RuntimeError("KOLIBRI_LLM_TIMEOUT must be numeric") from exc
-
-        return cls(
-            response_mode=response_mode or "script",
-            llm_endpoint=llm_endpoint,
-            llm_api_key=llm_api_key,
-            llm_model=llm_model,
-            llm_timeout=llm_timeout,
-        )
-
-
-@lru_cache(maxsize=1)
-def get_settings() -> Settings:
-    return Settings.load()
+from .content_factory import router as factory_router
+from .os_bridge import router as os_router
+from .crawler import router as crawler_router
+from .agent import router as agent_router
+from .ai_chat import router as ai_router
+from .swarm_sync import swarm_router
+from .common import Settings, get_settings, InferenceRequest, perform_upstream_call
 
 
 class HealthResponse(BaseModel):
     status: str = "ok"
     response_mode: str
-
-
-class InferenceRequest(BaseModel):
-    prompt: str = Field(min_length=1, description="User prompt that should be answered by the model")
-    mode: Optional[str] = Field(default=None, description="Frontend-selected response mode")
-    temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0)
-    max_tokens: Optional[int] = Field(default=None, ge=1)
 
 
 class InferenceResponse(BaseModel):
@@ -70,97 +28,33 @@ class InferenceResponse(BaseModel):
 
 
 app = FastAPI(title="Kolibri AI backend", version="0.2.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(gpu_router)
+app.include_router(factory_router)
+app.include_router(os_router)
+app.include_router(crawler_router)
+app.include_router(agent_router)
+app.include_router(ai_router)
+app.include_router(swarm_router)
 
 
-def _extract_text(payload: Any) -> str:
-    if isinstance(payload, dict):
-        if isinstance(payload.get("response"), str):
-            return payload["response"].strip()
-
-        choices = payload.get("choices")
-        if isinstance(choices, list) and choices:
-            first_choice = choices[0]
-            if isinstance(first_choice, dict):
-                message = first_choice.get("message")
-                if isinstance(message, dict) and isinstance(message.get("content"), str):
-                    return message["content"].strip()
-                if isinstance(first_choice.get("text"), str):
-                    return first_choice["text"].strip()
-
-        if isinstance(payload.get("content"), str):
-            return payload["content"].strip()
-
-    raise ValueError("Upstream response did not contain text output")
-
-
-async def _perform_upstream_call(
-    request: InferenceRequest,
-    settings: Settings,
-) -> tuple[str, float, str]:
-    if not settings.llm_endpoint:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="LLM endpoint is not configured",
-        )
-
-    headers: Dict[str, str] = {"Content-Type": "application/json"}
-    if settings.llm_api_key:
-        headers["Authorization"] = f"Bearer {settings.llm_api_key}"
-
-    payload: Dict[str, Any] = {
-        "prompt": request.prompt,
-        "mode": request.mode,
-        "model": settings.llm_model,
-        "temperature": request.temperature,
-        "max_tokens": request.max_tokens,
-    }
-
-    sanitized_payload = {key: value for key, value in payload.items() if value is not None}
-
-    start = time.perf_counter()
-    async with httpx.AsyncClient(timeout=settings.llm_timeout) as client:
-        upstream_response = await client.post(
-            settings.llm_endpoint,
-            json=sanitized_payload,
-            headers=headers,
-        )
-    elapsed = (time.perf_counter() - start) * 1000.0
-
-    try:
-        upstream_response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        detail = exc.response.text
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Upstream LLM returned {exc.response.status_code}: {detail}",
-        ) from exc
-
-    try:
-        payload_json = upstream_response.json()
-    except json.JSONDecodeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Upstream LLM responded with invalid JSON",
-        ) from exc
-
-    try:
-        text = _extract_text(payload_json)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
-        ) from exc
-
-    provider = "llm"
-    if isinstance(payload_json, dict) and isinstance(payload_json.get("provider"), str):
-        provider = payload_json["provider"].strip() or provider
-
-    return text, elapsed, provider
 
 
 @app.get("/api/health", response_model=HealthResponse)
 async def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
+    return HealthResponse(status="ok", response_mode=settings.response_mode)
+
+
+@app.get("/api/knowledge/healthz", response_model=HealthResponse)
+async def knowledge_health(settings: Settings = Depends(get_settings)) -> HealthResponse:
     return HealthResponse(status="ok", response_mode=settings.response_mode)
 
 
@@ -175,7 +69,7 @@ async def infer(
             detail="LLM mode is disabled",
         )
 
-    text, latency_ms, provider = await _perform_upstream_call(request, settings)
+    text, latency_ms, provider = await perform_upstream_call(request, settings)
     return InferenceResponse(response=text, provider=provider, latency_ms=latency_ms)
 
 

@@ -254,20 +254,27 @@ static size_t compress_lz77(const uint8_t *input, size_t input_size,
         size_t best_match_len = 0;
         size_t best_match_dist = 0;
 
-        /* Search for matches in the sliding window */
+        /* Search for matches in the sliding window, starting from most recent */
         size_t search_start = (in_pos > LZ77_WINDOW_SIZE) ? (in_pos - LZ77_WINDOW_SIZE) : 0;
+        int checks = 0;
         
-        for (size_t i = search_start; i < in_pos; i++) {
-            size_t match_len = 0;
+        for (size_t i = in_pos; i > search_start; i--) {
+            size_t j = i - 1;
+            if (++checks > 128) break; /* Limit search depth for performance on large data */
+
+            if (input[j] != current) continue;
+
+            size_t match_len = 1;
             while (match_len < LZ77_MAX_MATCH && 
                    in_pos + match_len < input_size &&
-                   input[i + match_len] == input[in_pos + match_len]) {
+                   input[j + match_len] == input[in_pos + match_len]) {
                 match_len++;
             }
 
             if (match_len > best_match_len) {
                 best_match_len = match_len;
-                best_match_dist = in_pos - i;
+                best_match_dist = in_pos - j;
+                if (best_match_len >= LZ77_MAX_MATCH) break;
             }
         }
 
@@ -280,11 +287,11 @@ static size_t compress_lz77(const uint8_t *input, size_t input_size,
             output[out_pos++] = (uint8_t)best_match_len;
             in_pos += best_match_len;
         } else {
-            /* Literal byte, escape 0xFE */
+            /* Literal byte, escape 0xFE as 0xFE 0xFF */
             if (current == 0xFE) {
                 if (out_pos + 2 > output_size) return 0;
                 output[out_pos++] = 0xFE;
-                output[out_pos++] = 0x00;
+                output[out_pos++] = 0xFF; /* Escape literal 0xFE with 0xFF */
             } else {
                 if (out_pos >= output_size) return 0;
                 output[out_pos++] = current;
@@ -304,8 +311,8 @@ static size_t decompress_lz77(const uint8_t *input, size_t input_size,
 
     while (in_pos < input_size) {
         if (input[in_pos] == 0xFE && in_pos + 1 < input_size) {
-            if (input[in_pos + 1] == 0x00) {
-                /* Escaped literal 0xFE */
+            if (input[in_pos + 1] == 0xFF) {
+                /* Escaped literal 0xFE (marker followed by 0xFF) */
                 if (out_pos >= output_size) return 0;
                 output[out_pos++] = 0xFE;
                 in_pos += 2;
@@ -366,8 +373,8 @@ static size_t decompress_mathematical(const uint8_t *input, size_t input_size,
 
     output[0] = input[0];
     for (size_t i = 1; i < input_size && i < output_size; i++) {
-        int16_t delta = (int8_t)input[i];
-        output[i] = (uint8_t)((int16_t)output[i-1] + delta);
+        /* Use modular uint8_t arithmetic to correctly restore values from deltas */
+        output[i] = (uint8_t)((uint32_t)output[i-1] + (uint32_t)input[i]);
     }
 
     return input_size;
@@ -665,6 +672,13 @@ KolibriArchive *kolibri_archive_create(const char *filename) {
     header.magic = KOLIBRI_ARCHIVE_MAGIC;
     header.version = KOLIBRI_ARCHIVE_VERSION;
     fwrite(&header, sizeof(header), 1, archive->file);
+
+    /* Reserve space for entries table following the header */
+    uint8_t *placeholder = (uint8_t *)calloc(KOLIBRI_ARCHIVE_MAX_ENTRIES, sizeof(KolibriArchiveEntryInternal));
+    if (placeholder) {
+        fwrite(placeholder, sizeof(KolibriArchiveEntryInternal), KOLIBRI_ARCHIVE_MAX_ENTRIES, archive->file);
+        free(placeholder);
+    }
 
     return archive;
 }

@@ -7,7 +7,7 @@
 #include <stdint.h>
 
 typedef struct {
-    uint8_t digits[32];
+    uint8_t digits[1024];
     size_t length;
 } KolibriGene;
 
@@ -21,8 +21,8 @@ typedef struct {
     KolibriFormula formulas[16];
     size_t count;
     KolibriRng rng;
-    int inputs[32];
-    int targets[32];
+    int inputs[256];
+    int targets[256];
     size_t examples;
 } KolibriFormulaPool;
 

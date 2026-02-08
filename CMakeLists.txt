@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(kolibri LANGUAGES C)
 
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
@@ -59,6 +59,13 @@ add_library(kolibri_core_objects OBJECT
     backend/src/corpus_learning.c
     backend/src/text_generation.c
     backend/src/compress.c
+    backend/src/async_executor.c
+    backend/src/trace.c
+    backend/src/formula_logic.c
+    backend/src/logical_memory.c
+    backend/src/inference.c
+    backend/src/corpus_trainer.c
+    backend/src/web_crawler.c
 )
 
 target_include_directories(kolibri_core_objects
@@ -154,10 +161,14 @@ add_executable(kolibri_queue apps/kolibri_queue.c)
 add_executable(kolibri_sim apps/kolibri_sim_cli.c)
 add_executable(kolibri_coordinator apps/kolibri_coordinator.c)
 add_executable(kolibri_knowledge_relay apps/kolibri_knowledge_relay.c)
+add_executable(kolibri_bulk_teach apps/kolibri_bulk_teach.c)
+add_executable(kolibri_ingest apps/kolibri_ingest.c)
+add_executable(kolibri_fast_parser apps/kolibri_fast_parser.c)
 add_executable(kolibri_verify_digit_masking tools/verify_digit_masking.c)
 add_executable(kolibri_archiver apps/kolibri_archiver.c)
 add_executable(kolibri_formula_archiver tools/kolibri_formula_archiver.c)
 add_executable(kolibri_meta_archiver tools/kolibri_meta_archiver.c)
+add_executable(kolibri_mass_trainer apps/kolibri_mass_trainer.c)
 
 target_link_libraries(kolibri_node PRIVATE kolibri_core)
 target_link_libraries(ks_compiler PRIVATE kolibri_core)
@@ -167,6 +178,8 @@ target_link_libraries(kolibri_queue PRIVATE kolibri_core)
 target_link_libraries(kolibri_sim PRIVATE kolibri_core)
 target_link_libraries(kolibri_coordinator PRIVATE kolibri_core)
 target_link_libraries(kolibri_knowledge_relay PRIVATE kolibri_core)
+target_link_libraries(kolibri_bulk_teach PRIVATE kolibri_core)
+target_link_libraries(kolibri_ingest PRIVATE kolibri_core)
 target_link_libraries(kolibri_verify_digit_masking PRIVATE kolibri_core)
 target_link_libraries(kolibri_archiver PRIVATE kolibri_core)
 target_link_libraries(kolibri_formula_archiver PRIVATE kolibri_core)
@@ -174,6 +187,7 @@ if(KOLIBRI_ENABLE_GPU)
     target_link_libraries(kolibri_formula_archiver PRIVATE kolibri_gpu)
 endif()
 target_link_libraries(kolibri_meta_archiver PRIVATE kolibri_core)
+target_link_libraries(kolibri_mass_trainer PRIVATE kolibri_core)
 
 add_custom_target(verify_digit_masking ALL
     COMMAND $<TARGET_FILE:kolibri_verify_digit_masking>
@@ -318,6 +332,36 @@ if(KOLIBRI_ENABLE_TESTS)
     target_link_libraries(test_stress PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_stress COMMAND test_stress --quick)
 
+    # ASYNC EXECUTOR - асинхронный исполнитель правил
+    add_executable(test_async_executor tests/test_async_executor.c)
+    target_link_libraries(test_async_executor PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_async_executor COMMAND test_async_executor)
+
+    # TRACE - модуль трассировки "Стеклянный Разум"
+    add_executable(test_trace tests/test_trace.c)
+    target_link_libraries(test_trace PRIVATE kolibri_core)
+    add_test(NAME test_trace COMMAND test_trace)
+
+    # FORMULA LOGIC - мета-формулы
+    add_executable(test_formula_logic tests/test_formula_logic.c)
+    target_link_libraries(test_formula_logic PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_formula_logic COMMAND test_formula_logic)
+
+    # LOGICAL MEMORY - логическая память
+    add_executable(test_logical_memory tests/test_logical_memory.c)
+    target_link_libraries(test_logical_memory PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_logical_memory COMMAND test_logical_memory)
+
+    # INFERENCE - модуль инференса
+    add_executable(test_inference tests/test_inference.c)
+    target_link_libraries(test_inference PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_inference COMMAND test_inference)
+
+    # CORPUS TRAINER - масштабное обучение с фиксированным размером
+    add_executable(test_corpus_trainer tests/test_corpus_trainer.c)
+    target_link_libraries(test_corpus_trainer PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_corpus_trainer COMMAND test_corpus_trainer)
+
     configure_file(tests/ks_compiler_roundtrip.cmake
                    ${CMAKE_CURRENT_BINARY_DIR}/ks_compiler_roundtrip.cmake
                    @ONLY)
@@ -350,6 +394,12 @@ if(KOLIBRI_ENABLE_TESTS)
 
     add_test(NAME kolibri_sim_usage COMMAND $<TARGET_FILE:kolibri_sim>)
     set_tests_properties(kolibri_sim_usage PROPERTIES WILL_FAIL TRUE)
+
+    # Ensure tests run from the repository root (many tests use relative paths)
+    get_property(_kolibri_all_tests DIRECTORY PROPERTY TESTS)
+    foreach(_kolibri_test IN LISTS _kolibri_all_tests)
+        set_tests_properties(${_kolibri_test} PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    endforeach()
 endif()
 
 # (опционально) добавим минимальные тесты по digits
@@ -376,3 +426,12 @@ if(KOLIBRI_ENABLE_FUZZ)
     message(WARNING "Kolibri fuzz targets are best built with Clang/libFuzzer")
   endif()
 endif()
+
+add_executable(kolibri_inspect apps/kolibri_inspect.c)
+target_link_libraries(kolibri_inspect PRIVATE kolibri_core ${KOLIBRI_OPENSSL_TARGET})
+if(TARGET OpenSSL::SSL)
+    target_link_libraries(kolibri_inspect PRIVATE OpenSSL::SSL)
+endif()
+
+add_executable(kolibri_async_node apps/kolibri_async_node.c)
+target_link_libraries(kolibri_async_node PRIVATE kolibri_core ${KOLIBRI_OPENSSL_TARGET})

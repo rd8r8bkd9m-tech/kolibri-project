@@ -80,6 +80,21 @@ static void build_hmac_message(const ReasonBlock *block, unsigned char *out) {
          KOLIBRI_PAYLOAD_SIZE);
 }
 
+/* Вычисляет HMAC для блока */
+static int compute_block_hmac(const KolibriGenome *ctx, const ReasonBlock *block,
+                              unsigned char *out_hmac) {
+  unsigned char message[KOLIBRI_HMAC_INPUT_SIZE];
+  build_hmac_message(block, message);
+
+  unsigned int hmac_len = 0;
+  unsigned char *result = HMAC(EVP_sha256(), ctx->hmac_key, (int)ctx->hmac_key_len,
+                               message, sizeof(message), out_hmac, &hmac_len);
+  if (!result || hmac_len != KOLIBRI_HASH_SIZE) {
+    return -1;
+  }
+  return 0;
+}
+
 static int payload_is_digits(const char *payload) {
   if (!payload) {
     return 0;
@@ -372,4 +387,384 @@ int kg_verify_file(const char *path, const unsigned char *key,
 
   fclose(file);
   return 0;
+}
+
+/* ============================================================================
+ * WAL (Write-Ahead Logging) реализация
+ * ============================================================================
+ * Обеспечивает атомарность и восстановление после сбоев.
+ * WAL-файл: <genome_path>.wal
+ * Формат записи: [8B magic][BLOCK_SIZE данные][4B CRC32]
+ * ============================================================================ */
+
+static uint32_t crc32_simple(const unsigned char *data, size_t len) {
+  /* Простой CRC32 для проверки целостности WAL-записей */
+  uint32_t crc = 0xFFFFFFFF;
+  for (size_t i = 0; i < len; i++) {
+    crc ^= data[i];
+    for (int j = 0; j < 8; j++) {
+      crc = (crc >> 1) ^ (0xEDB88320 & (-(crc & 1)));
+    }
+  }
+  return ~crc;
+}
+
+int kg_wal_enable(KolibriGenome *ctx) {
+  if (!ctx || !ctx->file) {
+    return -1;
+  }
+
+  if (ctx->wal_enabled && ctx->wal_file) {
+    return 0; /* Уже включён */
+  }
+
+  /* Формируем путь к WAL-файлу */
+  snprintf(ctx->wal_path, sizeof(ctx->wal_path), "%s.wal", ctx->path);
+
+  /* Открываем WAL для записи и чтения */
+  ctx->wal_file = fopen(ctx->wal_path, "a+b");
+  if (!ctx->wal_file) {
+    return -1;
+  }
+
+  /* Подсчитываем существующие записи */
+  fseek(ctx->wal_file, 0, SEEK_END);
+  long wal_size = ftell(ctx->wal_file);
+  ctx->wal_entries = (uint64_t)(wal_size / KOLIBRI_WAL_ENTRY_SIZE);
+
+  ctx->wal_enabled = 1;
+  return 0;
+}
+
+int kg_wal_disable(KolibriGenome *ctx) {
+  if (!ctx) {
+    return -1;
+  }
+
+  if (ctx->wal_file) {
+    fclose(ctx->wal_file);
+    ctx->wal_file = NULL;
+  }
+
+  /* Удаляем WAL-файл если он пуст или checkpoint выполнен */
+  if (ctx->wal_path[0] && ctx->wal_entries == 0) {
+    remove(ctx->wal_path);
+  }
+
+  ctx->wal_enabled = 0;
+  ctx->wal_entries = 0;
+  return 0;
+}
+
+int kg_wal_checkpoint(KolibriGenome *ctx) {
+  if (!ctx || !ctx->wal_file || !ctx->file) {
+    return -1;
+  }
+
+  if (ctx->wal_entries == 0) {
+    return 0; /* Нечего переносить */
+  }
+
+  /* В нашей реализации stream_append пишет и в WAL, и в основной файл.
+   * Поэтому checkpoint просто очищает WAL - все блоки уже в основном файле.
+   * WAL служит для гарантии durability при крэше после записи в основной файл. */
+
+  fflush(ctx->file);
+
+  int entries_cleared = (int)ctx->wal_entries;
+
+  /* Очищаем WAL */
+  fclose(ctx->wal_file);
+  ctx->wal_file = fopen(ctx->wal_path, "wb");
+  if (ctx->wal_file) {
+    fclose(ctx->wal_file);
+    ctx->wal_file = fopen(ctx->wal_path, "a+b");
+  }
+
+  ctx->wal_entries = 0;
+  return entries_cleared;
+}
+
+int kg_wal_recover(KolibriGenome *ctx) {
+  if (!ctx) {
+    return -1;
+  }
+
+  /* Формируем путь к WAL если не установлен */
+  if (ctx->wal_path[0] == '\0') {
+    snprintf(ctx->wal_path, sizeof(ctx->wal_path), "%s.wal", ctx->path);
+  }
+
+  /* Проверяем существование WAL-файла */
+  FILE *wal = fopen(ctx->wal_path, "rb");
+  if (!wal) {
+    return 0; /* WAL отсутствует - восстановление не требуется */
+  }
+
+  /* Получаем размер WAL */
+  fseek(wal, 0, SEEK_END);
+  long wal_size = ftell(wal);
+  if (wal_size == 0) {
+    fclose(wal);
+    remove(ctx->wal_path);
+    return 0;
+  }
+
+  fseek(wal, 0, SEEK_SET);
+
+  unsigned char entry_buf[KOLIBRI_WAL_ENTRY_SIZE];
+  int recovered = 0;
+
+  while (fread(entry_buf, 1, KOLIBRI_WAL_ENTRY_SIZE, wal) ==
+         KOLIBRI_WAL_ENTRY_SIZE) {
+    /* Проверяем magic */
+    uint64_t magic;
+    memcpy(&magic, entry_buf, sizeof(magic));
+    if (magic != KOLIBRI_WAL_MAGIC) {
+      continue;
+    }
+
+    /* Проверяем CRC */
+    uint32_t stored_crc;
+    memcpy(&stored_crc, entry_buf + 8 + KOLIBRI_BLOCK_SIZE, sizeof(stored_crc));
+    uint32_t computed_crc = crc32_simple(entry_buf + 8, KOLIBRI_BLOCK_SIZE);
+    if (stored_crc != computed_crc) {
+      continue;
+    }
+
+    /* Десериализуем блок для проверки индекса */
+    ReasonBlock block;
+    deserialize_block(entry_buf + 8, &block);
+
+    /* Проверяем, не дубликат ли это */
+    if (block.index < ctx->next_index) {
+      continue; /* Уже записан в основной файл */
+    }
+
+    /* Записываем в основной файл */
+    fseek(ctx->file, 0, SEEK_END);
+    if (fwrite(entry_buf + 8, 1, KOLIBRI_BLOCK_SIZE, ctx->file) !=
+        KOLIBRI_BLOCK_SIZE) {
+      fclose(wal);
+      return -1;
+    }
+
+    /* Обновляем состояние контекста */
+    memcpy(ctx->last_hash, block.hmac, KOLIBRI_HASH_SIZE);
+    memcpy(ctx->last_block, entry_buf + 8, KOLIBRI_BLOCK_SIZE);
+    ctx->next_index = block.index + 1;
+    ctx->has_last_block = 1;
+
+    recovered++;
+  }
+
+  fclose(wal);
+  fflush(ctx->file);
+
+  /* Очищаем WAL после восстановления */
+  remove(ctx->wal_path);
+
+  return recovered;
+}
+
+int kg_stream_append(KolibriGenome *ctx, const char *event_type,
+                     const char *payload, ReasonBlock *out_block) {
+  if (!ctx || !ctx->file || !event_type) {
+    return -1;
+  }
+
+  /* Проверяем, что payload содержит только цифры */
+  const char *digits = payload ? payload : "";
+  if (!payload_is_digits(digits)) {
+    return -1;
+  }
+
+  /* Создаём блок */
+  ReasonBlock block;
+  memset(&block, 0, sizeof(block));
+
+  block.index = ctx->next_index;
+  block.timestamp = current_time_ns();
+
+  /* Вычисляем prev_hash из последнего блока */
+  if (ctx->has_last_block) {
+    if (!SHA256(ctx->last_block, KOLIBRI_BLOCK_SIZE, block.prev_hash)) {
+      return -1;
+    }
+  } else {
+    memset(block.prev_hash, 0, KOLIBRI_HASH_SIZE);
+  }
+
+  strncpy(block.event_type, event_type, KOLIBRI_EVENT_TYPE_SIZE - 1);
+  size_t payload_len = strnlen(digits, KOLIBRI_PAYLOAD_SIZE);
+  if (payload_len >= KOLIBRI_PAYLOAD_SIZE) {
+    return -1;
+  }
+  memcpy(block.payload, digits, payload_len);
+
+  /* Вычисляем HMAC */
+  if (compute_block_hmac(ctx, &block, block.hmac) != 0) {
+    return -1;
+  }
+
+  /* Сериализуем блок */
+  unsigned char block_data[KOLIBRI_BLOCK_SIZE];
+  serialize_block(&block, block_data);
+
+  /* Если WAL включён - записываем сначала в WAL */
+  if (ctx->wal_enabled && ctx->wal_file) {
+    unsigned char entry_buf[KOLIBRI_WAL_ENTRY_SIZE];
+
+    /* Magic */
+    uint64_t magic = KOLIBRI_WAL_MAGIC;
+    memcpy(entry_buf, &magic, sizeof(magic));
+
+    /* Block data */
+    memcpy(entry_buf + 8, block_data, KOLIBRI_BLOCK_SIZE);
+
+    /* CRC32 */
+    uint32_t crc = crc32_simple(block_data, KOLIBRI_BLOCK_SIZE);
+    memcpy(entry_buf + 8 + KOLIBRI_BLOCK_SIZE, &crc, sizeof(crc));
+
+    /* Записываем в WAL */
+    if (fwrite(entry_buf, 1, KOLIBRI_WAL_ENTRY_SIZE, ctx->wal_file) !=
+        KOLIBRI_WAL_ENTRY_SIZE) {
+      return -1;
+    }
+    fflush(ctx->wal_file);
+    ctx->wal_entries++;
+
+    /* Автоматический checkpoint каждые 100 записей */
+    if (ctx->wal_entries >= 100) {
+      kg_wal_checkpoint(ctx);
+    }
+  }
+
+  /* Записываем в основной файл */
+  fseek(ctx->file, 0, SEEK_END);
+  if (fwrite(block_data, 1, KOLIBRI_BLOCK_SIZE, ctx->file) !=
+      KOLIBRI_BLOCK_SIZE) {
+    return -1;
+  }
+  fflush(ctx->file);
+
+  /* Обновляем состояние */
+  memcpy(ctx->last_hash, block.hmac, KOLIBRI_HASH_SIZE);
+  memcpy(ctx->last_block, block_data, KOLIBRI_BLOCK_SIZE);
+  ctx->next_index++;
+  ctx->has_last_block = 1;
+
+  if (out_block) {
+    *out_block = block;
+  }
+
+  return 0;
+}
+
+int kg_get_stats(KolibriGenome *ctx, KolibriGenomeStats *stats) {
+  if (!ctx || !ctx->file || !stats) {
+    return -1;
+  }
+
+  memset(stats, 0, sizeof(*stats));
+
+  /* Получаем размер файла */
+  long current_pos = ftell(ctx->file);
+  fseek(ctx->file, 0, SEEK_END);
+  long file_size = ftell(ctx->file);
+  fseek(ctx->file, current_pos, SEEK_SET);
+
+  stats->file_size_bytes = (uint64_t)file_size;
+  stats->total_blocks = (uint64_t)(file_size / KOLIBRI_BLOCK_SIZE);
+
+  if (stats->total_blocks == 0) {
+    stats->integrity_valid = 1;
+    return 0;
+  }
+
+  /* Читаем первый блок для first_timestamp */
+  unsigned char block_data[KOLIBRI_BLOCK_SIZE];
+  ReasonBlock block;
+
+  fseek(ctx->file, 0, SEEK_SET);
+  if (fread(block_data, 1, KOLIBRI_BLOCK_SIZE, ctx->file) ==
+      KOLIBRI_BLOCK_SIZE) {
+    deserialize_block(block_data, &block);
+    stats->first_timestamp = block.timestamp;
+  }
+
+  /* Читаем последний блок для last_timestamp */
+  fseek(ctx->file, -KOLIBRI_BLOCK_SIZE, SEEK_END);
+  if (fread(block_data, 1, KOLIBRI_BLOCK_SIZE, ctx->file) ==
+      KOLIBRI_BLOCK_SIZE) {
+    deserialize_block(block_data, &block);
+    stats->last_timestamp = block.timestamp;
+  }
+
+  fseek(ctx->file, current_pos, SEEK_SET);
+
+  /* Проверяем целостность через kg_verify_file */
+  stats->integrity_valid =
+      (kg_verify_file(ctx->path, ctx->hmac_key, ctx->hmac_key_len) == 0) ? 1
+                                                                         : 0;
+
+  return 0;
+}
+
+int kg_read_block(KolibriGenome *ctx, uint64_t index, ReasonBlock *out_block) {
+  if (!ctx || !ctx->file || !out_block) {
+    return -1;
+  }
+
+  long offset = (long)(index * KOLIBRI_BLOCK_SIZE);
+  long current_pos = ftell(ctx->file);
+
+  fseek(ctx->file, offset, SEEK_SET);
+
+  unsigned char block_data[KOLIBRI_BLOCK_SIZE];
+  size_t read = fread(block_data, 1, KOLIBRI_BLOCK_SIZE, ctx->file);
+
+  fseek(ctx->file, current_pos, SEEK_SET);
+
+  if (read != KOLIBRI_BLOCK_SIZE) {
+    return -1;
+  }
+
+  deserialize_block(block_data, out_block);
+
+  if (out_block->index != index) {
+    return -1; /* Несоответствие индекса */
+  }
+
+  return 0;
+}
+
+int kg_iterate_blocks(KolibriGenome *ctx, kg_block_callback callback,
+                      void *user_data) {
+  if (!ctx || !ctx->file || !callback) {
+    return -1;
+  }
+
+  long current_pos = ftell(ctx->file);
+  fseek(ctx->file, 0, SEEK_SET);
+
+  unsigned char block_data[KOLIBRI_BLOCK_SIZE];
+  ReasonBlock block;
+  int count = 0;
+
+  while (fread(block_data, 1, KOLIBRI_BLOCK_SIZE, ctx->file) ==
+         KOLIBRI_BLOCK_SIZE) {
+    deserialize_block(block_data, &block);
+
+    int result = callback(&block, user_data);
+    if (result != 0) {
+      break; /* Callback запросил остановку */
+    }
+
+    count++;
+  }
+
+  fseek(ctx->file, current_pos, SEEK_SET);
+
+  return count;
 }
