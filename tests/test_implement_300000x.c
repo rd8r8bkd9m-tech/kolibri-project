@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
     printf("║         5 уровней многоуровневого сжатия                    ║\n");
     printf("╚══════════════════════════════════════════════════════════════╝\n\n");
     
-    const char* input_file = "../backend/src/script.c";
+    const char* input_file = "backend/src/script.c";
     
     struct stat st;
     if (stat(input_file, &st) != 0) {
@@ -73,9 +73,9 @@ int main(int argc, char** argv) {
         memcpy(chunk, original_data + offset, chunk_len);
         chunk[chunk_len] = '\0';
         
-        KolibriFormula formula;
-        memset(&formula, 0, sizeof(formula));
-        k_gen_compress_text(&ctx1, chunk, &formula);
+        KolibriFormula *formula = malloc(sizeof(KolibriFormula));
+        memset(formula, 0, sizeof(KolibriFormula));
+        k_gen_compress_text(&ctx1, chunk, formula); free(formula);
     }
     
     k_gen_finalize_compression(&ctx1, 500);
@@ -132,9 +132,9 @@ int main(int argc, char** argv) {
         memcpy(chunk, level1_data + offset, chunk_len);
         chunk[chunk_len] = '\0';
         
-        KolibriFormula formula;
-        memset(&formula, 0, sizeof(formula));
-        k_gen_compress_text(&ctx2, chunk, &formula);
+        KolibriFormula *formula = malloc(sizeof(KolibriFormula));
+        memset(formula, 0, sizeof(KolibriFormula));
+        k_gen_compress_text(&ctx2, chunk, formula); free(formula);
     }
     
     k_gen_finalize_compression(&ctx2, 500);
@@ -191,9 +191,9 @@ int main(int argc, char** argv) {
         memcpy(chunk, level2_data + offset, chunk_len);
         chunk[chunk_len] = '\0';
         
-        KolibriFormula formula;
-        memset(&formula, 0, sizeof(formula));
-        k_gen_compress_text(&ctx3, chunk, &formula);
+        KolibriFormula *formula = malloc(sizeof(KolibriFormula));
+        memset(formula, 0, sizeof(KolibriFormula));
+        k_gen_compress_text(&ctx3, chunk, formula); free(formula);
     }
     
     k_gen_finalize_compression(&ctx3, 500);
@@ -250,9 +250,9 @@ int main(int argc, char** argv) {
         memcpy(chunk, level3_data + offset, chunk_len);
         chunk[chunk_len] = '\0';
         
-        KolibriFormula formula;
-        memset(&formula, 0, sizeof(formula));
-        k_gen_compress_text(&ctx4, chunk, &formula);
+        KolibriFormula *formula = malloc(sizeof(KolibriFormula));
+        memset(formula, 0, sizeof(KolibriFormula));
+        k_gen_compress_text(&ctx4, chunk, formula); free(formula);
     }
     
     k_gen_finalize_compression(&ctx4, 1000);  // Больше генераций!
@@ -309,9 +309,9 @@ int main(int argc, char** argv) {
         memcpy(chunk, level4_data + offset, chunk_len);
         chunk[chunk_len] = '\0';
         
-        KolibriFormula formula;
-        memset(&formula, 0, sizeof(formula));
-        k_gen_compress_text(&ctx5, chunk, &formula);
+        KolibriFormula *formula = malloc(sizeof(KolibriFormula));
+        memset(formula, 0, sizeof(KolibriFormula));
+        k_gen_compress_text(&ctx5, chunk, formula); free(formula);
     }
     
     k_gen_finalize_compression(&ctx5, 2000);  // Максимум генераций!

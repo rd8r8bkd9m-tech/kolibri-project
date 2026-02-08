@@ -205,14 +205,14 @@ function copyKolibriWasm(): Plugin {
   };
 }
 
-const knowledgeProxyTarget = process.env.KNOWLEDGE_API || "http://localhost:8000";
+const knowledgeProxyTarget = process.env.KNOWLEDGE_API || "http://127.0.0.1:8001";
 
 export default defineConfig({
   plugins: [react(), copyKolibriWasm()],
   server: {
-    port: 5173,
+    port: 3000,
     proxy: {
-      "/api/knowledge": {
+      "/api": {
         target: knowledgeProxyTarget,
         changeOrigin: true,
       },

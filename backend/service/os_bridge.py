@@ -1,25 +1,69 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import subprocess
 import psutil
 import os
 import time
 
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+router = APIRouter()
 
 class CommandRequest(BaseModel):
     cmd: str
 
-@app.get("/api/system/stats")
+class FileRequest(BaseModel):
+    path: str
+    content: str | None = None
+
+@router.get("/api/dev/ls")
+async def list_files(path: str = "."):
+    """List directory contents safely."""
+    target = os.path.abspath(os.path.join("/workspaces/kolibri-project", path))
+    if not target.startswith("/workspaces/kolibri-project"):
+        raise HTTPException(403, "Access denied")
+    
+    try:
+        items = []
+        for entry in os.scandir(target):
+            items.append({
+                "name": entry.name,
+                "is_dir": entry.is_dir(),
+                "size": entry.stat().st_size if not entry.is_dir() else 0
+            })
+        return sorted(items, key=lambda x: (not x['is_dir'], x['name']))
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@router.post("/api/dev/read")
+async def read_file(req: FileRequest):
+    """Read text file content."""
+    target = os.path.abspath(os.path.join("/workspaces/kolibri-project", req.path))
+    if not target.startswith("/workspaces/kolibri-project"):
+        raise HTTPException(403, "Access denied")
+    
+    try:
+        with open(target, "r", encoding="utf-8") as f:
+            return {"content": f.read()}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@router.post("/api/dev/save")
+async def save_file(req: FileRequest):
+    """Save text file content."""
+    target = os.path.abspath(os.path.join("/workspaces/kolibri-project", req.path))
+    if not target.startswith("/workspaces/kolibri-project"):
+        raise HTTPException(403, "Access denied")
+    
+    if req.content is None:
+        raise HTTPException(400, "Content required")
+
+    try:
+        with open(target, "w", encoding="utf-8") as f:
+            f.write(req.content)
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@router.get("/api/system/stats")
 async def get_stats():
     # Real OS metrics
     return {
@@ -30,7 +74,24 @@ async def get_stats():
         "processes": len(psutil.pids())
     }
 
-@app.get("/api/fs/genome")
+@router.get("/api/observer/nodes")
+async def get_active_nodes():
+    """Find running kolibri_node instances."""
+    nodes = []
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'create_time']):
+        try:
+            if proc.info['name'] and 'kolibri_node' in proc.info['name']:
+                nodes.append({
+                    "pid": proc.info['pid'],
+                    "cmd": " ".join(proc.info['cmdline'] or []),
+                    "uptime": time.time() - proc.info['create_time'],
+                    "status": "running"
+                })
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+    return {"nodes": nodes, "count": len(nodes)}
+
+@router.get("/api/fs/genome")
 async def get_genome():
     # Read the actual knowledge base file
     genome_path = "/workspaces/kolibri-project/kolibri.genome"
@@ -41,7 +102,7 @@ async def get_genome():
         return {"content": "".join(lines), "size": os.path.getsize(genome_path)}
     return {"content": "Genome file not found. Run 'kolibri_learn' first.", "size": 0}
 
-@app.post("/api/terminal/exec")
+@router.post("/api/terminal/exec")
 async def exec_command(req: CommandRequest):
     # Security: Whitelist allowed commands or prefix
     # For this demo, we allow specific CLI tools we built
@@ -98,6 +159,12 @@ async def exec_command(req: CommandRequest):
         return {"output": output}
     except Exception as e:
         return {"output": f"Execution Error: {str(e)}"}
+
+# --- Standalone FastAPI App for direct execution ---
+from fastapi import FastAPI
+
+app = FastAPI(title="Kolibri OS Bridge")
+app.include_router(router)
 
 if __name__ == "__main__":
     import uvicorn

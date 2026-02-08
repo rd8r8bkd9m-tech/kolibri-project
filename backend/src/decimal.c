@@ -200,3 +200,244 @@ int k_decode_text(const char *digits, char *out, size_t out_len) {
     out[produced] = '\0';
     return 0;
 }
+
+/* ========================================================================== */
+/* --- Числовые преобразования --- */
+/* ========================================================================== */
+
+int k_encode_uint64(k_digit_stream *stream, uint64_t value) {
+    if (!stream) {
+        return -1;
+    }
+    
+    /* Максимум 20 цифр для uint64_t */
+    uint8_t temp[20];
+    int count = 0;
+    
+    if (value == 0) {
+        return k_digit_stream_push(stream, 0);
+    }
+    
+    while (value > 0 && count < 20) {
+        temp[count++] = (uint8_t)(value % 10U);
+        value /= 10U;
+    }
+    
+    /* Записываем в обратном порядке */
+    for (int i = count - 1; i >= 0; --i) {
+        if (k_digit_stream_push(stream, temp[i]) != 0) {
+            return -1;
+        }
+    }
+    
+    return 0;
+}
+
+int k_decode_uint64(const k_digit_stream *stream, uint64_t *value) {
+    if (!stream || !value || !stream->digits) {
+        return -1;
+    }
+    
+    *value = 0;
+    for (size_t i = 0; i < stream->length; ++i) {
+        if (stream->digits[i] > 9) {
+            return -1;
+        }
+        /* Проверка переполнения */
+        if (*value > (UINT64_MAX - stream->digits[i]) / 10U) {
+            return -1;
+        }
+        *value = *value * 10U + stream->digits[i];
+    }
+    
+    return 0;
+}
+
+int k_encode_double(k_digit_stream *stream, double value) {
+    if (!stream) {
+        return -1;
+    }
+    
+    /* Обрабатываем отрицательные числа: 9 = знак минус */
+    if (value < 0) {
+        if (k_digit_stream_push(stream, 9) != 0) {
+            return -1;
+        }
+        value = -value;
+    }
+    
+    /* Целая часть */
+    uint64_t integer_part = (uint64_t)value;
+    if (k_encode_uint64(stream, integer_part) != 0) {
+        return -1;
+    }
+    
+    /* Разделитель (8 = точка) */
+    if (k_digit_stream_push(stream, 8) != 0) {
+        return -1;
+    }
+    
+    /* Дробная часть (6 знаков) */
+    double frac = value - (double)integer_part;
+    for (int i = 0; i < 6; ++i) {
+        frac *= 10.0;
+        uint8_t digit = (uint8_t)frac;
+        if (digit > 9) digit = 9;
+        if (k_digit_stream_push(stream, digit) != 0) {
+            return -1;
+        }
+        frac -= (double)digit;
+    }
+    
+    return 0;
+}
+
+/* ========================================================================== */
+/* --- Сравнение через цифры --- */
+/* ========================================================================== */
+
+int k_strcmp(const char *a, const char *b) {
+    if (!a && !b) return 0;
+    if (!a) return -1;
+    if (!b) return 1;
+    
+    char buf_a[1536];  /* 512 * 3 */
+    char buf_b[1536];
+    
+    if (k_encode_text(a, buf_a, sizeof(buf_a)) != 0) {
+        return -2;  /* Ошибка кодирования */
+    }
+    if (k_encode_text(b, buf_b, sizeof(buf_b)) != 0) {
+        return -2;
+    }
+    
+    /* Сравниваем посимвольно */
+    size_t i = 0;
+    while (buf_a[i] && buf_b[i]) {
+        if (buf_a[i] < buf_b[i]) return -1;
+        if (buf_a[i] > buf_b[i]) return 1;
+        ++i;
+    }
+    
+    if (buf_a[i]) return 1;
+    if (buf_b[i]) return -1;
+    return 0;
+}
+
+int k_strcmp_digits(const char *str, const char *digits) {
+    if (!str || !digits) {
+        return -2;
+    }
+    
+    char encoded[1536];
+    if (k_encode_text(str, encoded, sizeof(encoded)) != 0) {
+        return -2;
+    }
+    
+    size_t i = 0;
+    while (encoded[i] && digits[i]) {
+        if (encoded[i] < digits[i]) return -1;
+        if (encoded[i] > digits[i]) return 1;
+        ++i;
+    }
+    
+    if (encoded[i]) return 1;
+    if (digits[i]) return -1;
+    return 0;
+}
+
+/* ========================================================================== */
+/* --- Валидация --- */
+/* ========================================================================== */
+
+int k_is_pure_decimal(const char *str, size_t len) {
+    if (!str) {
+        return 0;
+    }
+    
+    for (size_t i = 0; i < len; ++i) {
+        if (str[i] < '0' || str[i] > '9') {
+            return 0;
+        }
+    }
+    
+    return 1;
+}
+
+int k_validate_genome(const char *genome) {
+    if (!genome) {
+        return 0;
+    }
+    
+    size_t len = strlen(genome);
+    if (len != 64) {
+        return 0;
+    }
+    
+    return k_is_pure_decimal(genome, 64);
+}
+
+int k_normalize_input(const char *input, char *out, size_t out_len, size_t *written) {
+    if (!input || !out || out_len == 0) {
+        return -1;
+    }
+    
+    size_t j = 0;
+    for (size_t i = 0; input[i] && j < out_len - 1; ++i) {
+        char c = input[i];
+        
+        /* Пропускаем пробельные символы */
+        if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+            continue;
+        }
+        
+        /* Только цифры */
+        if (c >= '0' && c <= '9') {
+            out[j++] = c;
+        }
+    }
+    
+    out[j] = '\0';
+    if (written) {
+        *written = j;
+    }
+    
+    return 0;
+}
+
+/* ========================================================================== */
+/* --- Хеширование в цифры --- */
+/* ========================================================================== */
+
+int k_digit_hash(const char *input, size_t len, char *out64) {
+    if (!input || !out64) {
+        return -1;
+    }
+    
+    /* Простой хеш на основе FNV-1a, конвертированный в цифры */
+    uint64_t hash1 = 14695981039346656037ULL;
+    uint64_t hash2 = 14695981039346656037ULL;
+    
+    for (size_t i = 0; i < len; ++i) {
+        unsigned char c = (unsigned char)input[i];
+        hash1 ^= c;
+        hash1 *= 1099511628211ULL;
+        hash2 ^= (c + i) & 0xFF;
+        hash2 *= 1099511628211ULL;
+    }
+    
+    /* Генерируем 64 цифры из двух хешей */
+    for (int i = 0; i < 32; ++i) {
+        out64[i] = '0' + (char)(hash1 % 10);
+        hash1 /= 10;
+        if (hash1 == 0) hash1 = hash2 + (uint64_t)i;
+    }
+    for (int i = 32; i < 64; ++i) {
+        out64[i] = '0' + (char)(hash2 % 10);
+        hash2 /= 10;
+        if (hash2 == 0) hash2 = hash1 + (uint64_t)i;
+    }
+    
+    out64[64] = '\0';
+    return 0;
+}

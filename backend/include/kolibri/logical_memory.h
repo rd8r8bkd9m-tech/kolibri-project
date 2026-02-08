@@ -160,11 +160,33 @@ int lm_logic_to_string(LogicExpression *logic, char *output, size_t output_size)
 /* Материализовать данные из логики (lazy evaluation) */
 int lm_materialize(LogicalMemory *mem, const char *id, void *output, size_t output_size);
 
+/* Сохранить логическое выражение в память */
+int lm_store_logic(LogicalMemory *mem, const char *id, LogicExpression *logic);
+
+/* Материализовать LogicExpression напрямую (выделяет буфер) */
+char* lm_materialize_logic(LogicExpression *logic);
+
 /* Запросить размер материализованных данных (без материализации) */
 size_t lm_predict_size(LogicalMemory *mem, const char *id);
 
 /* Уничтожить логическое выражение */
 void lm_destroy_logic(LogicExpression *logic);
+
+/* Создать логическое выражение: variable(name) */
+LogicExpression* lm_logic_variable(const char *name);
+
+/* Привязать переменную к выражению */
+int lm_logic_bind_variable(LogicExpression *variable, LogicExpression *binding);
+
+/* Создать логическое выражение: transform(input, fn) */
+LogicExpression* lm_logic_transform(LogicExpression *input, int (*fn)(const void*, void*));
+
+/* Создать логическое выражение: if(condition, then, else) */
+LogicExpression* lm_logic_conditional(
+    LogicExpression *condition,
+    LogicExpression *then_expr,
+    LogicExpression *else_expr
+);
 
 /* Статистика логической памяти */
 typedef struct {
@@ -173,7 +195,7 @@ typedef struct {
     size_t predicted_data_size;
     double compression_ratio;
     size_t cached_cells;
-    size_t cache_hit_rate;
+    double cache_hit_rate;  /* Доля закэшированных ячеек (0.0 – 1.0) */
 } LogicalMemoryStats;
 
 int lm_get_stats(LogicalMemory *mem, LogicalMemoryStats *stats);

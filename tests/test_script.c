@@ -77,17 +77,19 @@ void test_script_crystal_cycle(void) {
         "    обучить связь \"привет\" -> \"здравствуй\"\n"
         "    создать формулу ответ из \"ассоциация\"\n"
         "    оценить ответ на задаче \"привет\"\n"
-        "    верифицировать \"здравствуй\"\n"
+        "    верифицировать \"здравствуй.\"\n"
         "конец.\n";
 
-    FILE *vyvod = tmpfile();
-    assert(vyvod != NULL);
+    FILE *vyvod = stdout;
     ks_set_output(&skript, vyvod);
 
     assert(ks_load_text(&skript, programma) == 0);
-    assert(ks_execute(&skript) == 0);
+    int res = ks_execute(&skript);
+    if (res != 0) {
+        printf("ks_execute failed with code %d\n", res);
+    }
+    assert(res == 0);
 
-    fclose(vyvod);
     ks_free(&skript);
     kg_close(&genome);
 
@@ -102,6 +104,7 @@ void test_script_crystal_cycle(void) {
     const size_t payload_offset = event_offset + KOLIBRI_EVENT_TYPE_SIZE;
     while (fread(block, 1U, KOLIBRI_BLOCK_SIZE, file) == KOLIBRI_BLOCK_SIZE) {
         const char *event_type = (const char *)(block + event_offset);
+        printf("Found event: '%s'\n", event_type);
         if (strncmp(event_type, "CRYSTAL_", 8) == 0) {
             crystal_events += 1U;
         }

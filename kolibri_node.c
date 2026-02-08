@@ -531,13 +531,14 @@ static void node_report_formula(const KolibriNode *node) {
         printf("[Формулы] не удалось построить описание\n");
         return;
     }
-    uint8_t digits[32];
+    uint8_t digits[1024];
     size_t len = kf_formula_digits(best, digits, sizeof(digits));
     printf("[Формулы] %s\n", description);
-    printf("[Формулы] ген: ");
-    for (size_t i = 0; i < len; ++i) {
+    printf("[Формулы] ген (%zu цифр): ", len);
+    for (size_t i = 0; i < len && i < 64U; ++i) {
         printf("%u", (unsigned)digits[i]);
     }
+    if (len > 64U) printf("...");
     printf("\n");
 }
 
@@ -695,6 +696,15 @@ static void node_execute_script(KolibriNode *node, const char *path) {
     node_reset_last_answer(node);
 }
 
+/* --- DJB2 хеш для авто-генерации пар из текста --- */
+static unsigned int node_djb2_hash(const char *str, size_t len) {
+    unsigned int hash = 5381U;
+    for (size_t i = 0; i < len; ++i) {
+        hash = ((hash << 5) + hash) + (unsigned char)str[i];
+    }
+    return hash;
+}
+
 static void node_handle_teach(KolibriNode *node, const char *payload) {
     if (!payload || payload[0] == '\0') {
         printf("[Учитель] требуется пример формата a->b\n");
@@ -725,9 +735,51 @@ static void node_handle_teach(KolibriNode *node, const char *payload) {
         node_handle_tick(node, 8);
         return;
     }
+
+    /* --- Авто-генерация обучающих пар из произвольного текста --- */
+    /* Разбиваем текст на слова и создаём пары хешей (word_i → word_i+1) */
+    const char *words[64];
+    size_t word_lens[64];
+    size_t word_count = 0;
+    const char *p = buffer;
+    while (*p && word_count < 64U) {
+        while (*p && ((unsigned char)*p <= ' ')) p++;
+        if (!*p) break;
+        const char *start = p;
+        while (*p && ((unsigned char)*p > ' ')) p++;
+        words[word_count] = start;
+        word_lens[word_count] = (size_t)(p - start);
+        word_count++;
+    }
+
     node_store_text(node, payload);
-    node_record_event(node, "NOTE", "произвольный импульс сохранён");
-    printf("[Учитель] сохранён числовой импульс\n");
+
+    if (word_count >= 2U) {
+        size_t added = 0;
+        for (size_t i = 0; i + 1U < word_count; ++i) {
+            int h1 = (int)(node_djb2_hash(words[i], word_lens[i]) % 1000000U);
+            int h2 = (int)(node_djb2_hash(words[i + 1U], word_lens[i + 1U]) % 1000000U);
+            if (kf_pool_add_example(&node->pool, h1, h2) == 0) {
+                added++;
+            }
+        }
+        node_record_event(node, "TEACH", "авто-пары из текста");
+        printf("[Учитель] авто-пары из текста: %zu связей из %zu слов\n", added, word_count);
+        if (added > 0) {
+            node_handle_tick(node, 8);
+        }
+    } else if (word_count == 1U) {
+        /* Одно слово — создаём пару хеш(слово) → хеш(слово)*2+1 */
+        int h1 = (int)(node_djb2_hash(words[0], word_lens[0]) % 1000000U);
+        int h2 = (h1 * 2 + 1) % 1000000;
+        kf_pool_add_example(&node->pool, h1, h2);
+        node_record_event(node, "TEACH", "импульс-пара");
+        printf("[Учитель] импульс-пара: 1 связь\n");
+        node_handle_tick(node, 8);
+    } else {
+        node_record_event(node, "NOTE", "пустой импульс");
+        printf("[Учитель] нет данных для обучения\n");
+    }
 }
 
 static void node_handle_mass_learn(KolibriNode *node) {

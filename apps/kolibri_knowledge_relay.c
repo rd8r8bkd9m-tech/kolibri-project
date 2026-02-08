@@ -11,12 +11,126 @@
 #include <stdlib.h>
 #include <string.h>
 
+typedef enum {
+  KOLIBRI_RELAY_MODE_BROADCAST = 0,
+  KOLIBRI_RELAY_MODE_SHARD = 1,
+} KolibriRelayMode;
+
+static int token_equals(const char *a, const char *b) {
+  if (!a || !b) {
+    return 0;
+  }
+  return strcmp(a, b) == 0;
+}
+
+static int event_allowed(const char *event_type, const char *allow_csv) {
+  if (!event_type || !allow_csv || allow_csv[0] == '\0') {
+    return 0;
+  }
+  /* allow_csv example: "TEACH,USER_FEEDBACK,DEEP_L" */
+  char buf[256];
+  strncpy(buf, allow_csv, sizeof(buf) - 1U);
+  buf[sizeof(buf) - 1U] = '\0';
+  char *save = NULL;
+  char *tok = strtok_r(buf, ",", &save);
+  while (tok) {
+    while (*tok == ' ' || *tok == '\t') {
+      ++tok;
+    }
+    char *end = tok + strlen(tok);
+    while (end > tok && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\n' || end[-1] == '\r')) {
+      end[-1] = '\0';
+      --end;
+    }
+    if (tok[0] != '\0' && token_equals(event_type, tok)) {
+      return 1;
+    }
+    tok = strtok_r(NULL, ",", &save);
+  }
+  return 0;
+}
+
 static int ends_with(const char *s, const char *suffix) {
   size_t ls = strlen(s), lsf = strlen(suffix);
   return ls >= lsf && strcmp(s + (ls - lsf), suffix) == 0;
 }
 
 static int is_genome_file(const char *name) { return ends_with(name, ".dat"); }
+
+static int compare_strings(const void *a, const void *b) {
+  const char *const *pa = (const char *const *)a;
+  const char *const *pb = (const char *const *)b;
+  return strcmp(*pa, *pb);
+}
+
+static int list_targets(const char *targets_dir, char ***out_paths,
+                        size_t *out_count) {
+  if (!targets_dir || !out_paths || !out_count) {
+    return -1;
+  }
+  *out_paths = NULL;
+  *out_count = 0U;
+
+  DIR *dir = opendir(targets_dir);
+  if (!dir) {
+    return -1;
+  }
+
+  size_t capacity = 256U;
+  size_t count = 0U;
+  char **paths = (char **)calloc(capacity, sizeof(char *));
+  if (!paths) {
+    closedir(dir);
+    return -1;
+  }
+
+  struct dirent *ent;
+  while ((ent = readdir(dir)) != NULL) {
+    if (ent->d_name[0] == '.') {
+      continue;
+    }
+    if (!is_genome_file(ent->d_name)) {
+      continue;
+    }
+    char full[512];
+    snprintf(full, sizeof(full), "%s/%s", targets_dir, ent->d_name);
+    char *dup = strdup(full);
+    if (!dup) {
+      continue;
+    }
+    if (count >= capacity) {
+      size_t next = capacity * 2U;
+      char **grown = (char **)realloc(paths, next * sizeof(char *));
+      if (!grown) {
+        free(dup);
+        break;
+      }
+      memset(grown + capacity, 0, (next - capacity) * sizeof(char *));
+      paths = grown;
+      capacity = next;
+    }
+    paths[count++] = dup;
+  }
+  closedir(dir);
+
+  if (count > 1U) {
+    qsort(paths, count, sizeof(char *), compare_strings);
+  }
+
+  *out_paths = paths;
+  *out_count = count;
+  return 0;
+}
+
+static void free_targets(char **paths, size_t count) {
+  if (!paths) {
+    return;
+  }
+  for (size_t i = 0; i < count; ++i) {
+    free(paths[i]);
+  }
+  free(paths);
+}
 
 static void relay_event_to_target(const char *target_path, const unsigned char *key,
                                   size_t key_len, const char *event_type,
@@ -48,6 +162,9 @@ int main(int argc, char **argv) {
   const char *target_key_path = "build/cluster/swarm.key";
   const char *target_key_inline = NULL;
   const char *offset_path = ".kolibri/knowledge_relay.offset";
+  KolibriRelayMode mode = KOLIBRI_RELAY_MODE_BROADCAST;
+  unsigned long long max_events = 0ULL;
+  const char *allow_events = "TEACH,USER_FEEDBACK";
 
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "--source") == 0 && i + 1 < argc) {
@@ -70,10 +187,38 @@ int main(int argc, char **argv) {
       offset_path = argv[++i];
       continue;
     }
+    if (strcmp(argv[i], "--mode") == 0 && i + 1 < argc) {
+      const char *value = argv[++i];
+      if (strcmp(value, "broadcast") == 0) {
+        mode = KOLIBRI_RELAY_MODE_BROADCAST;
+      } else if (strcmp(value, "shard") == 0) {
+        mode = KOLIBRI_RELAY_MODE_SHARD;
+      } else {
+        fprintf(stderr, "[relay] unknown mode: %s\n", value);
+        return 2;
+      }
+      continue;
+    }
+    if (strcmp(argv[i], "--max-events") == 0 && i + 1 < argc) {
+      max_events = strtoull(argv[++i], NULL, 10);
+      continue;
+    }
+    if (strcmp(argv[i], "--allow") == 0 && i + 1 < argc) {
+      allow_events = argv[++i];
+      continue;
+    }
     if (strcmp(argv[i], "--help") == 0) {
-      printf("Usage: %s [--source PATH] [--targets-dir DIR] [--target-key FILE] [--offset FILE]\n", argv[0]);
+      printf("Usage: %s [--source PATH] [--targets-dir DIR] [--target-key FILE] [--offset FILE] [--mode broadcast|shard] [--max-events N] [--allow CSV]\n", argv[0]);
       return 0;
     }
+  }
+
+  char **targets = NULL;
+  size_t targets_count = 0U;
+  if (list_targets(targets_dir, &targets, &targets_count) != 0 || targets_count == 0U) {
+    fprintf(stderr, "[relay] cannot list targets in %s\n", targets_dir);
+    free_targets(targets, targets_count);
+    return 1;
   }
 
   unsigned char target_key[KOLIBRI_HMAC_KEY_SIZE];
@@ -130,29 +275,30 @@ int main(int argc, char **argv) {
     payload[KOLIBRI_PAYLOAD_SIZE] = '\0';
 
     /* Filter events */
-    if (strncmp(event_type, "TEACH", 5) != 0 && strncmp(event_type, "USER_FEEDBACK", 13) != 0) {
+    if (!event_allowed(event_type, allow_events)) {
       start_index = idx + 1ULL;
       continue;
     }
 
-    /* Broadcast to all genomes in targets_dir */
-    DIR *dir = opendir(targets_dir);
-    if (!dir) {
-      fprintf(stderr, "[relay] cannot open targets-dir %s\n", targets_dir);
-      break;
+    if (mode == KOLIBRI_RELAY_MODE_SHARD) {
+      /* распределяем события по узлам: idx % targets_count */
+      size_t target_index = (size_t)(idx % (unsigned long long)targets_count);
+      relay_event_to_target(targets[target_index], target_key, target_key_len,
+                            event_type, payload);
+    } else {
+      /* Broadcast to all node genomes */
+      for (size_t ti = 0; ti < targets_count; ++ti) {
+        relay_event_to_target(targets[ti], target_key, target_key_len, event_type,
+                              payload);
+      }
     }
-    struct dirent *ent;
-    while ((ent = readdir(dir)) != NULL) {
-      if (ent->d_name[0] == '.') continue;
-      if (!is_genome_file(ent->d_name)) continue;
-      char path[512];
-      snprintf(path, sizeof(path), "%s/%s", targets_dir, ent->d_name);
-      relay_event_to_target(path, target_key, target_key_len, event_type, payload);
-    }
-    closedir(dir);
 
     start_index = idx + 1ULL;
     processed += 1ULL;
+
+    if (max_events > 0ULL && processed >= max_events) {
+      break;
+    }
   }
 
   fclose(src);
@@ -163,6 +309,12 @@ int main(int argc, char **argv) {
     fclose(ofs);
   }
 
-  printf("[relay] processed %llu events\n", processed);
+  free_targets(targets, targets_count);
+
+    printf("[relay] processed %llu events (mode=%s, targets=%zu, allow=%s)\n",
+         processed,
+         mode == KOLIBRI_RELAY_MODE_SHARD ? "shard" : "broadcast",
+      targets_count,
+      allow_events ? allow_events : "");
   return 0;
 }

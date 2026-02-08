@@ -23,13 +23,16 @@ int main(int argc, char** argv) {
     printf("║         Экстремальная многоуровневая оптимизация            ║\n");
     printf("╚══════════════════════════════════════════════════════════════╝\n\n");
     
-    const char* input_file = "../backend/src/script.c";  // Самый большой файл
+    const char* input_file = "backend/src/script.c";  // Самый большой файл
     
-    // Проверяем файл
+    // Проверяем файл и пробуем альтернативный путь
     struct stat st;
     if (stat(input_file, &st) != 0) {
-        printf("❌ ОШИБКА: Файл %s не найден!\n", input_file);
-        return 1;
+        input_file = "../backend/src/script.c";
+        if (stat(input_file, &st) != 0) {
+            printf("❌ ОШИБКА: Файл backend/src/script.c не найден!\n");
+            return 1;
+        }
     }
     
     size_t original_size = st.st_size;

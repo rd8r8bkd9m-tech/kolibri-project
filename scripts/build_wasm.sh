@@ -175,6 +175,7 @@ fi
 istochniki=(
     "$proekt_koren/backend/src/decimal.c"
     "$proekt_koren/backend/src/digits.c"
+    "$proekt_koren/backend/src/digit_text.c"
     "$proekt_koren/backend/src/formula.c"
     "$proekt_koren/backend/src/random.c"
     "$proekt_koren/backend/src/symbol_table.c"

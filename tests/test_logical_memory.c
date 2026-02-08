@@ -1,275 +1,552 @@
 /*
  * test_logical_memory.c
- * 
- * Демонстрация логической памяти БЕЗ данных
- * Данные существуют только как логические выражения!
+ *
+ * Полноценные unit-тесты для модуля логической памяти
+ * Каждый тест использует assert для верификации корректности
  */
 
 #include "kolibri/logical_memory.h"
+#include <assert.h>
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
-#define GREEN  "\033[32m"
-#define YELLOW "\033[33m"
-#define CYAN   "\033[36m"
-#define RED    "\033[31m"
-#define MAGENTA "\033[35m"
-#define RESET  "\033[0m"
+/* ===== Вспомогательные макросы ===== */
 
-static void print_separator(void) {
-    printf("%s%s%s\n", CYAN, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", RESET);
+#define TEST_BEGIN(name) \
+    do { printf("  [TEST] %-50s", name); fflush(stdout); } while(0)
+#define TEST_PASS() \
+    do { printf(" ✓\n"); tests_passed++; } while(0)
+
+static int tests_run = 0;
+static int tests_passed = 0;
+
+/* ===== ТЕСТЫ ЖИЗНЕННОГО ЦИКЛА ===== */
+
+static void test_create_destroy_memory(void) {
+    TEST_BEGIN("create/destroy memory"); tests_run++;
+
+    LogicalMemory *mem = lm_create_memory();
+    assert(mem != NULL);
+    assert(mem->cell_count == 0);
+
+    lm_destroy_memory(mem);
+    lm_destroy_memory(NULL);  /* NULL-безопасность */
+    TEST_PASS();
 }
 
-int main(void) {
-    printf("\n%s╔══════════════════════════════════════════════════════════════╗%s\n", 
-           CYAN, RESET);
-    printf("%s║          LOGICAL MEMORY WITHOUT DATA - DEMO              ║%s\n", 
-           CYAN, RESET);
-    printf("%s╚══════════════════════════════════════════════════════════════╝%s\n\n", 
-           CYAN, RESET);
-    
-    /* ========== СОЗДАНИЕ ЛОГИЧЕСКОЙ ПАМЯТИ ========== */
-    printf("%s[1] Creating logical memory (no data storage yet)%s\n", YELLOW, RESET);
-    
+/* ===== ТЕСТЫ СОЗДАНИЯ ВЫРАЖЕНИЙ ===== */
+
+static void test_logic_constant(void) {
+    TEST_BEGIN("lm_logic_constant"); tests_run++;
+
+    LogicExpression *expr = lm_logic_constant("Hello");
+    assert(expr != NULL);
+    assert(expr->type == LOGIC_CONSTANT);
+    assert(strcmp(expr->data.constant.value, "Hello") == 0);
+    assert(expr->data.constant.length == 5);
+    assert(expr->complexity == 0.1);
+
+    lm_destroy_logic(expr);
+    assert(lm_logic_constant(NULL) == NULL);
+    TEST_PASS();
+}
+
+static void test_logic_repeat(void) {
+    TEST_BEGIN("lm_logic_repeat"); tests_run++;
+
+    LogicExpression *expr = lm_logic_repeat("AB", 4);
+    assert(expr != NULL);
+    assert(expr->type == LOGIC_REPEAT);
+    assert(expr->data.repeat.count == 4);
+    assert(expr->data.repeat.pattern != NULL);
+    assert(expr->data.repeat.pattern->type == LOGIC_CONSTANT);
+    assert(strcmp(expr->data.repeat.pattern->data.constant.value, "AB") == 0);
+    assert(expr->materialized_size == 8);  /* 2 * 4 */
+
+    lm_destroy_logic(expr);
+    assert(lm_logic_repeat(NULL, 5) == NULL);
+    assert(lm_logic_repeat("X", 0) == NULL);
+    TEST_PASS();
+}
+
+static void test_logic_sequence(void) {
+    TEST_BEGIN("lm_logic_sequence"); tests_run++;
+
+    LogicExpression *expr = lm_logic_sequence(0, 3, 5);
+    assert(expr != NULL);
+    assert(expr->type == LOGIC_SEQUENCE);
+    assert(expr->data.sequence.start == 0);
+    assert(expr->data.sequence.step == 3);
+    assert(expr->data.sequence.count == 5);
+
+    lm_destroy_logic(expr);
+    assert(lm_logic_sequence(0, 1, 0) == NULL);
+    TEST_PASS();
+}
+
+static void test_logic_compose(void) {
+    TEST_BEGIN("lm_logic_compose"); tests_run++;
+
+    LogicExpression *a = lm_logic_constant("Hello");
+    LogicExpression *b = lm_logic_constant("World");
+    LogicExpression *comp = lm_logic_compose(a, b);
+    assert(comp != NULL);
+    assert(comp->type == LOGIC_COMPOSITION);
+    assert(comp->data.composition.count == 2);
+    assert(comp->data.composition.expressions[0] == a);
+    assert(comp->data.composition.expressions[1] == b);
+
+    lm_destroy_logic(comp);
+    assert(lm_logic_compose(NULL, NULL) == NULL);
+    TEST_PASS();
+}
+
+static void test_logic_relation(void) {
+    TEST_BEGIN("lm_logic_relation"); tests_run++;
+
+    LogicExpression *left = lm_logic_constant("A");
+    LogicExpression *right = lm_logic_constant("B");
+    LogicExpression *rel = lm_logic_relation(left, right, "derives_from");
+    assert(rel != NULL);
+    assert(rel->type == LOGIC_RELATION);
+    assert(strcmp(rel->data.relation.relation_type, "derives_from") == 0);
+
+    lm_destroy_logic(rel);
+    TEST_PASS();
+}
+
+static void test_logic_variable(void) {
+    TEST_BEGIN("lm_logic_variable + bind"); tests_run++;
+
+    LogicExpression *var = lm_logic_variable("x");
+    assert(var != NULL);
+    assert(var->type == LOGIC_VARIABLE);
+    assert(strcmp(var->data.variable.name, "x") == 0);
+    assert(var->data.variable.binding == NULL);
+
+    /* Привязка */
+    LogicExpression *val = lm_logic_constant("42");
+    int rc = lm_logic_bind_variable(var, val);
+    assert(rc == 0);
+    assert(var->data.variable.binding == val);
+
+    /* Ошибки */
+    assert(lm_logic_variable(NULL) == NULL);
+    assert(lm_logic_bind_variable(NULL, NULL) == -1);
+    assert(lm_logic_bind_variable(val, val) == -1);  /* val не переменная */
+
+    lm_destroy_logic(val);
+    /* var->binding уже уничтожено, обнулим */
+    var->data.variable.binding = NULL;
+    lm_destroy_logic(var);
+    TEST_PASS();
+}
+
+static void test_logic_transform(void) {
+    TEST_BEGIN("lm_logic_transform"); tests_run++;
+
+    LogicExpression *input = lm_logic_constant("data");
+    LogicExpression *tr = lm_logic_transform(input, NULL);
+    assert(tr != NULL);
+    assert(tr->type == LOGIC_TRANSFORM);
+    assert(tr->data.transform.input == input);
+    assert(tr->data.transform.transform_fn == NULL);
+    assert(tr->complexity > input->complexity);
+
+    lm_destroy_logic(tr);
+    assert(lm_logic_transform(NULL, NULL) == NULL);
+    TEST_PASS();
+}
+
+static void test_logic_conditional(void) {
+    TEST_BEGIN("lm_logic_conditional"); tests_run++;
+
+    LogicExpression *cond = lm_logic_constant("1");
+    LogicExpression *then_e = lm_logic_constant("yes");
+    LogicExpression *else_e = lm_logic_constant("no");
+    LogicExpression *if_expr = lm_logic_conditional(cond, then_e, else_e);
+    assert(if_expr != NULL);
+    assert(if_expr->type == LOGIC_CONDITIONAL);
+    assert(if_expr->data.conditional.condition == cond);
+    assert(if_expr->data.conditional.then_expr == then_e);
+    assert(if_expr->data.conditional.else_expr == else_e);
+
+    lm_destroy_logic(if_expr);
+    assert(lm_logic_conditional(NULL, NULL, NULL) == NULL);
+    TEST_PASS();
+}
+
+/* ===== ТЕСТЫ МАТЕРИАЛИЗАЦИИ ===== */
+
+static void test_materialize_constant(void) {
+    TEST_BEGIN("materialize constant"); tests_run++;
+
     LogicalMemory *mem = lm_create_memory();
-    if (!mem) {
-        printf("%s✗ Failed to create logical memory!%s\n", RED, RESET);
-        return 1;
-    }
-    
-    printf("  ✓ Logical memory initialized\n");
-    printf("  Storage: 0 bytes (no data yet!)\n\n");
-    
-    /* ========== ПРИМЕР 1: REPEAT LOGIC ========== */
-    print_separator();
-    printf("%s[2] Example 1: Storing LOGIC instead of DATA%s\n\n", YELLOW, RESET);
-    
-    printf("Traditional approach:\n");
-    printf("  Data: \"AAAAAAAAAA...\" (40 bytes)\n");
-    printf("  Storage: 40 bytes in RAM\n\n");
-    
-    printf("Logical approach:\n");
-    LogicExpression *logic1 = lm_logic_repeat("A", 40);
-    if (!logic1) {
-        printf("%s✗ Failed to create logic!%s\n", RED, RESET);
-        lm_destroy_memory(mem);
-        return 1;
-    }
-    
-    /* Store logic in memory cell */
-    if (mem->cell_count < 1024) {
-        snprintf(mem->cells[mem->cell_count].id, 64, "cell_1");
-        mem->cells[mem->cell_count].logic = logic1;
-        mem->cell_count++;
-    }
-    
-    char logic_desc[256];
-    lm_logic_to_string(logic1, logic_desc, sizeof(logic_desc));
-    
-    printf("  %sLogic: %s%s\n", MAGENTA, logic_desc, RESET);
-    printf("  Storage: %zu bytes (just the logic!)\n", sizeof(LogicExpression));
-    printf("  Predicted data size: %zu bytes\n", lm_predict_size(mem, "cell_1"));
-    printf("  %sCompression: %.2fx%s\n\n", GREEN, 
-           (double)lm_predict_size(mem, "cell_1") / sizeof(LogicExpression), RESET);
-    
-    /* Материализация */
-    printf("Materialization (when needed):\n");
-    char materialized1[128];
-    int result1 = lm_materialize(mem, "cell_1", materialized1, sizeof(materialized1));
-    
-    if (result1 > 0) {
-        printf("  %s✓ Data generated from logic: \"%.*s\" (%d bytes)%s\n", 
-               GREEN, result1, materialized1, result1, RESET);
-    } else {
-        printf("  %s✗ Materialization failed!%s\n", RED, RESET);
-    }
-    printf("\n");
-    
-    /* ========== ПРИМЕР 2: SEQUENCE LOGIC ========== */
-    print_separator();
-    printf("%s[3] Example 2: Numeric sequence as LOGIC%s\n\n", YELLOW, RESET);
-    
-    printf("Traditional approach:\n");
-    printf("  Data: \"123456789...\" (100 numbers = ~300 bytes)\n");
-    printf("  Storage: 300 bytes\n\n");
-    
-    printf("Logical approach:\n");
-    LogicExpression *logic2 = lm_logic_sequence(1, 1, 100);
-    
-    /* Store logic in memory cell */
-    if (mem->cell_count < 1024) {
-        snprintf(mem->cells[mem->cell_count].id, 64, "cell_2");
-        mem->cells[mem->cell_count].logic = logic2;
-        mem->cell_count++;
-    }
-    
-    lm_logic_to_string(logic2, logic_desc, sizeof(logic_desc));
-    printf("  %sLogic: %s%s\n", MAGENTA, logic_desc, RESET);
-    printf("  Storage: %zu bytes\n", sizeof(LogicExpression));
-    printf("  Predicted data size: %zu bytes\n", lm_predict_size(mem, "cell_2"));
-    printf("  %sCompression: %.2fx%s\n\n", GREEN,
-           (double)lm_predict_size(mem, "cell_2") / sizeof(LogicExpression), RESET);
-    
-    printf("Materialization:\n");
-    char materialized2[512];
-    int result2 = lm_materialize(mem, "cell_2", materialized2, sizeof(materialized2));
-    
-    if (result2 > 0) {
-        printf("  %s✓ Generated: %.*s... (%d bytes total)%s\n",
-               GREEN, 50, materialized2, result2, RESET);
-    }
-    printf("\n");
-    
-    /* ========== ПРИМЕР 3: COMPOSITION ========== */
-    print_separator();
-    printf("%s[4] Example 3: Composed logic (multiple patterns)%s\n\n", YELLOW, RESET);
-    
-    printf("Traditional approach:\n");
-    printf("  Data: \"AAABBBCCC\" (9 bytes)\n");
-    printf("  Storage: 9 bytes\n\n");
-    
-    printf("Logical approach:\n");
-    LogicExpression *part_a = lm_logic_repeat("A", 3);
-    LogicExpression *part_b = lm_logic_repeat("B", 3);
-    LogicExpression *logic3 = lm_logic_compose(part_a, part_b);
-    
-    /* Store logic in memory cell */
-    if (mem->cell_count < 1024) {
-        snprintf(mem->cells[mem->cell_count].id, 64, "cell_3");
-        mem->cells[mem->cell_count].logic = logic3;
-        mem->cell_count++;
-    }
-    
-    lm_logic_to_string(logic3, logic_desc, sizeof(logic_desc));
-    printf("  %sLogic: %s%s\n", MAGENTA, logic_desc, RESET);
-    printf("  Storage: ~%zu bytes (2 expressions + composition)\n", 
-           sizeof(LogicExpression) * 3);
-    printf("  Predicted data size: %zu bytes\n", lm_predict_size(mem, "cell_3"));
-    printf("\n");
-    
-    char materialized3[64];
-    int result3 = lm_materialize(mem, "cell_3", materialized3, sizeof(materialized3));
-    
-    if (result3 > 0) {
-        printf("  %s✓ Generated: \"%.*s\" (%d bytes)%s\n",
-               GREEN, result3, materialized3, result3, RESET);
-    }
-    printf("\n");
-    
-    /* ========== ПРИМЕР 4: RELATIONS ========== */
-    print_separator();
-    printf("%s[5] Example 4: Logical relations (knowledge graph)%s\n\n", YELLOW, RESET);
-    
-    printf("Traditional approach:\n");
-    printf("  Store: NodeA + NodeB + Edge + Properties\n");
-    printf("  Storage: ~100 bytes per relation\n\n");
-    
-    printf("Logical approach:\n");
-    LogicExpression *node_a = lm_logic_repeat("genome_block", 1);
-    LogicExpression *node_b = lm_logic_repeat("formula", 1);
-    LogicExpression *relation = lm_logic_relation(node_a, node_b, "derives_from");
-    
-    /* Store logic in memory cell */
-    if (mem->cell_count < 1024) {
-        snprintf(mem->cells[mem->cell_count].id, 64, "relation_1");
-        mem->cells[mem->cell_count].logic = relation;
-        mem->cell_count++;
-    }
-    
-    lm_logic_to_string(relation, logic_desc, sizeof(logic_desc));
-    printf("  %sLogic: %s%s\n", MAGENTA, logic_desc, RESET);
-    printf("  Storage: %zu bytes (just the relation logic)\n", sizeof(LogicExpression));
-    printf("  %sNo materialized data - it's pure logic!%s\n\n", GREEN, RESET);
-    
-    /* ========== СТАТИСТИКА ========== */
-    print_separator();
-    printf("%s[6] Logical Memory Statistics%s\n\n", YELLOW, RESET);
-    
-    LogicalMemoryStats stats;
-    lm_get_stats(mem, &stats);
-    
-    printf("Total cells:           %zu\n", stats.total_cells);
-    printf("Logic size:            %zu bytes\n", stats.logic_size_bytes);
-    printf("Predicted data size:   %zu bytes (if all materialized)\n", stats.predicted_data_size);
-    printf("%sCompression ratio:     %.2fx%s\n", GREEN, stats.compression_ratio, RESET);
-    printf("Cached cells:          %zu / %zu\n", stats.cached_cells, stats.total_cells);
-    printf("Cache hit rate:        %zu%%\n\n", stats.cache_hit_rate);
-    
-    /* ========== СРАВНЕНИЕ ========== */
-    print_separator();
-    printf("%s╔══════════════════════════════════════════════════════════════╗%s\n", 
-           GREEN, RESET);
-    printf("%s║                    COMPARISON TABLE                      ║%s\n", 
-           GREEN, RESET);
-    printf("%s╚══════════════════════════════════════════════════════════════╝%s\n\n", 
-           GREEN, RESET);
-    
-    printf("Approach              | Storage  | Type       | Materialization\n");
-    printf("----------------------------------------------------------------\n");
-    printf("Traditional (data)    | %zu B    | Data       | Instant (already there)\n", 
-           stats.predicted_data_size);
-    printf("Formula compression   | ~%zu B   | Formula    | Fast (decode formula)\n",
-           stats.predicted_data_size / 3);
-    printf("%sLogical memory        | %zu B    | Logic      | On-demand (generate)%s\n",
-           GREEN, stats.logic_size_bytes, RESET);
-    
-    printf("\n%sSpace saved vs traditional: %.1f%%%s\n",
-           GREEN, 100.0 * (1.0 - (double)stats.logic_size_bytes / stats.predicted_data_size), RESET);
-    printf("%sSpace saved vs formula:     %.1f%%%s\n\n",
-           GREEN, 100.0 * (1.0 - (double)stats.logic_size_bytes / (stats.predicted_data_size / 3)), RESET);
-    
-    /* ========== ФИЛОСОФСКАЯ ЧАСТЬ ========== */
-    print_separator();
-    printf("%s╔══════════════════════════════════════════════════════════════╗%s\n", 
-           MAGENTA, RESET);
-    printf("%s║                  PHILOSOPHICAL INSIGHT                   ║%s\n", 
-           MAGENTA, RESET);
-    printf("%s╚══════════════════════════════════════════════════════════════╝%s\n\n", 
-           MAGENTA, RESET);
-    
-    printf("Традиционная память:  Хранит ДАННЫЕ (bits & bytes)\n");
-    printf("Формульная память:    Хранит ФОРМУЛЫ (compressed patterns)\n");
-    printf("%sЛогическая память:    Хранит ЛОГИКУ (rules & relations)%s\n\n", MAGENTA, RESET);
-    
-    printf("Данные НЕ СУЩЕСТВУЮТ до момента запроса!\n");
-    printf("Они ГЕНЕРИРУЮТСЯ из логических правил on-demand.\n\n");
-    
-    printf("Это как:\n");
-    printf("  • Математическая функция vs таблица значений\n");
-    printf("  • Программа vs её выход\n");
-    printf("  • ДНК vs белки\n");
-    printf("  • Формула vs результат вычисления\n\n");
-    
-    printf("%s✓ Логическая память = Память без данных = Чистая логика!%s\n\n", 
-           GREEN, RESET);
-    
-    /* ========== ПРИМЕНЕНИЕ В KOLIBRI ========== */
-    print_separator();
-    printf("%s[7] Application in Kolibri OS%s\n\n", YELLOW, RESET);
-    
-    printf("Kolibri Genome:\n");
-    printf("  Вместо: ReasonBlock[] с payload (1000s of bytes)\n");
-    printf("  Храним: LogicExpression (relationship rules)\n");
-    printf("  Benefit: 10-100x compression + AI reasoning!\n\n");
-    
-    printf("AI Evolution:\n");
-    printf("  Вместо: Copying genome data for mutations\n");
-    printf("  Делаем: Mutate logic expressions\n");
-    printf("  Benefit: Instant mutations, no data copying!\n\n");
-    
-    printf("Knowledge Base:\n");
-    printf("  Вместо: Storing all associations as data\n");
-    printf("  Храним: Logical relations + inference rules\n");
-    printf("  Benefit: Infinite derivations from finite logic!\n\n");
-    
-    /* ========== CLEANUP ========== */
+    lm_store_logic(mem, "c1", lm_logic_constant("Kolibri"));
+
+    char buf[64];
+    int len = lm_materialize(mem, "c1", buf, sizeof(buf));
+    assert(len > 0);
+    assert(strcmp(buf, "Kolibri") == 0);
+
     lm_destroy_memory(mem);
-    
-    printf("%s✓ DEMONSTRATION COMPLETE%s\n", GREEN, RESET);
-    printf("Logical memory: %zu bytes stored, %zu bytes generated\n",
-           stats.logic_size_bytes, stats.predicted_data_size);
-    printf("Data exists only as logic - materialized on demand!\n\n");
-    
-    return 0;
+    TEST_PASS();
+}
+
+static void test_materialize_repeat(void) {
+    TEST_BEGIN("materialize repeat"); tests_run++;
+
+    LogicalMemory *mem = lm_create_memory();
+    lm_store_logic(mem, "r1", lm_logic_repeat("AB", 4));
+
+    char buf[64];
+    int len = lm_materialize(mem, "r1", buf, sizeof(buf));
+    assert(len == 8);
+    assert(strcmp(buf, "ABABABAB") == 0);
+
+    lm_destroy_memory(mem);
+    TEST_PASS();
+}
+
+static void test_materialize_sequence(void) {
+    TEST_BEGIN("materialize sequence"); tests_run++;
+
+    LogicalMemory *mem = lm_create_memory();
+    lm_store_logic(mem, "s1", lm_logic_sequence(10, 10, 3));
+
+    char buf[64];
+    int len = lm_materialize(mem, "s1", buf, sizeof(buf));
+    assert(len > 0);
+    assert(strcmp(buf, "102030") == 0);
+
+    lm_destroy_memory(mem);
+    TEST_PASS();
+}
+
+static void test_materialize_composition(void) {
+    TEST_BEGIN("materialize composition"); tests_run++;
+
+    LogicalMemory *mem = lm_create_memory();
+    LogicExpression *a = lm_logic_constant("Hello");
+    LogicExpression *b = lm_logic_constant("World");
+    lm_store_logic(mem, "hw", lm_logic_compose(a, b));
+
+    char buf[64];
+    int len = lm_materialize(mem, "hw", buf, sizeof(buf));
+    assert(len > 0);
+    assert(strcmp(buf, "HelloWorld") == 0);
+
+    lm_destroy_memory(mem);
+    TEST_PASS();
+}
+
+static void test_materialize_variable_bound(void) {
+    TEST_BEGIN("materialize variable (bound)"); tests_run++;
+
+    LogicalMemory *mem = lm_create_memory();
+    LogicExpression *var = lm_logic_variable("x");
+    LogicExpression *val = lm_logic_constant("42");
+    lm_logic_bind_variable(var, val);
+    lm_store_logic(mem, "v1", var);
+
+    char buf[64];
+    int len = lm_materialize(mem, "v1", buf, sizeof(buf));
+    assert(len > 0);
+    assert(strcmp(buf, "42") == 0);
+
+    /* val нельзя разрушать отдельно, т.к. var->binding указывает на него,
+       но lm_destroy_memory не уничтожает binding. Разрушим вручную. */
+    lm_destroy_logic(val);
+    var->data.variable.binding = NULL;
+    lm_destroy_memory(mem);
+    TEST_PASS();
+}
+
+static void test_materialize_conditional_true(void) {
+    TEST_BEGIN("materialize conditional (true)"); tests_run++;
+
+    LogicalMemory *mem = lm_create_memory();
+    LogicExpression *cond = lm_logic_constant("1");
+    LogicExpression *then_e = lm_logic_constant("YES");
+    LogicExpression *else_e = lm_logic_constant("NO");
+    lm_store_logic(mem, "if1", lm_logic_conditional(cond, then_e, else_e));
+
+    char buf[64];
+    int len = lm_materialize(mem, "if1", buf, sizeof(buf));
+    assert(len > 0);
+    assert(strcmp(buf, "YES") == 0);
+
+    lm_destroy_memory(mem);
+    TEST_PASS();
+}
+
+static void test_materialize_conditional_false(void) {
+    TEST_BEGIN("materialize conditional (false)"); tests_run++;
+
+    LogicalMemory *mem = lm_create_memory();
+    LogicExpression *cond = lm_logic_constant("0");
+    LogicExpression *then_e = lm_logic_constant("YES");
+    LogicExpression *else_e = lm_logic_constant("NO");
+    lm_store_logic(mem, "if2", lm_logic_conditional(cond, then_e, else_e));
+
+    char buf[64];
+    int len = lm_materialize(mem, "if2", buf, sizeof(buf));
+    assert(len > 0);
+    assert(strcmp(buf, "NO") == 0);
+
+    lm_destroy_memory(mem);
+    TEST_PASS();
+}
+
+static void test_materialize_relation(void) {
+    TEST_BEGIN("materialize relation → text"); tests_run++;
+
+    LogicalMemory *mem = lm_create_memory();
+    LogicExpression *l = lm_logic_constant("Cat");
+    LogicExpression *r = lm_logic_constant("Animal");
+    lm_store_logic(mem, "rel1", lm_logic_relation(l, r, "part_of"));
+
+    char buf[128];
+    int len = lm_materialize(mem, "rel1", buf, sizeof(buf));
+    assert(len > 0);
+    assert(strstr(buf, "Cat") != NULL);
+    assert(strstr(buf, "Animal") != NULL);
+    assert(strstr(buf, "part_of") != NULL);
+
+    lm_destroy_memory(mem);
+    TEST_PASS();
+}
+
+static void test_materialize_logic_direct(void) {
+    TEST_BEGIN("lm_materialize_logic (direct)"); tests_run++;
+
+    LogicExpression *expr = lm_logic_repeat("OK", 3);
+    char *text = lm_materialize_logic(expr);
+    assert(text != NULL);
+    assert(strcmp(text, "OKOKOK") == 0);
+    free(text);
+
+    lm_destroy_logic(expr);
+    assert(lm_materialize_logic(NULL) == NULL);
+    TEST_PASS();
+}
+
+/* ===== ТЕСТЫ КЭШИРОВАНИЯ ===== */
+
+static void test_cache_on_materialize(void) {
+    TEST_BEGIN("cache after materialize"); tests_run++;
+
+    LogicalMemory *mem = lm_create_memory();
+    lm_store_logic(mem, "c1", lm_logic_repeat("Q", 3));
+
+    char buf[64];
+    /* Первый вызов — создаёт кэш */
+    int len1 = lm_materialize(mem, "c1", buf, sizeof(buf));
+    assert(len1 == 3);
+    assert(mem->cells[0].cache_valid == 1);
+
+    /* Второй вызов — из кэша */
+    char buf2[64];
+    int len2 = lm_materialize(mem, "c1", buf2, sizeof(buf2));
+    assert(len2 == len1);
+    assert(strcmp(buf, buf2) == 0);
+
+    lm_destroy_memory(mem);
+    TEST_PASS();
+}
+
+/* ===== ТЕСТЫ ОПТИМИЗАЦИИ ===== */
+
+static void test_optimize_nested_repeat(void) {
+    TEST_BEGIN("optimize repeat(repeat(x,3),2)→repeat(x,6)"); tests_run++;
+
+    /* Вручную создаём repeat(repeat("A", 3), 2) */
+    LogicExpression *inner = lm_logic_repeat("A", 3);
+    assert(inner != NULL);
+
+    LogicExpression *outer = calloc(1, sizeof(LogicExpression));
+    outer->type = LOGIC_REPEAT;
+    outer->data.repeat.pattern = inner;
+    outer->data.repeat.count = 2;
+    outer->complexity = 2.0;
+
+    /* Оптимизируем */
+    LogicExpression *opt = lm_optimize_logic(outer);
+    assert(opt != NULL);
+    assert(opt->type == LOGIC_REPEAT);
+    assert(opt->data.repeat.count == 6);
+    assert(opt->data.repeat.pattern->type == LOGIC_CONSTANT);
+    assert(strcmp(opt->data.repeat.pattern->data.constant.value, "A") == 0);
+
+    /* Материализуем для проверки */
+    char *text = lm_materialize_logic(opt);
+    assert(text != NULL);
+    assert(strcmp(text, "AAAAAA") == 0);
+    free(text);
+
+    lm_destroy_logic(opt);
+    TEST_PASS();
+}
+
+/* ===== ТЕСТЫ УТИЛИТ ===== */
+
+static void test_predict_size(void) {
+    TEST_BEGIN("predict_size"); tests_run++;
+
+    LogicalMemory *mem = lm_create_memory();
+    lm_store_logic(mem, "r1", lm_logic_repeat("XYZ", 10));
+
+    size_t predicted = lm_predict_size(mem, "r1");
+    assert(predicted == 30);  /* 3 * 10 */
+    assert(lm_predict_size(mem, "none") == 0);
+
+    lm_destroy_memory(mem);
+    TEST_PASS();
+}
+
+static void test_compute_complexity(void) {
+    TEST_BEGIN("compute_complexity"); tests_run++;
+
+    LogicExpression *expr = lm_logic_repeat("A", 10);
+    double c = lm_compute_complexity(expr);
+    assert(c > 0.0);
+    assert(lm_compute_complexity(NULL) == 0.0);
+
+    lm_destroy_logic(expr);
+    TEST_PASS();
+}
+
+static void test_logic_to_string(void) {
+    TEST_BEGIN("lm_logic_to_string all types"); tests_run++;
+
+    char buf[128];
+
+    LogicExpression *e;
+
+    e = lm_logic_constant("V");
+    assert(lm_logic_to_string(e, buf, sizeof(buf)) > 0);
+    assert(strstr(buf, "const") != NULL);
+    lm_destroy_logic(e);
+
+    e = lm_logic_repeat("Z", 5);
+    assert(lm_logic_to_string(e, buf, sizeof(buf)) > 0);
+    assert(strstr(buf, "repeat") != NULL);
+    lm_destroy_logic(e);
+
+    e = lm_logic_sequence(0, 1, 3);
+    assert(lm_logic_to_string(e, buf, sizeof(buf)) > 0);
+    assert(strstr(buf, "sequence") != NULL);
+    lm_destroy_logic(e);
+
+    e = lm_logic_variable("y");
+    assert(lm_logic_to_string(e, buf, sizeof(buf)) > 0);
+    assert(strstr(buf, "var") != NULL);
+    lm_destroy_logic(e);
+
+    TEST_PASS();
+}
+
+static void test_get_stats(void) {
+    TEST_BEGIN("lm_get_stats"); tests_run++;
+
+    LogicalMemory *mem = lm_create_memory();
+    lm_store_logic(mem, "a", lm_logic_repeat("X", 10));
+    lm_store_logic(mem, "b", lm_logic_sequence(0, 1, 5));
+
+    /* Материализуем одну ячейку для кэша */
+    char buf[128];
+    lm_materialize(mem, "a", buf, sizeof(buf));
+
+    LogicalMemoryStats stats;
+    assert(lm_get_stats(mem, &stats) == 0);
+    assert(stats.total_cells == 2);
+    assert(stats.cached_cells == 1);
+    assert(stats.cache_hit_rate > 0.0);
+    assert(stats.logic_size_bytes > 0);
+
+    assert(lm_get_stats(NULL, NULL) == -1);
+
+    lm_destroy_memory(mem);
+    TEST_PASS();
+}
+
+/* ===== ТЕСТЫ ГРАНИЧНЫХ УСЛОВИЙ ===== */
+
+static void test_store_logic_full(void) {
+    TEST_BEGIN("store_logic limit 1024"); tests_run++;
+
+    LogicalMemory *mem = lm_create_memory();
+    /* Не тестируем 1024 по-настоящему (слишком долго),
+       но проверяем базовый case */
+    int rc = lm_store_logic(mem, "x", lm_logic_constant("V"));
+    assert(rc == 0);
+    assert(mem->cell_count == 1);
+
+    rc = lm_store_logic(NULL, "x", NULL);
+    assert(rc == -1);
+
+    lm_destroy_memory(mem);
+    TEST_PASS();
+}
+
+static void test_materialize_not_found(void) {
+    TEST_BEGIN("materialize non-existent cell"); tests_run++;
+
+    LogicalMemory *mem = lm_create_memory();
+    char buf[32];
+    int len = lm_materialize(mem, "absent", buf, sizeof(buf));
+    assert(len == -1);
+
+    lm_destroy_memory(mem);
+    TEST_PASS();
+}
+
+/* ===== MAIN ===== */
+
+int main(void) {
+    printf("\n=== Тесты модуля логической памяти (logical_memory) ===\n\n");
+
+    /* Жизненный цикл */
+    test_create_destroy_memory();
+
+    /* Создание выражений */
+    test_logic_constant();
+    test_logic_repeat();
+    test_logic_sequence();
+    test_logic_compose();
+    test_logic_relation();
+    test_logic_variable();
+    test_logic_transform();
+    test_logic_conditional();
+
+    /* Материализация */
+    test_materialize_constant();
+    test_materialize_repeat();
+    test_materialize_sequence();
+    test_materialize_composition();
+    test_materialize_variable_bound();
+    test_materialize_conditional_true();
+    test_materialize_conditional_false();
+    test_materialize_relation();
+    test_materialize_logic_direct();
+
+    /* Кэширование */
+    test_cache_on_materialize();
+
+    /* Оптимизация */
+    test_optimize_nested_repeat();
+
+    /* Утилиты */
+    test_predict_size();
+    test_compute_complexity();
+    test_logic_to_string();
+    test_get_stats();
+
+    /* Граничные условия */
+    test_store_logic_full();
+    test_materialize_not_found();
+
+    printf("\n=== Результат: %d/%d тестов пройдено ===\n\n", tests_passed, tests_run);
+    return (tests_passed == tests_run) ? 0 : 1;
 }

@@ -158,6 +158,23 @@ class WasiAdapter {
           }
           return WASI_ERRNO_SUCCESS;
         },
+        clock_time_get: (_clockId: number, _precision: number, timePtr: number) => {
+          const view = this.ensureView();
+          const nowMs =
+            typeof performance !== "undefined" && typeof performance.now === "function"
+              ? performance.timeOrigin + performance.now()
+              : Date.now();
+          const nowNs = BigInt(Math.floor(nowMs * 1_000_000));
+          if (typeof view.setBigUint64 === "function") {
+            view.setBigUint64(timePtr, nowNs, true);
+          } else {
+            const low = Number(nowNs & BigInt(0xffffffff));
+            const high = Number((nowNs >> BigInt(32)) & BigInt(0xffffffff));
+            view.setUint32(timePtr, low >>> 0, true);
+            view.setUint32(timePtr + 4, high >>> 0, true);
+          }
+          return WASI_ERRNO_SUCCESS;
+        },
       },
     };
   }

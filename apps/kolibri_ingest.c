@@ -1,161 +1,192 @@
 /*
- * Kolibri Ingestion Engine
- * Step 1: Data Ingestion & Normalization
- * 
- * Implements:
- * - Density Check: TextBytes / TotalBytes > 0.6
- * - Normalization: UTF-8 -> Decimal Stream
- * - Segmentation: Line/Paragraph splitting
+ * Kolibri Ingest - Knowledge Regression Engine
+ * Реализует принцип "True AI": Сжатие данных через поиск порождающей формулы (Регрессия).
+ * Update: Supports Token-based regression (Embeddings) and Hyper-Evolution.
  */
 
-#include "kolibri/corpus.h"
-#include "kolibri/digit_text.h"
+#include "kolibri/formula.h"
+#include "kolibri/genome.h"
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <ctype.h>
-#include <sys/stat.h>
 
-// --- Configuration ---
-#define DENSITY_THRESHOLD 0.6
-#define WINDOW_SIZE 1024
-#define BUFFER_SIZE 65536
+#define BUFFER_SIZE 512 * 1024 
+#define MAX_TOKENS 2048
 
-// --- Stats ---
-typedef struct {
-    size_t files_processed;
-    size_t bytes_ingested;
-    size_t bytes_kept;
-    size_t segments_created;
-} IngestStats;
+static const unsigned char INGEST_KEY[] = "kolibri-secret-key";
 
-IngestStats global_stats = {0};
-
-// --- Density Logic ---
-
-int is_text_char(unsigned char c) {
-    // Basic heuristic: common text ranges, excluding control chars (except \n, \t)
-    if (c == 0x09 || c == 0x0A || c == 0x0D) return 1;
-    if (c >= 0x20 && c <= 0x7E) return 1; // ASCII printable
-    if (c >= 0xC0) return 1; // UTF-8 start bytes
-    // (Ignoring continuation bytes for density calculation for simplicity, 
-    // or counting them as valid part of text if we assume valid UTF-8 input)
-    return 0;
-}
-
-double calculate_density(const char *buffer, size_t length) {
-    size_t text_bytes = 0;
-    for (size_t i = 0; i < length; i++) {
-        if (is_text_char((unsigned char)buffer[i])) {
-            text_bytes++;
+// Simple tokenizer: Splits text into integer hashes (Vector Approximation)
+int tokenize(char *text, int *tokens, size_t max_tokens) {
+    size_t count = 0;
+    char *ptr = text;
+    while (*ptr && count < max_tokens) {
+        // Skip whitespace
+        while (*ptr && isspace((unsigned char)*ptr)) ptr++;
+        if (!*ptr) break;
+        
+        // Find word end
+        char *start = ptr;
+        while (*ptr && !isspace((unsigned char)*ptr)) ptr++;
+        
+        // Hash the word (Simple DJB2/FNV mix)
+        unsigned long hash = 5381;
+        for (char *c = start; c < ptr; c++) {
+            hash = ((hash << 5) + hash) + *c; /* hash * 33 + c */
         }
+        
+        // Map to 0-1000 range for regression stability
+        tokens[count++] = (int)(hash % 1000); // Token ID
     }
-    return (double)text_bytes / (double)length;
+    return count;
 }
 
-// --- Source Processing ---
-
-void process_buffer(const char *buffer, size_t length, FILE *output_stream) {
-    // Sliding window density check would be here. 
-    // For this prototype, we check the whole block if it's small, 
-    // or chunks of WINDOW_SIZE.
+void process_block_regression(char *url, char *data) {
+    size_t data_len = strlen(data);
+    int tokens[MAX_TOKENS];
+    int token_count = tokenize(data, tokens, MAX_TOKENS);
     
-    size_t processed = 0;
-    while (processed < length) {
-        size_t chunk_size = (length - processed > WINDOW_SIZE) ? WINDOW_SIZE : (length - processed);
-        double density = calculate_density(buffer + processed, chunk_size);
-        
-        if (density > DENSITY_THRESHOLD) {
-            // Valid text block -> Normalize and Store
-            
-            // 1. Segmentation (Split by newline for now)
-            // Real implementation would have smarter segmentation
-            
-            // Create a temporary null-terminated string for the chunk to parse lines
-            char *chunk_copy = (char*)malloc(chunk_size + 1);
-            memcpy(chunk_copy, buffer + processed, chunk_size);
-            chunk_copy[chunk_size] = '\0';
-            
-            char *line = strtok(chunk_copy, "\n");
-            while (line != NULL) {
-                if (strlen(line) > 10) { // Ignore minimal lines
-                    KolibriDigitText digit_text;
-                    kolibri_digit_text_init(&digit_text);
-                    
-                    // 2. Normalization (UTF-8 -> Decimal)
-                    if (kolibri_digit_text_assign_utf8(&digit_text, line) == 0) {
-                        // 3. Storage (Write to output stream in raw decimal format)
-                        // Format: [Length:4b][Digits...]
-                        uint32_t len = (uint32_t)digit_text.length;
-                        fwrite(&len, sizeof(uint32_t), 1, output_stream);
-                        fwrite(digit_text.digits, 1, len, output_stream);
-                        
-                        global_stats.bytes_kept += len; // In decimal space
-                        global_stats.segments_created++;
-                    }
-                    
-                    kolibri_digit_text_free(&digit_text);
-                }
-                line = strtok(NULL, "\n");
-            }
-            free(chunk_copy);
-        }
-        
-        processed += chunk_size;
-    }
-}
+    // Safety clamp
+    if (token_count == 0 || token_count > 64) token_count = (token_count > 64) ? 64 : token_count;
+    
+    printf("\n[Ingest] === Запуск Регрессии (Neural Embeddings) для: %s ===\n", url);
+    printf("[Ingest] Вход: %zu байт -> %d токенов (Vectors). Цель: 1,000,000 поколений.\n", data_len, token_count);
 
-void process_file(const char *filepath, FILE *output_stream) {
-    FILE *f = fopen(filepath, "rb");
-    if (!f) {
-        fprintf(stderr, "Failed to open: %s\n", filepath);
+    KolibriFormulaPool *pool = malloc(sizeof(KolibriFormulaPool));
+    if (!pool) {
+        printf("[Error] Out of memory.\n");
         return;
     }
+    kf_pool_init(pool, 0xDEADC0DE); 
+
+    // Load Token Embeddings as X->Y examples
+    // f(index) -> token_id
+    for (int i = 0; i < token_count; i++) {
+        kf_pool_add_example(pool, i, tokens[i]);
+    }
+
+    printf("[DeepThink] Запуск гипер-эволюции (Adaptive epochs)...\n");
     
-    char buffer[BUFFER_SIZE];
-    size_t read_bytes;
-    while ((read_bytes = fread(buffer, 1, BUFFER_SIZE, f)) > 0) {
-        process_buffer(buffer, read_bytes, output_stream);
-        global_stats.bytes_ingested += read_bytes;
+    // Hyper-Evolution Loop
+    // We run based on env var, allowing fast/deep modes
+    const char* gens_env = getenv("KOLIBRI_GENS");
+    int MAX_GENS = gens_env ? atoi(gens_env) : 1000000;
+    if (MAX_GENS <= 0) MAX_GENS = 5000;
+    
+    printf("[Ingest] Configured Max Generations: %d\n", MAX_GENS);
+
+    const int BATCH_SIZE = 10;
+    
+    for(int g=0; g<MAX_GENS; g+=BATCH_SIZE) {
+        kf_pool_tick(pool, BATCH_SIZE);
+        const KolibriFormula *b = kf_pool_best(pool);
+        
+        if (g % 100 == 0 || g == 0) {
+           printf("   Epoch %d/%d: Loss %.6f [Primitive signatures: %d]\r", 
+                  g, MAX_GENS, (b ? 1.0 - b->fitness : 1.0), (b && b->gene.length > 0 ? b->gene.digits[0] : 0));
+           fflush(stdout);
+        }
+        
+        // Early stopping for speed on mass scale
+        if (b && b->fitness > 0.99) {
+            printf("   [Converged] Loss < 0.01 at epoch %d. Stopping.\n", g);
+            break;
+        }
+    }
+
+    const KolibriFormula *best = kf_pool_best(pool);
+
+    const char *min_fit_env = getenv("KOLIBRI_MIN_FITNESS");
+    double min_fitness = min_fit_env ? atof(min_fit_env) : 0.1;
+    if (min_fitness < 0.0) min_fitness = 0.0;
+    if (min_fitness > 0.99) min_fitness = 0.99;
+    
+    if (best && best->fitness > min_fitness) {
+        size_t gene_size = best->gene.length > 0 ? best->gene.length : 32; 
+        
+        printf("[Success] Семантическая формула найдена!\n");
+        printf("   Knowledge Gene Size: %zu bytes\n", gene_size);
+
+        // Verify matches (Prediction vs Reality)
+        printf("[Verify] Предсказанные векторы (Tokens):\n   [");
+        int matches = 0;
+        for(int i=0; i<token_count && i < 20; i++) {
+            int val;
+            kf_formula_apply(best, i, &val);
+            printf("%d", val);
+            if (val == tokens[i]) matches++;
+            if (i < token_count - 1) printf(" ");
+        }
+        printf("...]\n");
+        printf("   [Accuracy]: %.1f%% on semantic tokens\n", (double)matches*100.0/token_count);
+        
+        // --- СОХРАНЕНИЕ В ГЕНОМ ---
+        // Support Sharding for Swarm Mode
+        const char *genome_path = getenv("KOLIBRI_GENOME_PATH");
+        if (!genome_path) genome_path = "genome.dat";
+        
+        KolibriGenome ctx;
+        if (kg_open(&ctx, genome_path, INGEST_KEY, strlen((char*)INGEST_KEY)) == 0) {
+            
+            char raw_payload[256];
+            int written = snprintf(raw_payload, sizeof(raw_payload), "U:%s|G:", url);
+            
+            size_t max_gene_chars = 40; 
+            for (size_t i=0; i<gene_size && i<max_gene_chars; i++) {
+                if (written >= sizeof(raw_payload)-1) break;
+                written += snprintf(raw_payload+written, sizeof(raw_payload)-written, "%d", best->gene.digits[i]);
+            }
+            
+            char numeric_payload[KOLIBRI_PAYLOAD_SIZE];
+            if (kg_encode_payload(raw_payload, numeric_payload, sizeof(numeric_payload)) == 0) {
+                 if (kg_append(&ctx, "DEEP_L", numeric_payload, NULL) == 0) {
+                     printf("[Persist] Знание (векторы) сохранено.\n");
+                 }
+            }
+            kg_close(&ctx);
+        }
+    } else {
+        printf("[Failure] Формула не сошлась.\n");
     }
     
-    fclose(f);
-    global_stats.files_processed++;
-    printf("Processed: %s\n", filepath);
+    free(pool);
 }
 
-// --- Main ---
-
 int main(int argc, char **argv) {
-    if (argc < 3) {
-        printf("Usage: %s <output_file> <input_file1> [input_file2 ...]\n", argv[0]);
-        printf("  Processes input files, filters by density, and writes normalized decimal stream to output.\n");
-        return 1;
+    char line[BUFFER_SIZE];
+    char current_url[1024];
+    char *content_buffer = malloc(BUFFER_SIZE); 
+    if (!content_buffer) return 1;
+    content_buffer[0] = '\0';
+    
+    setvbuf(stdout, NULL, _IONBF, 0);
+    
+    printf("Kolibri Ingest: Online. Mode: Hyper-Regression (Tokens).\n");
+
+    while (fgets(line, sizeof(line), stdin)) {
+        size_t ln = strlen(line);
+        if (ln > 0 && line[ln-1] == '\n') line[ln-1] = '\0';
+
+        if (strncmp(line, "URL:", 4) == 0) {
+            strncpy(current_url, line + 4, sizeof(current_url)-1);
+            current_url[sizeof(current_url)-1] = '\0';
+            content_buffer[0] = '\0'; 
+        } else if (strncmp(line, "DATA:", 5) == 0) {
+            strncat(content_buffer, line + 5, BUFFER_SIZE - strlen(content_buffer) - 1);
+        } else if (strncmp(line, "END_DATA", 8) == 0) {
+            if (strlen(content_buffer) > 0) {
+                process_block_regression(current_url, content_buffer);
+                content_buffer[0] = '\0';
+            }
+        } else {
+             if (strlen(content_buffer) + ln < BUFFER_SIZE - 1) {
+                strncat(content_buffer, " ", BUFFER_SIZE - strlen(content_buffer) - 1); // Replace newlines with space for tokenization
+                strncat(content_buffer, line, BUFFER_SIZE - strlen(content_buffer) - 1);
+            }
+        }
     }
-    
-    const char *output_path = argv[1];
-    FILE *out = fopen(output_path, "wb");
-    if (!out) {
-        fprintf(stderr, "Cannot open output file: %s\n", output_path);
-        return 1;
-    }
-    
-    // Write Header
-    // "KOLIBRI_RAW_V1"
-    fwrite("KOLIBRI_RAW_V1", 1, 14, out);
-    
-    for (int i = 2; i < argc; i++) {
-        process_file(argv[i], out);
-    }
-    
-    fclose(out);
-    
-    printf("\n=== Ingestion Complete ===\n");
-    printf("Files Processed:  %zu\n", global_stats.files_processed);
-    printf("Bytes Ingested:   %zu\n", global_stats.bytes_ingested);
-    printf("Segments Saved:   %zu\n", global_stats.segments_created);
-    printf("Decimal Bytes:    %zu\n", global_stats.bytes_kept);
-    
+
+    free(content_buffer);
     return 0;
 }

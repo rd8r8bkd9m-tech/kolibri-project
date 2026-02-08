@@ -40,6 +40,31 @@ def classify(path: Path, data: bytes) -> str:
         return "image"
     return "binary"
 
+
+def recommend_path(file_class: str, entropy: float, size: int) -> str:
+    """Рекомендует путь обработки на основе анализа спектра."""
+    # Низкая энтропия = хорошо сжимается
+    if entropy < 4.0:
+        compression = "rle_meta"  # RLE для повторяющихся данных
+    elif entropy < 6.0:
+        compression = "dictionary"  # Словарный для структурированных
+    else:
+        compression = "hybrid"  # Гибридный для высокой энтропии
+    
+    # Путь обработки на основе типа
+    if file_class == "code":
+        return f"ast_parse → {compression} → knowledge_graph"
+    elif file_class == "docs":
+        return f"markdown_parse → {compression} → reason_blocks"
+    elif file_class == "kolibriscript":
+        return f"ks_compile → genome_ledger"
+    elif file_class == "data":
+        return f"json_schema → {compression} → residual_store"
+    elif file_class == "image":
+        return f"vision_encode → {compression} → multimodal_index"
+    else:
+        return f"binary_chunk → {compression} → residual_store"
+
 def iter_files(roots: Iterable[Path]) -> Iterable[Path]:
     for root in roots:
         if root.is_file():
@@ -57,12 +82,14 @@ def fingerprint(paths: Iterable[Path]) -> list[dict]:
             continue
         sha = hashlib.sha256(data).hexdigest()
         entropy = calc_entropy(data)
+        file_class = classify(path, data)
         profile = {
             "path": str(path),
             "sha256": sha,
             "entropy": entropy,
             "bytes": len(data),
-            "class": classify(path, data),
+            "class": file_class,
+            "recommended_path": recommend_path(file_class, entropy, len(data)),
         }
         results.append(profile)
     return results

@@ -94,12 +94,13 @@ static void test_multilevel_compression(void) {
         generate_text(i, text, sizeof(text));
         total_text_size += strlen(text);
         
-        KolibriFormula dummy;
-        memset(&dummy, 0, sizeof(dummy));
-        double result = k_gen_compress_text(&ctx_level1, text, &dummy);
+        KolibriFormula *dummy = malloc(sizeof(KolibriFormula));
+        memset(dummy, 0, sizeof(KolibriFormula));
+        double result = k_gen_compress_text(&ctx_level1, text, dummy);
         
         if (result < 0) {
             printf("  ОШИБКА при сжатии текста %zu\n", i);
+            free(dummy);
             break;
         }
         
@@ -109,6 +110,7 @@ static void test_multilevel_compression(void) {
                    total_text_size / (1024.0 * 1024.0),
                    ctx_level1.formula_pool->association_count);
         }
+        free(dummy);
     }
     
     printf("\nФинализация уровня 1...\n");
@@ -130,7 +132,7 @@ static void test_multilevel_compression(void) {
     }
     
     /* Копируем формулы для уровня 2 */
-    KolibriFormula base_formulas[5];
+    KolibriFormula *base_formulas = calloc(5, sizeof(KolibriFormula));
     size_t base_formula_count = 0;
     
     base_formulas[0] = *level1_best;
@@ -180,12 +182,12 @@ static void test_multilevel_compression(void) {
         return;
     }
     
-    KolibriFormula meta_formula;
-    memset(&meta_formula, 0, sizeof(meta_formula));
+    KolibriFormula *meta_formula = malloc(sizeof(KolibriFormula));
+    memset(meta_formula, 0, sizeof(KolibriFormula));
     
     size_t level2_compressed = 0;
     for (size_t i = 0; i < base_formula_count; i++) {
-        int result = k_gen_compress_formula(&ctx_level2, &base_formulas[i], &meta_formula);
+        int result = k_gen_compress_formula(&ctx_level2, &base_formulas[i], meta_formula);
         if (result == 0) {
             level2_compressed++;
             printf("  [%2zu] Формула сжата успешно\n", i + 1);
@@ -324,6 +326,8 @@ static void test_multilevel_compression(void) {
     k_gen_free(&ctx_level2);
     k_corpus_free(&corpus);
     k_corpus_free(&corpus2);
+    free(base_formulas);
+    free(meta_formula);
     
     print_separator("ТЕСТ ПРОЙДЕН ✓");
 }

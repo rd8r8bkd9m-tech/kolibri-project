@@ -16,13 +16,13 @@
 #include <string.h>
 
 #define KOLIBRI_FORMULA_CAPACITY (sizeof(((KolibriFormulaPool *)0)->formulas) / sizeof(KolibriFormula))
-#define KOLIBRI_DIGIT_MAX 9U
+#define KOLIBRI_DIGIT_MAX 11U
 #define KOLIBRI_ASSOC_TEXT_LIMIT (sizeof(((KolibriAssociation *)0)->question))
 
 /* ---------------------------- Утилиты ----------------------------- */
 
 static uint8_t random_digit(KolibriFormulaPool *pool) {
-    return (uint8_t)(k_rng_next(&pool->rng) % 10ULL);
+    return (uint8_t)(k_rng_next(&pool->rng) % 12ULL);
 }
 
 static void gene_randomize(KolibriFormulaPool *pool, KolibriGene *gene) {
@@ -301,18 +301,46 @@ static int formula_predict_numeric(const KolibriFormula *formula, int input, int
         case 0: result = (long long)slope * (long long)current_val + bias; break;
         case 1: result = (long long)slope * (long long)current_val - bias; break;
         case 2: {
-            long long divisor = auxiliary == 0 ? 1 : auxiliary;
+            long long divisor = auxiliary == 0 ? 1 : (long long)auxiliary;
+            if (divisor < 0) divisor = -divisor;
+            if (divisor == 0) divisor = 1;
             result = ((long long)slope * (long long)current_val) % divisor;
             result += bias;
             break;
         }
-        case 3: result = (long long)slope * (long long)current_val * (long long)current_val + bias; break;
+        case 3: {
+            /* Защита от переполнения при возведении в квадрат */
+            double d_val = (double)current_val;
+            double d_res = (double)slope * d_val * d_val + (double)bias;
+            if (d_res > 1000000000.0) d_res = 1000000000.0;
+            if (d_res < -1000000000.0) d_res = -1000000000.0;
+            result = (long long)d_res;
+            break;
+        }
         case 4: result = (current_val ^ auxiliary) + bias; break;
         case 5: result = (current_val & slope) + bias; break;
         case 6: result = (long long)(sin((double)current_val / 256.0) * (double)slope * 10.0) + bias; break;
-        case 7: result = (long long)((double)slope * 100.0 * (double)current_val / (1.0 + fabs((double)current_val))) + bias; break;
+        case 7: {
+            double denom = 1.0 + fabs((double)current_val);
+            result = (long long)((double)slope * 100.0 * (double)current_val / denom) + bias; 
+            break;
+        }
         case 8: result = (current_val | slope) - auxiliary; break;
-        case 9: result = (long long)((double)slope * (double)current_val * exp(-(double)(current_val * current_val) / 1000000.0)) + bias; break;
+        case 9: {
+            double arg = -(double)current_val * (double)current_val / 1000000.0;
+            if (arg < -50.0) arg = -50.0; /* Защита exp от underflow */
+            result = (long long)((double)slope * (double)current_val * exp(arg)) + bias; 
+            break;
+        }
+        case 10: /* Tanh Activation */
+            result = (long long)(tanh((double)current_val / 100.0) * (double)slope * 100.0) + bias; 
+            break;
+        case 11: { /* Sigmoid-like Logistic */
+            double arg = -(double)current_val / 100.0;
+            if (arg > 50.0) arg = 50.0; /* Защита exp от overflow */
+            result = (long long)((1.0 / (1.0 + exp(arg))) * (double)slope * 100.0) + bias; 
+            break;
+        }
         default: result = (current_val + bias) ^ slope; break;
         }
 
@@ -332,9 +360,13 @@ static double complexity_penalty(const KolibriGene *gene) {
         if (gene->digits[i] == 0) {
             continue;
         }
-        penalty += 0.001 * (double)(gene->digits[i]);
+        penalty += (double)(gene->digits[i]);
     }
-    return penalty;
+    /* Нормализация по длине генома — штраф не зависит от размера */
+    if (gene->length > 0) {
+        penalty = penalty / (double)gene->length;
+    }
+    return penalty * 0.01;
 }
 
 static double evaluate_formula_numeric(const KolibriFormula *formula, const KolibriFormulaPool *pool) {
@@ -387,9 +419,13 @@ static void mutate_gene(KolibriFormulaPool *pool, KolibriGene *gene) {
     if (!gene) {
         return;
     }
-    size_t index = (size_t)(k_rng_next(&pool->rng) % gene->length);
-    uint8_t delta = random_digit(pool);
-    gene->digits[index] = delta;
+    /* Адаптивная мультимутация: ~3% цифр генома, мин 1 */
+    size_t mutations = gene->length / 32U;
+    if (mutations == 0) mutations = 1;
+    for (size_t m = 0; m < mutations; ++m) {
+        size_t index = (size_t)(k_rng_next(&pool->rng) % gene->length);
+        gene->digits[index] = random_digit(pool);
+    }
 }
 
 static void crossover(KolibriFormulaPool *pool, const KolibriGene *parent_a, const KolibriGene *parent_b, KolibriGene *child) {
@@ -470,6 +506,10 @@ void kf_pool_init(KolibriFormulaPool *pool, uint64_t seed) {
     pool->count = KOLIBRI_FORMULA_CAPACITY;
     k_rng_seed(&pool->rng, seed);
     
+    /* Инициализация эволюционного реактора */
+    kf_config_default(&pool->config);
+    kf_pool_reset_metrics(pool);
+    
     pool->examples_capacity = 1000;
     pool->inputs = (int *)malloc(pool->examples_capacity * sizeof(int));
     pool->targets = (int *)malloc(pool->examples_capacity * sizeof(int));
@@ -525,6 +565,21 @@ int kf_pool_add_example(KolibriFormulaPool *pool, int input, int target) {
     return 0;
 }
 
+int kf_pool_ensure_association_capacity(KolibriFormulaPool *pool, size_t count) {
+    if (!pool) return -1;
+    if (count <= pool->association_capacity) return 0;
+    
+    size_t new_cap = pool->association_capacity ? pool->association_capacity : 1000;
+    while (new_cap < count) new_cap *= 2;
+    
+    KolibriAssociation *new_assoc = (KolibriAssociation *)realloc(pool->associations, new_cap * sizeof(KolibriAssociation));
+    if (!new_assoc) return -1;
+    
+    pool->associations = new_assoc;
+    pool->association_capacity = new_cap;
+    return 0;
+}
+
 int kf_pool_add_association(KolibriFormulaPool *pool,
                             KolibriSymbolTable *symbols,
                             const char *question,
@@ -546,12 +601,8 @@ int kf_pool_add_association(KolibriFormulaPool *pool,
         }
     }
 
-    if (pool->association_count >= pool->association_capacity) {
-        size_t new_cap = pool->association_capacity * 2;
-        KolibriAssociation *new_assoc = (KolibriAssociation *)realloc(pool->associations, new_cap * sizeof(KolibriAssociation));
-        if (!new_assoc) return -1;
-        pool->associations = new_assoc;
-        pool->association_capacity = new_cap;
+    if (kf_pool_ensure_association_capacity(pool, pool->association_count + 1) != 0) {
+        return -1;
     }
 
     pool->associations[pool->association_count++] = assoc;
@@ -672,14 +723,16 @@ static size_t encode_associations_digits(const KolibriFormula *formula, uint8_t 
 }
 
 size_t kf_formula_digits(const KolibriFormula *formula, uint8_t *out, size_t out_len) {
-    if (!formula || !out) {
+    if (!formula || !out || out_len == 0) {
         return 0;
     }
-    size_t written = 0;
-    if (formula->gene.length <= out_len) {
-        memcpy(out, formula->gene.digits, formula->gene.length);
-        written = formula->gene.length;
+    /* Копируем столько цифр генома, сколько вмещает буфер */
+    size_t copy_len = formula->gene.length;
+    if (copy_len > out_len) {
+        copy_len = out_len;
     }
+    memcpy(out, formula->gene.digits, copy_len);
+    size_t written = copy_len;
     size_t remaining = out_len - written;
     if (remaining > 32 && formula->association_count > 0) {
         written += encode_associations_digits(formula, out + written, remaining);
@@ -789,4 +842,367 @@ int kf_pool_feedback(KolibriFormulaPool *pool, const KolibriGene *gene, double d
         return 0;
     }
     return -1;
+}
+
+/* ============================================================================
+ * Эволюционный реактор - реализация
+ * ============================================================================ */
+
+void kf_config_default(KolibriEvolutionConfig *config) {
+    if (!config) {
+        return;
+    }
+    config->mutation_rate = 0.1;
+    config->mutation_strength = 1.0;
+    config->mutation_type = KOLIBRI_MUTATION_POINT;
+    config->crossover_rate = 0.7;
+    config->crossover_type = KOLIBRI_CROSSOVER_SINGLE_POINT;
+    config->elite_ratio = 0.33;
+    config->tournament_size = 0.25;
+    config->generations_per_tick = 1;
+    config->adaptive_mutation = 0;
+}
+
+int kf_pool_set_config(KolibriFormulaPool *pool, const KolibriEvolutionConfig *config) {
+    if (!pool || !config) {
+        return -1;
+    }
+    pool->config = *config;
+    return 0;
+}
+
+int kf_pool_get_config(const KolibriFormulaPool *pool, KolibriEvolutionConfig *config) {
+    if (!pool || !config) {
+        return -1;
+    }
+    *config = pool->config;
+    return 0;
+}
+
+int kf_pool_get_metrics(const KolibriFormulaPool *pool, KolibriEvolutionMetrics *metrics) {
+    if (!pool || !metrics) {
+        return -1;
+    }
+    *metrics = pool->metrics;
+    return 0;
+}
+
+void kf_pool_reset_metrics(KolibriFormulaPool *pool) {
+    if (!pool) {
+        return;
+    }
+    memset(&pool->metrics, 0, sizeof(pool->metrics));
+    pool->prev_best_fitness = 0.0;
+}
+
+/* Мутация типа SWAP - обмен двух позиций */
+static void mutate_swap(KolibriFormulaPool *pool, KolibriGene *gene) {
+    if (!gene || gene->length < 2) {
+        return;
+    }
+    size_t i = (size_t)(k_rng_next(&pool->rng) % gene->length);
+    size_t j = (size_t)(k_rng_next(&pool->rng) % gene->length);
+    uint8_t tmp = gene->digits[i];
+    gene->digits[i] = gene->digits[j];
+    gene->digits[j] = tmp;
+}
+
+/* Мутация типа INVERT - инверсия сегмента */
+static void mutate_invert(KolibriFormulaPool *pool, KolibriGene *gene) {
+    if (!gene || gene->length < 2) {
+        return;
+    }
+    size_t start = (size_t)(k_rng_next(&pool->rng) % gene->length);
+    size_t end = (size_t)(k_rng_next(&pool->rng) % gene->length);
+    if (start > end) {
+        size_t tmp = start;
+        start = end;
+        end = tmp;
+    }
+    while (start < end) {
+        uint8_t tmp = gene->digits[start];
+        gene->digits[start] = gene->digits[end];
+        gene->digits[end] = tmp;
+        start++;
+        end--;
+    }
+}
+
+/* Мутация типа SCRAMBLE - перемешивание сегмента */
+static void mutate_scramble(KolibriFormulaPool *pool, KolibriGene *gene) {
+    if (!gene || gene->length < 2) {
+        return;
+    }
+    size_t start = (size_t)(k_rng_next(&pool->rng) % gene->length);
+    size_t len = (size_t)(k_rng_next(&pool->rng) % (gene->length / 4 + 1)) + 2;
+    if (start + len > gene->length) {
+        len = gene->length - start;
+    }
+    for (size_t i = 0; i < len; i++) {
+        size_t j = (size_t)(k_rng_next(&pool->rng) % len);
+        uint8_t tmp = gene->digits[start + i];
+        gene->digits[start + i] = gene->digits[start + j];
+        gene->digits[start + j] = tmp;
+    }
+}
+
+/* Мутация типа SHIFT - сдвиг цифр */
+static void mutate_shift(KolibriFormulaPool *pool, KolibriGene *gene) {
+    if (!gene || gene->length < 2) {
+        return;
+    }
+    int direction = (k_rng_next(&pool->rng) % 2) ? 1 : -1;
+    size_t shift = (size_t)(k_rng_next(&pool->rng) % 8) + 1;
+    
+    if (direction > 0) {
+        /* Сдвиг вправо */
+        for (size_t s = 0; s < shift; s++) {
+            uint8_t last = gene->digits[gene->length - 1];
+            for (size_t i = gene->length - 1; i > 0; i--) {
+                gene->digits[i] = gene->digits[i - 1];
+            }
+            gene->digits[0] = last;
+        }
+    } else {
+        /* Сдвиг влево */
+        for (size_t s = 0; s < shift; s++) {
+            uint8_t first = gene->digits[0];
+            for (size_t i = 0; i < gene->length - 1; i++) {
+                gene->digits[i] = gene->digits[i + 1];
+            }
+            gene->digits[gene->length - 1] = first;
+        }
+    }
+}
+
+/* Расширенная мутация с учётом типа */
+static void mutate_gene_advanced(KolibriFormulaPool *pool, KolibriGene *gene) {
+    if (!gene) {
+        return;
+    }
+    
+    /* Применяем мутацию в зависимости от настроенного типа */
+    switch (pool->config.mutation_type) {
+        case KOLIBRI_MUTATION_SWAP:
+            mutate_swap(pool, gene);
+            break;
+        case KOLIBRI_MUTATION_INVERT:
+            mutate_invert(pool, gene);
+            break;
+        case KOLIBRI_MUTATION_SCRAMBLE:
+            mutate_scramble(pool, gene);
+            break;
+        case KOLIBRI_MUTATION_SHIFT:
+            mutate_shift(pool, gene);
+            break;
+        case KOLIBRI_MUTATION_POINT:
+        default:
+            mutate_gene(pool, gene);
+            break;
+    }
+    
+    /* Применяем дополнительные мутации согласно mutation_strength */
+    int extra_mutations = (int)(pool->config.mutation_strength) - 1;
+    for (int i = 0; i < extra_mutations; i++) {
+        size_t index = (size_t)(k_rng_next(&pool->rng) % gene->length);
+        gene->digits[index] = random_digit(pool);
+    }
+    
+    pool->metrics.total_mutations++;
+}
+
+/* Двухточечный кроссовер */
+static void crossover_two_point(KolibriFormulaPool *pool, 
+                                const KolibriGene *parent_a, 
+                                const KolibriGene *parent_b, 
+                                KolibriGene *child) {
+    if (!parent_a || !parent_b || !child) {
+        return;
+    }
+    size_t point1 = (size_t)(k_rng_next(&pool->rng) % parent_a->length);
+    size_t point2 = (size_t)(k_rng_next(&pool->rng) % parent_a->length);
+    if (point1 > point2) {
+        size_t tmp = point1;
+        point1 = point2;
+        point2 = tmp;
+    }
+    
+    child->length = parent_a->length;
+    for (size_t i = 0; i < child->length; ++i) {
+        if (i < point1 || i >= point2) {
+            child->digits[i] = parent_a->digits[i];
+        } else {
+            child->digits[i] = parent_b->digits[i];
+        }
+    }
+}
+
+/* Равномерный кроссовер */
+static void crossover_uniform(KolibriFormulaPool *pool,
+                              const KolibriGene *parent_a,
+                              const KolibriGene *parent_b,
+                              KolibriGene *child) {
+    if (!parent_a || !parent_b || !child) {
+        return;
+    }
+    child->length = parent_a->length;
+    for (size_t i = 0; i < child->length; ++i) {
+        if (k_rng_next(&pool->rng) % 2) {
+            child->digits[i] = parent_a->digits[i];
+        } else {
+            child->digits[i] = parent_b->digits[i];
+        }
+    }
+}
+
+/* Расширенный кроссовер с учётом типа */
+static void crossover_advanced(KolibriFormulaPool *pool,
+                               const KolibriGene *parent_a,
+                               const KolibriGene *parent_b,
+                               KolibriGene *child) {
+    switch (pool->config.crossover_type) {
+        case KOLIBRI_CROSSOVER_TWO_POINT:
+            crossover_two_point(pool, parent_a, parent_b, child);
+            break;
+        case KOLIBRI_CROSSOVER_UNIFORM:
+            crossover_uniform(pool, parent_a, parent_b, child);
+            break;
+        case KOLIBRI_CROSSOVER_SINGLE_POINT:
+        default:
+            crossover(pool, parent_a, parent_b, child);
+            break;
+    }
+}
+
+/* Обновление метрик после поколения */
+static void update_metrics(KolibriFormulaPool *pool, double prev_best) {
+    pool->metrics.total_generations++;
+    
+    /* Вычисляем статистику fitness */
+    double sum = 0.0;
+    double best = 0.0;
+    for (size_t i = 0; i < pool->count; i++) {
+        sum += pool->formulas[i].fitness;
+        if (pool->formulas[i].fitness > best) {
+            best = pool->formulas[i].fitness;
+        }
+    }
+    pool->metrics.best_fitness = best;
+    pool->metrics.avg_fitness = sum / (double)pool->count;
+    
+    /* Дисперсия */
+    double var_sum = 0.0;
+    for (size_t i = 0; i < pool->count; i++) {
+        double diff = pool->formulas[i].fitness - pool->metrics.avg_fitness;
+        var_sum += diff * diff;
+    }
+    pool->metrics.fitness_variance = var_sum / (double)pool->count;
+    
+    /* Скорость эволюции */
+    double delta = best - prev_best;
+    if (delta > 0.001) {
+        pool->metrics.evolution_speed = delta;
+        pool->metrics.beneficial_mutations++;
+        pool->metrics.stagnation_count = 0;
+    } else if (delta < -0.001) {
+        pool->metrics.evolution_speed = delta;
+        pool->metrics.harmful_mutations++;
+    } else {
+        pool->metrics.neutral_mutations++;
+        pool->metrics.stagnation_count++;
+    }
+    
+    /* Энергия мутаций (средняя сила изменений) */
+    pool->metrics.mutation_energy = pool->config.mutation_strength * 
+                                    pool->config.mutation_rate;
+}
+
+int kf_reactor_run(KolibriFormulaPool *pool, size_t max_generations,
+                   double target_fitness) {
+    if (!pool || max_generations == 0) {
+        return -1;
+    }
+    
+    size_t generations_run = 0;
+    
+    while (generations_run < max_generations) {
+        double prev_best = pool->metrics.best_fitness;
+        
+        /* Один tick эволюции */
+        kf_pool_tick(pool, pool->config.generations_per_tick);
+        generations_run += pool->config.generations_per_tick;
+        
+        /* Обновляем метрики */
+        update_metrics(pool, prev_best);
+        
+        /* Адаптивная мутация при застое */
+        if (pool->config.adaptive_mutation && 
+            pool->metrics.stagnation_count > 10) {
+            kf_config_adapt(pool);
+        }
+        
+        /* Проверяем достижение цели */
+        if (pool->metrics.best_fitness >= target_fitness) {
+            break;
+        }
+    }
+    
+    return (int)generations_run;
+}
+
+void kf_config_adapt(KolibriFormulaPool *pool) {
+    if (!pool) {
+        return;
+    }
+    
+    /* При застое увеличиваем мутацию */
+    if (pool->metrics.stagnation_count > 20) {
+        pool->config.mutation_rate *= 1.5;
+        if (pool->config.mutation_rate > 0.5) {
+            pool->config.mutation_rate = 0.5;
+        }
+        pool->config.mutation_strength += 0.5;
+        if (pool->config.mutation_strength > 5.0) {
+            pool->config.mutation_strength = 5.0;
+        }
+        
+        /* Меняем тип мутации */
+        pool->config.mutation_type = (KolibriMutationType)
+            (k_rng_next(&pool->rng) % KOLIBRI_MUTATION_COUNT);
+    }
+    
+    /* При хорошем прогрессе уменьшаем мутацию */
+    if (pool->metrics.evolution_speed > 0.05) {
+        pool->config.mutation_rate *= 0.9;
+        if (pool->config.mutation_rate < 0.05) {
+            pool->config.mutation_rate = 0.05;
+        }
+    }
+    
+    /* Сбрасываем счётчик застоя после адаптации */
+    pool->metrics.stagnation_count = 0;
+}
+
+int kf_metrics_to_digits(const KolibriEvolutionMetrics *metrics,
+                         char *buffer, size_t buffer_len) {
+    if (!metrics || !buffer || buffer_len < 128) {
+        return -1;
+    }
+    
+    /* Формат: GEN{generations}MUT{mutations}BEN{beneficial}FIT{fitness*1000} */
+    int written = snprintf(buffer, buffer_len,
+        "%llu%llu%llu%llu%llu%03d%03d",
+        (unsigned long long)metrics->total_generations,
+        (unsigned long long)metrics->total_mutations,
+        (unsigned long long)metrics->beneficial_mutations,
+        (unsigned long long)metrics->harmful_mutations,
+        (unsigned long long)metrics->stagnation_count,
+        (int)(metrics->best_fitness * 1000),
+        (int)(metrics->avg_fitness * 1000));
+    
+    if (written < 0 || (size_t)written >= buffer_len) {
+        return -1;
+    }
+    
+    return written;
 }

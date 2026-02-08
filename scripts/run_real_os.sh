@@ -1,4 +1,5 @@
 #!/bin/bash
+export PATH=/usr/local/share/nvm/versions/node/v22.21.1/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH
 echo "[Real OS Bridge] Starting Kolibri System..."
 
 # Enable error handling

@@ -1,6 +1,7 @@
 #include "kolibri/formula.h"
 
 #include "support.h"
+#include <stdio.h>
 
 #define KOLIBRI_FORMULA_CAPACITY (sizeof(((KolibriFormulaPool *)0)->formulas) / sizeof(KolibriFormula))
 
@@ -17,7 +18,7 @@ static void gene_randomize(KolibriFormulaPool *pool, KolibriGene *gene) {
 }
 
 static int decode_coefficients(const KolibriGene *gene, int *slope, int *bias) {
-    if (!gene || !slope || !bias || gene->length < 4U) {
+    if (!gene || !slope || !bias || gene->length < 6U) {
         return -1;
     }
     int raw_slope = (int)(gene->digits[0] * 10 + gene->digits[1]);
@@ -27,25 +28,102 @@ static int decode_coefficients(const KolibriGene *gene, int *slope, int *bias) {
     return 0;
 }
 
+/* --- Многослойная формула: до 128 слоёв × 8 цифр = 1024 цифры генома --- */
+static int formula_predict_multilayer(const KolibriGene *gene, int input) {
+    long long x = (long long)input;
+    size_t num_layers = gene->length / 8U;
+    if (num_layers > 128U) num_layers = 128U;
+    for (size_t layer = 0; layer < num_layers; ++layer) {
+        size_t base = layer * 8U;
+        int a = (int)(gene->digits[base] * 10 + gene->digits[base + 1]);
+        if (gene->digits[base + 2] % 2U) a = -a;
+        int b = (int)(gene->digits[base + 3] * 10 + gene->digits[base + 4]);
+        if (gene->digits[base + 5] % 2U) b = -b;
+        int op = (int)(gene->digits[base + 6] % 12U);
+        int act = (int)(gene->digits[base + 7] % 4U);
+
+        long long result = x;
+        switch (op) {
+        case 0: result = (long long)a * x + (long long)b; break;
+        case 1: result = (long long)a * x - (long long)b; break;
+        case 2: { /* Модулярная арифметика */
+            long long divisor = (long long)(b > 0 ? b * 100 + 1 : 1);
+            result = (x % divisor) + (long long)a;
+            break;
+        }
+        case 3: result = (x ^ (long long)(a * 1000 + b)); break;
+        case 4: result = (x & 0xFFFFFFL) + (long long)b * 100; break;
+        case 5: result = x + (long long)a - (long long)b; break;
+        case 6: { /* Квадратичная функция */
+            long long ax2 = (long long)a * (x >> 8) * (x >> 8);
+            result = ax2 + (long long)b;
+            break;
+        }
+        case 7: { /* Степенная: x * 2^a mod b */
+            int shift = a & 15;
+            long long divisor = (long long)(b > 0 ? b * 100 + 1 : 1);
+            result = (x << shift) % divisor;
+            break;
+        }
+        case 8: result = (x >> (a & 7)) + (long long)b; break; /* Сдвиг + смещение */
+        case 9: result = ((x + (long long)a) * (long long)b) >> 4; break; /* Масштабирование */
+        case 10: { /* Кусочно-линейная */
+            result = (x > 0) ? ((long long)a * x + (long long)b)
+                              : ((long long)b * x - (long long)a);
+            break;
+        }
+        default: { /* Битовая ротация + XOR */
+            long long rotated = ((x << (a & 7)) | ((x >> (32 - (a & 7))) & 0x7F));
+            result = rotated ^ (long long)(b * 1000);
+            break;
+        }
+        }
+
+        /* Активация */
+        switch (act) {
+        case 0: break; /* identity */
+        case 1: result = result < 0 ? -result : result; break; /* abs */
+        case 2: result = result % 1000000LL; break; /* mod */
+        case 3: result = result & 0xFFFFFFLL; break; /* mask */
+        }
+
+        /* Ограничение для стабильности */
+        if (result > 1000000000LL) result = 1000000000LL;
+        if (result < -1000000000LL) result = -1000000000LL;
+        x = result;
+    }
+    return (int)x;
+}
+
 static double evaluate_formula(const KolibriFormula *formula, const KolibriFormulaPool *pool) {
     if (!formula || !pool || pool->examples == 0U) {
         return 0.0;
     }
-    int slope = 0;
-    int bias = 0;
-    if (decode_coefficients(&formula->gene, &slope, &bias) != 0) {
-        return 0.0;
-    }
-    double total_error = 0.0;
+    double total_score = 0.0;
     for (size_t i = 0; i < pool->examples; ++i) {
-        int prediction = slope * pool->inputs[i] + bias;
-        int diff = prediction - pool->targets[i];
-        if (diff < 0) {
-            diff = -diff;
+        int prediction = formula_predict_multilayer(&formula->gene, pool->inputs[i]);
+        int target = pool->targets[i];
+        /* Мягкое сравнение по цифрам (soft digit-matching) */
+        int pred_abs = prediction < 0 ? -prediction : prediction;
+        int targ_abs = target < 0 ? -target : target;
+        double score = 0.0;
+        for (int d = 0; d < 6; ++d) {
+            int pd = pred_abs % 10;
+            int td = targ_abs % 10;
+            if (pd == td) {
+                score += 1.0;
+            } else {
+                int diff = pd - td;
+                if (diff < 0) diff = -diff;
+                if (diff <= 1) score += 0.5;
+                else if (diff <= 2) score += 0.2;
+            }
+            pred_abs /= 10;
+            targ_abs /= 10;
         }
-        total_error += (double)diff;
+        total_score += score / 6.0;
     }
-    double normalized = 1.0 / (1.0 + total_error);
+    double normalized = total_score / (double)pool->examples;
     double adjusted = normalized + formula->feedback;
     if (adjusted < 0.0) {
         adjusted = 0.0;
@@ -60,9 +138,14 @@ static void mutate_gene(KolibriFormulaPool *pool, KolibriGene *gene) {
     if (!gene) {
         return;
     }
-    uint32_t value = (uint32_t)k_rng_next(&pool->rng);
-    size_t index = (size_t)(value % (gene->length ? gene->length : 1U));
-    gene->digits[index] = random_digit(pool);
+    /* Адаптивная мультимутация: ~3% генома */
+    size_t mutations = gene->length / 32U;
+    if (mutations == 0) mutations = 1;
+    for (size_t m = 0; m < mutations; ++m) {
+        uint32_t value = (uint32_t)k_rng_next(&pool->rng);
+        size_t index = (size_t)(value % (gene->length ? gene->length : 1U));
+        gene->digits[index] = random_digit(pool);
+    }
 }
 
 void kf_pool_init(KolibriFormulaPool *pool, uint64_t seed) {
@@ -157,19 +240,7 @@ int kf_formula_apply(const KolibriFormula *formula, int input, int *output) {
     if (!formula || !output) {
         return -1;
     }
-    int slope = 0;
-    int bias = 0;
-    if (decode_coefficients(&formula->gene, &slope, &bias) != 0) {
-        return -1;
-    }
-    long long result = (long long)slope * (long long)input + (long long)bias;
-    if (result > 2147483647LL) {
-        result = 2147483647LL;
-    }
-    if (result < -2147483648LL) {
-        result = -2147483648LL;
-    }
-    *output = (int)result;
+    *output = formula_predict_multilayer(&formula->gene, input);
     return 0;
 }
 
@@ -194,25 +265,15 @@ int kf_formula_describe(const KolibriFormula *formula, char *buffer, size_t buff
     if (decode_coefficients(&formula->gene, &slope, &bias) != 0) {
         return -1;
     }
-    char sign = bias >= 0 ? '+' : '-';
-    int abs_bias = bias >= 0 ? bias : -bias;
-    char temp[32];
-    size_t len = 0U;
-    temp[len++] = 'y';
-    temp[len++] = '=';
-    if (slope < 0) {
-        temp[len++] = '-';
-        slope = -slope;
+    size_t layers = formula->gene.length / 8U;
+    if (layers > 128U) layers = 128U;
+    int written = snprintf(buffer, buffer_len,
+                           "слоёв=%zu k=%d b=%d фитнес=%.6f геном=%zu",
+                           layers, slope, bias, formula->fitness,
+                           formula->gene.length);
+    if (written < 0 || (size_t)written >= buffer_len) {
+        return -1;
     }
-    temp[len++] = (char)('0' + (slope / 10) % 10);
-    temp[len++] = (char)('0' + slope % 10);
-    temp[len++] = '*';
-    temp[len++] = 'x';
-    temp[len++] = sign;
-    temp[len++] = (char)('0' + (abs_bias / 10) % 10);
-    temp[len++] = (char)('0' + abs_bias % 10);
-    temp[len] = '\0';
-    k_strlcpy(buffer, temp, buffer_len);
     return 0;
 }
 

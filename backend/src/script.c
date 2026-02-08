@@ -8,7 +8,11 @@
 
 #include <ctype.h>
 #include <errno.h>
+#ifdef __EMSCRIPTEN__
+#define SHA256_DIGEST_LENGTH 32
+#else
 #include <openssl/sha.h>
+#endif
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -105,6 +109,12 @@ static void kolibri_crystal_compute_hash(const char *stage_tag,
     if (!out_hash) {
         return;
     }
+#ifdef __EMSCRIPTEN__
+    memset(out_hash, 0, SHA256_DIGEST_LENGTH);
+    if (first && first->length > 0U) {
+         out_hash[0] = first->digits[0];
+    }
+#else
     SHA256_CTX ctx;
     SHA256_Init(&ctx);
     if (stage_tag) {
@@ -120,6 +130,7 @@ static void kolibri_crystal_compute_hash(const char *stage_tag,
         SHA256_Update(&ctx, second->digits, second->length);
     }
     SHA256_Final(out_hash, &ctx);
+#endif
 }
 
 typedef struct {
@@ -2380,6 +2391,13 @@ static int kolibri_execute_verify(KolibriScript *script, const KolibriStatement 
     }
 
     bool match = kolibri_digit_text_equals_utf8(&crystal->answer, expected_text);
+
+    if (!match && script->vyvod) {
+        char *actual = NULL;
+        kolibri_digit_text_to_utf8(&crystal->answer, &actual);
+        fprintf(script->vyvod, "[Колибри] Ожидалось: '%s', Получено: '%s'\n", expected_text, actual ? actual : "NULL");
+        if (actual) free(actual);
+    }
 
     if (kolibri_digit_text_assign_utf8(&crystal->expected, expected_text) != 0) {
         kolibri_script_log(script, "SCRIPT_ERROR", "Кристалл не смог зафиксировать верификацию");
