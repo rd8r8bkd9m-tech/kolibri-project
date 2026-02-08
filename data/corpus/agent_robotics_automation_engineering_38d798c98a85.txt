@@ -1,0 +1,405 @@
+# Mechatronics - Wikipedia
+# Source: https://en.wikipedia.org/wiki/Mechatronics
+
+From Wikipedia, the free encyclopedia
+Combination of electronics and mechanics
+Mechatronics
+Mechatronics Engineer
+Occupation type
+Engineering
+Activity sectors
+Electrical and mechanical industry, engineering industry
+Mechanical engineering, electrical/electronics engineering, computer science and engineering, software programming, system engineering, control system, smart and intelligent system, automation and robotics
+Description
+Competencies
+Multidisciplinary technical knowledge, electro-mechanical system design, system integration and maintenance
+Science, technology, engineering, industry, computer, exploration
+This article is part of
+Engineering
+Engineering branches
+Agricultural
+Architectural
+Electronics
+Environmental
+Manufacturing
+Mechatronics
+Engineering software lists
+Additive manufacturing
+Aerospace engineering
+Automotive engineering
+Bioinformatics
+Building information modeling
+Chemical engineering
+Chemical process simulators
+Civil engineering
+Computer-aided engineering
+Computer-aided manufacturing
+Computational chemistry
+Computational fluid dynamics
+Computational physics
+Data science
+Discrete event simulation
+Electronic design automation
+Electromagnetic simulation
+Finite element analysis
+Free electronics circuit
+Gene prediction
+Genetic engineering
+Hardware description language simulators
+Mathematical
+Mechanical engineering
+Molecular design
+Molecular mechanics modeling
+Nanostructure modeling
+Nuclear engineering
+Nucleic acid simulation
+Numerical analysis
+Numerical libraries
+Open-source AI
+Open-source libraries
+Optimization
+Plasma physics
+Power engineering
+Programming tools
+Protein structure prediction
+RNA structure prediction
+Robotics simulation
+Scientific simulation
+Sequence alignment
+Structural alignment
+Structural engineering
+System dynamics
+Wind energy
+Engineering glossaries
+Electrical, electronics
+Engineering education
+Engineering ethics
+Engineering management
+History of engineering
+List of engineering awards
+List of engineering branches
+List of engineering journals and magazines
+List of engineering schools
+List of engineering societies
+Lists of engineers
+Outline of engineering
+Engineering portal
+Engineering books on Wikibooks
+Mechatronics engineering
+, also called
+mechatronics
+, is the synergistic integration of mechanical, electrical, and computer systems employing
+mechanical engineering
+electrical engineering
+electronic engineering
+computer science and engineering
+and includes a combination of
+computer science
+telecommunications
+product engineering
+advances over time, various subfields of
+engineering
+have succeeded in both adapting and multiplying. The intention of mechatronics is to produce a design solution that unifies each of these various subfields. Originally, the field of mechatronics was intended to be nothing more than a combination of mechanics, electrical and electronics, hence the name being a
+portmanteau
+of the words "
+nics" and "elec
+"; however, as the complexity of technical systems continued to evolve, the definition had been broadened to include more technical areas.
+Many people treat
+mechatronics
+as a modern buzzword synonymous with
+electromechanical engineering
+French standard NF E 01-010 gives the following definition: "approach aiming at the synergistic integration of mechanics, electronics, control theory, and computer science within product design and manufacturing, in order to improve and/or optimize its functionality".
+No later than in 1951, the word
+mechatronics
+was used in an advertisement of the company Servomechanisms, Inc., as can be seen in the journal
+, vol. 9, issue 3 on page 99.
+mechatronics
+originated in
+Japanese-English
+and was created by Tetsuro Mori, an engineer of
+Yaskawa Electric Corporation
+mechatronics
+was registered as
+by the company in Japan with the registration number of "46-32714" in 1971. The company later released the right to use the word to the public, and the word began being used globally. Currently the word is translated into many languages and is considered an essential term for advanced automated industry.
+With the advent of
+information technology
+in the 1980s,
+microprocessors
+were introduced into mechanical systems, improving performance significantly. By the 1990s, advances in computational intelligence were applied to mechatronics in ways that revolutionized the field.
+Description
+A mechatronics engineer unites the principles of mechanics, electrical, electronics, and computing to generate a simpler, more economical and reliable system.
+Engineering cybernetics
+deals with the question of control engineering of mechatronic systems. It is used to control or regulate such a system (see
+control theory
+). Through collaboration, the mechatronic modules perform the production goals and inherit flexible and
+agile manufacturing
+properties in the production scheme. Modern production equipment consists of mechatronic modules that are integrated according to a control architecture. The most known architectures involve
+, and hybrid. The methods for achieving a technical effect are described by control
+, which might or might not utilize
+formal methods
+in their design. Hybrid systems important to mechatronics include
+production systems
+, synergy drives,
+exploration rovers
+, automotive subsystems such as
+anti-lock braking systems
+and spin-assist, and everyday equipment such as autofocus cameras, video,
+, CD players and phones.
+Subdisciplines
+Main article:
+Mechanical engineering
+Mechanical engineering is an important part of mechatronics engineering. It includes the study of mechanical nature of how an object works. Mechanical elements refer to mechanical structure, mechanism, thermo-fluid, and hydraulic aspects of a mechatronics system. The study of
+thermodynamics
+fluid mechanics
+. Mechatronics engineer who works a mechanical engineer can specialize in
+pneumatics systems
+, where they can be found working in automobile industries. A mechatronics engineer can also design a vehicle since they have strong mechanical and electronical background. Knowledge of software applications such as
+computer-aided design
+computer-aided manufacturing
+is essential for designing products. Mechatronics covers a part of mechanical syllabus which is widely applied in automobile industry.
+Mechatronic systems represent a large part of the functions of an automobile. The control loop formed by sensor—information processing—actuator—mechanical (physical) change is found in many systems. The system size can be very different. The
+anti-lock braking system
+(ABS) is a mechatronic system. The brake itself is also one. And the control loop formed by driving control (for example cruise control), engine, vehicle driving speed in the real world and speed measurement is a mechatronic system, too.
+The great importance of mechatronics for automotive engineering is also evident from the fact that vehicle manufacturers often have development departments with "Mechatronics" in their names.
+Electronics and electricals
+Main article:
+Electronics and electrical engineering
+Electronics and telecommunication engineering specializes in electronics devices and telecom devices of a mechatronics system. A mechatronics engineer specialized in electronics and telecommunications have knowledge of computer hardware devices. The transmission of signal is the main application of this subfield of mechatronics. Where digital and analog systems also forms an important part of mechatronics systems. Telecommunications engineering deals with the
+transmission
+information
+across a medium.
+Electronics engineering is related to
+computer engineering
+electrical engineering
+. Control engineering has a wide range of electronic applications from the flight and propulsion systems of
+commercial airplanes
+cruise control
+present in many modern cars (
+automobiles
+designing is important for creating integrated circuits. Mechatronics engineers have deep knowledge of microprocessors, microcontrollers, microchips and semiconductors. The application of mechatronics in electronics manufacturing industry can conduct research and development on consumer electronic devices such as mobile phones, computers, cameras etc. For mechatronics engineers it is necessary to learn operating computer applications such as
+for designing and developing electronic products.
+Mechatronics engineering is an interdisciplinary course, it includes concepts of both electrical and mechanical systems. A mechatronics engineer engages in designing
+high power transformers
+radio-frequency module transmitters
+Main article:
+is also considered a variant of mechatronics as it combines several fields such as
+electronics
+and telecom with
+aerospace engineering
+. It is the subdiscipline of mechatronics engineering and aerospace engineering which is engineering branch focusing on electronics systems of aircraft. The word avionics is a blend of aviation and electronics. The electronics system of aircraft includes
+aircraft communication addressing and reporting system
+air navigation
+aircraft flight control system
+aircraft collision avoidance systems
+flight recorder
+weather radar
+lightning detector
+. These can be as simple as a
+searchlight
+police helicopter
+or as complicated as the tactical system for an
+airborne early warning
+Main article:
+Industrial engineering
+The branch of industrial engineer includes the design of machinery, assembly and process lines of various manufacturing industries. This branch can be said somewhat similar to automation and robotics. Mechatronics engineers who works as industrial engineers design and develop infrastructure of a manufacturing plant. Also it can be said that they are architect of machines. One can work as an industrial designer to design the industrial layout and plan for setting up of a manufacturing industry or as an industrial technician to lookover the technical requirements and repairing of the particular factory.
+Main article:
+Robotics is one of the newest emerging subfields of mechatronics. It is the study of robots and how they are manufactured and operated. Since 2000, this branch of mechatronics is attracting a number of aspirants. Robotics is interrelated with automation because here also not much human intervention is required. In a large number of factories, especially in automobile factories, robots are found in assembly lines, where they perform the job of drilling, installation and fitting. Programming skills are necessary for specialization in robotics. Knowledge of programming language—
+—is important for functioning robots. An
+industrial robot
+is a prime example of a mechatronics system; it includes aspects of electronics, mechanics and computing to do its day-to-day jobs.
+Main articles:
+Computer engineering
+Internet of things
+Internet of things
+(IoT) is the
+inter-networking
+of physical devices,
+electronics
+network connectivity
+which enable these objects to collect and exchange
+. IoT and mechatronics are complementary. Many of the smart components associated with the Internet of Things will be essentially mechatronic. The development of the IoT is forcing mechatronics engineers, designers, practitioners and educators to research the ways in which mechatronic systems and components are perceived, designed and manufactured. This allows them to face up to new issues such as data security,
+machine ethics
+and the human-machine interface.
+Knowledge of programming is very important. A mechatronics engineer has to do programming in different levels – for example,
+PLC programming
+drone programming
+hardware programming
+CNC programming
+, etc. Due to combination of electronics engineering, soft skills from computer side is important. Important programming languages for mechatronics engineer to learn are
+C programming language
+Occupational outlook
+According to the
+U.S. Bureau of Labor Statistics
+, the occupational outlook for mechatronics between 2016 and 2026 was 4% growth then declined to -4% for 2021 to 2031 then recovered to a -1% decline for 2023 to 2033. Currently their prediction for 2024 to 2034 is 1%.
+Electronics portal
+Automation engineering
+– Branch of engineering dealing with automated solutions to physical activities
+Computer science
+– Study of computation
+Control theory
+– Branch of engineering and mathematics
+Cybernetics
+– Transdisciplinary field concerned with regulatory and purposive systems
+Ecomechatronics
+– Mechatronical technology reducing the ecological impact of machines
+Electromechanics
+– Multidisciplinary field of engineering
+Materials engineering
+– Research of materials
+Pages displaying short descriptions of redirect targets
+Mechanical engineering technology
+– Design, construction, use, and application of robots
+Systems engineering
+– Interdisciplinary field of engineering
+Biomechatronics
+– Interdisciplinary science integrating biology and mechatronics
+Escudier, Marcel; Atkins, Tony (2019).
+"A Dictionary of Mechanical Engineering"
+Oxford Reference
+10.1093/acref/9780198832102.001.0001
+978-0-19-883210-2
+Mechanical and Mechatronics Engineering (9 August 2012).
+"Mechatronics Engineering"
+Future undergraduate students
+. University of Waterloo
+. Retrieved
+21 November
+Faculty of Mechatronics, Informatics and Interdisciplinary Studies TUL.
+"Mechatronics (Bc., Ing., PhD.)"
+. Retrieved
+Lawrence J. Kamm (1996). Understanding Electro-Mechanical Engineering: An Introduction to Mechatronics. John Wiley & Sons.
+978-0-7803-1031-5
+Bolton, W. Mechatronics. Pearson, 6th edition, 2015.
+978-1-292-07668-3
+"Mechatronics advertisement"
+. Vol. 9, no. 3. The McGraw-Hill Companies. September 1951. p. 99 – via Internet Archive.
+Msc. Mechatronics and Automation Engineering, University of Strathclyde Glasgow, Institution of Engineering and Technology, United Kingdom. Retrieved 29 November 2020.
+The mechatronics handbook
+. Robert H. Bishop (2nd ed.). Boca Raton, FL: CRC Press. 2008. pp. Chapter 1, Page 2.
+978-1-4398-3320-9
+:  CS1 maint: others (
+Hilgers, Michael (2020).
+Commercial Vehicle Technology. Electrical Systems and Mechatronics
+. Berlin/Heidelberg/New York: Springer.
+10.1007/978-3-662-60838-8
+978-3-662-60837-1
+Bradley, David; Russell, David; Ferguson, Ian (March 2015). "The Internet of Things-The future or the end of mechatronics".
+Mechatronics
+10.1016/j.mechatronics.2015.02.005
+"Electro-mechanical Technicians : Occupational Outlook Handbook: : U.S. Bureau of Labor Statistics"
+. Archived from
+the original
+on 9 January 2019.
+"Electro-mechanical and Mechatronics Technologists and Technicians : Occupational Outlook Handbook: : U.S. Bureau of Labor Statistics"
+. Archived from
+the original
+on 20 January 2023.
+"Electro-mechanical Technicians : Occupational Outlook Handbook : U.S. Bureau of Labor Statistics"
+. Archived from
+the original
+on 2012-04-02
+. Retrieved
+Bradley, Dawson et al.,
+Mechatronics, Electronics in products and processes
+, Chapman and Hall Verlag,
+Karnopp, Dean C., Donald L. Margolis, Ronald C. Rosenberg,
+System Dynamics: Modeling and Simulation of Mechatronic Systems
+, 4th Edition, Wiley, 2006.
+0-471-70965-4
+Bestselling system dynamics book using bond graph approach.
+Cetinkunt, Sabri,
+Mechatronics
+, John Wiley & Sons, Inc, 2007
+978-0-471-47987-1
+James J. Nutaro (2010).
+Building software for simulation: theory and algorithms, with applications in C++
+Zhang, Jianhua .
+Mechatronics and Automation Engineering. Proceedings of the International Conference on Mechatronics and Automation Engineering (ICMAE2016). Xiamen, China, 2016.
+Further reading
+Bishop, Robert H.,
+Mechatronics: an introduction
+De Silva, Clarence W.,
+Mechatronics: an integrated approach
+. CRC Press, 2005
+Onwubolu, Godfrey C.,
+Mechatronics: principles and applications
+. Butterworth-Heinemann, 2005.
+Rankers, Adrian M.,
+Machine Dynamics in Mechatronic Systems
+. University Twente, 1997
+External links
+IEEE/ASME Transactions on Mechatronics.
+Mechatronics Journal
+mechatronic applications and realisation
+List of publications concerning examples
+Institution of Mechanical Engineers - Mechatronics, Informatics and Control Group (MICG)
+NF E 01-010 2008 – AFNOR (
+French standard NF E 01-010
+XP E 01-013 2009 – AFNOR (French standard NF E 01-013)
+Engineering
+List of engineering branches
+Specialties
+interdisciplinarity
+Architectural
+Construction
+Environmental
+Geotechnical
+Municipal/urban
+Transportation
+Biomechanical
+Manufacturing
+Naval architecture
+Electromechanics
+Electronics
+Radio-frequency
+Signal processing
+Telecommunications
+Biochemical/bioprocess
+Bioresource
+Chemical reaction
+Electrochemical
+Biomaterial
+Nanotechnology
+Semiconductors
+Cybersecurity
+Engineering education
+Bachelor of Engineering
+Bachelor of Science
+Master's degree
+Graduate certificate
+Engineer's degree
+Licensed engineer
+Related topics
+Reverse Engineering
+Engineering
+Aerospace engineering
+Civil engineering
+Electrical and electronics engineering
+Mechanical engineering
+Structural engineering
+Agricultural
+Bioinformatics
+Health technology
+Pharmaceutical
+Rehabilitation
+Building services
+Information
+Instrumentation
+Instrumentation and control
+Mathematics
+Mechatronics
+Sustainability
+Wikiproject
+Authority control databases
+International
+United States
+Czech Republic
+Retrieved from "
+https://en.wikipedia.org/w/index.php?title=Mechatronics&oldid=1331308666
+Embedded systems
+Electromechanical engineering
+Hidden categories:
+CS1 maint: others
+Articles with short description
+Short description matches Wikidata
+Pages displaying short descriptions of redirect targets via Module:Annotated link

@@ -1,0 +1,173 @@
+openapi: 3.0.3
+info:
+  title: Content Factory 2.0 API
+  version: 0.2.0
+paths:
+  /api/workspaces:
+    get:
+      summary: List workspaces
+      responses:
+        '200': { description: OK }
+    post:
+      summary: Create workspace
+      requestBody: { required: true }
+      responses:
+        '200': { description: OK }
+  /api/brand-guidelines:
+    get:
+      summary: List brand guidelines
+      responses:
+        '200': { description: OK }
+    post:
+      summary: Create brand guidelines
+      requestBody: { required: true }
+      responses:
+        '200': { description: OK }
+  /api/sites:
+    get:
+      summary: List sites
+      responses:
+        '200': { description: OK }
+    post:
+      summary: Create site
+      requestBody: { required: true }
+      responses:
+        '200': { description: OK }
+  /api/channels:
+    get:
+      summary: List channels
+      responses:
+        '200': { description: OK }
+    post:
+      summary: Create channel
+      requestBody: { required: true }
+      responses:
+        '200': { description: OK }
+  /api/competitors:
+    get:
+      summary: List competitors
+      responses:
+        '200': { description: OK }
+    post:
+      summary: Create competitor
+      requestBody: { required: true }
+      responses:
+        '200': { description: OK }
+  /api/sources/collect:
+    post:
+      summary: Collect sources
+      requestBody: { required: true }
+      responses:
+        '200': { description: OK }
+  /api/ideas/generate:
+    post:
+      summary: Generate ideas
+      requestBody: { required: true }
+      responses:
+        '200': { description: OK }
+  /api/ideas/{idea_id}/approve:
+    post:
+      summary: Approve idea
+      parameters:
+        - name: idea_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody: { required: true }
+      responses:
+        '200': { description: OK }
+  /api/packages/create-from-idea:
+    post:
+      summary: Create package from idea
+      requestBody: { required: true }
+      responses:
+        '200': { description: OK }
+  /api/packages/{id}/generate-seo:
+    post:
+      summary: Generate SEO package
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /api/packages/{id}/generate-video-script:
+    post:
+      summary: Generate video script
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /api/packages/{id}/render:
+    post:
+      summary: Render artifacts
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody: { required: true }
+      responses:
+        '200': { description: OK }
+  /api/packages/{id}/approve:
+    post:
+      summary: Approve package
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody: { required: true }
+      responses:
+        '200': { description: OK }
+  /api/packages/{id}/schedule:
+    post:
+      summary: Schedule publication
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody: { required: true }
+      responses:
+        '200': { description: OK }
+  /api/packages/{id}/publish:
+    post:
+      summary: Publish package
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /api/publications/{id}/metrics/collect:
+    post:
+      summary: Collect metrics
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /api/publications/{id}/romi/calc:
+    post:
+      summary: Calculate ROMI
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody: { required: true }
+      responses:
+        '200': { description: OK }
+  /api/dashboard/summary:
+    get:
+      summary: Dashboard summary
+      responses:
+        '200': { description: OK }

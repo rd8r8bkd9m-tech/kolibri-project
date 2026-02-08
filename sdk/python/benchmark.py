@@ -52,7 +52,7 @@ def benchmark(func, data, iterations=10, warmup=3):
     times = []
     for _ in range(iterations):
         start = time.perf_counter()
-        result = func(data)
+        func(data)
         end = time.perf_counter()
         times.append(end - start)
 

@@ -166,7 +166,7 @@ print("\n" + "="*70)
 print("DETAILED PERFORMANCE METRICS")
 print("="*70)
 
-data_table = f"""
+data_table = """
 Phase                          Speed          Speedup  Throughput
 ────────────────────────────────────────────────────────────────────
 Baseline                       10^6           1x       ~10 MB/s

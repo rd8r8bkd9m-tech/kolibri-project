@@ -41,7 +41,8 @@ static const struct kolibri_gpu_backend_ops k_stub_ops = {
     .embed_tokens = kolibri_gpu_stub_embed_tokens,
 };
 
-/* CUDA backend (not yet implemented) */
+/* CUDA backend (optional) */
+#ifdef KOLIBRI_GPU_CUDA
 int kolibri_gpu_cuda_init(const kolibri_gpu_config_t *config);
 void kolibri_gpu_cuda_shutdown(void);
 int kolibri_gpu_cuda_encode(const kolibri_gpu_reason_batch_t *input,
@@ -60,6 +61,7 @@ static const struct kolibri_gpu_backend_ops k_cuda_ops = {
     .decode = kolibri_gpu_cuda_decode,
     .embed_tokens = kolibri_gpu_cuda_embed_tokens,
 };
+#endif
 
 #ifdef __APPLE__
 int kolibri_gpu_metal_init(const kolibri_gpu_config_t *config);
@@ -97,7 +99,12 @@ int kolibri_gpu_encoder_init(const kolibri_gpu_config_t *config) {
     const struct kolibri_gpu_backend_ops *target = &k_stub_ops;
     switch (config->backend) {
         case KOLIBRI_GPU_BACKEND_CUDA:
+#ifdef KOLIBRI_GPU_CUDA
             target = &k_cuda_ops;
+#else
+            fprintf(stderr, "[kolibri-gpu] CUDA backend requested but unavailable in this build\n");
+            target = &k_stub_ops;
+#endif
             break;
         case KOLIBRI_GPU_BACKEND_METAL:
 #ifdef __APPLE__

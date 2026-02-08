@@ -1,0 +1,14 @@
+{
+  "name": "Kolibri OS",
+  "forwardPorts": [3000, 8001],
+  "portsAttributes": {
+    "3000": {
+      "label": "Frontend",
+      "onAutoForward": "notify"
+    },
+    "8001": {
+      "label": "Backend API",
+      "onAutoForward": "silent"
+    }
+  }
+}

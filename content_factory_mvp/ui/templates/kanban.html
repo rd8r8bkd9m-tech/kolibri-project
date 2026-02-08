@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Content Factory — Канбан</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #0f1115; color: #e2e8f0; }
+    .board { display: flex; gap: 16px; padding: 24px; }
+    .column { background: #151922; border: 1px solid #243045; border-radius: 8px; width: 280px; padding: 12px; }
+    .card { background: #1e2430; padding: 10px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #2a3447; }
+    .status { font-size: 12px; color: #94a3b8; }
+    .title { font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h2 style="padding: 24px;">Контент‑фабрика — Канбан</h2>
+  <div class="board">
+    {% for status in ["analysis", "idea_approval", "production", "content_approval", "publishing", "analytics", "done"] %}
+    <div class="column">
+      <div class="status">{{ status }}</div>
+      {% for item in items if item.status == status %}
+        <div class="card">
+          <div class="title">{{ item.id }}</div>
+          <div class="status">{{ item.status }}</div>
+        </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+</body>
+</html>

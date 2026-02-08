@@ -1,0 +1,1857 @@
+# Robotics - Wikipedia
+# Source: https://en.wikipedia.org/wiki/Robotics
+
+From Wikipedia, the free encyclopedia
+Design, construction, use, and application of robots
+This article
+may relate to
+a different subject
+undue weight
+on an aspect of the subject.
+Specifically, the article goes in too much detail on specific types of
+and includes
+product placement
+Please help
+relocate relevant information
+and remove irrelevant content.
+August 2024
+interdisciplinary
+study and practice of the design,
+construction
+, operation, and use of
+mechanical engineering
+, robotics is the design and construction of the physical structures of robots, while in
+computer science
+, robotics focuses on robotic automation algorithms. Other disciplines contributing to robotics include
+information
+telecommunication
+mechatronic
+engineering.
+The goal of most robotics is to design machines that can help and assist
+. Many robots are built to do jobs that are hazardous to people, such as finding survivors in unstable ruins, and exploring space, mines and shipwrecks. Others replace people in jobs that are boring, repetitive, or unpleasant, such as cleaning, monitoring, transporting, and assembling. Today, robotics is a rapidly growing field, as technological advances continue; researching, designing, and building new robots serve various practical purposes.
+is someone who specializes in robotics.
+Robotics aspects
+Robotics usually combines three aspects of design work to create
+Mechanical construction: a frame, form or shape designed to achieve a particular task. For example, a robot designed to travel across heavy dirt or mud might use caterpillar tracks. Origami inspired robots can sense and analyze in extreme environments.
+The mechanical aspect of the robot is mostly the creator's solution to completing the assigned task and dealing with the physics of the environment around it. Form follows function.
+Electrical components that power and control the machinery. For example, the robot with
+caterpillar tracks
+would need some kind of power to move the tracker treads. That power comes in the form of electricity, which will have to travel through a wire and originate from a battery, a basic
+electrical circuit
+. Even petrol-powered
+that get their power mainly from petrol still require an electric current to start the combustion process which is why most petrol-powered machines like cars, have batteries. The electrical aspect of robots is used for movement (through motors), sensing (where electrical signals are used to measure things like heat, sound, position, and energy status), and operation (robots need some level of
+electrical energy
+supplied to their motors and sensors in order to activate and perform basic operations)
+. A program is how a robot decides when or how to do something. In the caterpillar track example, a robot that needs to move across a muddy road may have the correct mechanical construction and receive the correct amount of power from its battery, but would not be able to go anywhere without a program telling it to move. Programs are the core essence of a robot, it could have excellent mechanical and electrical construction, but if its program is poorly structured, its performance will be very poor (or it may not perform at all). There are three different types of robotic programs: remote control, artificial intelligence, and hybrid. A robot with
+remote control
+programming has a preexisting set of commands that it will only perform if and when it receives a signal from a control source, typically a human being with remote control. It is perhaps more appropriate to view devices controlled primarily by human commands as falling in the discipline of automation rather than robotics. Robots that use
+artificial intelligence
+interact with their environment on their own without a control source, and can determine reactions to objects and problems they encounter using their preexisting programming. A hybrid is a form of programming that incorporates both AI and RC functions in them.
+Applied robotics
+As many robots are designed for specific tasks, this method of classification becomes more relevant. For example, many robots are designed for assembly work, which may not be readily adaptable for other applications. They are termed "assembly robots". For seam welding, some suppliers provide complete welding systems with the robot i.e. the welding equipment along with other material handling facilities like turntables, etc. as an integrated unit. Such an integrated robotic system is called a "welding robot" even though its discrete manipulator unit could be adapted to a variety of tasks. Some robots are specifically designed for heavy load manipulation, and are labeled as "heavy-duty robots".
+Current and potential applications include:
+Manufacturing
+. Robots have been increasingly used in manufacturing since the 1960s. According to the
+Robotic Industries Association
+US data, in 2016 the automotive industry was the main customer of industrial robots with 52% of total sales.
+In the auto industry, they can amount for more than half of the "labor". There are even "
+" factories such as an IBM keyboard manufacturing factory in Texas that was fully automated as early as 2003.
+Autonomous transport
+including airplane
+self-driving cars
+Domestic robots
+robotic vacuum cleaners
+robotic lawn mowers
+, dishwasher loading
+flatbread baking
+Construction robots
+. Construction robots can be separated into three types: traditional robots,
+robotic arm
+robotic exoskeleton
+Automated mining
+Space exploration, including
+Mars rovers
+Energy applications including cleanup of nuclear contaminated areas;
+and cleaning solar panel arrays.
+Medical robots
+Robot-assisted surgery
+designed and used in clinics.
+Agricultural robots
+The use of robots in agriculture is closely linked to the concept of
+precision agriculture
+Food processing. Commercial examples of kitchen automation are Flippy (burgers), Zume Pizza (pizza), Cafe X (coffee), Makr Shakr (cocktails), Frobot (frozen yogurts), Sally (salads),
+salad or food bowl robots manufactured by Dexai (a
+Draper Laboratory
+spinoff, operating on military bases), and integrated food bowl assembly systems manufactured by
+Spyce Kitchen
+(acquired by
+Silicon Valley
+startup Hyphen.
+Other examples may include manufacturing technologies based on
+3D Food Printing
+Military robots
+Robot sports for entertainment and education, including
+Robot combat
+Autonomous racing
+drone racing
+FIRST Robotics
+Mechanical robotics areas
+Power source
+Further information:
+Power supply
+Energy storage
+At present, mostly (lead–acid)
+are used as a power source. Many different types of batteries can be used as a power source for robots. They range from lead–acid batteries, which are safe and have relatively long shelf lives but are rather heavy compared to silver–cadmium batteries which are much smaller in volume and are currently much more expensive. Designing a battery-powered robot needs to take into account factors such as safety, cycle lifetime, and
+. Generators, often some type of
+internal combustion engine
+, can also be used. However, such designs are often mechanically complex and need fuel, require heat dissipation, and are relatively heavy. A tether connecting the robot to a power supply would remove the power supply from the robot entirely. This has the advantage of saving weight and space by moving all power generation and storage components elsewhere. However, this design does come with the drawback of constantly having a cable connected to the robot, which can be difficult to manage.
+Potential power sources could be:
+(compressed gases)
+Solar power
+(using the sun's energy and converting it into electrical power)
+flywheel energy storage
+organic garbage (through
+anaerobic digestion
+Main article:
+Actuators are the "
+" of a robot, the parts which convert
+stored energy
+into movement.
+By far the most popular actuators are electric motors that rotate a wheel or gear, and linear actuators that control industrial robots in factories. There are some recent advances in alternative types of actuators, powered by electricity, chemicals, or compressed air.
+Electric motors
+Main article:
+Electric motor
+The vast majority of robots use
+electric motors
+brushless DC motors
+in portable robots or AC motors in industrial robots and
+machines. These motors are often preferred in systems with lighter loads, and where the predominant form of motion is rotational.
+Linear actuators
+Main article:
+Linear actuator
+Various types of linear actuators move in and out instead of by spinning, and often have quicker direction changes, particularly when very large forces are needed such as with industrial robotics. They are typically powered by compressed air (
+pneumatic actuator
+) or an oil (
+hydraulic actuator
+) Linear actuators can also be powered by electricity which usually consists of a motor and a leadscrew. Another common type is a mechanical linear actuator such as a rack and pinion on a car.
+Series elastic actuators
+Series elastic actuation (SEA) relies on the idea of introducing intentional elasticity between the motor actuator and the load for robust force control. Due to the resultant lower reflected inertia, series elastic actuation improves safety when a robot interacts with the environment (e.g., humans or workpieces) or during collisions.
+Furthermore, it also provides
+energy efficiency
+and shock absorption (mechanical filtering) while reducing excessive wear on the transmission and other mechanical components. This approach has successfully been employed in various robots, particularly advanced manufacturing robots
+and walking
+The controller design of a series elastic actuator is most often performed within the
+framework as it ensures the safety of interaction with unstructured environments.
+Despite its remarkable stability and robustness, this framework suffers from the stringent limitations imposed on the controller which may trade-off performance. The reader is referred to the following survey which summarizes the common controller architectures for SEA along with the corresponding
+passivity conditions.
+One recent study has derived the
+necessary and sufficient
+passivity conditions for one of the most common
+impedance control
+architectures, namely velocity-sourced SEA.
+This work is of particular importance as it drives the non-conservative passivity bounds in an SEA scheme for the first time which allows a larger selection of control gains.
+Air muscles
+Main article:
+Pneumatic artificial muscles
+Pneumatic artificial muscles also known as air muscles, are special tubes that expand (typically up to 42%) when air is forced inside them. They are used in some robot applications.
+Wire muscles
+Main article:
+Shape memory alloy
+Muscle wire, also known as shape memory alloy, is a material that contracts (under 5%) when electricity is applied. They have been used for some small robot applications.
+Electroactive polymers
+Main article:
+Electroactive polymers
+EAPs or EPAMs are a plastic material that can contract substantially (up to 380% activation strain) from electricity, and have been used in facial muscles and arms of humanoid robots,
+and to enable new robots to float,
+fly, swim or walk.
+Piezo motors
+Main article:
+Piezoelectric motor
+Recent alternatives to DC motors are
+piezo motors
+ultrasonic motors
+. These work on a fundamentally different principle, whereby tiny
+piezoceramic
+elements, vibrating many thousands of times per second, cause linear or rotary motion. There are different mechanisms of operation; one type uses the vibration of the piezo elements to step the motor in a circle or a straight line.
+Another type uses the piezo elements to cause a nut to vibrate or to drive a screw. The advantages of these motors are
+resolution, speed, and available force for their size.
+These motors are already available commercially and being used on some robots.
+Elastic nanotubes
+Further information:
+Carbon nanotube
+Elastic nanotubes are a promising artificial muscle technology in early-stage experimental development. The absence of defects in
+carbon nanotubes
+enables these filaments to deform elastically by several percent, with energy storage levels of perhaps 10
+for metal nanotubes. Human biceps could be replaced with an 8 mm diameter wire of this material. Such compact "muscle" might allow future robots to outrun and outjump humans.
+Main articles:
+Robotic sensing
+Robotic sensors
+Sensors allow robots to receive information about a certain measurement of the environment, or internal components. This is essential for robots to perform their tasks, and act upon any changes in the environment to calculate the appropriate response. They are used for various forms of measurements, to give the robots warnings about safety or malfunctions, and to provide real-time information about the task it is performing.
+Main article:
+Tactile sensor
+prosthetic hands
+receive far less
+information than the human hand. Recent research has developed a tactile
+sensor array
+that mimics the mechanical properties and touch receptors of human fingertips.
+The sensor array is constructed as a rigid core surrounded by conductive fluid contained by an elastomeric skin. Electrodes are mounted on the surface of the rigid core and are connected to an impedance-measuring device within the core. When the artificial skin touches an object the fluid path around the electrodes is deformed, producing impedance changes that map the forces received from the object. The researchers expect that an important function of such artificial fingertips will be adjusting the robotic grip on held objects.
+Scientists from several
+European countries
+developed a
+hand in 2009, called SmartHand, which functions like a real one —allowing patients to write with it, type on a
+, play piano, and perform other fine movements. The prosthesis has sensors which enable the patient to sense real feelings in its fingertips.
+Further information:
+Sensory-motor map
+Other common forms of sensing in robotics use lidar, radar, and sonar.
+measures the distance to a target by illuminating the target with laser light and measuring the reflected light with a sensor.
+uses radio waves to determine the range, angle, or velocity of objects.
+uses sound propagation to navigate, communicate with or detect objects on or under the surface of the water.
+Mechanical grippers
+One of the most common types of end-effectors are "grippers". In its simplest manifestation, it consists of just two fingers that can open and close to pick up and let go of a range of small objects. Fingers can, for example, be made of a chain with a metal wire running through it.
+Hands that resemble and work more like a human hand include the
+Shadow Hand
+Hands that are of a mid-level complexity include the
+Mechanical grippers can come in various types, including friction and encompassing jaws. Friction jaws use all the force of the gripper to hold the object in place using friction. Encompassing jaws cradle the object in place, using less friction.
+Suction end-effectors
+Suction end-effectors, powered by vacuum generators, are very simple astrictive
+devices that can hold very large loads provided the
+surface is smooth enough to ensure suction.
+Pick and place robots for electronic components and for large objects like car windscreens, often use very simple vacuum end-effectors.
+Suction is a highly used type of end-effector in industry, in part because the natural
+of soft suction end-effectors can enable a robot to be more robust in the presence of imperfect robotic perception. As an example: consider the case of a robot vision system that estimates the position of a water bottle but has 1 centimeter of error. While this may cause a rigid mechanical gripper to puncture the water bottle, the soft suction end-effector may just bend slightly and conform to the shape of the water bottle surface.
+General purpose effectors
+Some advanced robots are beginning to use fully humanoid hands, like the Shadow Hand, MANUS,
+and the Schunk hand.
+They have powerful Robot Dexterity Intelligence (RDI), with as many as 20
+degrees of freedom
+and hundreds of tactile sensors.
+Control robotics areas
+Further information:
+Control system
+Principles of motion sensing
+The mechanical structure of a robot must be controlled to perform tasks.
+The control of a robot involves three distinct phases –
+, processing, and action (
+robotic paradigms
+give information about the environment or the robot itself (e.g. the position of its joints or its end effector). This information is then processed to be stored or transmitted and to calculate the appropriate signals to the actuators (
+), which move the mechanical structure to achieve the required co-ordinated motion or force actions.
+The processing phase can range in complexity. At a reactive level, it may translate raw sensor information directly into actuator commands (e.g. firing motor power electronic gates based directly upon encoder feedback signals to achieve the required torque/velocity of the shaft).
+Sensor fusion
+and internal models may first be used to estimate parameters of interest (e.g. the position of the robot's gripper) from noisy sensor data. An immediate task (such as moving the gripper in a certain direction until an object is detected with a proximity sensor) is sometimes inferred from these estimates. Techniques from
+control theory
+are generally used to convert the higher-level tasks into individual commands that drive the actuators, most often using kinematic and dynamic models of the mechanical structure.
+At longer time scales or with more sophisticated tasks, the robot may need to build and reason with a "cognitive" model.
+Cognitive models
+try to represent the robot, the world, and how the two interact. Pattern recognition and computer vision can be used to track objects.
+techniques can be used to build maps of the world. Finally,
+motion planning
+artificial intelligence
+techniques may be used to figure out how to act. For example, a planner may figure out how to achieve a task without hitting obstacles, falling over, etc.
+Modern commercial robotic control systems are highly complex, integrate multiple sensors and effectors, have many interacting degrees-of-freedom (DOF) and require operator interfaces, programming tools and real-time capabilities.
+They are oftentimes interconnected to wider communication networks and in many cases are now both
+-enabled and mobile.
+Progress towards open architecture, layered, user-friendly and 'intelligent' sensor-based interconnected robots has emerged from earlier concepts related to
+Flexible Manufacturing Systems
+(FMS), and several 'open or 'hybrid'
+reference architectures
+exist which assist developers of robot control software and hardware to move beyond traditional, earlier notions of 'closed' robot control systems have been proposed.
+Open architecture controllers are said to be better able to meet the growing requirements of a wide range of robot users, including system developers, end users and research scientists, and are better positioned to deliver the advanced robotic concepts related to
+Industry 4.0
+In addition to utilizing many established features of robot controllers, such as position, velocity and force control of end effectors, they also enable IoT interconnection and the implementation of more advanced sensor fusion and control techniques, including adaptive control,
+Fuzzy control
+Artificial Neural Network
+(ANN)-based control.
+When implemented in real-time, such techniques can potentially improve the stability and performance of robots operating in unknown or uncertain environments by enabling the control systems to learn and adapt to environmental changes.
+There are several examples of reference architectures for robot controllers, and also examples of successful implementations of actual robot controllers developed from them. One example of a generic reference architecture and associated interconnected, open-architecture robot and controller implementation was used in a number of research and development studies, including prototype implementation of novel advanced and intelligent control and environment mapping methods in real-time.
+Manipulation
+Further information:
+Mobile manipulator
+A definition of robotic manipulation has been provided by Matt Mason as: "manipulation refers to an agent's control of its environment through selective contact".
+Robots need to manipulate objects; pick up, modify, destroy, move or otherwise have an effect. Thus the functional end of a robot arm intended to make the effect (whether a hand, or tool) are often referred to as
+end effectors
+while the "arm" is referred to as a
+manipulator
+Most robot arms have replaceable end-effectors, each allowing them to perform some small range of tasks. Some have a fixed manipulator that cannot be replaced, while a few have one very general-purpose manipulator, for example, a humanoid hand.
+Main articles:
+Robot locomotion
+Mobile robot
+Rolling robots
+For simplicity, most mobile robots have four
+or a number of
+continuous tracks
+. Some researchers have tried to create more complex wheeled robots with only one or two wheels. These can have certain advantages such as greater efficiency and reduced parts, as well as allowing a robot to navigate in confined places that a four-wheeled robot would not be able to.
+Two-wheeled balancing robots
+Balancing robots generally use a
+to detect how much a robot is falling and then drive the wheels proportionally in the same direction, to counterbalance the fall at hundreds of times per second, based on the dynamics of an
+inverted pendulum
+Many different balancing robots have been designed.
+is not commonly thought of as a robot, it can be thought of as a component of a robot, when used as such Segway refer to them as RMP (Robotic Mobility Platform). An example of this use has been as
+that has been mounted on a Segway.
+One-wheeled balancing robots
+Main article:
+Self-balancing unicycle
+A one-wheeled balancing robot is an extension of a two-wheeled balancing robot so that it can move in any 2D direction using a round ball as its only wheel. Several one-wheeled balancing robots have been designed recently, such as
+Carnegie Mellon University
+" which is the approximate height and width of a person, and
+Tohoku Gakuin University
+'s "BallIP".
+Because of the long, thin shape and ability to maneuver in tight spaces, they have the potential to function better than other robots in environments with people.
+Spherical orb robots
+Main article:
+Spherical robot
+Several attempts have been made in robots that are completely inside a spherical ball, either by spinning a weight inside the ball,
+or by rotating the outer shells of the sphere.
+These have also been referred to as an
+or a ball bot.
+Six-wheeled robots
+Using six wheels instead of four wheels can give better traction or grip in outdoor terrain such as on rocky dirt or grass.
+Tracked robots
+Tracks provide even more traction than a six-wheeled robot. Tracked wheels behave as if they were made of hundreds of wheels, therefore are very common for outdoor off-road robots, where the robot must drive on very rough terrain. However, they are difficult to use indoors such as on carpets and smooth floors. Examples include NASA's Urban Robot "Urbie".
+Walking robots
+Further information:
+Mantis the spider robot
+Walking is a difficult and dynamic problem to solve. Several robots have been made which can walk reliably on two legs, however, none have yet been made which are as robust as a human. There has been much study on human-inspired walking, such as AMBER lab which was established in 2008 by the Mechanical Engineering Department at Texas A&M University.
+Many other robots have been built that walk on more than two legs, due to these robots being significantly easier to construct.
+Walking robots can be used for uneven terrains, which would provide better mobility and energy efficiency than other locomotion methods. Typically, robots on two legs can walk well on flat floors and can occasionally walk up
+. None can walk over rocky, uneven terrain. Some of the methods which have been tried are:
+ZMP technique
+Main article:
+Zero moment point
+The zero moment point (ZMP) is the algorithm used by robots such as
+. The robot's onboard computer tries to keep the total
+inertial forces
+(the combination of
+acceleration
+and deceleration of walking), exactly opposed by the floor
+reaction force
+(the force of the floor pushing back on the robot's foot). In this way, the two forces cancel out, leaving no
+(force causing the robot to rotate and fall over).
+However, this is not exactly how a human walks, and the difference is obvious to human observers, some of whom have pointed out that ASIMO walks as if it needs the
+ASIMO's walking algorithm is not static, and some dynamic balancing is used (see below). However, it still requires a smooth surface to walk on.
+Several robots, built in the 1980s by
+Marc Raibert
+Leg Laboratory, successfully demonstrated very dynamic walking. Initially, a robot with only one leg, and a very small foot could stay upright simply by
+. The movement is the same as that of a person on a
+. As the robot falls to one side, it would jump slightly in that direction, in order to catch itself.
+Soon, the algorithm was generalized to two and four legs. A bipedal robot was demonstrated running and even performing
+somersaults
+was also demonstrated which could
+, and bound.
+For a full list of these robots, see the MIT Leg Lab Robots page.
+Dynamic balancing (controlled falling)
+A more advanced way for a robot to walk is by using a dynamic balancing algorithm, which is potentially more robust than the Zero Moment Point technique, as it constantly monitors the robot's motion, and places the feet in order to maintain stability.
+This technique was recently demonstrated by
+Dexter Robot,
+which is so stable, it can even jump.
+Another example is the
+TU Delft Flame
+Passive dynamics
+Main article:
+Passive dynamics
+Perhaps the most promising approach uses
+passive dynamics
+of swinging limbs is used for greater
+. It has been shown that totally unpowered humanoid mechanisms can walk down a gentle slope, using only
+to propel themselves. Using this technique, a robot need only supply a small amount of motor power to walk along a flat surface or a little more to walk up a
+. This technique promises to make walking robots at least ten times more efficient than ZMP walkers, like ASIMO.
+passenger airliner
+is essentially a
+robot, with two humans to manage it. The
+can control the plane for each stage of the journey, including takeoff, normal flight, and even landing.
+Other flying robots are uninhabited and are known as
+unmanned aerial vehicles
+(UAVs). They can be smaller and lighter without a human pilot on board, and fly into dangerous territory for military surveillance missions. Some can even fire on targets under command. UAVs are also being developed which can fire on targets automatically, without the need for a command from a human. Other flying robots include
+cruise missiles
+Epson micro helicopter robot
+. Robots such as the Air Penguin, Air Ray, and Air Jelly have lighter-than-air bodies, are propelled by paddles, and are guided by sonar.
+Biomimetic flying robots (BFRs)
+BFRs take inspiration from flying mammals, birds, or insects. BFRs can have flapping wings, which generate the lift and thrust, or they can be propeller-actuated. BFRs with flapping wings have increased stroke efficiencies, increased maneuverability, and reduced energy consumption in comparison to propeller-actuated BFRs.
+Mammal and bird inspired BFRs share similar flight characteristics and design considerations. For instance, both mammal and bird inspired BFRs minimize
+edge fluttering
+pressure-induced wingtip curl
+by increasing the rigidity of the wing edge and wingtips. Mammal and insect inspired BFRs can be impact resistant, making them useful in cluttered environments.
+Mammal inspired BFRs typically take inspiration from bats, but the flying squirrel has also inspired a prototype.
+Examples of bat inspired BFRs include Bat Bot
+and the DALER.
+Mammal inspired BFRs can be designed to be multi-modal; therefore, they're capable of both flight and terrestrial movement. To reduce the impact of landing, shock absorbers can be implemented along the wings.
+Alternatively, the BFR can pitch up and increase the amount of drag it experiences.
+By increasing the drag force, the BFR will decelerate and minimize the impact upon grounding. Different land gait patterns can also be implemented.
+Bird inspired BFRs can take inspiration from raptors, gulls, and everything in-between. Bird inspired BFRs can be feathered to increase the angle of attack range over which the prototype can operate before stalling.
+The wings of bird inspired BFRs allow for in-plane deformation, and the in-plane wing deformation can be adjusted to maximize flight efficiency depending on the flight gait.
+An example of a raptor inspired BFR is the prototype by Savastano et al.
+The prototype has fully deformable flapping wings and is capable of carrying a payload of up to 0.8 kg while performing a parabolic climb, steep descent, and rapid recovery. The gull inspired prototype by Grant et al. accurately mimics the elbow and wrist rotation of gulls, and they find that lift generation is maximized when the elbow and wrist deformations are opposite but equal.
+Insect inspired BFRs typically take inspiration from beetles or dragonflies. An example of a beetle inspired BFR is the prototype by Phan and Park,
+and a dragonfly inspired BFR is the prototype by Hu et al.
+The flapping frequency of insect inspired BFRs are much higher than those of other BFRs; this is because of the
+aerodynamics of insect flight
+Insect inspired BFRs are much smaller than those inspired by mammals or birds, so they are more suitable for dense environments.
+Biologically-inspired flying robots
+A class of robots that are biologically inspired, but which do not attempt to mimic biology, are creations such as the
+. Funded by
+United States Air Force
+Georgia Tech Research Institute
+and patented by Prof.
+Robert C. Michelson
+for covert terrestrial missions as well as flight in the lower
+atmosphere, the Entomopter flight propulsion system uses low
+Reynolds number
+wings similar to those of the
+(Manduca sexta), but flaps them in a non-traditional "opposed x-wing fashion" while "blowing" the surface to enhance lift based on the
+Coandă effect
+as well as to control vehicle attitude and direction. Waste gas from the propulsion system not only facilitates the blown wing aerodynamics, but also serves to create ultrasonic emissions like that of a
+for obstacle avoidance. The Entomopter and other biologically-inspired robots leverage features of biological systems, but do not attempt to create mechanical analogs.
+robots have been successfully developed. Mimicking the way real snakes move, these robots can navigate very confined spaces, meaning they may one day be used to search for people trapped in collapsed buildings.
+The Japanese ACM-R5 snake robot
+can even navigate both on land and in water.
+A small number of
+robots have been developed, one of which is a multi-mode walking and skating device. It has four legs, with unpowered wheels, which can either step or roll.
+Another robot, Plen, can use a miniature skateboard or roller-skates, and skate across a desktop.
+Several different approaches have been used to develop robots that have the ability to climb vertical surfaces. One approach mimics the movements of a human
+on a wall with protrusions; adjusting the
+center of mass
+and moving each limb in turn to gain leverage. An example of this is Capuchin,
+built by Ruixiang Zhang at Stanford University, California. Another approach uses the specialized toe pad method of wall-climbing
+, which can run on smooth surfaces such as vertical glass. Examples of this approach include Wallbot
+and Stickybot.
+Technology Daily
+reported on 15 November 2008, that Li Hiu Yeung and his research group of New Concept Aircraft (
+) Co., Ltd. had successfully developed a bionic gecko robot named "
+Speedy Freelander
+". According to Yeung, the gecko robot could rapidly climb up and down a variety of building walls, navigate through ground and wall fissures, and walk upside-down on the ceiling. It was also able to adapt to the surfaces of smooth glass, rough, sticky or dusty walls as well as various types of metallic materials. It could also identify and circumvent obstacles automatically. Its flexibility and speed were comparable to a natural gecko. A third approach is to mimic the motion of a snake climbing a pole.
+Swimming (Piscine)
+It is calculated that when
+some fish can achieve a
+efficiency greater than 90%.
+Furthermore, they can accelerate and maneuver far better than any man-made
+, and produce less noise and water disturbance. Therefore, many researchers studying underwater robots would like to copy this type of locomotion.
+Notable examples are the Robotic Fish G9,
+and Robot Tuna built to analyze and mathematically model
+thunniform motion
+The Aqua Penguin,
+copies the streamlined shape and propulsion by front "flippers" of
+. The Aqua Ray and Aqua Jelly emulate the locomotion of manta ray, and jellyfish, respectively.
+-II was developed as the first
+robotic fish
+capable of outperforming real carangiform fish in terms of average maximum velocity (measured in body lengths/ second) and endurance, the duration that top speed is maintained.
+This build attained swimming speeds of 11.6BL/s (i.e. 3.7 m/s).
+The first build,
+-I (2014) was the first robotic platform to apply a full-body length
+carangiform
+swimming motion which was found to increase swimming speed by 27% over the traditional approach of a posterior confined waveform.
+Sailboat robots have also been developed in order to make measurements at the surface of the ocean. A typical sailboat robot is
+Since the propulsion of sailboat robots uses the wind, the energy of the batteries is only used for the computer, for the communication and for the actuators (to tune the rudder and the sail). If the robot is equipped with solar panels, the robot could theoretically navigate forever. The two main competitions of sailboat robots are
+, which takes place every year in Europe, and
+Computational robotics areas
+Control systems may also have varying levels of autonomy.
+Direct interaction is used for
+or teleoperated devices, and the human has nearly complete control over the robot's motion.
+Operator-assist modes have the operator commanding medium-to-high-level tasks, with the robot automatically figuring out how to achieve them.
+An autonomous robot may go without human interaction for extended periods of time . Higher levels of autonomy do not necessarily require more complex cognitive capabilities. For example, robots in assembly plants are completely autonomous but operate in a fixed pattern.
+Another classification takes into account the interaction between human control and the machine motions.
+Teleoperation
+. A human controls each movement, each machine actuator change is specified by the operator.
+Supervisory. A human specifies general moves or position changes and the machine decides specific movements of its actuators.
+Task-level autonomy. The operator specifies only the task and the robot manages itself to complete it.
+Full autonomy. The machine will create and complete all its tasks without human interaction.
+Main article:
+Computer vision
+Computer vision
+is the science and technology of machines that see. As a scientific discipline, computer vision is concerned with the theory behind artificial systems that extract information from images. The image data can take many forms, such as video sequences and views from cameras.
+In most practical computer vision applications, the computers are pre-programmed to solve a particular task, but methods based on learning are now becoming increasingly common.
+Computer vision systems rely on image sensors that detect electromagnetic radiation which is typically in the form of either
+visible light
+infra-red light
+. The sensors are designed using
+solid-state physics
+. The process by which light propagates and reflects off surfaces is explained using
+. Sophisticated image sensors even require
+quantum mechanics
+to provide a complete understanding of the image formation process. Robots can also be equipped with multiple vision sensors to be better able to compute the sense of depth in the environment. Like human eyes, robots' "eyes" must also be able to focus on a particular area of interest, and also adjust to variations in light intensities.
+There is a subfield within computer vision where artificial systems are designed to mimic the processing and behavior of
+biological system
+, at different levels of complexity. Also, some of the learning-based methods developed within computer vision have a background in biology.
+Environmental interaction and navigation
+Main articles:
+Robotic mapping
+Robotic navigation
+Though a significant percentage of robots in commission today are either human controlled or operate in a static environment, there is an increasing interest in robots that can operate autonomously in a dynamic environment. These robots require some combination of
+navigation hardware and software
+in order to traverse their environment. In particular, unforeseen events (e.g. people and other obstacles that are not stationary) can cause problems or collisions. Some highly advanced robots such as
+Meinü robot
+have particularly good robot navigation hardware and software. Also,
+self-controlled cars
+Ernst Dickmanns
+driverless car
+, and the entries in the
+DARPA Grand Challenge
+, are capable of sensing the environment well and subsequently making navigational decisions based on this information, including by a swarm of autonomous robots.
+Most of these robots employ a
+navigation device with waypoints, along with
+, sometimes combined with other sensory data such as
+video cameras
+inertial guidance systems
+for better navigation between waypoints.
+Human-robot interaction
+Main article:
+Human-robot interaction
+The state of the art in sensory intelligence for robots will have to progress through several orders of magnitude if we want the robots working in our homes to go beyond vacuum-cleaning the floors. If robots are to work effectively in homes and other non-industrial environments, the way they are instructed to perform their jobs, and especially how they will be told to stop will be of critical importance. The people who interact with them may have little or no training in robotics, and so any interface will need to be extremely intuitive. Science fiction authors also typically assume that robots will eventually be capable of communicating with humans through
+facial expressions
+, rather than a
+command-line interface
+. Although speech would be the most natural way for the human to communicate, it is unnatural for the robot. It will probably be a long time before robots interact as naturally as the fictional
+Data of Star Trek, Next Generation
+. Even though the current state of robotics cannot meet the standards of these robots from science-fiction, robotic media characters (e.g., Wall-E, R2-D2) can elicit audience sympathies that increase people's willingness to accept actual robots in the future.
+Acceptance of social robots is also likely to increase if people can meet a social robot under appropriate conditions. Studies have shown that interacting with a robot by looking at, touching, or even imagining interacting with the robot can reduce negative feelings that some people have about robots before interacting with them.
+However, if pre-existing negative sentiments are especially strong, interacting with a robot can increase those negative feelings towards robots.
+Speech recognition
+Main article:
+Speech recognition
+Interpreting the continuous flow of
+coming from a human, in
+, is a difficult task for a computer, mostly because of the great variability of
+The same word, spoken by the same person may sound different depending on local
+, the previous word, whether or not the speaker has a
+, etc.. It becomes even harder when the speaker has a different
+Nevertheless, great strides have been made in the field since Davis, Biddulph, and Balashek designed the first "voice input system" which recognized "ten digits spoken by a single user with 100% accuracy" in 1952.
+Currently, the best systems can recognize continuous, natural speech, up to 160 words per minute, with an accuracy of 95%.
+With the help of artificial intelligence, machines nowadays can use people's voice to
+identify their emotions
+such as satisfied or angry.
+Robotic voice
+Other hurdles exist when allowing the robot to use voice for interacting with humans. For social reasons,
+synthetic voice
+proves suboptimal as a communication medium,
+making it necessary to develop the emotional component of robotic voice through various techniques.
+An advantage of diphonic branching is the emotion that the robot is programmed to project, can be carried on the voice tape, or phoneme, already pre-programmed onto the voice media. One of the earliest examples is a teaching robot named Leachim developed in 1974 by
+Michael J. Freeman
+Leachim was able to convert digital memory to rudimentary verbal speech on pre-recorded computer discs.
+It was programmed to teach students in
+The Bronx, New York
+Facial expression
+Further information:
+Emotion recognition
+Facial expressions can provide rapid feedback on the progress of a dialog between two humans, and soon may be able to do the same for humans and robots. Robotic faces have been constructed by
+Hanson Robotics
+using their elastic polymer called
+, allowing a large number of facial expressions due to the elasticity of the rubber facial coating and embedded subsurface motors (
+The coating and servos are built on a metal
+. A robot should know how to approach a human, judging by their facial expression and
+body language
+. Whether the person is happy, frightened, or crazy-looking affects the type of interaction expected of the robot. Likewise, robots like
+and the more recent addition, Nexi
+can produce a range of facial expressions, allowing it to have meaningful social exchanges with humans.
+Further information:
+Gesture recognition
+One can imagine, in the future, explaining to a robot chef how to make a pastry, or asking directions from a robot police officer. In both of these cases, making hand
+would aid the verbal descriptions. In the first case, the robot would be recognizing gestures made by the human, and perhaps repeating them for confirmation. In the second case, the robot police officer would gesture to indicate "down the road, then turn right". It is likely that gestures will make up a part of the interaction between humans and robots.
+A great many systems have been developed to recognize human hand gestures.
+is the study of personal space, and HRI systems may try to model and work with its concepts for human interactions.
+Artificial emotions
+Artificial emotions
+can also be generated, composed of a sequence of facial expressions or gestures. As can be seen from the movie
+Final Fantasy: The Spirits Within
+, the programming of these artificial emotions is complex and requires a large amount of human observation. To simplify this programming in the movie, presets were created together with a special software program. This decreased the amount of time needed to make the film. These presets could possibly be transferred for use in real-life robots. An example of a robot with artificial emotions is
+Robin the Robot
+developed by an
+IT company Expper Technologies, which uses AI-based peer-to-peer interaction. Its main task is achieving emotional well-being, i.e. overcome stress and anxiety. Robin was trained to analyze facial expressions and use his face to display his emotions given the context. The robot has been tested by kids in US clinics, and observations show that Robin increased the appetite and cheerfulness of children after meeting and talking.
+Personality
+Many of the robots of science fiction have a
+personality
+, something which may or may not be desirable in the commercial robots of the future.
+Nevertheless, researchers are trying to create robots which appear to have a personality:
+i.e. they use sounds, facial expressions, and body language to try to convey an internal state, which may be joy, sadness, or fear. One commercial example is
+, a toy robot dinosaur, which can exhibit several apparent emotions.
+Research robotics
+Further information:
+Areas of robotics
+Much of the research in robotics focuses not on specific industrial tasks, but on investigations into new
+types of robots
+, alternative ways to think about or design robots, and new ways to manufacture them. Other investigations, such as MIT's
+project, are almost wholly academic.
+To describe the level of advancement of a robot, the term "Generation Robots" can be used. This term is coined by Professor
+Hans Moravec
+, Principal Research Scientist at the
+Carnegie Mellon University
+Robotics Institute
+in describing the near future evolution of robot technology.
+First-generation
+robots, Moravec predicted in 1997, should have an intellectual capacity comparable to perhaps a
+and should become available by 2010. Because the
+first generation
+robot would be incapable of
+, however, Moravec predicts that the
+second generation
+robot would be an improvement over the
+and become available by 2020, with the intelligence maybe comparable to that of a
+third generation
+robot should have intelligence comparable to that of a
+fourth generation
+robots, robots with
+intelligence, professor Moravec predicts, would become possible, he does not predict this happening before around 2040 or 2050.
+Dynamics and kinematics
+Main article:
+Robot kinematics
+Further information:
+Dynamics (mechanics)
+External videos
+How the BB-8 Sphero Toy Works
+The study of motion can be divided into
+Direct kinematics or forward kinematics refers to the calculation of end effector position, orientation,
+acceleration
+when the corresponding joint values are known.
+Inverse kinematics
+refers to the opposite case in which required joint values are calculated for given end effector values, as done in path planning. Some special aspects of kinematics include handling of redundancy (different possibilities of performing the same movement),
+avoidance, and
+singularity
+avoidance. Once all relevant positions, velocities, and accelerations have been calculated using
+, methods from the field of
+are used to study the effect of
+upon these movements. Direct dynamics refers to the calculation of accelerations in the robot once the applied forces are known. Direct dynamics is used in
+computer simulations
+of the robot.
+Inverse dynamics
+refers to the calculation of the actuator forces necessary to create a prescribed end-effector acceleration. This information can be used to improve the control algorithms of a robot.
+In each area mentioned above, researchers strive to develop new concepts and strategies, improve existing ones, and improve the interaction between these areas. To do this, criteria for "optimal" performance and ways to optimize design, structure, and control of robots must be developed and implemented.
+Open source robotics
+Further information:
+Open source robotics
+List of open-source robotics hardware
+List of open-source robotics software
+Open source robotics
+research seeks standards for defining, and methods for designing and building, robots so that they can easily be reproduced by anyone. Research includes legal and technical definitions; seeking out alternative tools and materials to reduce costs and simplify builds; and creating interfaces and standards for designs to work together. Human usability research also investigates how to best document builds through visual, text or video instructions.
+Evolutionary robotics
+Evolutionary robots
+methodology
+evolutionary computation
+to help design robots, especially the body form, or motion and behavior
+controllers
+. In a similar way to
+natural evolution
+, a large population of robots is allowed to compete in some way, or their ability to perform a task is measured using a
+fitness function
+. Those that perform worst are removed from the population and replaced by a new set, which have new behaviors based on those of the winners. Over time the population improves, and eventually a satisfactory robot may appear. This happens without any direct programming of the robots by the researchers. Researchers use this method both to create better robots,
+and to explore the nature of evolution.
+Because the process often requires many generations of robots to be simulated,
+this technique may be run entirely or mostly in
+robot simulator
+software package, then tested on real robots once the evolved algorithms are good enough.
+According to the
+International Federation of Robotics
+(IFR) study
+World Robotics 2023
+, there were about 4,281,585 operational industrial robots by the end of 2023
+Bionics and biomimetics
+biomimetics
+apply the physiology and methods of locomotion of animals to the design of robots. For example, the design of
+BionicKangaroo
+was based on the way kangaroos jump.
+Swarm robotics
+Swarm robotics
+is an approach to the coordination of multiple robots as a system which consist of large numbers of mostly simple physical robots. ″In a robot swarm, the collective behavior of the robots results from local interactions between the robots and between the robots and the environment in which they act.″*
+Quantum computing
+There has been some research into whether robotics algorithms can be run more quickly on
+quantum computers
+than they can be run on
+digital computers
+. This area has been referred to as quantum robotics.
+Other research areas
+(collaborative robots).
+Autonomous drones
+High temperature crucibles allow robotic systems to automate sample analysis.
+The main venues for robotics research are the international conferences ICRA and IROS.
+Human factors
+Education and training
+Main article:
+Educational robotics
+Robotics engineers design robots, maintain them, develop new applications for them, and conduct research to expand the potential of robotics.
+Robots have become a popular educational tool in some middle and high schools, particularly in parts of the USA,
+as well as in numerous youth summer camps, raising interest in programming, artificial intelligence, and robotics among students.
+Main article:
+Technological unemployment
+Robotics is an essential component in many modern manufacturing environments. As factories increase their use of robots, the number of robotics–related jobs grow and have been observed to be steadily rising.
+The employment of robots in industries has increased productivity and efficiency savings and is typically seen as a long-term investment for benefactors. A study found that 47 percent of US jobs are at risk to automation "over some unspecified number of years".
+These claims have been criticized on the ground that social policy, not AI, causes unemployment.
+In a 2016 article in The Guardian, Stephen Hawking stated "The automation of factories has already decimated jobs in traditional manufacturing, and the rise of artificial intelligence is likely to extend this job destruction deep into the middle classes, with only the most caring, creative or supervisory roles remaining".
+The rise of robotics is thus often used as an argument for
+universal basic income
+According to a GlobalData September 2021 report, the robotics industry was worth $45bn in 2020, and by 2030, it will have grown at a compound annual growth rate (CAGR) of 29% to $568bn, driving jobs in robotics and related industries.
+Occupational safety and health implications
+Main article:
+Workplace robotics safety
+A discussion paper drawn up by
+highlights how the spread of robotics presents both opportunities and challenges for occupational safety and health (OSH).
+The greatest OSH benefits stemming from the wider use of robotics should be substitution for people working in unhealthy or dangerous environments. In space, defense, security, or the nuclear industry, but also in logistics, maintenance, and inspection, autonomous robots are particularly useful in replacing human workers performing dirty, dull or unsafe tasks, thus avoiding workers' exposures to hazardous agents and conditions and reducing physical, ergonomic and psychosocial risks. For example, robots are already used to perform repetitive and monotonous tasks, to handle radioactive material or to work in explosive atmospheres. In the future, many other highly repetitive, risky or unpleasant tasks will be performed by robots in a variety of sectors like agriculture, construction, transport, healthcare, firefighting or cleaning services.
+Moreover, there are certain skills to which humans will be better suited than machines for some time to come and the question is how to achieve the best combination of human and robot skills. The advantages of robotics include heavy-duty jobs with precision and repeatability, whereas the advantages of humans include creativity, decision-making, flexibility, and adaptability. This need to combine optimal skills has resulted in
+collaborative robots
+and humans sharing a common workspace more closely and led to the development of new approaches and standards to guarantee the safety of the "man-robot merger". Some European countries are including robotics in their national programs and trying to promote a safe and flexible cooperation between robots and operators to achieve better productivity. For example, the German Federal Institute for Occupational Safety and Health (
+) organizes annual workshops on the topic "human-robot collaboration".
+In the future, cooperation between robots and humans will be diversified, with robots increasing their autonomy and human-robot collaboration reaching completely new forms. Current approaches and technical standards
+aiming to protect employees from the risk of working with collaborative robots will have to be revised.
+User experience
+Great user experience predicts the needs, experiences, behaviors, language and cognitive abilities, and other factors of each user group. It then uses these insights to produce a product or solution that is ultimately useful and usable. For robots, user experience begins with an understanding of the robot's intended task and environment, while considering any possible social impact the robot may have on human operations and interactions with it.
+It defines that communication as the transmission of information through signals, which are elements perceived through touch, sound, smell and sight.
+The author states that the signal connects the sender to the receiver and consists of three parts: the signal itself, what it refers to, and the interpreter. Body postures and gestures, facial expressions, hand and head movements are all part of nonverbal behavior and communication. Robots are no exception when it comes to human-robot interaction. Therefore, humans use their verbal and nonverbal behaviors to communicate their defining characteristics. Similarly, social robots need this coordination to perform human-like behaviors.
+Robotics is an interdisciplinary field, combining primarily
+mechanical engineering
+computer science
+but also drawing on
+electronic engineering
+and other subjects. The usual way to build a career in robotics is to complete an undergraduate degree in one of these established subjects, followed by a graduate (masters') degree in Robotics. Graduate degrees are typically joined by students coming from all of the contributing disciplines, and include familiarization of relevant undergraduate level subject matter from each of them, followed by specialist study in pure robotics topics which build upon them. As an interdisciplinary subject, robotics graduate programmes tend to be especially reliant on students working and learning together and sharing their knowledge and skills from their home discipline first degrees.
+Robotics industry careers then follow the same pattern, with most roboticists working as part of interdisciplinary teams of specialists from these home disciplines followed by the robotics graduate degrees which enable them to work together. Workers typically continue to identify as members of their home disciplines who work in robotics, rather than as 'roboticists'. This structure is reinforced by the nature of some engineering professions, which grant chartered engineer status to members of home disciplines rather than to robotics as a whole.
+Robotics careers are widely predicted to grow in the 21st century, as robots replace more manual and intellectual human work. Some workers who lose their jobs to robotics may be well-placed to retrain to build and maintain these robots, using their domain-specific knowledge and skills.
+History of robots
+Significance
+c. 420 B.C.
+A wooden, steam-propelled bird, which was able to fly
+Flying pigeon
+Archytas of Tarentum
+Third century B.C. and earlier
+One of the earliest descriptions of automata appears in the
+text, on a much earlier encounter between
+King Mu of Zhou
+(1023–957 BC) and a mechanical engineer known as Yan Shi, an 'artificer'. The latter allegedly presented the king with a life-size, human-shaped figure of his mechanical handiwork.
+Yan Shi (Chinese:
+First century A.D. and earlier
+Descriptions of more than 100 machines and automata, including a fire engine, a wind organ, a coin-operated machine, and a steam-powered engine, in
+Heron of Alexandria
+Philo of Byzantium
+, Heron of Alexandria, and others
+Created early humanoid automata, programmable automaton band
+Robot band, hand-washing automaton,
+automated moving peacocks
+Designs for a humanoid robot
+Mechanical Knight
+Leonardo da Vinci
+Clockwork Prayer that had machinal feet built under its robes that imitated walking. The robot's eyes, lips, and head all move in lifelike gestures.
+Clockwork Prayer
+citation needed
+Gianello della Torre
+Mechanical duck that was able to eat, flap its wings, and excrete
+Digesting Duck
+Jacques de Vaucanson
+Nikola Tesla demonstrates the first radio-controlled vessel.
+Teleautomaton
+Nikola Tesla
+Leonardo Torres Quevedo presented the
+Paris Academy of Science
+, a radio-based control system with different operational states, for testing airships without risking human lives.
+He conduct the initial test controlling a tricycle almost 100 feet away, being the first example of a radio-controlled unmanned ground vehicle.
+Leonardo Torres Quevedo
+Leonardo Torres Quevedo builds the first truly autonomous machine capable of playing chess. As opposed to the human-operated
+El Ajedrecista
+had an integrated automaton built to play chess without human guidance. It only played an
+chess pieces
+, automatically moving a white
+the black king moved by a human opponent.
+El Ajedrecista
+Leonardo Torres Quevedo
+In his paper
+Essays on Automatics
+published in 1914, Leonardo Torres Quevedo proposed a machine that makes "judgments" using sensors that capture information from the outside, parts that manipulate the outside world like arms, power sources such as batteries and air pressure, and most importantly, captured information and past information. It was defined as an organism that can control reactions in response to external information and adapt to changes in the environment to change its behavior.
+Essays on Automatics
+Leonardo Torres Quevedo
+First fictional automatons called "robots" appear in the play
+Rossum's Universal Robots
+Karel Čapek
+Humanoid robot exhibited at the 1939 and 1940
+World's Fairs
+Westinghouse Electric Corporation
+First general-purpose digital computer
+Multiple people
+Simple robots exhibiting biological behaviors
+Elsie and Elmer
+William Grey Walter
+Formulation of principles of
+cybernetics
+cybernetics
+Norbert Wiener
+First commercial robot, from the Unimation company founded by
+George Devol
+Joseph Engelberger
+, based on Devol's patents
+George Devol
+First installed industrial robot. The first digitally operated and programmable robot,
+, was installed in 1961 to lift hot pieces of metal from a
+die casting machine
+and stack them.
+George Devol
+1967 to 1972
+First full-scale humanoid intelligent robot,
+. Its limb control system allowed it to walk with the lower limbs, and to grip and transport objects with its hands, using tactile sensors. Its vision system allowed it to measure distances and directions to objects using external receptors, artificial eyes, and ears. And its conversation system allowed it to communicate with a person in Japanese, with an artificial mouth.
+Waseda University
+industrial robot
+with six electromechanically driven axes
+KUKA Robot Group
+The world's first
+microcomputer
+controlled electric industrial robot, IRB 6 from ASEA, was delivered to a small mechanical engineering company in southern Sweden. The design of this robot had been patented in 1972.
+ABB Robot Group
+Programmable universal manipulation arm, a Unimation product
+Victor Scheinman
+The first object-level robot programming language, RAPT, allowing robots to handle variations in object position, shape, and sensor noise.
+Freddy I and II
+Patricia Ambler
+Robin Popplestone
+First multitasking, the parallel programming language used for robot control. It was the Event Driven Language (EDL) on the IBM/Series/1 process computer, with the implementation of both
+inter-process communication
+(WAIT/POST) and mutual exclusion (ENQ/DEQ) mechanisms for robot control.
+Stevo Bozinovski and Mihail Sestakov
+Artificial intelligence
+Autonomous robot
+Cloud robotics
+Cognitive robotics
+Evolutionary robotics
+Fog robotics
+Glossary of robotics
+Index of robotics articles
+Mechatronics
+Multi-agent system
+Outline of robotics
+Quantum robotics
+Robot rights
+Robotic art
+Robotic governance
+Self-reconfiguring modular robot
+Soft robotics
+Telerobotics
+One database, developed by the
+United States Department of Energy
+, contains information on almost 500 existing robotic technologies.
+"German National Library"
+International classification system of the German National Library (GND)
+from the original on 2020-08-19.
+"Origami-Inspired Robots Can Sense, Analyze and Act in Challenging Environments"
+. Retrieved
+Raj, Aditi (26 August 2024).
+"AI & Robotics: The Role of AI in Robots"
+. Retrieved
+Hunt, V. Daniel (1985).
+"Smart Robots"
+Smart Robots: A Handbook of Intelligent Robotic Systems
+. Chapman and Hall. p. 141.
+978-1-4613-2533-8
+from the original on 2023-03-15
+. Retrieved
+"Robot density rises globally"
+Robotic Industries Association
+. 8 February 2018.
+from the original on 2020-11-23
+. Retrieved
+Pinto, Jim (1 October 2003).
+"Fully automated factories approach reality"
+Automation World
+. Archived from
+the original
+on 2011-10-01
+. Retrieved
+Eyre, Michael (12 September 2014).
+'Boris' the robot can load up dishwasher"
+from the original on 2020-12-21
+. Retrieved
+Corner, Stuart (23 November 2017).
+"AI-driven robot makes 'perfect' flatbread"
+iothub.com.au
+from the original on 2020-11-24
+. Retrieved
+Pollock, Emily (7 June 2018).
+"Construction Robotics Industry Set to Double by 2023"
+engineering.com
+from the original on 2020-08-07
+. Retrieved
+"Technology Advanced Search"
+D&D Knowledge Management Information Tool
+from the original on 2020-08-06.
+Arámbula Cosío, F.; Hibberd, R. D.; Davies, B. L. (July 1997). "Electromagnetic compatibility aspects of active robotic systems for surgery: the robotic prostatectomy experience".
+Medical and Biological Engineering and Computing
+10.1007/BF02534105
+Grift, Tony E. (2004).
+"Agricultural Robotics"
+University of Illinois at Urbana–Champaign
+. Archived from
+the original
+on 2007-05-04
+. Retrieved
+Thomas, Jim (1 November 2017).
+"How corporate giants are automating the farm"
+New Internationalist
+from the original on 2021-01-10
+. Retrieved
+Kolodny, Lora (4 July 2017).
+"Robots are coming to a burger joint near you"
+from the original on 2020-12-05
+. Retrieved
+Kirsner, Scott (27 January 2023).
+"Robots in the kitchen? Local engineers are making it a reality"
+The Boston Globe
+Dowling, Kevin.
+"Power Sources for Small Robots"
+. Carnegie Mellon University.
+from the original on 2020-11-25
+. Retrieved
+Roozing, Wesley; Li, Zhibin; Tsagarakis, Nikos; Caldwell, Darwin (2016). "Design Optimisation and Control of Compliant Actuation Arrangements in Articulated Robots for Improved Energy Efficiency".
+IEEE Robotics and Automation Letters
+2016IRAL....1.1110R
+10.1109/LRA.2016.2521926
+Pratt, G. A.; Williamson, M. M. (1995). "Series elastic actuators".
+Proceedings 1995 IEEE/RSJ International Conference on Intelligent Robots and Systems. Human-Robot Interaction and Cooperative Robots
+. Vol. 1. pp.
+10.1109/IROS.1995.525827
+1721.1/36966
+0-8186-7108-4
+Furnémont, Raphaël; Mathijssen, Glenn; Verstraten, Tom; Lefeber, Dirk; Vanderborght, Bram (27 January 2016).
+"Bi-directional series-parallel elastic actuator and overlap of the actuation layers"
+Bioinspiration & Biomimetics
+(1) 016005.
+2016BiBi...11a6005F
+10.1088/1748-3190/11/1/016005
+from the original on 2022-10-01
+. Retrieved
+Pratt, Jerry E.; Krupp, Benjamin T. (2004). "Series Elastic Actuators for legged robots". In Gerhart, Grant R; Shoemaker, Chuck M; Gage, Douglas W (eds.).
+Unmanned Ground Vehicle Technology VI
+. Vol. 5422. pp.
+10.1117/12.548000
+Li, Zhibin; Tsagarakis, Nikos; Caldwell, Darwin (2013). "Walking Pattern Generation for a Humanoid Robot with Compliant Joints".
+Autonomous Robots
+10.1007/s10514-013-9330-7
+Colgate, J. Edward (1988).
+The control of dynamically interacting systems
+1721.1/14380
+Calanca, Andrea; Muradore, Riccardo; Fiorini, Paolo (November 2017). "Impedance control of series elastic actuators: Passivity and acceleration-based control".
+Mechatronics
+10.1016/j.mechatronics.2017.08.010
+Tosun, Fatih Emre; Patoglu, Volkan (June 2020). "Necessary and Sufficient Conditions for the Passivity of Impedance Rendering With Velocity-Sourced Series Elastic Actuation".
+IEEE Transactions on Robotics
+2020ITRob..36..757T
+10.1109/TRO.2019.2962332
+www.imagesco.com, Images SI Inc -.
+"Air Muscle actuators, going further, page 6"
+from the original on 2020-11-14
+. Retrieved
+"Air Muscles"
+. Shadow Robot. Archived from
+the original
+on 2007-09-27.
+Tondu, Bertrand (2012). "Modelling of the McKibben artificial muscle: A review".
+Journal of Intelligent Material Systems and Structures
+10.1177/1045389X11435435
+"TALKING ELECTRONICS Nitinol Page-1"
+. Talkingelectronics.com.
+from the original on 2020-01-18
+. Retrieved
+"lf205, Hardware: Building a Linux-controlled walking robot"
+. Ibiblio.org. 1 November 2001.
+from the original on 2016-03-03
+. Retrieved
+"WW-EAP and Artificial Muscles"
+. Eap.jpl.nasa.gov.
+from the original on 2017-01-20
+. Retrieved
+"Empa – a117-2-eap"
+from the original on 2015-09-24
+. Retrieved
+"Electroactive Polymers (EAP) as Artificial Muscles (EPAM) for Robot Applications"
+. Hizook. Archived from
+the original
+on 2020-08-06
+. Retrieved
+"Piezo LEGS – -09-26"
+. Archived from
+the original
+on 2008-01-30
+. Retrieved
+"Squiggle Motors: Overview"
+from the original on 2007-10-07
+. Retrieved
+Nishibori; et al. (2003).
+"Robot Hand with Fingers Using Vibration-Type Ultrasonic Motors (Driving Characteristics)"
+Journal of Robotics and Mechatronics
+10.20965/jrm.2003.p0588
+Otake, Mihoko; Kagami, Yoshiharu; Ishikawa, Kohei; Inaba, Masayuki; Inoue, Hirochika (6 April 2001). Wilson, Alan R.; Asanuma, Hiroshi (eds.). "Shape design of gel robots made of electroactive polymer gel".
+Smart Materials
+2001SPIE.4234..194O
+10.1117/12.424407
+Madden, John D. (16 November 2007). "Mobile Robots: Motor Challenges and Materials Solutions".
+2007Sci...318.1094M
+10.1.1.395.4635
+10.1126/science.1146351
+"Syntouch LLC: BioTac(R) Biomimetic Tactile Sensor Array"
+. Archived from
+the original
+on 2009-10-03
+. Retrieved
+Wettels, Nicholas; Santos, Veronica J.; Johansson, Roland S.; Loeb, Gerald E. (January 2008). "Biomimetic Tactile Sensor Array".
+Advanced Robotics
+10.1163/156855308X314533
+"What is The SmartHand?"
+. SmartHand Project.
+from the original on 2015-03-03
+. Retrieved
+Arreguin, Juan (2008).
+Automation and Robotics
+. Vienna, Austria: I-Tech and Publishing.
+"Annotated Mythbusters: Episode 78: Ninja Myths – Walking on Water, Catching a Sword, Catching an Arrow"
+from the original on 2020-11-12
+. Retrieved
+(Discovery Channel's Mythbusters making mechanical gripper from the chain and metal wire)
+"Robonaut hand"
+from the original on 2020-02-22
+. Retrieved
+"Delft hand"
+. Archived from
+the original
+on 2012-02-03
+. Retrieved
+"TU Delft ontwikkelt goedkope, voorzichtige robothand"
+from the original on 2017-03-13
+. Retrieved
+"astrictive definition – English definition dictionary – Reverso"
+from the original on 2020-04-30
+. Retrieved
+Tijsma, H. A.; Liefhebber, F.; Herder, J. L. (2005). "Evaluation of New User Interface Features for the MANUS Robot Arm".
+9th International Conference on Rehabilitation Robotics, 2005. ICORR 2005
+10.1109/ICORR.2005.1501097
+0-7803-9003-2
+Allcock, Andrew (2006).
+"Anthropomorphic hand is almost human"
+. Machinery. Archived from
+the original
+on 2007-09-28
+. Retrieved
+from the original on 2013-05-10
+. Retrieved
+Corke, Peter (2017).
+Robotics, Vision and Control
+. Springer Tracts in Advanced Robotics. Vol. 118.
+10.1007/978-3-319-54413-7
+978-3-319-54412-0
+from the original on 2022-10-20
+. Retrieved
+Lee, C S. G.; Fu, K. S.; Gonzalez, Ralph (1987).
+Robotics: Control Sensing. Vis
+. McGraw-Hill.
+978-0-07-026510-3
+from the original on 2023-03-15
+. Retrieved
+Short, Michael; Burn, Kevin (1 April 2011).
+"A generic controller architecture for intelligent robotic systems"
+Robotics and Computer-Integrated Manufacturing
+10.1016/j.rcim.2010.07.013
+Ray, Partha Pratim (2016).
+"Internet of Robotic Things: Concept, Technologies, and Challenges"
+IEEE Access
+2016IEEEA...4.9489R
+10.1109/ACCESS.2017.2647747
+Burn, K.; Short, M.; Bicker, R. (July 2003).
+"Adaptive and Nonlinear Fuzzy Force Control Techniques Applied to Robots Operating in Uncertain Environments"
+Journal of Robotic Systems
+10.1002/rob.10093
+from the original on 2022-11-26
+. Retrieved
+Burn, Kevin; Home, Geoffrey (1 May 2008).
+"Environment classification using Kohonen self-organizing maps"
+Expert Systems
+10.1111/j.1468-0394.2008.00441.x
+Mason, Matthew T. (2001).
+Mechanics of Robotic Manipulation
+10.7551/mitpress/4527.001.0001
+978-0-262-25662-9
+"What is a robotic end-effector?"
+. ATI Industrial Automation. 2007.
+from the original on 2020-12-17
+. Retrieved
+Crane, Carl D.; Joseph Duffy (1998).
+Kinematic Analysis of Robot Manipulators
+. Cambridge University Press.
+978-0-521-57063-3
+from the original on 2020-04-02
+. Retrieved
+G. J. Monkman, S. Hesse, R. Steinmann & H. Schunk (2007).
+Robot Grippers
+. Berlin, Germany: Wiley.
+. Mtoussaint.de.
+from the original on 2020-07-08
+. Retrieved
+"nBot, a two wheel balancing robot"
+. Geology.heroy.smu.edu.
+from the original on 2021-01-26
+. Retrieved
+"ROBONAUT Activity Report"
+. 2004. Archived from
+the original
+on 2007-08-20
+. Retrieved
+Guizzo, Erico (29 April 2010).
+"A Robot That Balances on a Ball"
+IEEE Spectrum
+from the original on 2023-02-10
+. Retrieved
+"Carnegie Mellon Researchers Develop New Type of Mobile Robot That Balances and Moves on a Ball Instead of Legs or Wheels"
+(Press release). Carnegie Mellon. 9 August 2006. Archived from
+the original
+on 2007-06-09
+. Retrieved
+"Spherical Robot Can Climb Over Obstacles"
+. BotJunkie.
+from the original on 2012-03-28
+. Retrieved
+. Rotundus.se. Archived from
+the original
+on 2011-08-26
+. Retrieved
+"OrbSwarm Gets A Brain"
+. BotJunkie. 11 July 2007.
+from the original on 2012-05-16
+. Retrieved
+"Rolling Orbital Bluetooth Operated Thing"
+. BotJunkie.
+from the original on 2012-03-28
+. Retrieved
+. Orbswarm.com.
+from the original on 2021-01-26
+. Retrieved
+"The Ball Bot: Johnnytronic@Sun"
+. Blogs.sun.com
+. Retrieved
+|archive-url=
+is malformed: timestamp (
+"Senior Design Projects | College of Engineering & Applied Science| University of Colorado at Boulder"
+. Engineering.colorado.edu. 30 April 2008. Archived from
+the original
+on 2011-07-23
+. Retrieved
+"JPL Robotics: System: Commercial Rovers"
+. Archived from
+the original
+on 2006-06-15.
+"AMBER Lab"
+from the original on 2020-11-25
+. Retrieved
+"Micromagic Systems Robotics Lab"
+. Archived from
+the original
+on 2017-06-01
+. Retrieved
+"AMRU-5 hexapod robot"
+from the original on 2016-08-17
+. Retrieved
+"Achieving Stable Walking"
+. Honda Worldwide.
+from the original on 2011-11-08
+. Retrieved
+"Funny Walk"
+. Pooter Geek. 28 December 2004.
+from the original on 2011-09-28
+. Retrieved
+"ASIMO's Pimp Shuffle"
+Popular Science
+. 9 January 2007.
+from the original on 2011-07-24
+. Retrieved
+"Robot Shows Prime Minister How to Loosen Up > > A drunk robot?"
+The Temple of VTEC – Honda and Acura Enthusiasts Online Forums
+. 25 August 2003.
+from the original on 2020-04-30.
+"3D One-Leg Hopper (1983–1984)"
+. MIT Leg Laboratory.
+from the original on 2018-07-25
+. Retrieved
+"3D Biped (1989–1995)"
+. MIT Leg Laboratory.
+from the original on 2011-09-26
+. Retrieved
+"Quadruped (1984–1987)"
+. MIT Leg Laboratory.
+from the original on 2011-08-23
+. Retrieved
+"MIT Leg Lab Robots – Main"
+from the original on 2020-08-07
+. Retrieved
+"About the Robots"
+. Archived from
+the original
+on 2007-09-09
+. Retrieved
+"Anything, Anytime, Anywhere"
+. Archived from
+the original
+on 2007-10-27
+. Retrieved
+"Dexter Jumps video"
+. YouTube. 1 March 2007. Archived from
+the original
+on 2021-10-30
+. Retrieved
+Collins, Steve; Ruina, Andy; Tedrake, Russ; Wisse, Martijn (18 February 2005). "Efficient Bipedal Robots Based on Passive-Dynamic Walkers".
+2005Sci...307.1082C
+10.1126/science.1107799
+Collins, S. H.; Ruina, A. (2005). "A Bipedal Walking Robot with Efficient and Human-Like Gait".
+Proceedings of the 2005 IEEE International Conference on Robotics and Automation
+10.1109/ROBOT.2005.1570404
+0-7803-8914-X
+"Testing the Limits"
+. Boeing. p. 29.
+from the original on 2018-12-15
+. Retrieved
+Zhang, Jun; Zhao, Ning; Qu, Feiyang (15 November 2022). "Bio-inspired flapping wing robots with foldable or deformable wings: a review".
+Bioinspiration & Biomimetics
+(1): 011002.
+10.1088/1748-3190/ac9ef5
+Shin, Won Dong; Park, Jaejun; Park, Hae-Won (1 September 2019).
+"Development and experiments of a bio-inspired robot with multi-mode in aerial and terrestrial locomotion"
+Bioinspiration & Biomimetics
+(5): 056009.
+2019BiBi...14e6009S
+10.1088/1748-3190/ab2ab7
+Ramezani, Alireza; Shi, Xichen; Chung, Soon-Jo; Hutchinson, Seth (May 2016). "Bat Bot (B2), a biologically inspired flying machine".
+2016 IEEE International Conference on Robotics and Automation (ICRA)
+. Stockholm, Sweden: IEEE. pp.
+10.1109/ICRA.2016.7487491
+978-1-4673-8026-3
+Daler, Ludovic; Mintchev, Stefano; Stefanini, Cesare; Floreano, Dario (19 January 2015).
+"A bioinspired multi-modal flying and walking robot"
+Bioinspiration & Biomimetics
+(1) 016005.
+2015BiBi...10a6005D
+10.1088/1748-3190/10/1/016005
+Kilian, Lukas; Shahid, Farzeen; Zhao, Jing-Shan; Nayeri, Christian Navid (1 July 2022). "Bioinspired morphing wings: mechanical design and wind tunnel experiments".
+Bioinspiration & Biomimetics
+(4): 046019.
+2022BiBi...17d6019K
+10.1088/1748-3190/ac72e1
+Savastano, E.; Perez-Sanchez, V.; Arrue, B.C.; Ollero, A. (July 2022). "High-Performance Morphing Wing for Large-Scale Bio-Inspired Unmanned Aerial Vehicles".
+IEEE Robotics and Automation Letters
+2022IRAL....7.8076S
+10.1109/LRA.2022.3185389
+Grant, Daniel T.; Abdulrahim, Mujahid; Lind, Rick (June 2010).
+"Flight Dynamics of a Morphing Aircraft Utilizing Independent Multiple-Joint Wing Sweep"
+International Journal of Micro Air Vehicles
+10.1260/1756-8293.2.2.91
+Phan, Hoang Vu; Park, Hoon Cheol (4 December 2020).
+"Mechanisms of collision recovery in flying beetles and flapping-wing robots"
+2020Sci...370.1214P
+10.1126/science.abd3285
+Hu, Zheng; McCauley, Raymond; Schaeffer, Steve; Deng, Xinyan (May 2009). "Aerodynamics of dragonfly flight and robotic design".
+2009 IEEE International Conference on Robotics and Automation
+10.1109/ROBOT.2009.5152760
+978-1-4244-2788-8
+Balta, Miquel; Deb, Dipan; Taha, Haithem E (26 October 2021). "Flow visualization and force measurement of the clapping effect in bio-inspired flying robots".
+Bioinspiration & Biomimetics
+(6): 066020.
+2021BiBi...16f6020B
+10.1088/1748-3190/ac2b00
+Miller, Gavin.
+"Introduction"
+. snakerobots.com.
+from the original on 2011-08-17
+. Retrieved
+. Archived from
+the original
+on 2011-10-11.
+"Swimming snake robot (commentary in Japanese)"
+. Archived from
+the original
+on 2012-02-08
+. Retrieved
+"Commercialized Quadruped Walking Vehicle "TITAN VII"
+. Hirose Fukushima Robotics Lab. Archived from
+the original
+on 2007-11-06
+. Retrieved
+Pachal, Peter (23 January 2007).
+"Plen, the robot that skates across your desk"
+. SCI FI Tech. Archived from
+the original
+on 2007-10-11.
+Stanford University: Stickybot
+Sfakiotakis, M.; Lane, D. M.; Davies, J. B. C. (April 1999). "Review of fish swimming modes for aquatic locomotion".
+IEEE Journal of Oceanic Engineering
+1999IJOE...24..237S
+10.1.1.459.8614
+10.1109/48.757275
+Mason, Richard.
+"What is the market for robot fish?"
+. Archived from
+the original
+on 2009-07-04.
+"Robotic fish powered by Gumstix PC and PIC"
+. Human Centred Robotics Group at Essex University. Archived from
+the original
+on 2011-08-14
+. Retrieved
+Juwarahawong, Witoon.
+"Fish Robot"
+. Institute of Field Robotics. Archived from
+the original
+on 2007-11-04
+. Retrieved
+"Festo – AquaPenguin"
+. 17 April 2009 – via
+"High-Speed Robotic Fish"
+iSplash-Robotics
+. Archived from
+the original
+on 2020-03-11
+. Retrieved
+"iSplash-II: Realizing Fast Carangiform Swimming to Outperform a Real Fish"
+. Robotics Group at Essex University. Archived from
+the original
+on 2015-09-30
+. Retrieved
+"iSplash-I: High Performance Swimming Motion of a Carangiform Robotic Fish with Full-Body Coordination"
+. Robotics Group at Essex University. Archived from
+the original
+on 2015-09-30
+. Retrieved
+Jaulin, Luc; Le Bars, Fabrice (February 2013). "An Interval Approach for Stability Analysis: Application to Sailboat Robotics".
+IEEE Transactions on Robotics
+2013ITRob..29..282J
+10.1.1.711.7180
+10.1109/TRO.2012.2217794
+"A Ping-Pong-Playing Terminator"
+Popular Science
+from the original on 2021-01-22
+. Retrieved
+"Synthiam Exosphere combines AI, human operators to train robots"
+The Robot Report
+from the original on 2020-10-06
+. Retrieved
+Kagan, Eugene; Ben-Gal, Irad (2015).
+Search and foraging:individual motion and swarm dynamics
+. Chapman and Hall/CRC.
+978-1-4822-4210-2
+from the original on 2023-03-15
+. Retrieved
+Banks, Jaime (2020).
+"Optimus Primed: Media Cultivation of Robot Mental Models and Social Judgments"
+Frontiers in Robotics and AI
+10.3389/frobt.2020.00062
+Wullenkord, Ricarda; Fraune, Marlena R.; Eyssel, Friederike; Sabanovic, Selma (2016). "Getting in Touch: How imagined, actual, and physical contact affect evaluations of robots".
+2016 25th IEEE International Symposium on Robot and Human Interactive Communication (RO-MAN)
+10.1109/ROMAN.2016.7745228
+978-1-5090-3929-6
+Norberto Pires, J. (December 2005). "Robot-by-voice: experiments on commanding an industrial robot using the human voice".
+Industrial Robot
+10.1108/01439910510629244
+"Survey of the State of the Art in Human Language Technology: 1.2: Speech Recognition"
+. Archived from
+the original
+on 2007-11-11.
+Fournier, Randolph Scott; Schmidt, B. June (1995). "Voice input technology: Learning style and attitude toward its use".
+Delta Pi Epsilon Journal
+"History of Speech & Voice Recognition and Transcription Software"
+. Dragon Naturally Speaking.
+from the original on 2015-08-13
+. Retrieved
+Cheng Lin, Kuan; Huang, Tien-Chi; Hung, Jason C.; Yen, Neil Y.; Ju Chen, Szu (7 June 2013). "Facial emotion recognition towards affective computing-based learning".
+Library Hi Tech
+10.1108/07378831311329068
+Walters, M. L.; Syrdal, D. S.; Koay, K. L.; Dautenhahn, K.; Te Boekhorst, R. (2008). "Human approach distances to a mechanical-looking robot with different robot voice styles".
+RO-MAN 2008 – the 17th IEEE International Symposium on Robot and Human Interactive Communication
+10.1109/ROMAN.2008.4600750
+978-1-4244-2212-8
+Pauletto, Sandra; Bowles, Tristan (2010). "Designing the emotional content of a robotic speech signal".
+Proceedings of the 5th Audio Mostly Conference on a Conference on Interaction with Sound – AM '10
+10.1145/1859799.1859804
+978-1-4503-0046-9
+Bowles, Tristan; Pauletto, Sandra (2010).
+Emotions in the Voice: Humanising a Robotic Voice
+. Proceedings of the 7th Sound and Music Computing Conference. Barcelona.
+from the original on 2023-02-10
+. Retrieved
+"World of 2-XL: Leachim"
+www.2xlrobot.com
+from the original on 2020-07-05
+. Retrieved
+"The Boston Globe from Boston, Massachusetts on June 23, 1974 · 132"
+Newspapers.com
+. 23 June 1974.
+from the original on 2020-01-10
+. Retrieved
+"A history of cybernetic animals and early robots"
+cyberneticzoo.com
+from the original on 2020-08-06
+. Retrieved
+"Frubber facial expressions"
+. Archived from
+the original
+on 2009-02-07.
+"Best Inventions of 2008 – TIME"
+. 29 October 2008. Archived from
+the original
+on 2008-11-02 – via www.time.com.
+"Kismet: Robot at MIT's AI Lab Interacts With Humans"
+. Sam Ogden. Archived from
+the original
+on 2007-10-12
+. Retrieved
+Waldherr, Stefan; Romero, Roseli; Thrun, Sebastian (1 September 2000). "A Gesture Based Interface for Human-Robot Interaction".
+Autonomous Robots
+10.1023/A:1008918401478
+Li, Ling Hua; Du, Ji Fang (December 2012). "Visual Based Hand Gesture Recognition Systems".
+Applied Mechanics and Materials
+2012AMM...263.2422L
+10.4028/www.scientific.net/AMM.263-266.2422
+"Armenian Robin the Robot to comfort kids at U.S. clinics starting July"
+Public Radio of Armenia
+from the original on 2021-05-13
+. Retrieved
+Park, S.; Sharlin, Ehud; Kitamura, Y.; Lau, E. (29 April 2005). Synthetic Personality in Robots and its Effect on Human-Robot Relationship (Report).
+10.11575/PRISM/31041
+"Robot Receptionist Dishes Directions and Attitude"
+from the original on 2020-12-01
+. Retrieved
+"New Scientist: A good robot has personality but not looks"
+. Archived from
+the original
+on 2006-09-29.
+"Playtime with Pleo, your robotic dinosaur friend"
+. 25 September 2008.
+from the original on 2019-01-20
+. Retrieved
+conversation with Professor Moravec, October 1997.
+NOVA Online
+2017-08-02 at the
+Wayback Machine
+Agarwal, P. K.
+Elements of Physics XI
+. Rastogi Publications. p. 2.
+978-81-7133-911-2
+Sandhana, Lakshmi (5 September 2002).
+"A Theory of Evolution, for Robots"
+from the original on 2014-03-29
+. Retrieved
+"Experimental Evolution In Robots Probes The Emergence Of Biological Communication"
+Science Daily
+. 24 February 2007.
+from the original on 2018-11-16
+. Retrieved
+Žlajpah, Leon (15 December 2008). "Simulation in robotics".
+Mathematics and Computers in Simulation
+10.1016/j.matcom.2008.02.017
+"Evolution trains robot teams TRN 051904"
+Technology Research News
+from the original on 2016-06-23
+. Retrieved
+Müller, Christopher (2023).
+World Robotics 2023 – Industrial Robots
+. Frankfurt, Germany: IFR Statistical Department, VDMA Services GmbH.
+Tandon, Prateek (2017).
+Quantum Robotics
+. Morgan & Claypool Publishers.
+978-1-62705-913-8
+Dragani, Rachelle (8 November 2018).
+"Can a robot make you a 'superworker'?"
+Verizon Communications
+from the original on 2020-08-06
+. Retrieved
+American Elements
+. Retrieved
+"Career: Robotics Engineer"
+Princeton Review
+from the original on 2015-01-21
+. Retrieved
+Saad, Ashraf; Kroutil, Ryan (2012).
+Hands-on Learning of Programming Concepts Using Robotics for Middle and High School Students
+. Proceedings of the 50th Annual Southeast Regional Conference of the Association for Computing Machinery. ACM. pp.
+10.1145/2184512.2184605
+Toy, Tommy (29 June 2011).
+"Outlook for robotics and Automation for 2011 and beyond are excellent says expert"
+. PBT Consulting.
+from the original on 2012-01-27
+. Retrieved
+Frey, Carl Benedikt; Osborne, Michael A. (January 2017). "The future of employment: How susceptible are jobs to computerisation?".
+Technological Forecasting and Social Change
+10.1.1.395.416
+10.1016/j.techfore.2016.08.019
+McGaughey, Ewan (16 October 2019).
+"Will robots automate your job away? Full employment, basic income, and economic democracy"
+LawArXiv Papers
+10.31228/osf.io/udbj8
+Hawking, Stephen (1 January 2016).
+"This is the most dangerous time for our planet"
+The Guardian
+from the original on 2021-01-31
+. Retrieved
+"Robotics – Thematic Research"
+from the original on 2021-09-28
+. Retrieved
+"Focal Points Seminar on review articles in the future of work – Safety and health at work – EU-OSHA"
+osha.europa.eu
+from the original on 2020-01-25
+. Retrieved
+"Robotics: Redefining crime prevention, public safety and security"
+. SourceSecurity.com.
+from the original on 2017-10-09
+. Retrieved
+"Draft Standard for Intelligent Assist Devices — Personnel Safety Requirements"
+from the original on 2020-11-25
+. Retrieved
+"ISO/TS 15066:2016 – Robots and robotic devices – Collaborative robots"
+. 8 March 2016.
+from the original on 2016-10-10
+. Retrieved
+Brogårdh, Torgny (January 2007). "Present and future robot control development—An industrial perspective".
+Annual Reviews in Control
+10.1016/j.arcontrol.2007.01.002
+Wang, Tian-Miao; Tao, Yong; Liu, Hui (17 April 2018). "Current Researches and Future Development Trend of Intelligent Robot: A Review".
+International Journal of Automation and Computing
+10.1007/s11633-018-1115-1
+Needham, Joseph
+Science and Civilisation in China: Volume 2, History of Scientific Thought
+. Cambridge University Press.
+978-0-521-05800-1
+Fowler, Charles B. (October 1967). "The Museum of Music: A History of Mechanical Instruments".
+Music Educators Journal
+10.2307/3391092
+Rosheim, Mark E. (1994).
+Robot Evolution: The Development of Anthrobotics
+. Wiley-IEEE. pp.
+978-0-471-02622-8
+al-Jazari (Islamic artist)
+2008-05-07 at the
+Wayback Machine
+Encyclopædia Britannica
+A. P. Yuste.
+Electrical Engineering Hall of Fame. Early Developments of Wireless Remote Control: The Telekino of Torres-Quevedo
+(pdf) vol. 96, No. 1, January 2008, Proceedings of the IEEE.
+H. R. Everett (2015).
+Unmanned Systems of World Wars I and II
+978-0-262-02922-3
+Randy Alfred, "
+Nov. 7, 1905: Remote Control Wows Public
+, 7 November 2011.
+Williams, Andrew (16 March 2017).
+History of Digital Games: Developments in Art, Design and Interaction
+. CRC Press.
+978-1-317-50381-1
+Randell, Brian (October 1982). "From Analytical Engine to Electronic Digital Computer: The Contributions of Ludgate, Torres, and Bush".
+IEEE Annals of the History of Computing
+1982IAHC....4d.327R
+10.1109/MAHC.1982.10042
+L. Torres Quevedo.
+Ensayos sobre Automática – Su definicion. Extension teórica de sus aplicaciones,
+Revista de la Academia de Ciencias Exacta, Revista 12, pp. 391–418, 1914.
+Torres Quevedo, Leonardo.
+Automática: Complemento de la Teoría de las Máquinas, (pdf)
+, pp. 575–583, Revista de Obras Públicas, 19 November 1914.
+L. Torres Quevedo.
+Essais sur l'Automatique – Sa définition. Etendue théorique de ses applications
+2023-02-10 at the
+Wayback Machine
+Revue Génerale des Sciences Pures et Appliquées, vol. 2, pp. 601–611, 1915.
+B. Randell.
+Essays on Automatics,
+The Origins of Digital Computers, pp. 89–107, 1982.
+Sabbatini PhD, Renato M. E.
+"Sabbatini, RME: An Imitation of Life: The First Robots"
+from the original on 2009-07-20
+. Retrieved
+Waurzyniak, Patrick (2006).
+"Masters of Manufacturing: Joseph F. Engelberger"
+Society of Manufacturing Engineers
+(1). Archived from
+the original
+on 2011-11-09.
+"Humanoid History -WABOT-"
+www.humanoid.waseda.ac.jp
+from the original on 2017-09-01
+. Retrieved
+Zeghloul, Saïd; Laribi, Med Amine;
+Gazeau, Jean-Pierre
+(21 September 2015).
+Robotics and Mechatronics: Proceedings of the 4th IFToMM International Symposium on Robotics and Mechatronics
+. Springer.
+978-3-319-22368-1
+from the original on 2023-03-15
+. Retrieved
+– via Google Books.
+"Historical Android Projects"
+androidworld.com
+from the original on 2005-11-25
+. Retrieved
+Robots: From Science Fiction to Technological Revolution
+2023-03-15 at the
+Wayback Machine
+Duffy, Vincent G. (19 April 2016).
+Handbook of Digital Human Modeling: Research for Applied Ergonomics and Human Factors Engineering
+. CRC Press.
+978-1-4200-6352-3
+from the original on 2023-03-15
+. Retrieved
+– via Google Books.
+"KUKA Industrial Robot FAMULUS"
+. Archived from
+the original
+on 2009-02-20
+. Retrieved
+"History of Industrial Robots"
+. Archived from
+the original
+on 2012-12-24
+. Retrieved
+R. J. Popplestone; A. P. Ambler; I. Bellos (1978). "RAPT: A language for describing assemblies".
+Industrial Robot
+10.1108/eb004501
+Bozinovski, S. (1994). "Parallel programming for mobile robot control: Agent-based approach".
+14th International Conference on Distributed Computing Systems
+10.1109/ICDCS.1994.302412
+0-8186-5840-1
+Further reading
+R. Andrew Russell (1990).
+Robot Tactile Sensing
+. New York: Prentice Hall.
+978-0-13-781592-0
+McGaughey, Ewan (16 October 2019).
+"Will robots automate your job away? Full employment, basic income, and economic democracy"
+LawArXiv Papers
+10.31228/osf.io/udbj8
+Autor, David H. (1 August 2015). "Why Are There Still So Many Jobs? The History and Future of Workplace Automation".
+Journal of Economic Perspectives
+10.1257/jep.29.3.3
+1721.1/109476
+Tooze, Adam
+(6 June 2019).
+"Democracy and Its Discontents"
+The New York Review of Books
+. Vol. 66, no. 10.
+External links
+at Wikipedia's
+sister projects
+Definitions
+from Wiktionary
+from Commons
+from Wikibooks
+from Wikiversity
+IEEE Robotics and Automation Society
+Investigation of
+social robots
+– Robots that mimic human behaviors and gestures.
+Wired's guide
+to the '50 best robots ever', a mix of robots in fiction (Hal, R2D2, K9) to real robots (Roomba, Mobot, Aibo).
+Main articles
+Hall of Fame
+Competitions
+AI competitions
+Anthropomorphic
+Claytronics
+Animatronic
+Audio-Animatronics
+Articulated
+Educational
+Entertainment
+Agricultural
+Food service
+BEAM robotics
+Soft robotics
+Classifications
+Biorobotics
+Cloud robotics
+Continuum robot
+Unmanned vehicle
+Mobile robot
+Microbotics
+Nanorobotics
+Necrobotics
+Robotic spacecraft
+Space probe
+Telerobotics
+remotely-operated
+Robotic fish
+Electric unicycle
+Robotic fins
+Motion planning
+Simultaneous localization and mapping
+Visual odometry
+Vision-guided robot systems
+Evolutionary
+Open-source
+Developmental
+Human–robot interaction
+Amazon Robotics
+Barrett Technology
+Boston Dynamics
+Doosan Robotics
+Energid Technologies
+Foster-Miller
+Harvest Automation
+HD Hyundai Robotics
+Honeybee Robotics
+Intuitive Surgical
+Rainbow Robotics
+Starship Technologies
+Universal Robotics
+Wolf Robotics
+Critique of work
+Powered exoskeleton
+Workplace robotics safety
+Robotic tech vest
+Technological unemployment
+Terrainability
+Fictional robots
+Engineering
+List of engineering branches
+Specialties
+interdisciplinarity
+Architectural
+Construction
+Environmental
+Geotechnical
+Municipal/urban
+Transportation
+Biomechanical
+Manufacturing
+Naval architecture
+Electromechanics
+Electronics
+Radio-frequency
+Signal processing
+Telecommunications
+Biochemical/bioprocess
+Bioresource
+Chemical reaction
+Electrochemical
+Biomaterial
+Nanotechnology
+Semiconductors
+Cybersecurity
+Engineering education
+Bachelor of Engineering
+Bachelor of Science
+Master's degree
+Graduate certificate
+Engineer's degree
+Licensed engineer
+Related topics
+Reverse Engineering
+Engineering
+Aerospace engineering
+Civil engineering
+Electrical and electronics engineering
+Mechanical engineering
+Structural engineering
+Agricultural
+Bioinformatics
+Health technology
+Pharmaceutical
+Rehabilitation
+Building services
+Information
+Instrumentation
+Instrumentation and control
+Mathematics
+Mechatronics
+Sustainability
+Wikiproject
+Emerging technologies
+Manufacturing
+3D microfabrication
+3D printing
+3D publishing
+Claytronics
+Molecular assembler
+Smart manufacturing
+Utility fog
+Materials science
+Amorphous metal
+Artificial muscle
+Conductive polymer
+Femtotechnology
+High-temperature superconductivity
+High-temperature superfluidity
+Linear acetylenic carbon
+Metamaterials
+Metamaterial cloaking
+Multi-function structures
+Nanotechnology
+Carbon nanotubes
+Molecular nanotechnology
+Nanomaterials
+Picotechnology
+Programmable matter
+Quantum dots
+Synthetic diamond
+Nanorobotics
+Powered exoskeleton
+Self-reconfiguring modular robot
+Swarm robotics
+Uncrewed vehicle
+Collingridge dilemma
+Differential technological development
+Disruptive innovation
+Ephemeralization
+Cyberethics
+Neuroethics
+Robot ethics
+Exploratory engineering
+Proactionary principle
+Technological change
+Technological unemployment
+Technological convergence
+Technological evolution
+Technological paradigm
+Technology forecasting
+Accelerating change
+Future-oriented technology analysis
+Horizon scanning
+Moore's law
+Technological singularity
+Technology scouting
+Technology in science fiction
+Technology readiness level
+Technology roadmap
+Transhumanism
+Glossaries of
+engineering
+Aerospace engineering
+Agriculture
+Archaeology
+Architecture
+Artificial intelligence
+Cell biology
+Cellular and molecular biology
+Civil engineering
+Clinical research
+Computer hardware
+Computer science
+Developmental and reproductive biology
+Electrical and electronics engineering
+Engineering
+Environmental science
+Genetics and evolutionary biology
+Arabic toponyms
+Hebrew toponyms
+Western and South Asia
+Ichthyology
+Machine vision
+Mathematics
+Mechanical engineering
+Meteorology
+Nanotechnology
+Ornithology
+Probability and statistics
+Quantum computing
+Scientific naming
+Structural engineering
+Authority control databases
+International
+United States
+Czech Republic
+Retrieved from "
+https://en.wikipedia.org/w/index.php?title=Robotics&oldid=1335503367
+Hidden categories:
+CS1 errors: archive-url
+CS1: long volume value
+Webarchive template wayback links
+Articles with short description
+Short description is different from Wikidata
+Wikipedia indefinitely move-protected pages
+Wikipedia neutral point of view disputes from August 2024
+All Wikipedia neutral point of view disputes
+Coatrack articles
+Use American English from December 2025
+All Wikipedia articles written in American English
+Use dmy dates from April 2023
+Articles containing Chinese-language text
+All articles with unsourced statements
+Articles with unsourced statements from November 2022
+Pages using Sister project links with hidden wikidata

@@ -5,7 +5,6 @@ Tests file upload, download, and management
 """
 
 import requests
-import json
 import time
 from pathlib import Path
 
@@ -22,12 +21,12 @@ def register_user(username="kolibri_user", password="secure_pass"):
     
     if response.status_code == 201:
         data = response.json()
-        print(f"✅ User registered successfully")
+        print("✅ User registered successfully")
         print(f"   ID: {data['user']['id']}")
         print(f"   Storage: {data['storage']['limit'] / (1024**3):.1f} GB")
         return data['token']
     elif response.status_code == 409:
-        print(f"⚠️  User already exists, logging in...")
+        print("⚠️  User already exists, logging in...")
         return login_user(username, password)
     else:
         print(f"❌ Error: {response.json()}")
@@ -43,7 +42,7 @@ def login_user(username, password):
     
     if response.status_code == 200:
         data = response.json()
-        print(f"✅ Logged in successfully")
+        print("✅ Logged in successfully")
         return data['token']
     else:
         print(f"❌ Error: {response.json()}")
@@ -51,7 +50,7 @@ def login_user(username, password):
 
 def get_storage_info(token):
     """Get storage information"""
-    print(f"\n📊 Storage Information")
+    print("\n📊 Storage Information")
     headers = {"Authorization": f"Bearer {token}"}
     response = requests.get(f"{API_URL}/storage/info", headers=headers)
     
@@ -59,7 +58,7 @@ def get_storage_info(token):
         data = response.json()
         used_gb = data['storage']['used'] / (1024**3)
         limit_gb = data['storage']['limit'] / (1024**3)
-        print(f"✅ Storage info retrieved")
+        print("✅ Storage info retrieved")
         print(f"   Used: {used_gb:.2f} GB / {limit_gb:.2f} GB")
         print(f"   Files: {data['filesCount']}")
         print(f"   Usage: {data['usagePercent']}%")
@@ -88,7 +87,7 @@ def upload_file(token, file_path):
     if response.status_code == 201:
         data = response.json()
         size_kb = data['file']['size'] / 1024
-        print(f"✅ File uploaded successfully")
+        print("✅ File uploaded successfully")
         print(f"   File ID: {data['file']['id']}")
         print(f"   Size: {size_kb:.1f} KB")
         print(f"   Type: {data['file']['mimeType']}")
@@ -99,7 +98,7 @@ def upload_file(token, file_path):
 
 def list_files(token):
     """List all files"""
-    print(f"\n📋 File List")
+    print("\n📋 File List")
     headers = {"Authorization": f"Bearer {token}"}
     response = requests.get(f"{API_URL}/storage/files", headers=headers)
     
@@ -126,7 +125,7 @@ def download_file(token, file_id, output_path):
     if response.status_code == 200:
         with open(output_path, 'wb') as f:
             f.write(response.content)
-        print(f"✅ File downloaded successfully")
+        print("✅ File downloaded successfully")
         print(f"   Saved to: {output_path}")
         return True
     else:
@@ -143,8 +142,8 @@ def delete_file(token, file_id):
     )
     
     if response.status_code == 200:
-        data = response.json()
-        print(f"✅ File deleted successfully")
+        response.json()
+        print("✅ File deleted successfully")
         return True
     else:
         print(f"❌ Error: {response.json()}")
@@ -152,17 +151,17 @@ def delete_file(token, file_id):
 
 def health_check():
     """Check API health"""
-    print(f"\n🏥 Health Check")
+    print("\n🏥 Health Check")
     response = requests.get(f"{API_URL}/health")
     
     if response.status_code == 200:
         data = response.json()
-        print(f"✅ Service is up")
+        print("✅ Service is up")
         print(f"   Status: {data['status']}")
         print(f"   Service: {data['service']}")
         return True
     else:
-        print(f"❌ Service is down")
+        print("❌ Service is down")
         return False
 
 def main():
@@ -220,7 +219,7 @@ Website: https://kolibriai.ru
     time.sleep(0.5)
     
     # List files
-    files = list_files(token)
+    list_files(token)
     
     time.sleep(0.5)
     

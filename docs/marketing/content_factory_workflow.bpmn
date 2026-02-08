@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+  id="Definitions_ContentFactory"
+  targetNamespace="https://kolibri.ai/bpmn/content-factory">
+
+  <bpmn:process id="ContentFactoryProcess" name="Content Factory Pipeline" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_Campaign" name="Запуск кампании" />
+
+    <bpmn:task id="Task_Analyze" name="Анализ рынка и трендов" />
+    <bpmn:task id="Task_FindBestVideos" name="Поиск лучших видео" />
+    <bpmn:task id="Task_GenerateIdeas" name="Генерация идей" />
+
+    <bpmn:exclusiveGateway id="Gateway_IdeaApproval" name="Утверждение идеи?" />
+    <bpmn:task id="Task_IdeaApproved" name="Идея утверждена" />
+    <bpmn:task id="Task_IdeaChanges" name="Правки к идее" />
+    <bpmn:endEvent id="EndEvent_IdeaRejected" name="Идея отклонена" />
+
+    <bpmn:task id="Task_ProduceContent" name="Производство контента" />
+    <bpmn:exclusiveGateway id="Gateway_ContentApproval" name="Утверждение контента?" />
+    <bpmn:task id="Task_ContentApproved" name="Контент утвержден" />
+    <bpmn:task id="Task_ContentChanges" name="Правки к контенту" />
+    <bpmn:endEvent id="EndEvent_ContentRejected" name="Контент отклонен" />
+
+    <bpmn:task id="Task_Publish" name="Публикация" />
+    <bpmn:task id="Task_Analytics" name="Сбор метрик и ROMI" />
+    <bpmn:task id="Task_Learning" name="Обучение конвейера" />
+
+    <bpmn:endEvent id="EndEvent_Done" name="Цикл завершен" />
+
+    <bpmn:sequenceFlow id="Flow_Start_Analyze" sourceRef="StartEvent_Campaign" targetRef="Task_Analyze" />
+    <bpmn:sequenceFlow id="Flow_Analyze_Best" sourceRef="Task_Analyze" targetRef="Task_FindBestVideos" />
+    <bpmn:sequenceFlow id="Flow_Best_Ideas" sourceRef="Task_FindBestVideos" targetRef="Task_GenerateIdeas" />
+    <bpmn:sequenceFlow id="Flow_Ideas_Gateway" sourceRef="Task_GenerateIdeas" targetRef="Gateway_IdeaApproval" />
+
+    <bpmn:sequenceFlow id="Flow_Idea_Approved" sourceRef="Gateway_IdeaApproval" targetRef="Task_IdeaApproved" />
+    <bpmn:sequenceFlow id="Flow_Idea_Changes" sourceRef="Gateway_IdeaApproval" targetRef="Task_IdeaChanges" />
+    <bpmn:sequenceFlow id="Flow_Idea_Rejected" sourceRef="Gateway_IdeaApproval" targetRef="EndEvent_IdeaRejected" />
+
+    <bpmn:sequenceFlow id="Flow_IdeaApproved_Produce" sourceRef="Task_IdeaApproved" targetRef="Task_ProduceContent" />
+    <bpmn:sequenceFlow id="Flow_IdeaChanges_Back" sourceRef="Task_IdeaChanges" targetRef="Task_GenerateIdeas" />
+
+    <bpmn:sequenceFlow id="Flow_Produce_Gateway" sourceRef="Task_ProduceContent" targetRef="Gateway_ContentApproval" />
+    <bpmn:sequenceFlow id="Flow_Content_Approved" sourceRef="Gateway_ContentApproval" targetRef="Task_ContentApproved" />
+    <bpmn:sequenceFlow id="Flow_Content_Changes" sourceRef="Gateway_ContentApproval" targetRef="Task_ContentChanges" />
+    <bpmn:sequenceFlow id="Flow_Content_Rejected" sourceRef="Gateway_ContentApproval" targetRef="EndEvent_ContentRejected" />
+
+    <bpmn:sequenceFlow id="Flow_ContentApproved_Publish" sourceRef="Task_ContentApproved" targetRef="Task_Publish" />
+    <bpmn:sequenceFlow id="Flow_ContentChanges_Back" sourceRef="Task_ContentChanges" targetRef="Task_ProduceContent" />
+
+    <bpmn:sequenceFlow id="Flow_Publish_Analytics" sourceRef="Task_Publish" targetRef="Task_Analytics" />
+    <bpmn:sequenceFlow id="Flow_Analytics_Learning" sourceRef="Task_Analytics" targetRef="Task_Learning" />
+    <bpmn:sequenceFlow id="Flow_Learning_End" sourceRef="Task_Learning" targetRef="EndEvent_Done" />
+  </bpmn:process>
+</bpmn:definitions>

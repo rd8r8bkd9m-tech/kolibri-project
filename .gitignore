@@ -110,3 +110,18 @@ benchmarks/bench_neon
 benchmarks/results/*.json
 benchmarks/results/*.md
 !benchmarks/results/BENCHMARK_REPORT_TEMPLATE.md
+
+# Generated data (training, proofs, models)
+data/proof/
+data/models/*.klm
+data/models/*.json
+data/queue/
+data/massive_swarm/
+data/proof_fast/
+data/proof_swarm/
+data/swarm_log.txt
+
+# Temporary / debug
+test_crash.input
+gdb_cmds
+*.qr.png

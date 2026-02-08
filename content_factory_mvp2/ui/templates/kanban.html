@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Контент‑завод 2.0 — Канбан</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { font-family: Inter, Arial, sans-serif; background: #0f1115; color: #e2e8f0; margin: 0; }
+    .page { padding: 24px; }
+    .toolbar { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+    .badge { background: #1e293b; border: 1px solid #334155; padding: 6px 10px; border-radius: 999px; font-size: 12px; }
+    .message { background: #0f172a; border: 1px solid #334155; padding: 10px 12px; border-radius: 8px; margin-bottom: 16px; }
+    .board { display: flex; gap: 16px; padding: 16px 0; overflow-x: auto; }
+    .column { background: #151922; border: 1px solid #243045; border-radius: 12px; width: 280px; padding: 12px; flex: 0 0 auto; }
+    .card { background: #1e2430; padding: 12px; border-radius: 10px; margin-bottom: 10px; border: 1px solid #2a3447; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+    .status { font-size: 12px; color: #94a3b8; }
+    .title { font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+    .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .btn { background: #2563eb; color: #f8fafc; border: none; padding: 6px 10px; border-radius: 8px; font-size: 12px; cursor: pointer; }
+    .btn.secondary { background: #334155; }
+    .btn.warn { background: #f59e0b; color: #0f172a; }
+    .btn.success { background: #22c55e; color: #0f172a; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 16px; }
+    .panel { background: #121826; border: 1px solid #233044; border-radius: 12px; padding: 12px; }
+    .panel h3 { margin: 0 0 8px; font-size: 14px; }
+    .panel table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .panel th, .panel td { padding: 6px; border-bottom: 1px solid #1f2937; text-align: left; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+    .asset-links a { color: #60a5fa; text-decoration: none; margin-right: 8px; }
+    .snippet { font-size: 11px; color: #cbd5f5; background: #0b1120; padding: 8px; border-radius: 6px; border: 1px solid #1e293b; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h2>Контент‑завод 2.0 — Канбан</h2>
+
+    {% if message %}
+      <div class="message">{{ message }}</div>
+    {% endif %}
+
+    <div class="toolbar">
+      {% if workspaces|length > 0 %}
+        <div class="badge">Workspace: {{ workspaces[0].name }}</div>
+      {% else %}
+        <div class="badge">Workspace не найден — выполните seed/demo</div>
+      {% endif %}
+      <div class="badge">Пакеты: {{ packages|length }}</div>
+      <div class="badge">Идеи: {{ ideas|length }}</div>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <h3>Быстрые действия</h3>
+        <form method="post" action="/actions/ideas/generate">
+          <input type="hidden" name="workspace_id" value="{{ workspaces[0].id if workspaces|length > 0 else '' }}" />
+          <div class="status">Ниша</div>
+          <input name="niche" value="seo" style="width: 100%; margin-bottom: 8px;" />
+          <div class="status">Лимит</div>
+          <input name="limit" type="number" value="5" style="width: 100%; margin-bottom: 8px;" />
+          <button class="btn" type="submit">Сгенерировать идеи</button>
+        </form>
+      </div>
+      <div class="panel">
+        <h3>Статусы пакетов</h3>
+        {% for status in ["analysis", "idea_approval", "package_build", "qa_approval", "scheduling", "publishing", "analytics", "done"] %}
+          <div class="status">{{ status }}: {{ status_counts.get(status, 0) }}</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Идеи</h3>
+      {% if ideas|length == 0 %}
+        <div class="status">Идей нет. Сгенерируйте или запустите demo.</div>
+      {% else %}
+        <table>
+          <thead>
+            <tr>
+              <th>Название</th>
+              <th>Статус</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for idea in ideas[:10] %}
+              <tr>
+                <td>{{ idea.title }}</td>
+                <td class="status">{{ idea.status }}</td>
+                <td>
+                  <form method="post" action="/actions/ideas/{{ idea.id }}/approve" style="display:inline">
+                    <button class="btn secondary" type="submit">Одобрить</button>
+                  </form>
+                  <form method="post" action="/actions/ideas/{{ idea.id }}/package" style="display:inline">
+                    <input type="hidden" name="workspace_id" value="{{ workspaces[0].id if workspaces|length > 0 else '' }}" />
+                    <button class="btn" type="submit">Создать пакет</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    </div>
+
+    <div class="board">
+      {% for status in ["analysis", "idea_approval", "package_build", "qa_approval", "scheduling", "publishing", "analytics", "done"] %}
+      <div class="column">
+        <div class="status">{{ status }}</div>
+        {% if packages|length == 0 %}
+          <div class="card">
+            <div class="status">Нет пакетов</div>
+          </div>
+        {% endif %}
+        {% for item in packages if item.status == status %}
+          <div class="card">
+            <div class="title">{{ item.id }}</div>
+            <div class="status">Обновлено: {{ item.updated_at }}</div>
+            {% if item.seo_article_md %}
+              <div class="snippet">{{ item.seo_article_md | truncate(220) }}</div>
+            {% endif %}
+            {% if item.assets_json %}
+              <div class="asset-links">
+                {% for profile, asset in item.assets_json.items() %}
+                  <div class="status">{{ profile }}</div>
+                  {% if asset.mp4 %}
+                    <a href="{{ asset_url(asset.mp4) }}" target="_blank">mp4</a>
+                  {% endif %}
+                  {% if asset.srt %}
+                    <a href="{{ asset_url(asset.srt) }}" target="_blank">srt</a>
+                  {% endif %}
+                  {% if asset.png %}
+                    <a href="{{ asset_url(asset.png) }}" target="_blank">png</a>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            {% endif %}
+            <div class="actions">
+              {% if item.status == "package_build" %}
+                <form method="post" action="/actions/packages/{{ item.id }}/seo">
+                  <button class="btn secondary" type="submit">SEO</button>
+                </form>
+                <form method="post" action="/actions/packages/{{ item.id }}/script">
+                  <button class="btn secondary" type="submit">Сценарий</button>
+                </form>
+                <form method="post" action="/actions/packages/{{ item.id }}/render">
+                  <button class="btn" type="submit">Рендер</button>
+                </form>
+                <form method="post" action="/actions/packages/{{ item.id }}/auto">
+                  <button class="btn success" type="submit">Авто‑сборка</button>
+                </form>
+              {% elif item.status == "qa_approval" %}
+                <form method="post" action="/actions/packages/{{ item.id }}/approve">
+                  <button class="btn" type="submit">Одобрить QA</button>
+                </form>
+              {% elif item.status == "scheduling" %}
+                <form method="post" action="/actions/packages/{{ item.id }}/schedule">
+                  <button class="btn warn" type="submit">Запланировать</button>
+                </form>
+              {% elif item.status == "publishing" %}
+                <form method="post" action="/actions/packages/{{ item.id }}/publish">
+                  <button class="btn" type="submit">Опубликовать</button>
+                </form>
+              {% elif item.status == "analytics" %}
+                <form method="post" action="/actions/packages/{{ item.id }}/approve">
+                  <button class="btn" type="submit">Закрыть</button>
+                </form>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Content Factory Studio</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-app: #12141d;
+      --bg-panel: #1b1e2a;
+      --bg-node: #242836;
+      --border: #353b4d;
+      --primary: #ff6d5a; /* n8n orange-ish */
+      --primary-hover: #ff8f80;
+      --text-main: #e4e6ed;
+      --text-muted: #9da2b3;
+      --success: #20c997;
+      --warning: #ffc107;
+      --danger: #ff4d4d;
+      --accent-blue: #5c87f2;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-app); color: var(--text-main); height: 100vh; display: flex; overflow: hidden; }
+
+    /* Layout */
+    .sidebar { width: 64px; background: #0b0d12; border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; padding-top: 20px; z-index: 10; }
+    .sidebar-icon { width: 40px; height: 40px; margin-bottom: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); cursor: pointer; transition: all 0.2s; }
+    .sidebar-icon:hover, .sidebar-icon.active { background: rgba(255, 109, 90, 0.1); color: var(--primary); }
+    .sidebar-icon svg { width: 24px; height: 24px; }
+
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    
+    .header { height: 60px; border-bottom: 1px solid var(--border); background: var(--bg-panel); display: flex; align-items: center; padding: 0 24px; justify-content: space-between; }
+    .brand { font-weight: 700; font-size: 18px; display: flex; align-items: center; gap: 10px; }
+    .brand span { color: var(--primary); }
+    
+    .workspace { display: flex; flex: 1; overflow: hidden; position: relative; }
+    
+    /* Workflow Canvas like n8n */
+    .canvas { flex: 1; overflow-x: auto; overflow-y: hidden; display: flex; padding: 24px; background-image: radial-gradient(var(--border) 1px, transparent 0); background-size: 20px 20px; }
+    
+    .stage-column { 
+      min-width: 320px; 
+      margin-right: 48px; 
+      display: flex; 
+      flex-direction: column; 
+      position: relative;
+    }
+    
+    /* Connection Lines */
+    .stage-column:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      top: 40px;
+      right: -48px;
+      width: 48px;
+      height: 2px;
+      background: var(--border);
+      z-index: 0;
+    }
+    .stage-column:not(:last-child)::before {
+        content: '>';
+        position: absolute;
+        top: 31px;
+        right: -26px;
+        color: var(--border);
+        font-size: 18px;
+        background: var(--bg-app);
+        z-index: 1;
+    }
+
+    .stage-header { 
+      font-weight: 600; 
+      font-size: 14px; 
+      text-transform: uppercase; 
+      letter-spacing: 0.5px; 
+      margin-bottom: 16px; 
+      display: flex; 
+      align-items: center; 
+      gap: 8px;
+      color: var(--text-muted);
+    }
+    .stage-badge { background: var(--bg-node); border: 1px solid var(--border); padding: 2px 8px; border-radius: 12px; font-size: 11px; }
+
+    .cards-container { overflow-y: auto; padding-right: 8px; flex: 1; }
+    
+    /* Node Card */
+    .node-card { 
+      background: var(--bg-node); 
+      border: 1px solid var(--border); 
+      border-radius: 8px; 
+      padding: 0; 
+      margin-bottom: 16px; 
+      transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; 
+      position: relative;
+    }
+    .node-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.3); border-color: var(--text-muted); }
+    
+    .node-header { 
+      padding: 12px; 
+      border-bottom: 1px solid var(--border); 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      background: rgba(255,255,255,0.02);
+      border-radius: 8px 8px 0 0;
+    }
+    .node-title { font-weight: 600; font-size: 14px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px;}
+    .node-id { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-muted); }
+    
+    .node-body { padding: 12px; font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+    
+    .node-actions { 
+      padding: 8px 12px; 
+      border-top: 1px solid var(--border); 
+      display: flex; 
+      gap: 8px; 
+      flex-wrap: wrap; 
+    }
+
+    /* Buttons */
+    .btn { 
+      border: none; 
+      padding: 6px 12px; 
+      border-radius: 6px; 
+      font-size: 12px; 
+      font-weight: 500; 
+      cursor: pointer; 
+      transition: background 0.2s; 
+      display: flex; 
+      align-items: center; 
+      gap: 6px;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-sec { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+    .btn-sec:hover { border-color: var(--text-muted); background: rgba(255,255,255,0.05); }
+    .btn-ghost { background: transparent; color: var(--text-muted); padding: 4px; }
+    .btn-ghost:hover { color: var(--text-main); }
+    
+    .btn-run { background: var(--success); color: #000; }
+    .btn-stop { background: var(--danger); color: #fff; }
+
+    /* Modals & Drawers */
+    .drawer { position: absolute; right: 0; top: 0; bottom: 0; width: 400px; background: var(--bg-panel); border-left: 1px solid var(--border); transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); z-index: 100; display: flex; flex-direction: column; box-shadow: -10px 0 30px rgba(0,0,0,0.5); }
+    .drawer.open { transform: translateX(0); }
+    .drawer-header { padding: 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .drawer-content { flex: 1; overflow-y: auto; padding: 16px; }
+    
+    /* Code block */
+    pre { background: #0b0d12; padding: 12px; border-radius: 6px; border: 1px solid var(--border); font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #a5b3ce; overflow-x: auto; margin: 0; }
+
+    /* Forms */
+    .form-group { margin-bottom: 12px; }
+    .form-label { display: block; font-size: 12px; margin-bottom: 6px; color: var(--text-muted); }
+    .form-input { width: 100%; background: #0b0d12; border: 1px solid var(--border); padding: 8px; border-radius: 4px; color: var(--text-main); font-family: 'Inter', sans-serif; font-size: 13px; }
+    .form-input:focus { border-color: var(--primary); outline: none; }
+
+    /* Assets */
+    .asset-tag { display: inline-flex; align-items: center; gap: 4px; background: rgba(92, 135, 242, 0.1); color: var(--accent-blue); padding: 2px 6px; border-radius: 4px; font-size: 11px; text-decoration: none; margin-right: 4px; border: 1px solid rgba(92, 135, 242, 0.2); }
+    .asset-tag:hover { background: rgba(92, 135, 242, 0.2); }
+
+    /* Alerts */
+    .toast { position: fixed; bottom: 24px; right: 24px; background: var(--primary); color: #fff; padding: 12px 24px; border-radius: 8px; font-weight: 500; box-shadow: 0 10px 30px rgba(0,0,0,0.3); animation: slideIn 0.3s ease; z-index: 200; }
+    @keyframes slideIn { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-icon active" title="Workflows">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+    </div>
+    <div class="sidebar-icon" title="Ideas Generator" onclick="openDrawer('ideas-drawer')">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+    </div>
+    <div class="sidebar-icon" title="Executions">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- Header -->
+    <div class="header">
+      <div class="brand">
+        <div style="background:var(--primary); width:24px; height:24px; border-radius:6px;"></div>
+        Content Factory <span>Studio</span>
+      </div>
+      <div>
+        <button class="btn btn-primary" onclick="openDrawer('generator-drawer')">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          New Workflow
+        </button>
+      </div>
+    </div>
+
+    <!-- Workspace -->
+    <div class="workspace">
+      <div class="canvas">
+        
+        <!-- Ideas Stage -->
+        <div class="stage-column">
+          <div class="stage-header">
+            Ideas <span class="stage-badge">{{ ideas|length }}</span>
+          </div>
+          <div class="cards-container">
+            {% for idea in ideas %}
+            <div class="node-card">
+              <div class="node-header">
+                 <div class="node-title">{{ idea.title }}</div>
+                 <div class="node-id">{{ idea.status }}</div>
+              </div>
+              <div class="node-body">
+                {{ idea.hook }}
+              </div>
+              <div class="node-actions">
+                <form method="post" action="/actions/ideas/{{ idea.id }}/approve" style="display:inline">
+                   <button class="btn btn-sec" type="submit">Approve</button>
+                </form>
+                <form method="post" action="/actions/ideas/{{ idea.id }}/package" style="display:inline">
+                   <input type="hidden" name="workspace_id" value="{{ idea.workspace_id }}" />
+                   <button class="btn btn-primary" type="submit">To Package</button>
+                </form>
+                <button class="btn btn-ghost" onclick="showJson('{{ idea.id }}', '{{ idea.rationale_json | tojson | forceescape }}')">{}</button>
+              </div>
+            </div>
+            {% endfor %}
+            {% if ideas|length == 0 %}
+            <div style="text-align:center; padding:20px; border:1px dashed var(--border); border-radius:8px; color:var(--text-muted); font-size:12px;">No Active Ideas</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Package Stages -->
+        {% for status in ["package_build", "qa_approval", "scheduling", "publishing", "analytics"] %}
+        <div class="stage-column">
+          <div class="stage-header">
+            {{ status | replace("_", " ") }} <span class="stage-badge">{{ status_counts.get(status, 0) }}</span>
+          </div>
+          <div class="cards-container">
+            {% for item in packages if item.status == status %}
+            <div class="node-card">
+              <div class="node-header">
+                <div class="node-title">{{ item.id }}</div>
+                <div style="width:8px; height:8px; border-radius:50%; background:var(--success);"></div>
+              </div>
+              
+              <div class="node-body">
+                {% if item.seo_article_md %}
+                 <div style="font-size:11px; margin-bottom:8px; opacity:0.8;">SEO Article Generated</div>
+                {% endif %}
+                
+                {% if item.assets_json %}
+                 <div style="display:flex; flex-wrap:wrap; gap:4px;">
+                  {% for profile, asset in item.assets_json.items() %}
+                    {% if asset.mp4 %} <a href="{{ asset_url(asset.mp4) }}" target="_blank" class="asset-tag">MP4</a> {% endif %}
+                    {% if asset.png %} <a href="{{ asset_url(asset.png) }}" target="_blank" class="asset-tag">PNG</a> {% endif %}
+                  {% endfor %}
+                 </div>
+                {% endif %}
+              </div>
+
+              <div class="node-actions">
+                <!-- Smart Context Actions -->
+                {% if status == "package_build" %}
+                   <form method="post" action="/actions/packages/{{ item.id }}/auto">
+                     <button class="btn btn-run" type="submit">Auto Build</button>
+                   </form>
+                   <form method="post" action="/actions/packages/{{ item.id }}/render">
+                     <button class="btn btn-sec" type="submit">Render</button>
+                   </form>
+                {% elif status == "qa_approval" %}
+                   <form method="post" action="/actions/packages/{{ item.id }}/approve">
+                     <button class="btn btn-primary" type="submit">Approve</button>
+                   </form>
+                {% elif status == "scheduling" %}
+                   <form method="post" action="/actions/packages/{{ item.id }}/schedule">
+                     <button class="btn btn-primary" type="submit">Schedule</button>
+                   </form>
+                {% elif status == "publishing" %}
+                   <form method="post" action="/actions/packages/{{ item.id }}/publish">
+                     <button class="btn btn-primary" type="submit">Publish</button>
+                   </form>
+                {% elif status == "analytics" %}
+                    <div style="font-size:11px; color:var(--success);">Active Tracking</div>
+                {% endif %}
+                <button class="btn btn-ghost" style="margin-left:auto;" onclick='showJson("{{ item.id }}", {{ item | tojson | safe }})'>{}</button>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Generator Drawer -->
+  <div id="generator-drawer" class="drawer">
+    <div class="drawer-header">
+      <div style="font-weight:600;">Generate Workflow</div>
+      <button class="btn btn-ghost" onclick="closeDrawer('generator-drawer')">✕</button>
+    </div>
+    <div class="drawer-content">
+      <form method="post" action="/actions/ideas/generate">
+        <input type="hidden" name="workspace_id" value="{{ workspaces[0].id if workspaces|length > 0 else '' }}" />
+        
+        <div class="form-group">
+           <label class="form-label">Niche / Topic</label>
+           <input class="form-input" name="niche" value="AI Automation" placeholder="e.g. Crypto, Gardening">
+        </div>
+        
+        <div class="form-group">
+           <label class="form-label">Idea Count</label>
+           <input class="form-input" type="number" name="limit" value="5">
+        </div>
+
+        <button class="btn btn-primary" style="width:100%; justify-content:center; margin-top:20px;" type="submit">
+          Generate Ideas
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- JSON Inspector Drawer -->
+  <div id="json-drawer" class="drawer">
+    <div class="drawer-header">
+      <div style="font-weight:600;">Data Inspector</div>
+      <button class="btn btn-ghost" onclick="closeDrawer('json-drawer')">✕</button>
+    </div>
+    <div class="drawer-content">
+      <div style="margin-bottom:12px; font-size:12px; color:var(--text-muted);" id="json-id"></div>
+      <pre id="json-content"></pre>
+    </div>
+  </div>
+
+  {% if message %}
+  <div class="toast" id="toast">{{ message }}</div>
+  <script>
+    setTimeout(() => { document.getElementById('toast').style.display = 'none'; }, 3000);
+  </script>
+  {% endif %}
+
+  <script>
+    function openDrawer(id) {
+      document.getElementById(id).classList.add('open');
+    }
+    function closeDrawer(id) {
+      document.getElementById(id).classList.remove('open');
+    }
+    
+    function showJson(id, data) {
+      document.getElementById('json-id').innerText = "ID: " + id;
+      // Handle stringified JSON if passed as string
+      let content = data;
+      if (typeof data === 'string') {
+          try { content = JSON.parse(data); } catch(e) {}
+      }
+      document.getElementById('json-content').innerText = JSON.stringify(content, null, 2);
+      openDrawer('json-drawer');
+    }
+  </script>
+</body>
+</html>

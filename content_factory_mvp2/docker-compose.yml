@@ -1,0 +1,55 @@
+version: "3.9"
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: content_factory
+      POSTGRES_PASSWORD: content_factory
+      POSTGRES_DB: content_factory
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata_cf2:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6380:6379"
+
+  backend:
+    build: ./backend
+    command: bash -c "export PYTHONPATH=/app && python -m app.wait_for_db && alembic upgrade head && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg2://content_factory:content_factory@db:5432/content_factory
+      PYTHONPATH: /app
+    volumes:
+      - ./backend:/app
+      - ./data/assets:/data/assets
+    ports:
+      - "8001:8000"
+    depends_on:
+      - db
+      - redis
+
+  worker:
+    build: ./worker
+    command: celery -A worker.worker:celery worker --loglevel=info
+    environment:
+      PYTHONPATH: /app
+    volumes:
+      - ./worker:/app
+    depends_on:
+      - redis
+
+  ui:
+    build: ./ui
+    command: python -m uvicorn app:app --host 0.0.0.0 --port 3001
+    volumes:
+      - ./ui:/app
+    ports:
+      - "3001:3001"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata_cf2:

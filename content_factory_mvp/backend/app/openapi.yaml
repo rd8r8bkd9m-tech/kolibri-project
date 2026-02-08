@@ -1,0 +1,197 @@
+openapi: 3.0.3
+info:
+  title: Content Factory MVP API
+  version: 0.1.0
+paths:
+  /api/health:
+    get:
+      summary: Health
+      responses:
+        '200':
+          description: OK
+  /api/workspaces:
+    get:
+      summary: List workspaces
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create workspace
+      requestBody:
+        required: true
+      responses:
+        '200':
+          description: OK
+  /api/brand-guidelines:
+    get:
+      summary: List brand guidelines
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create brand guidelines
+      requestBody:
+        required: true
+      responses:
+        '200':
+          description: OK
+  /api/channels:
+    get:
+      summary: List channels
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create channel
+      requestBody:
+        required: true
+      responses:
+        '200':
+          description: OK
+  /api/competitors:
+    get:
+      summary: List competitors
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create competitor
+      requestBody:
+        required: true
+      responses:
+        '200':
+          description: OK
+  /api/source-videos/collect:
+    post:
+      summary: Collect source videos
+      requestBody:
+        required: true
+      responses:
+        '200':
+          description: OK
+  /api/ideas/generate:
+    post:
+      summary: Generate ideas
+      requestBody:
+        required: true
+      responses:
+        '200':
+          description: OK
+  /api/ideas/{idea_id}/approve:
+    post:
+      summary: Approve idea
+      parameters:
+        - name: idea_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+      responses:
+        '200':
+          description: OK
+  /api/content-items/create-from-idea:
+    post:
+      summary: Create content item from idea
+      requestBody:
+        required: true
+      responses:
+        '200':
+          description: OK
+  /api/content-items/{item_id}/generate-script:
+    post:
+      summary: Generate script
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /api/content-items/{item_id}/produce:
+    post:
+      summary: Produce assets
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /api/content-items/{item_id}/approve:
+    post:
+      summary: Approve content
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+      responses:
+        '200':
+          description: OK
+  /api/content-items/{item_id}/schedule:
+    post:
+      summary: Schedule publication
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+      responses:
+        '200':
+          description: OK
+  /api/content-items/{item_id}/publish:
+    post:
+      summary: Publish content
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /api/publications/{publication_id}/metrics/collect:
+    post:
+      summary: Collect metrics
+      parameters:
+        - name: publication_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /api/publications/{publication_id}/romi/calc:
+    post:
+      summary: Calculate ROMI
+      parameters:
+        - name: publication_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+      responses:
+        '200':
+          description: OK
+  /api/dashboard/summary:
+    get:
+      summary: Dashboard summary
+      responses:
+        '200':
+          description: OK

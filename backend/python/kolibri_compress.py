@@ -5,9 +5,8 @@ Provides a Python interface to the Kolibri compression and archiving system.
 """
 
 import ctypes
-import os
 from pathlib import Path
-from typing import Optional, Tuple, List
+from typing import Tuple
 from enum import IntEnum
 
 # Try to find the library

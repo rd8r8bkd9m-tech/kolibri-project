@@ -3,7 +3,6 @@ import socketserver
 import urllib.request
 import urllib.error
 import urllib.parse
-import sys
 
 PORT = 8081
 BACKEND_PORT = 8000
