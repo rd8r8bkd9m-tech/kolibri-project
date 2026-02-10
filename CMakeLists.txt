@@ -165,6 +165,16 @@ set_target_properties(kolibri_evolve PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 )
 
+# --- FFI библиотека предиктивного компрессора для Python ctypes ---
+add_library(kolibri_kpc SHARED backend/src/predictive_compress.c)
+target_include_directories(kolibri_kpc PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/backend/include)
+target_link_libraries(kolibri_kpc PRIVATE m)
+set_target_properties(kolibri_kpc PROPERTIES
+    OUTPUT_NAME "kolibri_kpc"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+)
+
 # --- Huffman + tANS энтропийное кодирование ---
 add_library(kolibri_huffman_ans SHARED backend/src/huffman_ans.c)
 target_include_directories(kolibri_huffman_ans PRIVATE
