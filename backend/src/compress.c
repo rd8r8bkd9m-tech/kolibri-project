@@ -2171,17 +2171,18 @@ static size_t token_decode_text(const uint8_t *input, size_t input_size,
  *   match:   <0xFF, len-3, dist_hi, dist_lo>  (len 3..258, dist 1..32768)
  * ==================================================================== */
 
-#define LZ_WBITS   16           /* 64 KB окно */
-#define LZ_WSIZE   (1 << LZ_WBITS)  /* 65536 */
+#define LZ_WBITS   20           /* v55: 1 MB окно */
+#define LZ_WSIZE   (1 << LZ_WBITS)  /* 1048576 */
 #define LZ_WMASK   (LZ_WSIZE - 1)
-#define LZ_HTBITS  18           /* 256K хеш-таблица */
+#define LZ_HTBITS  20           /* v55: 1M хеш-таблица */
 #define LZ_HTSIZE  (1 << LZ_HTBITS)
 #define LZ_HTMASK  (LZ_HTSIZE - 1)
 #define LZ_MIN_MATCH  3
-#define LZ_MAX_MATCH  256       /* long: len-4 max 252 (0xFC), short: len=3 */
+#define LZ_MAX_MATCH  259       /* v55: extended len-4 max 255 */
 #define LZ_MAX_CHAIN  512       /* макс. глубина цепочки (v53+) */
 #define LZ_NICE_MATCH 64        /* v54: ранний выход при хорошем совпадении */
 #define LZ_ESCAPE     0xFF      /* escape-байт для совпадений */
+#define LZ_EXT_CODE   0xFC      /* v55: extended 24-bit distance match */
 #define LZ_REP_CODE   0xFD      /* v54: опкод rep-match (LZMA-style) */
 #define LZ_NUM_REPS   4         /* кол-во хранимых последних дистанций */
 
@@ -2315,10 +2316,14 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
                     LZ_FIND_MATCH(ip + 2, len2, dist2);
                 }
 
-                int cost0 = best_len - (best_len == 3 && best_dist <= 256 ? 3 : 4);
-                int cost1 = len1 - (len1 == 3 && dist1 <= 256 ? 3 : 4)
+                /* v55: стоимость учитывает 24-bit extended (6B) */
+                int mc0 = (best_len==3 && best_dist<=256) ? 3 : (best_dist>65535 ? 6 : 4);
+                int mc1 = (len1==3 && dist1<=256) ? 3 : (dist1>65535 ? 6 : 4);
+                int mc2 = (len2==3 && dist2<=256) ? 3 : (dist2>65535 ? 6 : 4);
+                int cost0 = best_len - mc0;
+                int cost1 = len1 - mc1
                             - (input[ip] == LZ_ESCAPE ? 2 : 1);
-                int cost2 = len2 - (len2 == 3 && dist2 <= 256 ? 3 : 4)
+                int cost2 = len2 - mc2
                             - (input[ip] == LZ_ESCAPE ? 2 : 1)
                             - (input[ip+1] == LZ_ESCAPE ? 2 : 1);
 
@@ -2353,13 +2358,13 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
                 }
             }
 
-            /* v54 Match encoding:
-             * Rep:   0xFF 0xFD (rep_idx<<6 | len-3)   (3 bytes, len 3-66)
-             * Short: 0xFF 0xFE dist_lo    (len=3, dist 1-256, 3 bytes)
-             * Long:  0xFF len-4 dist_hi dist_lo (len 4-256, 4 bytes) */
-            int rep_max_len = 66; /* 6 бит: 0-63 + 3 = 3-66 */
+            /* v55 Match encoding:
+             * Rep:      0xFF 0xFD (rep_idx<<6|len-3)         (3B, len 3-66)
+             * Short:    0xFF 0xFE dist_lo                    (3B, len=3, dist≤256)
+             * Long:     0xFF (len-4) dist_hi dist_lo         (4B, len 4-255, dist≤65535)
+             * Extended: 0xFF 0xFC (len-4) d[23:16] d[15:8] d[7:0]  (6B, 24-bit dist) */
+            int rep_max_len = 66;
             if (best_rep >= 0 && best_len <= rep_max_len) {
-                /* Rep-match: 3 bytes — экономим 1 байт vs long match */
                 int rl = best_len;
                 if (rl > rep_max_len) rl = rep_max_len;
                 if (op + 3 > output_max) goto fail;
@@ -2372,12 +2377,27 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
                 output[op++] = LZ_ESCAPE;
                 output[op++] = 0xFE;
                 output[op++] = (uint8_t)(best_dist - 1);
-            } else {
-                if (op + 4 > output_max) goto fail;
+            } else if (best_dist > 65535) {
+                /* v55: Extended 24-bit distance match */
+                int el = best_len;
+                if (el > 259) el = 259;
+                if (op + 6 > output_max) goto fail;
                 output[op++] = LZ_ESCAPE;
-                output[op++] = (uint8_t)(best_len - 4);
+                output[op++] = LZ_EXT_CODE;
+                output[op++] = (uint8_t)(el - 4);
+                output[op++] = (uint8_t)((best_dist >> 16) & 0xFF);
                 output[op++] = (uint8_t)((best_dist >> 8) & 0xFF);
                 output[op++] = (uint8_t)(best_dist & 0xFF);
+                best_len = el;
+            } else {
+                int rl = best_len;
+                if (rl > 255) rl = 255; /* regular long max len-4=0xFB=251 */
+                if (op + 4 > output_max) goto fail;
+                output[op++] = LZ_ESCAPE;
+                output[op++] = (uint8_t)(rl - 4);
+                output[op++] = (uint8_t)((best_dist >> 8) & 0xFF);
+                output[op++] = (uint8_t)(best_dist & 0xFF);
+                best_len = rl;
             }
 
             /* v54: обновляем rep-дистанции (MRU — последний вперёд) */
@@ -2468,6 +2488,23 @@ static size_t lz_lite_decode(const uint8_t *input, size_t input_size,
                         rep[ri] = rep[ri - 1];
                     rep[0] = tmp;
                 }
+            } else if (next == LZ_EXT_CODE) {
+                /* v55: Extended 24-bit distance match */
+                if (ip + 3 >= input_size) return 0;
+                int len = (int)input[ip] + 4;
+                int dist = ((int)input[ip+1] << 16)
+                         | ((int)input[ip+2] << 8)
+                         | (int)input[ip+3];
+                ip += 4;
+                if (dist == 0 || dist > (int)op) return 0;
+                if (op + len > output_max) return 0;
+                for (int k = 0; k < len; k++) {
+                    output[op] = output[op - dist];
+                    op++;
+                }
+                for (int ri = LZ_NUM_REPS - 1; ri > 0; ri--)
+                    rep[ri] = rep[ri - 1];
+                rep[0] = dist;
             } else if (next == 0xFE) {
                 /* Short match: len=3, dist=next_byte+1 */
                 if (ip >= input_size) return 0;
@@ -2480,7 +2517,6 @@ static size_t lz_lite_decode(const uint8_t *input, size_t input_size,
                     output[op] = output[op - dist];
                     op++;
                 }
-                /* Обновляем rep */
                 for (int ri = LZ_NUM_REPS - 1; ri > 0; ri--)
                     rep[ri] = rep[ri - 1];
                 rep[0] = dist;
@@ -2496,7 +2532,6 @@ static size_t lz_lite_decode(const uint8_t *input, size_t input_size,
                     output[op] = output[op - dist];
                     op++;
                 }
-                /* Обновляем rep */
                 for (int ri = LZ_NUM_REPS - 1; ri > 0; ri--)
                     rep[ri] = rep[ri - 1];
                 rep[0] = dist;
@@ -2574,11 +2609,13 @@ static inline int krc_dec_bit(KolibriRC *c, uint32_t prob) {
  *   O2: 128K записей (256KB)
  *   O3: 256K записей (512KB)
  *   O4: 256K записей (512KB)
- *   O5: 256K записей (512KB)
- *   O6: 256K записей (512KB)
- *   O7: 256K записей (512KB)
+ *   O5: 1M записей (2MB)
+ *   O6: 1M записей (2MB)
+ *   O7: 1M записей (2MB)
+ *   O8: 1M записей (2MB) — v55
  *   SSE: 256×8×33    (135KB)
- *   Итого: ~3.2 MB
+ *   Run: 4K записей (8KB) — v55
+ *   Итого: ~11.4 MB
  */
 #define T0_SIZE  65536u     /* Order-0: 256 byte contexts × 256 bit-tree */
 #define T1_SIZE  65536u     /* 64K */
@@ -2588,8 +2625,10 @@ static inline int krc_dec_bit(KolibriRC *c, uint32_t prob) {
 #define T5_SIZE  1048576u   /* 1M — v53: больше таблицы = меньше коллизий */
 #define T6_SIZE  1048576u
 #define T7_SIZE  1048576u
+#define T8_SIZE  1048576u   /* v55: Order-8 — глубокий контекст для исходного кода */
 #define SSE_Q    33
 #define SSE_SZ   (256u * 8u * SSE_Q)
+#define TRUN_SIZE  4096u    /* v55: run-length context (16 run_len × 256 cx) */
 
 /* --- v54: Логистическое смешивание (stretch/squash) ---
  * stretch(p) = ln(p/(1-p)) — переводит вероятность в logit-пространство
@@ -2633,18 +2672,21 @@ static inline uint32_t kf_squash(int32_t x) {
     return squash_table[idx];
 }
 
-/* Расширенная модель: контексты + match model + word boundary */
+/* v55: Расширенная модель: 13 предикторов (O0-O8 + state + word + sparse + run) */
 typedef struct {
     uint16_t *t0, *t1, *t2, *t3, *t4, *t5, *t6, *t7;
+    uint16_t *t8;        /* v55: Order-8 context */
     uint16_t *sse;
-    uint16_t *tstate;    /* LZ state-aware: 4_states × 256 × 256 bit-tree */
-    uint16_t *tword;     /* word boundary: 64K (контекст начала слова) */
-    uint16_t *tsparse;   /* sparse context: (hist[0]^hist[2]) × 256 bit-tree */
-    /* v54: адаптивные веса для логистического смешивания */
-    int32_t w[11];
-    int32_t wsum;       /* не используется в логистическом режиме, зарезервирован */
+    uint16_t *tstate;    /* LZ state-aware */
+    uint16_t *tword;     /* word boundary */
+    uint16_t *tsparse;   /* sparse context */
+    uint16_t *trun;      /* v55: run-length context */
+    /* v55: адаптивные веса для логистического смешивания (13 предикторов) */
+    int32_t w[13];
+    int32_t wsum;
 } KF51M;
 
+#define KF_NUM_PREDS 13  /* v55: кол-во предикторов */
 #define TSTATE_SIZE  65536u  /* compact: state*256 + byte hashed to 64K */
 #define TWORD_SIZE   65536u         /* word boundary context */
 #define TSPARSE_SIZE 65536u         /* sparse (gap) context */
@@ -2660,23 +2702,28 @@ static int kf51_init(KF51M *m) {
     m->t2 = kf51_new(T2_SIZE);  m->t3 = kf51_new(T3_SIZE);
     m->t4 = kf51_new(T4_SIZE);  m->t5 = kf51_new(T5_SIZE);
     m->t6 = kf51_new(T6_SIZE);  m->t7 = kf51_new(T7_SIZE);
+    m->t8 = kf51_new(T8_SIZE);  /* v55: Order-8 */
     m->sse = kf51_new(SSE_SZ);
     m->tstate = kf51_new(TSTATE_SIZE);
     m->tword = kf51_new(TWORD_SIZE);
     m->tsparse = kf51_new(TSPARSE_SIZE);
-    /* v54: начальные веса для логистического смешивания (fixed-point ×64) */
+    m->trun = kf51_new(TRUN_SIZE);  /* v55: run model */
+    /* v55: начальные веса (13 предикторов для логистического смешивания) */
     m->w[0] =  4;  m->w[1] =  4;  m->w[2] =  8;  m->w[3] = 16;
     m->w[4] = 32;  m->w[5] = 48;  m->w[6] = 72;  m->w[7] = 112;
-    m->w[8] = 32;  m->w[9] = 12;  m->w[10] = 12;
+    m->w[8] = 128; /* v55: O8 — высокий начальный вес */
+    m->w[9] = 32;  m->w[10] = 12;  m->w[11] = 12;
+    m->w[12] = 16; /* v55: run model */
     m->wsum = 0;
     return (m->t0 && m->t1 && m->t2 && m->t3 &&
-            m->t4 && m->t5 && m->t6 && m->t7 && m->sse &&
-            m->tstate && m->tword && m->tsparse);
+            m->t4 && m->t5 && m->t6 && m->t7 && m->t8 && m->sse &&
+            m->tstate && m->tword && m->tsparse && m->trun);
 }
 static void kf51_destroy(KF51M *m) {
     free(m->t0); free(m->t1); free(m->t2); free(m->t3);
     free(m->t4); free(m->t5); free(m->t6); free(m->t7);
-    free(m->sse); free(m->tstate); free(m->tword); free(m->tsparse);
+    free(m->t8); free(m->sse); free(m->tstate);
+    free(m->tword); free(m->tsparse); free(m->trun);
 }
 
 /* FNV хеш */
@@ -2692,17 +2739,24 @@ static inline void kf_upd(uint16_t *p, int bit, int rate) {
 
 /* Общая inline-логика для одного байта (encoder/decoder)
  *
- * Token-aware state tracking для LZ потока:
- *   state 0: обычный литерал / начало токена
- *   state 1: после 0xFF — ждём 0xFF (литерал) или len (match)
- *   state 2: прочитали len — ждём dist_hi
- *   state 3: прочитали dist_hi — ждём dist_lo
+ * v55: 10-state LZ token tracking, 13 предикторов,
+ * Order-0..8, LZ state, word boundary, sparse, run-length.
  *
- * Sparse context: hist[0]^hist[2] (пропуск 1 байта для структурных данных)
+ * State machine:
+ *   0: normal literal
+ *   1: after 0xFF (match type selector)
+ *   2: regular long - reading dist_hi
+ *   3: regular long - reading dist_lo
+ *   4: short match (0xFE) - reading dist_lo
+ *   5: rep match (0xFD) - reading rep_byte
+ *   6: extended (0xFC) - reading len
+ *   7: extended - reading dist[23:16]
+ *   8: extended - reading dist[15:8]
+ *   9: extended - reading dist[7:0]
  */
 #define KF51_PROCESS_BYTE(ENCODE)                                           \
 do {                                                                        \
-    /* Хеши контекстов */                                                   \
+    /* Хеши контекстов (Order 1..8) */                                      \
     uint32_t h1 = 0xA1B2C3D4u ^ hist[0];                                   \
     uint32_t h2 = kfh(h1, hist[1]);                                         \
     uint32_t h3 = kfh(h2, hist[2]);                                         \
@@ -2710,10 +2764,16 @@ do {                                                                        \
     uint32_t h5 = kfh(h4, hist[4]);                                         \
     uint32_t h6 = kfh(h5, hist[5]);                                         \
     uint32_t h7 = kfh(h6, hist[6]);                                         \
+    uint32_t h8 = kfh(h7, hist[7]); /* v55: Order-8 */                     \
                                                                             \
     /* Word boundary: пробел/nl/tab → начало нового слова */                \
     int is_wb = (hist[0]==' '||hist[0]=='\n'||hist[0]=='\t'              \
                  ||hist[0]=='\r'||hist[0]==0);                              \
+                                                                            \
+    /* v55: Run-length tracking — считаем серию одинаковых байт */          \
+    int run_len = 0;                                                         \
+    while (run_len < 15 && run_len < 7                                       \
+           && hist[run_len] == hist[run_len+1]) run_len++;                   \
                                                                             \
     uint32_t cx = 1;                                                        \
     for (int b = 7; b >= 0; b--) {                                          \
@@ -2726,6 +2786,7 @@ do {                                                                        \
         uint32_t i5 = (h5 * 256u + cx) & (T5_SIZE - 1);                    \
         uint32_t i6 = (h6 * 256u + cx) & (T6_SIZE - 1);                    \
         uint32_t i7 = (h7 * 256u + cx) & (T7_SIZE - 1);                    \
+        uint32_t i8 = (h8 * 256u + cx) & (T8_SIZE - 1); /* v55 */          \
                                                                             \
         /* State-aware: (lz_state * 65536) + byte * 256 + cx */             \
         uint32_t ist = ((uint32_t)lz_state * 65536u                        \
@@ -2737,30 +2798,32 @@ do {                                                                        \
         /* Sparse: (hist[0]^hist[2]) * 256 + cx */                          \
         uint32_t isp = ((hist[0] ^ hist[2]) * 256u + cx)                   \
                         & (TSPARSE_SIZE - 1);                               \
+        /* v55: Run context: run_len * 256 + cx */                          \
+        uint32_t irun = ((uint32_t)run_len * 256u + cx)                     \
+                         & (TRUN_SIZE - 1);                                 \
                                                                             \
-        /* Вероятности */                                                    \
+        /* Вероятности (13 предикторов) */                                   \
         uint32_t p0 = mm->t0[i0], p1 = mm->t1[i1];                         \
         uint32_t p2 = mm->t2[i2], p3 = mm->t3[i3];                         \
         uint32_t p4 = mm->t4[i4], p5 = mm->t5[i5];                         \
         uint32_t p6 = mm->t6[i6], p7 = mm->t7[i7];                         \
+        uint32_t p8 = mm->t8[i8]; /* v55 */                                \
         uint32_t pst = mm->tstate[ist];                                     \
         uint32_t pw = mm->tword[iw];                                        \
         uint32_t psp = mm->tsparse[isp];                                    \
+        uint32_t prun = mm->trun[irun]; /* v55 */                          \
                                                                             \
-        /* v54: Логистическое смешивание (PAQ-style)                        \
-         * 1) stretch(p) — переводим каждую вероятность в logit             \
-         * 2) Линейная комбинация logits с адаптивными весами               \
-         * 3) squash() — обратно в вероятность                              \
-         * Даёт значительно лучшее смешивание около p≈0 и p≈1 */           \
-        int16_t s[11];                                                       \
+        /* v55: Логистическое смешивание (13 предикторов) */                \
+        int16_t s[KF_NUM_PREDS];                                            \
         s[0]=kf_stretch(p0);  s[1]=kf_stretch(p1);  s[2]=kf_stretch(p2);   \
         s[3]=kf_stretch(p3);  s[4]=kf_stretch(p4);  s[5]=kf_stretch(p5);   \
-        s[6]=kf_stretch(p6);  s[7]=kf_stretch(p7);  s[8]=kf_stretch(pst);  \
-        s[9]=kf_stretch(pw);  s[10]=kf_stretch(psp);                        \
+        s[6]=kf_stretch(p6);  s[7]=kf_stretch(p7);  s[8]=kf_stretch(p8);   \
+        s[9]=kf_stretch(pst); s[10]=kf_stretch(pw);  s[11]=kf_stretch(psp);\
+        s[12]=kf_stretch(prun);                                              \
         int32_t logit_mix = 0;                                               \
-        for (int wi = 0; wi < 11; wi++)                                      \
+        for (int wi = 0; wi < KF_NUM_PREDS; wi++)                           \
             logit_mix += (int32_t)mm->w[wi] * (int32_t)s[wi];               \
-        logit_mix >>= 8;   /* делим на 256 (масштаб весов) */               \
+        logit_mix >>= 8;                                                     \
         uint32_t mx = kf_squash(logit_mix);                                  \
                                                                             \
         /* SSE */                                                            \
@@ -2789,36 +2852,45 @@ do {                                                                        \
         kf_upd(&mm->t5[i5], bit, 3);                                        \
         kf_upd(&mm->t6[i6], bit, 3);                                        \
         kf_upd(&mm->t7[i7], bit, 3);                                        \
+        kf_upd(&mm->t8[i8], bit, 3); /* v55 */                             \
         kf_upd(&mm->tstate[ist], bit, 3);                                   \
         kf_upd(&mm->tword[iw], bit, 4);                                     \
         kf_upd(&mm->tsparse[isp], bit, 4);                                  \
+        kf_upd(&mm->trun[irun], bit, 4); /* v55 */                         \
         kf_upd(&mm->sse[si], bit, 4);                                       \
                                                                             \
-        /* v54: обучение весов в logit-пространстве                         \
-         * gradient = (bit - p) * stretch(pred_i)                            \
-         * w[i] += lr * gradient */                                          \
+        /* v55: обучение весов — ускоренный learning rate (>>15) */         \
         {                                                                    \
             int32_t err = (bit ? 4096 : 0) - (int32_t)mx;                   \
-            for (int wi = 0; wi < 11; wi++) {                                \
-                int32_t delta = (err * (int32_t)s[wi]) >> 16;               \
+            for (int wi = 0; wi < KF_NUM_PREDS; wi++) {                     \
+                int32_t delta = (err * (int32_t)s[wi]) >> 15;               \
                 mm->w[wi] += delta;                                          \
-                if (mm->w[wi] < -4096) mm->w[wi] = -4096;                   \
-                if (mm->w[wi] > 4096) mm->w[wi] = 4096;                    \
+                if (mm->w[wi] < -8192) mm->w[wi] = -8192;                   \
+                if (mm->w[wi] > 8192) mm->w[wi] = 8192;                    \
             }                                                                \
         }                                                                    \
                                                                             \
         cx = (cx << 1) | bit;                                                \
     }                                                                        \
-    /* Обновляем LZ state machine */                                         \
-    if (lz_state == 0) {                                                     \
-        if (byte == 0xFF) lz_state = 1;                                      \
-    } else if (lz_state == 1) {                                              \
-        if (byte == 0xFF) lz_state = 0; /* escaped literal */                \
-        else lz_state = 2; /* len byte read, expect dist_hi */               \
-    } else if (lz_state == 2) {                                              \
-        lz_state = 3; /* dist_hi read, expect dist_lo */                     \
-    } else {                                                                 \
-        lz_state = 0; /* dist_lo read, back to normal */                     \
+    /* v55: 10-state LZ token machine */                                     \
+    switch (lz_state) {                                                      \
+    case 0: if (byte == 0xFF) lz_state = 1; break;                          \
+    case 1:                                                                  \
+        if (byte == 0xFF) lz_state = 0;      /* escaped literal */           \
+        else if (byte == 0xFE) lz_state = 4; /* short match */              \
+        else if (byte == 0xFD) lz_state = 5; /* rep match */                \
+        else if (byte == 0xFC) lz_state = 6; /* extended match */           \
+        else lz_state = 2;                   /* regular long */              \
+        break;                                                               \
+    case 2: lz_state = 3; break; /* dist_hi → dist_lo */                    \
+    case 3: lz_state = 0; break; /* dist_lo → normal */                     \
+    case 4: lz_state = 0; break; /* short dist → normal */                  \
+    case 5: lz_state = 0; break; /* rep_byte → normal */                    \
+    case 6: lz_state = 7; break; /* ext len → dist[23:16] */               \
+    case 7: lz_state = 8; break; /* dist[23:16] → dist[15:8] */            \
+    case 8: lz_state = 9; break; /* dist[15:8] → dist[7:0] */              \
+    case 9: lz_state = 0; break; /* dist[7:0] → normal */                  \
+    default: lz_state = 0; break;                                            \
     }                                                                        \
     for (int k = 7; k > 0; k--) hist[k] = hist[k-1];                        \
     hist[0] = byte;                                                          \
