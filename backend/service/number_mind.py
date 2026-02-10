@@ -26,6 +26,7 @@ import random
 import re
 import struct
 import time
+import zlib
 from array import array
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -1459,6 +1460,11 @@ class SentenceStore:
         self._bm25_b: float = 0.75                 # нормализация длины
         # --- Эмбеддинги для семантического retrieval ---
         self.embeddings: object | None = None  # EmbeddingTable, инициализируется движком
+        # --- Сжатие длинных записей через zlib ---
+        self._compressed: dict[int, bytes] = {}   # idx → compressed digits (zlib)
+        self._compressed_sizes: dict[int, int] = {}  # idx → original digit count
+        self._compress_threshold: int = 200        # сжимать если > 200 цифр
+        self._bytes_saved: int = 0                 # экономия памяти (байт)
 
     def add_text(self, text: str) -> int:
         """Разбить текст на предложения → закодировать в ЦИФРЫ и сохранить."""
@@ -1483,6 +1489,18 @@ class SentenceStore:
             digit_array = array('B', digits)
 
             idx = len(self.sentences)
+
+            # --- Сжатие длинных записей ---
+            if len(digit_array) > self._compress_threshold:
+                raw = bytes(digit_array)
+                compressed = zlib.compress(raw, level=6)
+                if len(compressed) < len(raw):
+                    self._compressed[idx] = compressed
+                    self._compressed_sizes[idx] = len(raw)
+                    self._bytes_saved += len(raw) - len(compressed)
+                    # Храним пустой массив — данные в _compressed
+                    digit_array = array('B')
+
             self.sentences.append(SentenceEntry(
                 digits=digit_array,
                 fingerprint=fp,
@@ -1508,8 +1526,12 @@ class SentenceStore:
         return added
 
     def get_text(self, idx: int) -> str:
-        """Восстановить текст из цифр (decode on demand)."""
+        """Восстановить текст из цифр (decode on demand, с распаковкой)."""
         if 0 <= idx < len(self.sentences):
+            # Если данные сжаты — распаковываем
+            if idx in self._compressed:
+                raw = zlib.decompress(self._compressed[idx])
+                return digits_to_text(list(raw))
             return digits_to_text(list(self.sentences[idx].digits))
         return ""
 
@@ -1635,9 +1657,22 @@ class SentenceStore:
     @property
     def memory_digits(self) -> int:
         """Общее число цифр в хранилище (метрика объёма знаний)."""
-        return sum(len(s.digits) for s in self.sentences)
+        uncompressed = sum(len(s.digits) for s in self.sentences)
+        # Добавляем оригинальные размеры сжатых записей (из кеша, без распаковки)
+        uncompressed += sum(self._compressed_sizes.values())
+        return uncompressed
 
     @property
     def total_digits(self) -> int:
         """Алиас для memory_digits — общее число цифр."""
         return self.memory_digits
+
+    @property
+    def compression_stats(self) -> dict[str, int]:
+        """Статистика сжатия хранилища."""
+        return {
+            "compressed_entries": len(self._compressed),
+            "total_entries": len(self.sentences),
+            "bytes_saved": self._bytes_saved,
+            "compressed_bytes": sum(len(v) for v in self._compressed.values()),
+        }

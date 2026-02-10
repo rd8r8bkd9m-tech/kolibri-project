@@ -730,3 +730,13 @@
 {"event": {"metka": 1770699788.970709, "soobshenie": "alpha->beta", "tip": "ASK"}}
 {"event": {"metka": 1770699797.7895453, "soobshenie": "alpha->beta", "tip": "TEACH"}}
 {"event": {"metka": 1770699799.6897311, "soobshenie": "alpha->beta", "tip": "TEACH"}}
+{"event": {"metka": 1770730202.858654, "soobshenie": "x->y", "tip": "TEACH"}}
+{"event": {"metka": 1770730202.8596027, "soobshenie": "x->y", "tip": "ASK"}}
+{"event": {"metka": 1770730299.8848574, "soobshenie": "x->y", "tip": "TEACH"}}
+{"event": {"metka": 1770730299.8858387, "soobshenie": "x->y", "tip": "ASK"}}
+{"event": {"metka": 1770730395.5783079, "soobshenie": "x->y", "tip": "TEACH"}}
+{"event": {"metka": 1770730395.5800607, "soobshenie": "x->y", "tip": "ASK"}}
+{"event": {"metka": 1770730593.5448444, "soobshenie": "x->y", "tip": "TEACH"}}
+{"event": {"metka": 1770730593.5478013, "soobshenie": "x->y", "tip": "ASK"}}
+{"event": {"metka": 1770730715.702337, "soobshenie": "x->y", "tip": "TEACH"}}
+{"event": {"metka": 1770730715.7035246, "soobshenie": "x->y", "tip": "ASK"}}
