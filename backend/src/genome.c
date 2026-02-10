@@ -768,3 +768,119 @@ int kg_iterate_blocks(KolibriGenome *ctx, kg_block_callback callback,
 
   return count;
 }
+
+/* ===================================================================
+ * v65: Фрактальная память — персистентное хранение в блокчейне генома
+ *
+ * Формат payload (все цифры):
+ *   - Первые 2 цифры:  длина пути (01–30)
+ *   - Следующие N цифр: десятичный путь фрактальной памяти
+ *   - Остальные цифры:  значение, закодированное через kg_encode_payload
+ * =================================================================== */
+
+int kg_save_memory_node(KolibriGenome *ctx, const uint8_t *path,
+                        size_t path_len, const char *value,
+                        size_t value_len) {
+  if (!ctx || !path || path_len == 0 || path_len > 30 ||
+      !value || value_len == 0) {
+    return -1;
+  }
+
+  /* Формируем payload из десятичных цифр */
+  char payload[KOLIBRI_PAYLOAD_SIZE];
+  memset(payload, 0, sizeof(payload));
+  int pos = 0;
+
+  /* Длина пути: 2 цифры */
+  payload[pos++] = '0' + (char)(path_len / 10);
+  payload[pos++] = '0' + (char)(path_len % 10);
+
+  /* Десятичный путь */
+  for (size_t i = 0; i < path_len && pos < KOLIBRI_PAYLOAD_SIZE - 1; i++) {
+    payload[pos++] = '0' + (char)(path[i] % 10);
+  }
+
+  /* Кодируем значение: каждый байт → 3 десятичные цифры */
+  for (size_t i = 0; i < value_len && pos + 3 < KOLIBRI_PAYLOAD_SIZE; i++) {
+    unsigned char c = (unsigned char)value[i];
+    payload[pos++] = '0' + (char)(c / 100);
+    payload[pos++] = '0' + (char)((c / 10) % 10);
+    payload[pos++] = '0' + (char)(c % 10);
+  }
+  payload[pos] = '\0';
+
+  return kg_append(ctx, "FMEM", payload, NULL);
+}
+
+/* --- Загрузка узлов фрактальной памяти --- */
+
+struct kg_memory_load_ctx {
+  kg_memory_callback callback;
+  void *user_data;
+  int count;
+};
+
+static int memory_block_handler(const ReasonBlock *block, void *user_data) {
+  struct kg_memory_load_ctx *mctx = (struct kg_memory_load_ctx *)user_data;
+
+  /* Фильтруем по event_type "FMEM" */
+  if (strncmp(block->event_type, "FMEM", 4) != 0) {
+    return 0; /* пропускаем, продолжаем */
+  }
+
+  const char *p = block->payload;
+  size_t plen = strnlen(p, KOLIBRI_PAYLOAD_SIZE);
+
+  if (plen < 3) return 0; /* слишком короткий */
+
+  /* Читаем длину пути (2 цифры) */
+  size_t path_len = (size_t)(p[0] - '0') * 10 + (size_t)(p[1] - '0');
+  if (path_len == 0 || path_len > 30 || 2 + path_len > plen) return 0;
+
+  /* Читаем путь */
+  uint8_t path[30];
+  for (size_t i = 0; i < path_len; i++) {
+    path[i] = (uint8_t)(p[2 + i] - '0');
+  }
+
+  /* Декодируем значение: тройки цифр → байты */
+  size_t val_start = 2 + path_len;
+  size_t val_digits = plen - val_start;
+  size_t val_len = val_digits / 3;
+
+  char value[KOLIBRI_PAYLOAD_SIZE];
+  for (size_t i = 0; i < val_len && i * 3 + 2 < val_digits; i++) {
+    unsigned char c = (unsigned char)(
+        (p[val_start + i * 3] - '0') * 100 +
+        (p[val_start + i * 3 + 1] - '0') * 10 +
+        (p[val_start + i * 3 + 2] - '0'));
+    value[i] = (char)c;
+  }
+  if (val_len < sizeof(value)) {
+    value[val_len] = '\0';
+  }
+
+  /* Вызываем callback */
+  if (mctx->callback) {
+    mctx->callback(path, path_len, value, val_len, mctx->user_data);
+  }
+  mctx->count++;
+
+  return 0;
+}
+
+int kg_load_memory_nodes(KolibriGenome *ctx, kg_memory_callback callback,
+                         void *user_data) {
+  if (!ctx || !callback) return -1;
+
+  struct kg_memory_load_ctx mctx = {
+    .callback = callback,
+    .user_data = user_data,
+    .count = 0
+  };
+
+  int result = kg_iterate_blocks(ctx, memory_block_handler, &mctx);
+  if (result < 0) return -1;
+
+  return mctx.count;
+}

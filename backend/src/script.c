@@ -6,6 +6,7 @@
 #include "kolibri/script.h"
 #include "kolibri/decimal.h"
 #include "kolibri/net.h"
+#include "kolibri/fractal_memory.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -307,7 +308,10 @@ static const char *const KOLIBRI_KEYWORDS[] = {
     "фитнес",
     "итог",
     "режим",
-    "верифицировать"
+    "верифицировать",
+    "запомнить",
+    "вспомнить",
+    "как"
 };
 
 static void kolibri_to_lower_ascii(const char *src, char *dst, size_t dst_len);
@@ -756,7 +760,9 @@ typedef enum {
     KOLIBRI_NODE_IF,
     KOLIBRI_NODE_WHILE,
     KOLIBRI_NODE_MODE,
-    KOLIBRI_NODE_VERIFY
+    KOLIBRI_NODE_VERIFY,
+    KOLIBRI_NODE_REMEMBER,
+    KOLIBRI_NODE_RECALL
 } KolibriNodeKind;
 
 typedef struct KolibriStatement KolibriStatement;
@@ -814,6 +820,13 @@ struct KolibriStatement {
         struct {
             KolibriExpression expected;
         } verify;
+        struct {
+            KolibriExpression key;
+            KolibriExpression value;
+        } remember;
+        struct {
+            KolibriExpression key;
+        } recall;
     } data;
 };
 
@@ -914,6 +927,13 @@ static void kolibri_free_statement(KolibriStatement *stmt) {
         break;
     case KOLIBRI_NODE_CALL_EVOLUTION:
     case KOLIBRI_NODE_PRINT_CANVAS:
+        break;
+    case KOLIBRI_NODE_REMEMBER:
+        kolibri_free_expression(&stmt->data.remember.key);
+        kolibri_free_expression(&stmt->data.remember.value);
+        break;
+    case KOLIBRI_NODE_RECALL:
+        kolibri_free_expression(&stmt->data.recall.key);
         break;
     }
     free(stmt);
@@ -1619,6 +1639,74 @@ static KolibriStatement *kolibri_parser_parse_print_canvas(KolibriParser *parser
     return stmt;
 }
 
+/*
+ * запомнить <ключ> <значение>
+ * Вставляет понятие в фрактальную десятичную память
+ */
+static KolibriStatement *kolibri_parser_parse_remember(KolibriParser *parser) {
+    const KolibriToken *start = kolibri_parser_advance(parser); /* "запомнить" */
+    const char *term_kw[] = { NULL };
+    KolibriTokenType term_tt[] = { KOLIBRI_TOKEN_NEWLINE, KOLIBRI_TOKEN_EOF };
+
+    /* Первый аргумент — ключ */
+    KolibriExpression key_expr = { 0 };
+    const char *val_kw[] = { "как", NULL };
+    if (!kolibri_parser_parse_expression_until(parser, &key_expr, val_kw, 1, term_tt, 2U)) {
+        kolibri_parser_report(parser, "Ожидается ключ после 'запомнить'", start);
+        return NULL;
+    }
+
+    /* Пропускаем "как" если есть */
+    const KolibriToken *cur = kolibri_parser_current(parser);
+    if (cur && cur->lexeme && strcmp(cur->lexeme, "как") == 0) {
+        kolibri_parser_advance(parser);
+    }
+
+    /* Второй аргумент — значение */
+    KolibriExpression val_expr = { 0 };
+    if (!kolibri_parser_parse_expression_until(parser, &val_expr, (const char *[]){NULL}, 0, term_tt, 2U)) {
+        kolibri_parser_report(parser, "Ожидается значение после ключа", start);
+        kolibri_free_expression(&key_expr);
+        return NULL;
+    }
+
+    KolibriStatement *stmt = kolibri_parser_make_statement(KOLIBRI_NODE_REMEMBER,
+        kolibri_make_span(start->span.start, val_expr.span.end));
+    if (!stmt) {
+        kolibri_free_expression(&key_expr);
+        kolibri_free_expression(&val_expr);
+        return NULL;
+    }
+    stmt->data.remember.key = key_expr;
+    stmt->data.remember.value = val_expr;
+    return stmt;
+}
+
+/*
+ * вспомнить <ключ>
+ * Ищет понятие в фрактальной десятичной памяти
+ */
+static KolibriStatement *kolibri_parser_parse_recall(KolibriParser *parser) {
+    const KolibriToken *start = kolibri_parser_advance(parser); /* "вспомнить" */
+    const char *term_kw[] = { NULL };
+    KolibriTokenType term_tt[] = { KOLIBRI_TOKEN_NEWLINE, KOLIBRI_TOKEN_EOF };
+
+    KolibriExpression key_expr = { 0 };
+    if (!kolibri_parser_parse_expression_until(parser, &key_expr, term_kw, 0, term_tt, 2U)) {
+        kolibri_parser_report(parser, "Ожидается ключ после 'вспомнить'", start);
+        return NULL;
+    }
+
+    KolibriStatement *stmt = kolibri_parser_make_statement(KOLIBRI_NODE_RECALL,
+        kolibri_make_span(start->span.start, key_expr.span.end));
+    if (!stmt) {
+        kolibri_free_expression(&key_expr);
+        return NULL;
+    }
+    stmt->data.recall.key = key_expr;
+    return stmt;
+}
+
 static KolibriStatement *kolibri_parser_parse_verify(KolibriParser *parser) {
     const KolibriToken *start = kolibri_parser_advance(parser);
     const char *terminator_keywords[] = { NULL };
@@ -1758,6 +1846,12 @@ static KolibriStatement *kolibri_parser_parse_statement(KolibriParser *parser) {
     }
     if (strcmp(token->lexeme, "рой") == 0) {
         return kolibri_parser_parse_swarm(parser);
+    }
+    if (strcmp(token->lexeme, "запомнить") == 0) {
+        return kolibri_parser_parse_remember(parser);
+    }
+    if (strcmp(token->lexeme, "вспомнить") == 0) {
+        return kolibri_parser_parse_recall(parser);
     }
     if (strcmp(token->lexeme, "если") == 0) {
         return kolibri_parser_parse_if(parser);
@@ -2801,6 +2895,119 @@ static int kolibri_execute_swarm(KolibriScript *script, const KolibriStatement *
     return 0;
 }
 
+/*
+ * Исполнение команды «запомнить»: вставляет данные в фрактальную память.
+ * Синтаксис: запомнить <ключ> как <значение>
+ */
+static int kolibri_execute_remember(KolibriScript *script, const KolibriStatement *stmt) {
+    if (!script->vyvod) script->vyvod = stdout;
+
+    KolibriValue key_val, val_val;
+    if (kolibri_evaluate_expression(script, &stmt->data.remember.key, &key_val) != 0) {
+        kolibri_script_log(script, "SCRIPT_REMEMBER", "ошибка вычисления ключа");
+        return 0;
+    }
+    if (kolibri_evaluate_expression(script, &stmt->data.remember.value, &val_val) != 0) {
+        kolibri_script_log(script, "SCRIPT_REMEMBER", "ошибка вычисления значения");
+        kolibri_value_free(&key_val);
+        return 0;
+    }
+
+    char *key_text = NULL, *val_text = NULL;
+    kolibri_value_to_string(&key_val, &key_text);
+    kolibri_value_to_string(&val_val, &val_text);
+    const char *key_str = key_text ? key_text : "";
+    const char *val_str = val_text ? val_text : "";
+
+    KfmContext fmem;
+    if (kfm_init(&fmem, 42) != 0) {
+        kolibri_script_log(script, "SCRIPT_REMEMBER", "ошибка инициализации fractal memory");
+        kolibri_value_free(&key_val);
+        kolibri_value_free(&val_val);
+        return 0;
+    }
+
+    /* Кодируем ключ в десятичный путь */
+    uint8_t path[KFM_MAX_DEPTH];
+    size_t path_len = kfm_text_to_path(key_str, strlen(key_str), path, KFM_MAX_DEPTH);
+    if (path_len > 30) path_len = 30;
+
+    if (path_len > 0) {
+        kfm_insert(&fmem, path, path_len, val_str, strlen(val_str));
+        char log_buf[256];
+        snprintf(log_buf, sizeof(log_buf),
+                 "запомнено '%s' → '%s' (глубина %zu)",
+                 key_str, val_str, path_len);
+        kolibri_script_log(script, "SCRIPT_REMEMBER", log_buf);
+        fprintf(script->vyvod, "[Колибри] %s\n", log_buf);
+    } else {
+        kolibri_script_log(script, "SCRIPT_REMEMBER", "ключ слишком короткий");
+    }
+
+    kfm_free(&fmem);
+    free(key_text);
+    free(val_text);
+    kolibri_value_free(&key_val);
+    kolibri_value_free(&val_val);
+    return 0;
+}
+
+/*
+ * Исполнение команды «вспомнить»: ищет данные в фрактальной памяти.
+ * Синтаксис: вспомнить <ключ>
+ */
+static int kolibri_execute_recall(KolibriScript *script, const KolibriStatement *stmt) {
+    if (!script->vyvod) script->vyvod = stdout;
+
+    KolibriValue key_val;
+    if (kolibri_evaluate_expression(script, &stmt->data.recall.key, &key_val) != 0) {
+        kolibri_script_log(script, "SCRIPT_RECALL", "ошибка вычисления ключа");
+        return 0;
+    }
+    char *key_text = NULL;
+    kolibri_value_to_string(&key_val, &key_text);
+    const char *key_str = key_text ? key_text : "";
+
+    KfmContext fmem;
+    if (kfm_init(&fmem, 42) != 0) {
+        kolibri_script_log(script, "SCRIPT_RECALL", "ошибка инициализации fractal memory");
+        kolibri_value_free(&key_val);
+        return 0;
+    }
+
+    uint8_t path[KFM_MAX_DEPTH];
+    size_t path_len = kfm_text_to_path(key_str, strlen(key_str), path, KFM_MAX_DEPTH);
+    if (path_len > 30) path_len = 30;
+
+    if (path_len > 0) {
+        KfmSearchResult results[3];
+        int found = kfm_search(&fmem, path, path_len, results, 3);
+
+        if (found > 0 && results[0].node && results[0].node->payload_size > 0) {
+            char text[KFM_MAX_PAYLOAD + 1];
+            memcpy(text, results[0].node->payload, results[0].node->payload_size);
+            text[results[0].node->payload_size] = '\0';
+            fprintf(script->vyvod, "[Колибри] вспомнил: %s (схожесть: %.2f)\n",
+                    text, results[0].similarity);
+            char log_buf[256];
+            snprintf(log_buf, sizeof(log_buf),
+                     "вспомнил '%s' → '%s' (sim=%.2f)",
+                     key_str, text, results[0].similarity);
+            kolibri_script_log(script, "SCRIPT_RECALL", log_buf);
+        } else {
+            fprintf(script->vyvod, "[Колибри] не вспомнил: '%s'\n", key_str);
+            kolibri_script_log(script, "SCRIPT_RECALL", "не найдено");
+        }
+    } else {
+        kolibri_script_log(script, "SCRIPT_RECALL", "ключ слишком короткий");
+    }
+
+    kfm_free(&fmem);
+    free(key_text);
+    kolibri_value_free(&key_val);
+    return 0;
+}
+
 static int kolibri_execute_statement(KolibriScript *script, const KolibriStatement *stmt);
 
 static int kolibri_execute_block(KolibriScript *script, const KolibriStatementList *list) {
@@ -2878,6 +3085,10 @@ static int kolibri_execute_statement(KolibriScript *script, const KolibriStateme
         return kolibri_execute_mode(script, stmt);
     case KOLIBRI_NODE_VERIFY:
         return kolibri_execute_verify(script, stmt);
+    case KOLIBRI_NODE_REMEMBER:
+        return kolibri_execute_remember(script, stmt);
+    case KOLIBRI_NODE_RECALL:
+        return kolibri_execute_recall(script, stmt);
     default:
         return 0;
     }

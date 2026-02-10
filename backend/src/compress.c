@@ -32,7 +32,7 @@
 
 /* Magic number for compressed data format */
 #define KOLIBRI_COMPRESS_MAGIC 0x4B4C4252 /* "KLBR" */
-#define KOLIBRI_COMPRESS_VERSION 64  /* v64: Match Model + Fractal Memory + Generation */
+#define KOLIBRI_COMPRESS_VERSION 65  /* v65: APM2 (3-й SSE) + Fractal Memory + KolibriScript */
 
 /* Compression header */
 typedef struct {
@@ -1835,6 +1835,9 @@ static inline int krc_dec_bit(KolibriRC *c, uint32_t prob) {
 #define T678_SIZE     1048576u  /* v62: merged O6+O7+O8 → одна таблица 1M */
 #define KF62_NUM_PREDS 12       /* v64: 12 предикторов (+match model) */
 #define KF62_PAD       16       /* v62: padding до 16 для SIMD (2 × __m128i) */
+
+/* v65: APM2 (3-й уровень адаптивного квантования вероятностей) */
+#define APM2_SIZE  (512u * 33u)   /* run_context(4 бит) * cx(8) * 33 бина */
 #define KF62_BLOCK_SIZE 65536   /* v62: размер блока для многопоточности */
 
 /* v64: Match Model — дальний контекст (уровень PAQ8) */
@@ -1964,6 +1967,8 @@ typedef struct {
     int       match_len;      /* длина текущего совпадения */
     int       match_active;   /* есть ли активное совпадение */
     uint8_t   match_byte;     /* предсказанный байт из совпадения */
+    /* v65: APM2 — 3-й уровень адаптивного квантования */
+    uint16_t *apm2;           /* 3-я ступень SSE-цепочки */
     /* v62: int16 веса, aligned для SSE2 */
     int16_t w[8][KF62_PAD] __attribute__((aligned(16)));
 } KF62M;
@@ -1988,6 +1993,8 @@ static int kf62_init(KF62M *m) {
     m->match_len = 0;
     m->match_active = 0;
     m->match_byte = 0;
+    /* v65: APM2 — 3-я ступень адаптивной цепочки */
+    m->apm2 = kf51_new(APM2_SIZE);
     for (int bp = 0; bp < 8; bp++) {
         m->w[bp][0]  =  4;   m->w[bp][1]  =  4;   m->w[bp][2]  =  8;
         m->w[bp][3]  = 16;   m->w[bp][4]  = 32;   m->w[bp][5]  = 48;
@@ -2002,7 +2009,7 @@ static int kf62_init(KF62M *m) {
     return (m->t0 && m->t1 && m->t2 && m->t3 && m->t4 && m->t5 &&
             m->t678 && m->sse && m->apm && m->tstate &&
             m->tword && m->tsparse && m->trun &&
-            m->match_ht && m->match_buf);
+            m->match_ht && m->match_buf && m->apm2);
 }
 static void kf62_destroy(KF62M *m) {
     free(m->t0);  free(m->t1);  free(m->t2);  free(m->t3);
@@ -2010,6 +2017,7 @@ static void kf62_destroy(KF62M *m) {
     free(m->sse); free(m->apm); free(m->tstate);
     free(m->tword); free(m->tsparse); free(m->trun);
     free(m->match_ht); free(m->match_buf);
+    free(m->apm2);
 }
 
 /* v62: SIMD-оптимизированное смешивание и обновление весов */
@@ -2234,7 +2242,7 @@ do {                                                                        \
 } while(0)
 
 /* =====================================================================
- * v64 PROCESS BYTE: 12 предикторов + Match Model, SIMD mixing/update
+ * v65 PROCESS BYTE: 12 предикторов + Match + APM2, SIMD mixing
  * ===================================================================== */
 #define KF62_PROCESS_BYTE(ENCODE)                                           \
 do {                                                                        \
@@ -2279,7 +2287,7 @@ do {                                                                        \
                         & (TSPARSE_SIZE - 1);                               \
         uint32_t irun = ((uint32_t)run_len * 256u + cx)                     \
                          & (TRUN_SIZE - 1);                                 \
-        /* v64: 12 stretch-значений, SIMD-aligned */                        \
+        /* v65: 12 stretch-значений, SIMD-aligned */                        \
         int16_t s_[KF62_PAD] __attribute__((aligned(16)));                  \
         s_[0]  = kf_stretch(mm->t0[i0]);                                    \
         s_[1]  = kf_stretch(mm->t1[i1]);                                    \
@@ -2321,6 +2329,14 @@ do {                                                                        \
         uint32_t ap = mm->apm[api];                                         \
         fp = (fp * 7 + ap) >> 3;                                             \
         if (fp < 1) fp = 1; if (fp > 4095) fp = 4095;                      \
+        /* v65: APM2 — 3-я ступень с контекстом run+word */                  \
+        int q3 = (int)(fp >> 7); if (q3 > 32) q3 = 32;                     \
+        int a2cx = (((run_len & 0x7) << 1 | is_wb) * 8 + (7 - b)) & 0x1FF;\
+        int a2i = a2cx * 33 + q3;                                           \
+        if (a2i > (int)(APM2_SIZE - 1)) a2i = (int)(APM2_SIZE - 1);        \
+        uint32_t a2p = mm->apm2[a2i];                                       \
+        fp = (fp * 7 + a2p) >> 3;                                           \
+        if (fp < 1) fp = 1; if (fp > 4095) fp = 4095;                      \
         int bit;                                                             \
         if (ENCODE) {                                                        \
             bit = (byte >> b) & 1;                                           \
@@ -2329,7 +2345,7 @@ do {                                                                        \
             bit = krc_dec_bit(&rc, fp);                                      \
             if (bit) byte |= (1u << b);                                      \
         }                                                                    \
-        /* Обучаем 11 таблиц + SSE + APM */                                  \
+        /* Обучаем 11 таблиц + SSE + APM + APM2 */                            \
         kf_upd(&mm->t0[i0], bit, 5);    kf_upd(&mm->t1[i1], bit, 5);      \
         kf_upd(&mm->t2[i2], bit, 4);    kf_upd(&mm->t3[i3], bit, 4);      \
         kf_upd(&mm->t4[i4], bit, 3);    kf_upd(&mm->t5[i5], bit, 3);      \
@@ -2338,6 +2354,7 @@ do {                                                                        \
         kf_upd(&mm->tword[iw], bit, 4); kf_upd(&mm->tsparse[isp], bit, 4);\
         kf_upd(&mm->trun[irun], bit, 4);                                    \
         kf_upd(&mm->sse[si], bit, 3);   kf_upd(&mm->apm[api], bit, 4);    \
+        kf_upd(&mm->apm2[a2i], bit, 4);  /* v65: 3-я ступень */             \
         /* v62: SIMD weight update */                                        \
         {                                                                    \
             int32_t err_ = (bit ? 4096 : 0) - (int32_t)mx;                 \

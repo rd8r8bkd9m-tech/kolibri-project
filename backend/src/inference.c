@@ -19,6 +19,7 @@
 #include "kolibri/formula.h"
 #include "kolibri/logical_memory.h"
 #include "kolibri/formula_logic.h"
+#include "kolibri/fractal_memory.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -274,6 +275,80 @@ static int step_logical_reasoning(
     return 0;
 }
 
+/*
+ * Шаг 4: Фрактальная десятичная память
+ * Кодирует запрос в десятичный путь и ищет ближайшие понятия
+ */
+static int step_fractal_memory(
+    const char *query,
+    KolibriInferenceStep *step,
+    char *partial_response,
+    size_t partial_size
+) {
+    double t0 = now_ms();
+    snprintf(step->description, sizeof(step->description),
+             "Поиск в фрактальной десятичной памяти");
+
+    KfmContext fmem;
+    if (kfm_init(&fmem, 42) != 0) {
+        snprintf(step->result, sizeof(step->result),
+                 "Fractal memory init failed");
+        step->confidence = 0.0;
+        step->duration_ms = now_ms() - t0;
+        return -1;
+    }
+
+    /* Кодируем запрос в десятичный путь */
+    uint8_t query_path[KFM_MAX_DEPTH];
+    size_t query_path_len = kfm_text_to_path(query, strlen(query),
+                                              query_path, KFM_MAX_DEPTH);
+
+    if (query_path_len == 0) {
+        snprintf(step->result, sizeof(step->result),
+                 "Query too short for fractal encoding");
+        step->confidence = 0.0;
+        step->duration_ms = now_ms() - t0;
+        kfm_free(&fmem);
+        return 0;
+    }
+
+    /* Ограничиваем путь до разумной глубины */
+    if (query_path_len > 30) query_path_len = 30;
+
+    /* Вставляем запрос как понятие (для будущих обращений) */
+    kfm_insert(&fmem, query_path, query_path_len, query, strlen(query));
+
+    /* Ассоциативный поиск */
+    KfmSearchResult results[5];
+    int found = kfm_search(&fmem, query_path, query_path_len, results, 5);
+
+    if (found > 0 && results[0].similarity > 0.3f) {
+        /* Нашли релевантный путь — материализуем */
+        if (results[0].node && results[0].node->payload_size > 0) {
+            size_t copy_len = results[0].node->payload_size;
+            if (copy_len >= partial_size) copy_len = partial_size - 1;
+            memcpy(partial_response, results[0].node->payload, copy_len);
+            partial_response[copy_len] = '\0';
+        }
+        step->confidence = (double)results[0].similarity;
+        snprintf(step->result, sizeof(step->result),
+                 "Found %d fractal paths (best sim: %.2f, depth: %u)",
+                 found, results[0].similarity, results[0].path_len);
+    } else {
+        snprintf(step->result, sizeof(step->result),
+                 "No matching fractal paths (query depth: %zu)",
+                 query_path_len);
+        step->confidence = 0.05;
+    }
+
+    /* Активируем найденный путь для укрепления ассоциаций */
+    kfm_activate(&fmem, query_path, query_path_len, 0.5f);
+
+    kfm_free(&fmem);
+    step->duration_ms = now_ms() - t0;
+    return 0;
+}
+
 /* ========== ГЛАВНАЯ ФУНКЦИЯ ИНФЕРЕНСА ========== */
 
 int kolibri_inference_run(
@@ -338,14 +413,30 @@ int kolibri_inference_run(
         step_idx++;
     }
 
+    /* === Шаг 4: Фрактальная десятичная память === */
+    char fractal_response[4096] = {0};
+    if (ctx->strategy == KOLIBRI_INF_HYBRID ||
+        ctx->strategy == KOLIBRI_INF_CHAIN) {
+
+        step_fractal_memory(
+            query,
+            &result->steps[step_idx],
+            fractal_response,
+            sizeof(fractal_response)
+        );
+        step_idx++;
+    }
+
     result->step_count = step_idx;
 
     /* === Финальная сборка ответа === */
-    /* Приоритет: knowledge > formula > fallback */
+    /* Приоритет: knowledge > formula > fractal > fallback */
     if (strlen(direct_response) > 0) {
         snprintf(result->response, KOLIBRI_INF_MAX_RESPONSE, "%s", direct_response);
     } else if (strlen(formula_response) > 0) {
         snprintf(result->response, KOLIBRI_INF_MAX_RESPONSE, "%s", formula_response);
+    } else if (strlen(fractal_response) > 0) {
+        snprintf(result->response, KOLIBRI_INF_MAX_RESPONSE, "%s", fractal_response);
     } else {
         snprintf(result->response, KOLIBRI_INF_MAX_RESPONSE,
                  "I don't have enough information to answer: \"%s\". "

@@ -98,6 +98,26 @@ int kg_read_block(KolibriGenome *ctx, uint64_t index, ReasonBlock *out_block);
 typedef int (*kg_block_callback)(const ReasonBlock *block, void *user_data);
 int kg_iterate_blocks(KolibriGenome *ctx, kg_block_callback callback, void *user_data);
 
+/* --- v65: Фрактальная память в геноме --- */
+
+/** Сохраняет узел фрактальной памяти в блок генома.
+ *  path — десятичный путь (цифры 0-9), value — текст (будет закодирован).
+ *  event_type = "FMEM". Возвращает 0 при успехе. */
+int kg_save_memory_node(KolibriGenome *ctx, const uint8_t *path,
+                        size_t path_len, const char *value,
+                        size_t value_len);
+
+/** Callback для загрузки узлов фрактальной памяти */
+typedef int (*kg_memory_callback)(const uint8_t *path, size_t path_len,
+                                   const char *value, size_t value_len,
+                                   void *user_data);
+
+/** Загружает все узлы фрактальной памяти из блоков генома (event_type="FMEM").
+ *  Вызывает callback для каждого найденного узла.
+ *  Возвращает количество загруженных узлов или -1 при ошибке. */
+int kg_load_memory_nodes(KolibriGenome *ctx, kg_memory_callback callback,
+                         void *user_data);
+
 #ifdef __cplusplus
 }
 #endif
