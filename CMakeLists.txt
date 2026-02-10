@@ -140,7 +140,7 @@ if(NOT KOLIBRI_OPENSSL_TARGET)
 endif()
 
 target_link_libraries(kolibri_core_objects PUBLIC ${KOLIBRI_OPENSSL_TARGET})
-target_link_libraries(kolibri_core PUBLIC ${KOLIBRI_OPENSSL_TARGET} SQLite::SQLite3 m)
+target_link_libraries(kolibri_core PUBLIC ${KOLIBRI_OPENSSL_TARGET} SQLite::SQLite3 Threads::Threads m)
 
 add_library(kolibri_wasm STATIC
     backend/src/wasm_bridge.c

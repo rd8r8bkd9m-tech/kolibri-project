@@ -13,12 +13,26 @@
 #include <time.h>
 #include <math.h>
 
+/* v62: SIMD и многопоточность */
+#if defined(__SSE2__)
+#include <emmintrin.h>
+#define KF_USE_SIMD 1
+#else
+#define KF_USE_SIMD 0
+#endif
+#ifdef __linux__
+#include <pthread.h>
+#define KF_USE_THREADS 1
+#else
+#define KF_USE_THREADS 0
+#endif
+
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 /* Magic number for compressed data format */
 #define KOLIBRI_COMPRESS_MAGIC 0x4B4C4252 /* "KLBR" */
-#define KOLIBRI_COMPRESS_VERSION 52  /* v52: Token-level LZ-lite + Formula */
+#define KOLIBRI_COMPRESS_VERSION 62  /* v62: SIMD + merged tables + threading */
 
 /* Compression header */
 typedef struct {
@@ -1688,6 +1702,12 @@ static inline int krc_dec_bit(KolibriRC *c, uint32_t prob) {
 #define TRUN_SIZE  4096u    /* v55: run-length context (16 run_len × 256 cx) */
 #define APM_SIZE   32768u   /* v59: state-aware APM — (cx*2+is_lz)*33+q2 */
 
+/* v62: объединённые таблицы + SIMD параметры */
+#define T678_SIZE     1048576u  /* v62: merged O6+O7+O8 → одна таблица 1M */
+#define KF62_NUM_PREDS 11       /* v62: 11 предикторов (O0-O5,O678,st,w,sp,run) */
+#define KF62_PAD       16       /* v62: padding до 16 для SIMD (2 × __m128i) */
+#define KF62_BLOCK_SIZE 65536   /* v62: размер блока для многопоточности */
+
 /* --- v54: Логистическое смешивание (stretch/squash) ---
  * stretch(p) = ln(p/(1-p)) — переводит вероятность в logit-пространство
  * squash(x) = 1/(1+exp(-x)) — обратно в вероятность
@@ -1792,6 +1812,105 @@ static void kf51_destroy(KF51M *m) {
     free(m->t8); free(m->sse); free(m->apm); free(m->tstate);
     free(m->tword); free(m->tsparse); free(m->trun);
 }
+
+/* =====================================================================
+ * v62 MODEL: merged O678 tables, SIMD-aligned int16 weights
+ * Память: ~6.9 MB (вместо 11.4 MB) — влезает в L3 кэш
+ * ===================================================================== */
+typedef struct {
+    uint16_t *t0, *t1, *t2, *t3, *t4, *t5;
+    uint16_t *t678;     /* v62: merged O6+O7+O8 */
+    uint16_t *sse, *apm;
+    uint16_t *tstate, *tword, *tsparse, *trun;
+    /* v62: int16 веса, aligned для SSE2 */
+    int16_t w[8][KF62_PAD] __attribute__((aligned(16)));
+} KF62M;
+
+static int kf62_init(KF62M *m) {
+    kf_init_tables();
+    m->t0     = kf51_new(T0_SIZE);   m->t1    = kf51_new(T1_SIZE);
+    m->t2     = kf51_new(T2_SIZE);   m->t3    = kf51_new(T3_SIZE);
+    m->t4     = kf51_new(T4_SIZE);   m->t5    = kf51_new(T5_SIZE);
+    m->t678   = kf51_new(T678_SIZE);
+    m->sse    = kf51_new(SSE_SZ);
+    m->apm    = kf51_new(APM_SIZE);
+    m->tstate = kf51_new(TSTATE_SIZE);
+    m->tword  = kf51_new(TWORD_SIZE);
+    m->tsparse= kf51_new(TSPARSE_SIZE);
+    m->trun   = kf51_new(TRUN_SIZE);
+    for (int bp = 0; bp < 8; bp++) {
+        m->w[bp][0]  =  4;   m->w[bp][1]  =  4;   m->w[bp][2]  =  8;
+        m->w[bp][3]  = 16;   m->w[bp][4]  = 32;   m->w[bp][5]  = 48;
+        m->w[bp][6]  = 96;   /* merged O678: ~сумма весов O6+O7+O8 */
+        m->w[bp][7]  = 32;   /* state */
+        m->w[bp][8]  = 12;   /* word */
+        m->w[bp][9]  = 12;   /* sparse */
+        m->w[bp][10] = 16;   /* run */
+        for (int p = 11; p < KF62_PAD; p++) m->w[bp][p] = 0;
+    }
+    return (m->t0 && m->t1 && m->t2 && m->t3 && m->t4 && m->t5 &&
+            m->t678 && m->sse && m->apm && m->tstate &&
+            m->tword && m->tsparse && m->trun);
+}
+static void kf62_destroy(KF62M *m) {
+    free(m->t0);  free(m->t1);  free(m->t2);  free(m->t3);
+    free(m->t4);  free(m->t5);  free(m->t678);
+    free(m->sse); free(m->apm); free(m->tstate);
+    free(m->tword); free(m->tsparse); free(m->trun);
+}
+
+/* v62: SIMD-оптимизированное смешивание и обновление весов */
+#if KF_USE_SIMD
+static inline int32_t kf_hsum_epi32(__m128i v) {
+    __m128i hi = _mm_shuffle_epi32(v, _MM_SHUFFLE(2, 3, 0, 1));
+    v = _mm_add_epi32(v, hi);
+    hi = _mm_shuffle_epi32(v, _MM_SHUFFLE(1, 0, 3, 2));
+    v = _mm_add_epi32(v, hi);
+    return _mm_cvtsi128_si32(v);
+}
+static inline int32_t kf62_mix(const int16_t *w, const int16_t *s) {
+    __m128i w0 = _mm_load_si128((const __m128i*)(w));
+    __m128i w1 = _mm_load_si128((const __m128i*)(w + 8));
+    __m128i s0 = _mm_load_si128((const __m128i*)(s));
+    __m128i s1 = _mm_load_si128((const __m128i*)(s + 8));
+    __m128i p0 = _mm_madd_epi16(w0, s0);
+    __m128i p1 = _mm_madd_epi16(w1, s1);
+    return kf_hsum_epi32(_mm_add_epi32(p0, p1));
+}
+static inline void kf62_update_weights(int16_t *w, const int16_t *s, int32_t err) {
+    __m128i err_v = _mm_set1_epi16((int16_t)(err * 2));
+    __m128i min_v = _mm_set1_epi16(-8192);
+    __m128i max_v = _mm_set1_epi16(8192);
+    /* Блок 0..7 */
+    __m128i s0 = _mm_load_si128((const __m128i*)s);
+    __m128i d0 = _mm_mulhi_epi16(err_v, s0);  /* (err*2*s) >> 16 ≈ (err*s) >> 15 */
+    __m128i w0 = _mm_load_si128((__m128i*)w);
+    w0 = _mm_max_epi16(_mm_min_epi16(_mm_add_epi16(w0, d0), max_v), min_v);
+    _mm_store_si128((__m128i*)w, w0);
+    /* Блок 8..15 */
+    __m128i s1 = _mm_load_si128((const __m128i*)(s + 8));
+    __m128i d1 = _mm_mulhi_epi16(err_v, s1);
+    __m128i w1 = _mm_load_si128((__m128i*)(w + 8));
+    w1 = _mm_max_epi16(_mm_min_epi16(_mm_add_epi16(w1, d1), max_v), min_v);
+    _mm_store_si128((__m128i*)(w + 8), w1);
+}
+#else
+static inline int32_t kf62_mix(const int16_t *w, const int16_t *s) {
+    int32_t sum = 0;
+    for (int i = 0; i < KF62_NUM_PREDS; i++)
+        sum += (int32_t)w[i] * (int32_t)s[i];
+    return sum;
+}
+static inline void kf62_update_weights(int16_t *w, const int16_t *s, int32_t err) {
+    for (int i = 0; i < KF62_NUM_PREDS; i++) {
+        int32_t delta = (err * (int32_t)s[i]) >> 15;
+        int32_t nw = (int32_t)w[i] + delta;
+        if (nw < -8192) nw = -8192;
+        if (nw > 8192) nw = 8192;
+        w[i] = (int16_t)nw;
+    }
+}
+#endif
 
 /* FNV хеш */
 static inline uint32_t kfh(uint32_t h, uint32_t b) {
@@ -1961,6 +2080,122 @@ do {                                                                        \
     hist[0] = byte;                                                          \
 } while(0)
 
+/* =====================================================================
+ * v62 PROCESS BYTE: 11 предикторов, merged O678, SIMD mixing/update
+ * ===================================================================== */
+#define KF62_PROCESS_BYTE(ENCODE)                                           \
+do {                                                                        \
+    uint32_t h1 = 0xA1B2C3D4u ^ hist[0];                                   \
+    uint32_t h2 = kfh(h1, hist[1]);                                         \
+    uint32_t h3 = kfh(h2, hist[2]);                                         \
+    uint32_t h4 = kfh(h3, hist[3]);                                         \
+    uint32_t h5 = kfh(h4, hist[4]);                                         \
+    uint32_t h6 = kfh(h5, hist[5]);                                         \
+    uint32_t h7 = kfh(h6, hist[6]);                                         \
+    uint32_t h8 = kfh(h7, hist[7]);                                         \
+    int is_wb = (hist[0]==' '||hist[0]=='\n'||hist[0]=='\t'                  \
+                 ||hist[0]=='\r'||hist[0]==0);                               \
+    int run_len = 0;                                                         \
+    while (run_len < 15 && run_len < 7                                       \
+           && hist[run_len] == hist[run_len+1]) run_len++;                   \
+    uint32_t cx = 1;                                                        \
+    for (int b = 7; b >= 0; b--) {                                          \
+        uint32_t i0 = (hist[0] * 256u + cx) & (T0_SIZE - 1);               \
+        uint32_t i1 = (h1 * 256u + cx) & (T1_SIZE - 1);                    \
+        uint32_t i2 = (h2 * 256u + cx) & (T2_SIZE - 1);                    \
+        uint32_t i3 = (h3 * 256u + cx) & (T3_SIZE - 1);                    \
+        uint32_t i4 = (h4 * 256u + cx) & (T4_SIZE - 1);                    \
+        uint32_t i5 = (h5 * 256u + cx) & (T5_SIZE - 1);                    \
+        uint32_t i678 = (h8 * 256u + cx) & (T678_SIZE - 1);                \
+        uint32_t ist = ((uint32_t)lz_state * 65536u                        \
+                        + hist[0] * 256u + cx) & (TSTATE_SIZE - 1);         \
+        uint32_t iw = is_wb ?                                               \
+            ((hist[1] * 137u + hist[2]) * 256u + cx) & (TWORD_SIZE - 1)    \
+            : (hist[0] * 256u + cx) & (TWORD_SIZE - 1);                    \
+        uint32_t isp = ((hist[0] ^ hist[2]) * 256u + cx)                   \
+                        & (TSPARSE_SIZE - 1);                               \
+        uint32_t irun = ((uint32_t)run_len * 256u + cx)                     \
+                         & (TRUN_SIZE - 1);                                 \
+        /* v62: 11 stretch-значений, SIMD-aligned */                        \
+        int16_t s_[KF62_PAD] __attribute__((aligned(16)));                  \
+        s_[0]  = kf_stretch(mm->t0[i0]);                                    \
+        s_[1]  = kf_stretch(mm->t1[i1]);                                    \
+        s_[2]  = kf_stretch(mm->t2[i2]);                                    \
+        s_[3]  = kf_stretch(mm->t3[i3]);                                    \
+        s_[4]  = kf_stretch(mm->t4[i4]);                                    \
+        s_[5]  = kf_stretch(mm->t5[i5]);                                    \
+        s_[6]  = kf_stretch(mm->t678[i678]);                                \
+        s_[7]  = kf_stretch(mm->tstate[ist]);                               \
+        s_[8]  = kf_stretch(mm->tword[iw]);                                 \
+        s_[9]  = kf_stretch(mm->tsparse[isp]);                              \
+        s_[10] = kf_stretch(mm->trun[irun]);                                \
+        for(int p_=11; p_<KF62_PAD; p_++) s_[p_]=0;                        \
+        const int bp_ = 7 - b;                                              \
+        /* v62: SIMD dot-product mixing */                                   \
+        int32_t logit_mix = kf62_mix(mm->w[bp_], s_) >> 8;                  \
+        uint32_t mx = kf_squash(logit_mix);                                  \
+        /* SSE (O1 context) */                                               \
+        int q = (int)(mx >> 7); if (q > 32) q = 32;                         \
+        int sse_cx = (int)hist[0] * 2 + ((int)hist[1] >> 7);               \
+        int si = (sse_cx * 8 + (7 - b)) * SSE_Q + q;                        \
+        uint32_t sp = mm->sse[si];                                          \
+        uint32_t fp = (mx * 3 + sp) >> 2;                                   \
+        if (fp < 1) fp = 1; if (fp > 4095) fp = 4095;                      \
+        /* APM (state-aware) */                                              \
+        int q2 = (int)(fp >> 7); if (q2 > 32) q2 = 32;                     \
+        int is_lz = (lz_state > 0) ? 1 : 0;                                 \
+        int api = ((int)cx * 2 + is_lz) * 33 + q2;                         \
+        if (api > (int)(APM_SIZE - 1)) api = (int)(APM_SIZE - 1);           \
+        uint32_t ap = mm->apm[api];                                         \
+        fp = (fp * 7 + ap) >> 3;                                             \
+        if (fp < 1) fp = 1; if (fp > 4095) fp = 4095;                      \
+        int bit;                                                             \
+        if (ENCODE) {                                                        \
+            bit = (byte >> b) & 1;                                           \
+            krc_enc_bit(&rc, bit, fp);                                       \
+        } else {                                                             \
+            bit = krc_dec_bit(&rc, fp);                                      \
+            if (bit) byte |= (1u << b);                                      \
+        }                                                                    \
+        /* Обучаем 11 таблиц + SSE + APM */                                  \
+        kf_upd(&mm->t0[i0], bit, 5);    kf_upd(&mm->t1[i1], bit, 5);      \
+        kf_upd(&mm->t2[i2], bit, 4);    kf_upd(&mm->t3[i3], bit, 4);      \
+        kf_upd(&mm->t4[i4], bit, 3);    kf_upd(&mm->t5[i5], bit, 3);      \
+        kf_upd(&mm->t678[i678], bit, 3);                                    \
+        kf_upd(&mm->tstate[ist], bit, 3);                                   \
+        kf_upd(&mm->tword[iw], bit, 4); kf_upd(&mm->tsparse[isp], bit, 4);\
+        kf_upd(&mm->trun[irun], bit, 4);                                    \
+        kf_upd(&mm->sse[si], bit, 3);   kf_upd(&mm->apm[api], bit, 4);    \
+        /* v62: SIMD weight update */                                        \
+        {                                                                    \
+            int32_t err_ = (bit ? 4096 : 0) - (int32_t)mx;                 \
+            kf62_update_weights(mm->w[bp_], s_, err_);                      \
+        }                                                                    \
+        cx = (cx << 1) | bit;                                                \
+    }                                                                        \
+    switch (lz_state) {                                                      \
+    case 0: if (byte == 0xFF) lz_state = 1; break;                          \
+    case 1:                                                                  \
+        if (byte == 0xFF) lz_state = 0;                                     \
+        else if (byte == 0xFE) lz_state = 4;                                \
+        else if (byte == 0xFD) lz_state = 5;                                \
+        else if (byte == 0xFC) lz_state = 6;                                \
+        else lz_state = 2;                                                   \
+        break;                                                               \
+    case 2: lz_state = 3; break;                                            \
+    case 3: lz_state = 0; break;                                            \
+    case 4: lz_state = 0; break;                                            \
+    case 5: lz_state = 0; break;                                            \
+    case 6: lz_state = 7; break;                                            \
+    case 7: lz_state = 8; break;                                            \
+    case 8: lz_state = 9; break;                                            \
+    case 9: lz_state = 0; break;                                            \
+    default: lz_state = 0; break;                                            \
+    }                                                                        \
+    memmove(hist + 1, hist, 7);                                              \
+    hist[0] = byte;                                                          \
+} while(0)
+
 /* --- Компрессор v51 --- */
 static size_t compress_formula_v51(
     const uint8_t *input, size_t input_size,
@@ -2005,6 +2240,283 @@ static size_t decompress_formula_v51(
 
     kf51_destroy(&m);
     return original_size;
+}
+
+/* =====================================================================
+ * v62 COMPRESS/DECOMPRESS: merged model + SIMD + multi-threading
+ * =====================================================================
+ * Формат: [num_blocks:2] [block_csizes:4*N] [block_data...]
+ * Каждый блок ≤64KB, независимая модель, параллельное сжатие.
+ * ===================================================================== */
+
+/* --- Блочный компрессор v62 (один блок, одна модель) --- */
+static size_t compress_formula_v62_block(
+    const uint8_t *input, size_t input_size,
+    uint8_t *output, size_t output_max)
+{
+    if (input_size == 0 || output_max < 16) return 0;
+    KF62M m; if (!kf62_init(&m)) { kf62_destroy(&m); return 0; }
+    KF62M *mm = &m;
+    KolibriRC rc; krc_enc_init(&rc, output, output_max);
+    uint8_t hist[8] = {0};
+    int lz_state = 0;
+
+    for (size_t i = 0; i < input_size; i++) {
+        uint8_t byte = input[i];
+        KF62_PROCESS_BYTE(1);
+    }
+
+    krc_enc_flush(&rc);
+    kf62_destroy(&m);
+    if (rc.pos >= input_size) return 0;
+    return rc.pos;
+}
+
+/* --- Блочный декомпрессор v62 --- */
+static size_t decompress_formula_v62_block(
+    const uint8_t *input, size_t input_size,
+    uint8_t *output, size_t output_max,
+    size_t original_size)
+{
+    if (original_size == 0 || original_size > output_max) return 0;
+    KF62M m; if (!kf62_init(&m)) { kf62_destroy(&m); return 0; }
+    KF62M *mm = &m;
+    KolibriRC rc; krc_dec_init(&rc, input, input_size);
+    uint8_t hist[8] = {0};
+    int lz_state = 0;
+
+    for (size_t i = 0; i < original_size; i++) {
+        uint8_t byte = 0;
+        KF62_PROCESS_BYTE(0);
+        output[i] = byte;
+    }
+
+    kf62_destroy(&m);
+    return original_size;
+}
+
+/* --- Многопоточная обёртка v62 --- */
+#if KF_USE_THREADS
+typedef struct {
+    const uint8_t *input;
+    size_t input_size;
+    uint8_t *output;
+    size_t output_max;
+    size_t original_size;   /* для декомпрессии */
+    size_t result_size;
+} KF62ThreadArg;
+
+static void *kf62_compress_worker(void *arg) {
+    KF62ThreadArg *a = (KF62ThreadArg *)arg;
+    a->result_size = compress_formula_v62_block(
+        a->input, a->input_size, a->output, a->output_max);
+    return NULL;
+}
+
+static void *kf62_decompress_worker(void *arg) {
+    KF62ThreadArg *a = (KF62ThreadArg *)arg;
+    a->result_size = decompress_formula_v62_block(
+        a->input, a->input_size, a->output, a->output_max, a->original_size);
+    return NULL;
+}
+#endif
+
+/* --- Основной компрессор v62 (блочный + потоковый) --- */
+static size_t compress_formula_v62(
+    const uint8_t *input, size_t input_size,
+    uint8_t *output, size_t output_max)
+{
+    if (input_size == 0 || output_max < 16) return 0;
+
+    size_t nblocks = (input_size + KF62_BLOCK_SIZE - 1) / KF62_BLOCK_SIZE;
+    if (nblocks > 65535) nblocks = 65535;
+
+    size_t hdr_size = 2 + nblocks * 4;
+    if (hdr_size >= output_max) return 0;
+
+    uint8_t **bbufs = (uint8_t **)calloc(nblocks, sizeof(uint8_t*));
+    size_t *bsizes  = (size_t *)calloc(nblocks, sizeof(size_t));
+    size_t *bcsizes = (size_t *)calloc(nblocks, sizeof(size_t));
+    if (!bbufs || !bsizes || !bcsizes) goto v62c_fail;
+
+    for (size_t i = 0; i < nblocks; i++) {
+        size_t off = i * KF62_BLOCK_SIZE;
+        bsizes[i] = MIN((size_t)KF62_BLOCK_SIZE, input_size - off);
+        bbufs[i] = (uint8_t *)malloc(bsizes[i] + 256);
+        if (!bbufs[i]) goto v62c_fail;
+    }
+
+#if KF_USE_THREADS
+    {
+        size_t max_threads = 4;
+        KF62ThreadArg *args = (KF62ThreadArg *)calloc(nblocks, sizeof(KF62ThreadArg));
+        pthread_t *tids = (pthread_t *)calloc(nblocks, sizeof(pthread_t));
+        if (!args || !tids) { free(args); free(tids); goto v62c_fail; }
+
+        for (size_t start = 0; start < nblocks; start += max_threads) {
+            size_t batch = MIN(max_threads, nblocks - start);
+            for (size_t j = 0; j < batch; j++) {
+                size_t idx = start + j;
+                args[idx].input      = input + idx * KF62_BLOCK_SIZE;
+                args[idx].input_size = bsizes[idx];
+                args[idx].output     = bbufs[idx];
+                args[idx].output_max = bsizes[idx] + 256;
+                pthread_create(&tids[idx], NULL, kf62_compress_worker, &args[idx]);
+            }
+            for (size_t j = 0; j < batch; j++)
+                pthread_join(tids[start + j], NULL);
+            for (size_t j = 0; j < batch; j++)
+                bcsizes[start + j] = args[start + j].result_size;
+        }
+        free(args); free(tids);
+    }
+#else
+    for (size_t i = 0; i < nblocks; i++) {
+        bcsizes[i] = compress_formula_v62_block(
+            input + i * KF62_BLOCK_SIZE, bsizes[i],
+            bbufs[i], bsizes[i] + 256);
+    }
+#endif
+
+    /* Записываем заголовок блоков */
+    output[0] = (uint8_t)(nblocks & 0xFF);
+    output[1] = (uint8_t)((nblocks >> 8) & 0xFF);
+    size_t pos = 2;
+    for (size_t i = 0; i < nblocks; i++) {
+        uint32_t cs = (uint32_t)bcsizes[i];
+        memcpy(output + pos, &cs, 4);
+        pos += 4;
+    }
+
+    /* Записываем данные блоков */
+    for (size_t i = 0; i < nblocks; i++) {
+        if (bcsizes[i] == 0) {
+            /* Несжимаемый блок — raw */
+            if (pos + bsizes[i] > output_max) goto v62c_fail;
+            memcpy(output + pos, input + i * KF62_BLOCK_SIZE, bsizes[i]);
+            pos += bsizes[i];
+        } else {
+            if (pos + bcsizes[i] > output_max) goto v62c_fail;
+            memcpy(output + pos, bbufs[i], bcsizes[i]);
+            pos += bcsizes[i];
+        }
+    }
+
+    for (size_t i = 0; i < nblocks; i++) free(bbufs[i]);
+    free(bbufs); free(bsizes); free(bcsizes);
+
+    if (pos >= input_size) return 0;
+    return pos;
+
+v62c_fail:
+    if (bbufs) { for (size_t i = 0; i < nblocks; i++) free(bbufs[i]); }
+    free(bbufs); free(bsizes); free(bcsizes);
+    return 0;
+}
+
+/* --- Основной декомпрессор v62 (блочный + потоковый) --- */
+static size_t decompress_formula_v62(
+    const uint8_t *input, size_t input_size,
+    uint8_t *output, size_t output_max,
+    size_t original_size)
+{
+    if (original_size == 0 || original_size > output_max || input_size < 2) return 0;
+
+    uint16_t nblocks = (uint16_t)input[0] | ((uint16_t)input[1] << 8);
+    if (nblocks == 0 || input_size < 2 + (size_t)nblocks * 4) return 0;
+
+    size_t hpos = 2;
+    uint32_t *csizes = (uint32_t *)malloc(nblocks * sizeof(uint32_t));
+    if (!csizes) return 0;
+    for (uint16_t i = 0; i < nblocks; i++) {
+        memcpy(&csizes[i], input + hpos, 4);
+        hpos += 4;
+    }
+
+#if KF_USE_THREADS
+    {
+        /* Предрассчитываем смещения блоков */
+        size_t *offsets = (size_t *)malloc((nblocks + 1) * sizeof(size_t));
+        size_t *bsizes  = (size_t *)malloc(nblocks * sizeof(size_t));
+        if (!offsets || !bsizes) { free(csizes); free(offsets); free(bsizes); return 0; }
+
+        offsets[0] = hpos;
+        for (uint16_t i = 0; i < nblocks; i++) {
+            bsizes[i] = MIN((size_t)KF62_BLOCK_SIZE, original_size - (size_t)i * KF62_BLOCK_SIZE);
+            offsets[i + 1] = offsets[i] + (csizes[i] == 0 ? bsizes[i] : csizes[i]);
+        }
+
+        size_t max_threads = 4;
+        KF62ThreadArg *args = (KF62ThreadArg *)calloc(nblocks, sizeof(KF62ThreadArg));
+        pthread_t *tids = (pthread_t *)calloc(nblocks, sizeof(pthread_t));
+        if (!args || !tids) {
+            free(csizes); free(offsets); free(bsizes);
+            free(args); free(tids);
+            return 0;
+        }
+
+        for (size_t start = 0; start < nblocks; start += max_threads) {
+            size_t batch = MIN(max_threads, (size_t)nblocks - start);
+            for (size_t j = 0; j < batch; j++) {
+                size_t idx = start + j;
+                size_t ooff = idx * KF62_BLOCK_SIZE;
+                if (csizes[idx] == 0) {
+                    /* Raw block — прямое копирование */
+                    memcpy(output + ooff, input + offsets[idx], bsizes[idx]);
+                    args[idx].result_size = bsizes[idx];
+                } else {
+                    args[idx].input         = input + offsets[idx];
+                    args[idx].input_size    = csizes[idx];
+                    args[idx].output        = output + ooff;
+                    args[idx].output_max    = bsizes[idx];
+                    args[idx].original_size = bsizes[idx];
+                    pthread_create(&tids[idx], NULL, kf62_decompress_worker, &args[idx]);
+                }
+            }
+            for (size_t j = 0; j < batch; j++) {
+                size_t idx = start + j;
+                if (csizes[idx] != 0)
+                    pthread_join(tids[idx], NULL);
+            }
+            /* Проверяем результат */
+            for (size_t j = 0; j < batch; j++) {
+                size_t idx = start + j;
+                if (csizes[idx] != 0 && args[idx].result_size != bsizes[idx]) {
+                    free(csizes); free(offsets); free(bsizes);
+                    free(args); free(tids);
+                    return 0;
+                }
+            }
+        }
+
+        free(csizes); free(offsets); free(bsizes);
+        free(args); free(tids);
+        return original_size;
+    }
+#else
+    {
+        size_t pos = hpos;
+        size_t out_pos = 0;
+        for (uint16_t i = 0; i < nblocks; i++) {
+            size_t bsize = MIN((size_t)KF62_BLOCK_SIZE, original_size - out_pos);
+            if (csizes[i] == 0) {
+                if (pos + bsize > input_size) { free(csizes); return 0; }
+                memcpy(output + out_pos, input + pos, bsize);
+                pos += bsize;
+            } else {
+                if (pos + csizes[i] > input_size) { free(csizes); return 0; }
+                size_t dec = decompress_formula_v62_block(
+                    input + pos, csizes[i],
+                    output + out_pos, bsize, bsize);
+                if (dec != bsize) { free(csizes); return 0; }
+                pos += csizes[i];
+            }
+            out_pos += bsize;
+        }
+        free(csizes);
+        return out_pos;
+    }
+#endif
 }
 
 int kolibri_compress(KolibriCompressor *comp,
@@ -2084,8 +2596,8 @@ int kolibri_compress(KolibriCompressor *comp,
         lz_used = 1;
     }
 
-    /* Этап 2: Формульное сжатие (работает с LZ-выходом или оригиналом) */
-    size_t formula_size = compress_formula_v51(formula_input, formula_input_size,
+    /* Этап 2: Формульное сжатие v62 (SIMD + merged tables + threading) */
+    size_t formula_size = compress_formula_v62(formula_input, formula_input_size,
                                                temp, input_size + 1024);
     if (formula_size > 0 && formula_size < formula_input_size) {
         size_t prefix_size = 0;
@@ -2284,8 +2796,14 @@ int kolibri_decompress(const uint8_t *input,
             formula_data_size = current_size - 4;
         }
 
-        size_t formula_size = decompress_formula_v51(
-            formula_data, formula_data_size, temp2, original_size * 2, formula_target);
+        size_t formula_size;
+        if (header->version >= 62) {
+            formula_size = decompress_formula_v62(
+                formula_data, formula_data_size, temp2, original_size * 2, formula_target);
+        } else {
+            formula_size = decompress_formula_v51(
+                formula_data, formula_data_size, temp2, original_size * 2, formula_target);
+        }
         if (formula_size == 0 || formula_size != formula_target) {
             token_dict_free(&tdict);
             free(out_buf); free(temp1); free(temp2);
