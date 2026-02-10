@@ -1,0 +1,27 @@
+Нейронные сети и глубокое обучение — основа современного искусственного интеллекта.
+
+Основные архитектуры:
+1. Трансформеры: механизм внимания (self-attention), позиционное кодирование, multi-head attention.
+   GPT (Generative Pre-trained Transformer) — авторегрессионная модель для генерации текста.
+   BERT (Bidirectional Encoder Representations) — двунаправленное понимание контекста.
+
+2. Свёрточные сети (CNN): фильтры, пулинг, feature maps. Применяются в компьютерном зрении.
+
+3. Рекуррентные сети (RNN, LSTM, GRU): обработка последовательностей, память скрытых состояний.
+
+4. Генеративные модели:
+   - GAN (Generative Adversarial Networks): генератор + дискриминатор.
+   - VAE (Variational Autoencoders): латентное пространство + реконструкция.
+   - Диффузионные модели: постепенное удаление шума из данных.
+
+Обучение:
+- Стохастический градиентный спуск (SGD) и его варианты: Adam, AdamW, LAMB.
+- Batch normalization, dropout, weight decay — стабилизация обучения.
+- Curriculum learning: постепенное усложнение задач.
+- Transfer learning: перенос знаний между задачами.
+
+Метрики качества:
+- Perplexity для языковых моделей (PPL = exp(cross-entropy)).
+- BLEU, ROUGE для генерации текста.
+- F1-score, precision, recall для классификации.
+- FID (Fréchet Inception Distance) для генеративных моделей.

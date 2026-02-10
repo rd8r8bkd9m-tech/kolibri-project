@@ -1,0 +1,33 @@
+Python — высокоуровневый язык программирования общего назначения.
+
+Ключевые возможности Python 3.12+:
+- Типизация: type hints, TypeVar, ParamSpec, Protocol, TypeGuard.
+- Структурное сопоставление: match/case (pattern matching).
+- Асинхронность: async/await, asyncio, aiohttp.
+- Генераторы и итераторы: yield, yield from, send().
+- Декораторы: @property, @staticmethod, @classmethod, @functools.lru_cache.
+- Контекстные менеджеры: with statement, __enter__/__exit__.
+
+Важные библиотеки:
+1. NumPy: многомерные массивы, линейная алгебра, FFT.
+2. FastAPI: асинхронный веб-фреймворк, OpenAPI, Pydantic модели.
+3. Pytest: тестирование, fixtures, parametrize, mark.
+4. Ruff: быстрый линтер и форматтер (замена flake8+black).
+5. Pyright: статический анализатор типов.
+
+Паттерны проектирования:
+- Dependency Injection через __init__ или fixtures.
+- Repository Pattern для абстракции хранилища.
+- Strategy Pattern через Protocol и ABC.
+- Observer Pattern через asyncio events.
+
+Лучшие практики:
+- PEP 8: стиль кода (snake_case, 4 пробела).
+- PEP 484: аннотации типов.
+- from __future__ import annotations для отложенной оценки.
+- Docstrings: Google или NumPy стиль.
+
+Язык C23 — системный язык программирования.
+Ключевые особенности C23: auto, constexpr, nullptr, typeof, static_assert.
+CMake — кросс-платформенная система сборки.
+Ninja — быстрый генератор сборки.
