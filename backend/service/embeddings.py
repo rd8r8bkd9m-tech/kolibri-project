@@ -338,7 +338,7 @@ class EmbeddingTable:
 
         results: list[tuple[int, str, float]] = []
 
-        for h, vec in self.vectors.items():
+        for h, vec in list(self.vectors.items()):
             if h == word_hash:
                 continue
             dot = sum(a * b for a, b in zip(v, vec))

@@ -209,7 +209,7 @@ class ChainOfThought:
 
     def _add_compare_step(self, entities: list[str]) -> None:
         t = time.monotonic()
-        items = entities[:2] if len(entities) >= 2 else entities + ["?"]
+        items = entities[:2] if len(entities) >= 2 else entities + ["?", "?"]
         step = ThinkingStep(
             step_type=StepType.REASON,
             description=f"Сравнительный анализ: {items[0]} vs {items[1]}",

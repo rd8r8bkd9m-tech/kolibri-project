@@ -44,6 +44,10 @@ from .number_mind import (
 from .embeddings import EmbeddingTable
 from .c_evolve import get_c_evolve_bridge
 from .training_worker import TrainingWorker
+from .tokenizer import BPETokenizer
+from .formula_lm import FormulaLM
+from .reasoning import ChainOfThought
+from .context_window import ContextWindow
 
 import logging
 
@@ -259,6 +263,16 @@ class KolibriAIEngine:
         self._worker.start()
         # --- Multiprocessing-worker: ЛЕНИВАЯ инициализация (не при старте) ---
         self._mp_worker: TrainingWorker | None = None
+        # --- Генеративный AI: токенизатор + FormulaLM + CoT + контекст ---
+        self._bpe_tokenizer = BPETokenizer()
+        self._formula_lm = FormulaLM(
+            vocab_size=8_000, embed_dim=64,
+            context_size=256, num_formulas=16,
+        )
+        self._chain_of_thought = ChainOfThought()
+        self._context_window = ContextWindow(max_tokens=8192)
+        self._lm_trained = False
+        self._lm_generation = 0
         # Движок ГОТОВ к запросам ДО загрузки корпуса — чтобы health check отвечал
         self._ready = True
         # Загрузка корпуса — в фоновом потоке, чтобы не блокировать event loop
@@ -272,6 +286,11 @@ class KolibriAIEngine:
             self._load_corpus()
         except Exception as e:
             log.error("Ошибка загрузки корпуса: %s", e)
+        # --- Обучаем FormulaLM после загрузки корпуса ---
+        try:
+            self._train_lm_on_corpus()
+        except Exception as e:
+            log.error("Ошибка обучения FormulaLM: %s", e)
 
     def _background_worker(self) -> None:
         """Единый фоновый поток обучения — обрабатывает задачи из очереди."""
@@ -594,6 +613,58 @@ class KolibriAIEngine:
             log.warning("Не удалось сохранить эмбеддинги: %s", e)
 
     # ------------------------------------------------------------------
+    # Генеративный AI: FormulaLM + BPE-токенизатор
+    # ------------------------------------------------------------------
+
+    def _train_lm_on_corpus(self) -> None:
+        """Обучить FormulaLM на предложениях из SentenceStore."""
+        if self._lm_trained or self.sentence_store.size < 100:
+            return
+        try:
+            all_texts: list[str] = []
+            for sent in self.sentence_store._sentences[:2000]:
+                text = sent if isinstance(sent, str) else getattr(sent, "text", "")
+                if len(text) > 20:
+                    all_texts.append(text)
+
+            if len(all_texts) < 50:
+                return
+
+            self._bpe_tokenizer.train(all_texts[:500])
+            sequences = [
+                self._bpe_tokenizer.encode(t) for t in all_texts
+                if len(t) > 20
+            ]
+            sequences = [s for s in sequences if len(s) > 5]
+            if len(sequences) < 30:
+                return
+
+            self._formula_lm.evolve(sequences[:200], generations=30)
+            self._lm_trained = True
+            self._lm_generation += 30
+            log.info(
+                "FormulaLM trained: gen=%d, vocab=%d, sequences=%d",
+                self._lm_generation, len(self._bpe_tokenizer), len(sequences),
+            )
+        except Exception as e:
+            log.warning("FormulaLM training error: %s", e)
+
+    def _generate_text(self, query: str, max_tokens: int = 64) -> str:
+        """Сгенерировать текст через FormulaLM (fallback)."""
+        if not self._lm_trained:
+            return ""
+        try:
+            prompt_ids = self._bpe_tokenizer.encode(query)
+            if not prompt_ids:
+                return ""
+            generated_ids = self._formula_lm.generate(
+                prompt_ids, max_tokens=max_tokens, temperature=0.8,
+            )
+            return self._bpe_tokenizer.decode(generated_ids)
+        except Exception:
+            return ""
+
+    # ------------------------------------------------------------------
     # Главная функция: ответить на сообщение
     # ------------------------------------------------------------------
 
@@ -605,18 +676,34 @@ class KolibriAIEngine:
     ) -> dict:
         """
         Ответить через Числовое Мышление.
-        Pipeline: паттерны → граф → формулы → C-модель → синтез.
+        Pipeline: контекст → CoT → паттерны → граф → формулы → C-модель → синтез → генерация.
         """
         start_time = time.time()
         conv = self.get_or_create_conversation(conversation_id)
         conv.add("user", message)
         lower = message.lower()
 
+        # --- Контекстное окно: запоминаем вопрос ---
+        self._context_window.add_message("user", message)
+
+        # --- Chain-of-Thought: анализ запроса ---
+        thinking_steps = self._chain_of_thought.analyze_query(message)
+        thinking_text = self._chain_of_thought.format_thinking()
+
         special = self._handle_special_commands(lower)
         if special:
             conv.add("assistant", special["response"])
+            self._context_window.add_message("assistant", special["response"])
             special["conversation_id"] = conv.id
             special["duration_ms"] = round((time.time() - start_time) * 1000, 1)
+            special["thinking"] = thinking_text
+            special["thinking_steps"] = [
+                {"type": s.step_type.name, "content": s.description,
+                 "result": s.result, "confidence": s.confidence}
+                for s in thinking_steps
+            ]
+            special["generation_used"] = False
+            special["context_stats"] = self._context_window.get_stats()
             return special
 
         # ====== ЧИСЛОВОЕ МЫШЛЕНИЕ ======
@@ -659,6 +746,16 @@ class KolibriAIEngine:
             assoc_answer=assoc_answer,
         )
 
+        # --- Генеративный fallback: если уверенность < 0.3, пробуем FormulaLM ---
+        generation_used = False
+        if confidence < 0.3 and self._lm_trained:
+            generated = self._generate_text(message, max_tokens=64)
+            if generated and len(generated) > 10:
+                response = generated
+                method = "formula-lm-generation"
+                confidence = max(confidence, 0.25)
+                generation_used = True
+
         # === Непрерывное обучение в ФОНОВОМ worker-потоке (не блокирует ответ) ===
         try:
             if confidence >= 0.5 and method != "no-knowledge":
@@ -669,6 +766,9 @@ class KolibriAIEngine:
             pass  # Очередь переполнена — пропускаем обучение, не блокируем ответ
 
         full_response = response
+
+        # --- Контекстное окно: запоминаем ответ ---
+        self._context_window.add_message("assistant", full_response)
 
         formula_hex = best_formula.gene.to_hex()
         conv.add("assistant", full_response, formula_used=formula_hex)
@@ -708,6 +808,14 @@ class KolibriAIEngine:
                 "embedding_trained_pairs": self.embeddings.trained_pairs,
             },
             "graph_stats": self.graph.get_stats(),
+            "thinking": thinking_text,
+            "thinking_steps": [
+                {"type": s.step_type.name, "content": s.description,
+                 "result": s.result, "confidence": s.confidence}
+                for s in thinking_steps
+            ],
+            "generation_used": generation_used,
+            "context_stats": self._context_window.get_stats(),
         }
 
     def _formula_predict(self, message: str) -> dict:
