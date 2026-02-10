@@ -16,6 +16,7 @@ from .ai_engine import pre_init_engine
 from .swarm_sync import swarm_router
 from .distributed_crawler import router as dist_crawler_router
 from .delta_sync import router as delta_sync_router
+from .archiver_service import create_archiver_router
 from .common import Settings, get_settings, InferenceRequest, perform_upstream_call
 
 
@@ -49,6 +50,7 @@ app.include_router(ai_router)
 app.include_router(swarm_router)
 app.include_router(dist_crawler_router)
 app.include_router(delta_sync_router)
+app.include_router(create_archiver_router())
 
 
 

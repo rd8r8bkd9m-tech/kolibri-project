@@ -169,12 +169,19 @@ class ArchiverService:
     # ── Сжатие ────────────────────────────────────────────────────────
 
     def compress(self, data: bytes) -> CompressResult:
-        """Сжать произвольные байты."""
+        """Сжать произвольные байты.
+
+        Если KPC расширяет данные — автоматически переключаемся на zlib.
+        """
         if not data:
             return CompressResult(error="empty input")
 
         if self._use_native and self._ctx:
-            return self._compress_native(data)
+            result = self._compress_native(data)
+            # Если KPC расширил данные — fallback на zlib
+            if result.success and result.compressed_size > len(data):
+                return self._compress_zlib(data)
+            return result
         return self._compress_zlib(data)
 
     def compress_text(self, text: str) -> CompressResult:
@@ -211,7 +218,7 @@ class ArchiverService:
         return CompressResult(
             original_size=len(data),
             compressed_size=sz,
-            ratio=sz / len(data) if len(data) > 0 else 0.0,
+            ratio=len(data) / sz if sz > 0 else 0.0,
             data=result_bytes,
             method="kpc",
             success=True,
@@ -227,7 +234,7 @@ class ArchiverService:
         return CompressResult(
             original_size=len(data),
             compressed_size=len(result),
-            ratio=len(result) / len(data) if len(data) > 0 else 0.0,
+            ratio=len(data) / len(result) if len(result) > 0 else 0.0,
             data=result,
             method="zlib",
             success=True,
@@ -336,40 +343,50 @@ def create_archiver_router() -> object:
         APIRouter с маршрутами /compress, /decompress, /stats
     """
     try:
-        from fastapi import APIRouter
+        from fastapi import APIRouter, Body
         from pydantic import BaseModel
+        import base64
     except ImportError:
         return None
 
     router = APIRouter(prefix="/api/archiver", tags=["archiver"])
     _service = ArchiverService()
 
-    class CompressRequest(BaseModel):
-        text: str
-        train_rounds: int = 5
-
-    class CompressResponse(BaseModel):
-        original_size: int
-        compressed_size: int
-        ratio: float
-        method: str
-        success: bool
-        error: str = ""
-
-    @router.post("/compress", response_model=CompressResponse)
-    def compress_endpoint(req: CompressRequest) -> CompressResponse:
-        data = req.text.encode("utf-8")
-        if req.train_rounds > 0:
-            _service.train(data, req.train_rounds)
+    @router.post("/compress")
+    def compress_endpoint(
+        text: str = Body(..., embed=True),
+        train_rounds: int = Body(5, embed=True),
+    ) -> dict[str, object]:
+        data = text.encode("utf-8")
+        if train_rounds > 0:
+            _service.train(data, train_rounds)
         result = _service.compress(data)
-        return CompressResponse(
-            original_size=result.original_size,
-            compressed_size=result.compressed_size,
-            ratio=result.ratio,
-            method=result.method,
-            success=result.success,
-            error=result.error,
-        )
+        return {
+            "original_size": result.original_size,
+            "compressed_size": result.compressed_size,
+            "ratio": result.ratio,
+            "method": result.method,
+            "success": result.success,
+            "error": result.error,
+            "compressed_b64": base64.b64encode(result.data).decode() if result.success else "",
+        }
+
+    @router.post("/decompress")
+    def decompress_endpoint(
+        data_b64: str = Body(..., embed=True),
+    ) -> dict[str, object]:
+        try:
+            raw = base64.b64decode(data_b64)
+            result = _service.decompress(raw)
+            if result.success:
+                return {
+                    "success": True,
+                    "text": result.data.decode("utf-8", errors="replace"),
+                    "size": len(result.data),
+                }
+            return {"success": False, "error": result.error}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
     @router.get("/stats")
     def stats_endpoint() -> dict[str, object]:
