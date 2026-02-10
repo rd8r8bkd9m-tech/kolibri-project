@@ -2187,8 +2187,8 @@ static size_t token_decode_text(const uint8_t *input, size_t input_size,
 #define LZ_NUM_REPS   4         /* кол-во хранимых последних дистанций */
 
 static inline uint32_t lz_hash4(const uint8_t *p) {
-    uint32_t h = ((uint32_t)p[0]) | ((uint32_t)p[1] << 8)
-               | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+    uint32_t h;
+    memcpy(&h, p, 4); /* v58: быстрое чтение (unaligned OK на x86/arm) */
     return (h * 0x9E3779B1u) >> (32 - LZ_HTBITS);
 }
 
@@ -2228,7 +2228,23 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
                     const uint8_t *bb_ = input + ca_;                        \
                     int ll_ = 0;                                             \
                     int mx_ = (int)MIN((size_t)LZ_MAX_MATCH, input_size-(pos_)); \
-                    while (ll_ < mx_ && aa_[ll_] == bb_[ll_]) ll_++;         \
+                    /* v58: 4-байтное сравнение */                             \
+                    if (mx_ >= 4) {                                          \
+                        uint32_t va_, vb_;                                   \
+                        memcpy(&va_, aa_, 4); memcpy(&vb_, bb_, 4);          \
+                        if (va_ == vb_) {                                    \
+                            ll_ = 4;                                         \
+                            while (ll_ + 4 <= mx_) {                         \
+                                memcpy(&va_, aa_+ll_, 4);                    \
+                                memcpy(&vb_, bb_+ll_, 4);                    \
+                                if (va_ != vb_) break;                       \
+                                ll_ += 4;                                    \
+                            }                                                \
+                            while (ll_ < mx_ && aa_[ll_] == bb_[ll_]) ll_++; \
+                        }                                                    \
+                    } else {                                                 \
+                        while (ll_ < mx_ && aa_[ll_] == bb_[ll_]) ll_++;     \
+                    }                                                        \
                     if (ll_ >= LZ_MIN_MATCH && ll_ > best_l_) {              \
                         best_l_ = ll_; best_d_ = (int)((pos_) - ca_);       \
                         if (ll_ >= LZ_NICE_MATCH) break;                     \
@@ -2279,7 +2295,22 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
                     const uint8_t *b = input + candidate;
                     int len = 0;
                     int max_possible = (int)MIN((size_t)LZ_MAX_MATCH, input_size - ip);
-                    while (len < max_possible && a[len] == b[len]) len++;
+                    /* v58: 4-байтное сравнение */
+                    if (max_possible >= 4) {
+                        uint32_t va, vb;
+                        memcpy(&va, a, 4); memcpy(&vb, b, 4);
+                        if (va == vb) {
+                            len = 4;
+                            while (len + 4 <= max_possible) {
+                                memcpy(&va, a+len, 4); memcpy(&vb, b+len, 4);
+                                if (va != vb) break;
+                                len += 4;
+                            }
+                            while (len < max_possible && a[len] == b[len]) len++;
+                        }
+                    } else {
+                        while (len < max_possible && a[len] == b[len]) len++;
+                    }
 
                     /* Обычный матч должен быть длиннее rep-match на 1+,
                      * т.к. rep-match на 1 байт дешевле в кодировании */
@@ -2290,7 +2321,8 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
                         if (len >= LZ_NICE_MATCH) break;
                     }
                 }
-                cur = prev[candidate & LZ_WMASK]; if (cur >= (int32_t)ip) break;
+                cur = prev[candidate & LZ_WMASK];
+                if (cur >= (int32_t)ip) break;
                 chain++;
             }
 
@@ -2739,10 +2771,10 @@ static inline uint32_t kfh(uint32_t h, uint32_t b) {
     return (h ^ b) * 0x01000193u;
 }
 
-/* Обновление вероятности с разной скоростью */
+/* v58: branchless update — убираем условный переход */
 static inline void kf_upd(uint16_t *p, int bit, int rate) {
-    if (bit) *p += ((4096 - *p) >> rate);
-    else     *p -= (*p >> rate);
+    uint32_t v = *p;
+    *p = (uint16_t)(v + ((((uint32_t)bit << 12) - v) >> rate));
 }
 
 /* v57: 13 предикторов + APM chain + non-linear quant + per-bit weights.
@@ -2809,7 +2841,6 @@ do {                                                                        \
         uint32_t prun = mm->trun[irun];                                     \
                                                                             \
         /* Логистическое смешивание (13 предикторов) */                    \
-        int bp = 7 - b;                                                      \
         int16_t s[KF_NUM_PREDS];                                            \
         s[0]=kf_stretch(p0);  s[1]=kf_stretch(p1);  s[2]=kf_stretch(p2);   \
         s[3]=kf_stretch(p3);  s[4]=kf_stretch(p4);  s[5]=kf_stretch(p5);   \
@@ -2825,7 +2856,7 @@ do {                                                                        \
         /* v57: SSE с линейным квантованием (33 бина) */                     \
         int q = (int)(mx >> 7);                                             \
         if (q > 32) q = 32;                                                 \
-        int si = ((int)hist[0] * 8 + bp) * SSE_Q + q;                       \
+        int si = ((int)hist[0] * 8 + (7 - b)) * SSE_Q + q;                 \
         uint32_t sp = mm->sse[si];                                          \
         uint32_t fp = (mx * 3 + sp) >> 2;                                   \
         if (fp < 1) fp = 1; if (fp > 4095) fp = 4095;                      \
