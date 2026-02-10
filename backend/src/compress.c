@@ -2180,7 +2180,7 @@ static size_t token_decode_text(const uint8_t *input, size_t input_size,
 #define LZ_MIN_MATCH  3
 #define LZ_MAX_MATCH  259       /* v55: extended len-4 max 255 */
 #define LZ_MAX_CHAIN  512       /* макс. глубина цепочки (v53+) */
-#define LZ_NICE_MATCH 64        /* v54: ранний выход при хорошем совпадении */
+#define LZ_NICE_MATCH 128       /* v59: ранний выход при хорошем совпадении */
 #define LZ_ESCAPE     0xFF      /* escape-байт для совпадений */
 #define LZ_EXT_CODE   0xFC      /* v55: extended 24-bit distance match */
 #define LZ_REP_CODE   0xFD      /* v54: опкод rep-match (LZMA-style) */
@@ -2664,9 +2664,9 @@ static inline int krc_dec_bit(KolibriRC *c, uint32_t prob) {
 #define T7_SIZE  1048576u
 #define T8_SIZE  1048576u   /* v55: Order-8 — глубокий контекст для исходного кода */
 #define SSE_Q    33         /* SSE: 33 линейных бина (компактно) */
-#define SSE_SZ   (256u * 8u * SSE_Q)
+#define SSE_SZ   (512u * 8u * SSE_Q)  /* v59: O1 контекст — hist[0]*2+(hist[1]>>7) */
 #define TRUN_SIZE  4096u    /* v55: run-length context (16 run_len × 256 cx) */
-#define APM_SIZE   16384u   /* v56: 2nd SSE — cx*64+q, max=255*64+63=16383 */
+#define APM_SIZE   32768u   /* v59: state-aware APM — (cx*2+is_lz)*33+q2 */
 
 /* --- v54: Логистическое смешивание (stretch/squash) ---
  * stretch(p) = ln(p/(1-p)) — переводит вероятность в logit-пространство
@@ -2861,13 +2861,15 @@ do {                                                                        \
         /* v57: SSE с линейным квантованием (33 бина) */                     \
         int q = (int)(mx >> 7);                                             \
         if (q > 32) q = 32;                                                 \
-        int si = ((int)hist[0] * 8 + (7 - b)) * SSE_Q + q;                 \
+        int sse_cx = (int)hist[0] * 2 + ((int)hist[1] >> 7);  /* v59: O1 */ \
+        int si = (sse_cx * 8 + (7 - b)) * SSE_Q + q;                        \
         uint32_t sp = mm->sse[si];                                          \
         uint32_t fp = (mx * 3 + sp) >> 2;                                   \
         if (fp < 1) fp = 1; if (fp > 4095) fp = 4095;                      \
         /* v57: APM с линейным квантованием */                             \
         int q2 = (int)(fp >> 7); if (q2 > 32) q2 = 32;                     \
-        int api = (int)cx * 33 + q2; /* max=255*33+32=8447 */               \
+        int is_lz = (lz_state > 0) ? 1 : 0;  /* v59: state-aware */         \
+        int api = ((int)cx * 2 + is_lz) * 33 + q2; /* v59: max=511*33+32 */ \
         if (api > (int)(APM_SIZE - 1)) api = (int)(APM_SIZE - 1);           \
         uint32_t ap = mm->apm[api];                                         \
         fp = (fp * 7 + ap) >> 3; /* 87.5% SSE + 12.5% APM */               \
