@@ -59,6 +59,7 @@ add_library(kolibri_core_objects OBJECT
     backend/src/corpus_learning.c
     backend/src/text_generation.c
     backend/src/compress.c
+    backend/src/predictive_compress.c
     backend/src/huffman_ans.c
     backend/src/async_executor.c
     backend/src/trace.c
@@ -311,6 +312,11 @@ if(KOLIBRI_ENABLE_TESTS)
     add_executable(test_multilevel_archive tests/test_multilevel_archive.c)
     target_link_libraries(test_multilevel_archive PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_multilevel_archive COMMAND test_multilevel_archive)
+    
+    # PREDICTIVE COMPRESS — предиктивное сжатие с формульным MLP
+    add_executable(test_predictive_compress tests/test_predictive_compress.c)
+    target_link_libraries(test_predictive_compress PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_predictive_compress COMMAND test_predictive_compress)
     
     # PROOF 300000x - доказательство компрессии 300,000x!
     add_executable(test_proof_300000x tests/test_proof_300000x.c)
