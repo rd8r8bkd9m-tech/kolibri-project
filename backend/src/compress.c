@@ -156,54 +156,6 @@ KolibriFileType kolibri_detect_file_type(const uint8_t *data, size_t size) {
     return KOLIBRI_FILE_BINARY;
 }
 
-/* RLE compression */
-static size_t compress_rle(const uint8_t *input, size_t input_size,
-                           uint8_t *output, size_t output_size) {
-    if (!input || !output || output_size < input_size * 2) {
-        return 0;
-    }
-
-    size_t out_pos = 0;
-    size_t i = 0;
-
-    while (i < input_size) {
-        uint8_t current = input[i];
-        size_t run_length = 1;
-
-        /* Count consecutive identical bytes */
-        while (i + run_length < input_size && 
-               input[i + run_length] == current && 
-               run_length < 255) {
-            run_length++;
-        }
-
-        if (run_length >= 4) {
-            /* Use RLE encoding for runs of 4 or more */
-            if (out_pos + 3 > output_size) return 0;
-            output[out_pos++] = 0xFF; /* RLE marker */
-            output[out_pos++] = (uint8_t)run_length;
-            output[out_pos++] = current;
-            i += run_length;
-        } else {
-            /* Copy literally, escaping marker bytes */
-            for (size_t j = 0; j < run_length; j++) {
-                if (current == 0xFF) {
-                    /* Escape 0xFF as 0xFF 0x00 */
-                    if (out_pos + 2 > output_size) return 0;
-                    output[out_pos++] = 0xFF;
-                    output[out_pos++] = 0x00;
-                } else {
-                    if (out_pos >= output_size) return 0;
-                    output[out_pos++] = current;
-                }
-            }
-            i += run_length;
-        }
-    }
-
-    return out_pos;
-}
-
 /* RLE decompression */
 static size_t decompress_rle(const uint8_t *input, size_t input_size,
                              uint8_t *output, size_t output_size) {
@@ -241,154 +193,6 @@ static size_t decompress_rle(const uint8_t *input, size_t input_size,
     return out_pos;
 }
 
-/* =====================================================================
- * LZ77 v50 "Kolibri Titan" — Lazy Matching + Deep Hash Chains
- * =====================================================================
- * Улучшения v50 vs v40:
- * - Окно 64KB (было 32KB) — больше совпадений
- * - Цепочки до 1024 (было 128) — находит длинные совпадения
- * - 4-байтный хеш (был 3-байт) — меньше коллизий
- * - Lazy matching — проверяет позицию +1, выбирает лучшее
- * - Формат вывода совместим с v40
- * ===================================================================== */
-#define LZ77_WINDOW_SIZE 65536     /* 64KB (было 32KB) */
-#define LZ77_MAX_MATCH 255
-#define LZ77_HASH_BITS 16           /* 64K entries (было 32K) */
-#define LZ77_HASH_SIZE (1 << LZ77_HASH_BITS)
-#define LZ77_HASH_MASK (LZ77_HASH_SIZE - 1)
-#define LZ77_MAX_CHAIN 1024        /* Глубокий поиск (было 128) */
-#define LZ77_MIN_MATCH 4
-#define LZ77_NICE_MATCH 128         /* Стоп если совпадение >= этого */
-
-/* --- LZ77 v50: Helper — \u043f\u043e\u0438\u0441\u043a \u043b\u0443\u0447\u0448\u0435\u0433\u043e \u0441\u043e\u0432\u043f\u0430\u0434\u0435\u043d\u0438\u044f \u0432 \u0445\u0435\u0448-\u0446\u0435\u043f\u043e\u0447\u043a\u0435 --- */
-static inline uint32_t lz77_hash4(const uint8_t *p) {
-    uint32_t v = (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
-                 ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
-    return (v * 2654435761U) >> (32 - LZ77_HASH_BITS);
-}
-
-static size_t lz77_find_best(const uint8_t *input, size_t input_size,
-                              const int32_t *head, const int32_t *prev,
-                              size_t pos, size_t *out_dist) {
-    *out_dist = 0;
-    if (pos + 3 >= input_size) return 0;
-
-    uint32_t h = lz77_hash4(input + pos);
-    int32_t mp = head[h];
-    size_t min_d = (pos > LZ77_WINDOW_SIZE) ? (pos - LZ77_WINDOW_SIZE) : 0;
-    size_t best_len = 0;
-    int chain = 0;
-
-    while (mp != -1 && (size_t)mp >= min_d && chain++ < LZ77_MAX_CHAIN) {
-        /* \u0411\u044b\u0441\u0442\u0440\u0430\u044f \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0430: \u0441\u043d\u0430\u0447\u0430\u043b\u0430 \u0431\u0430\u0439\u0442 \u043d\u0430 \u043f\u043e\u0437\u0438\u0446\u0438\u0438 best_len+1 */
-        if (best_len < input_size - pos &&
-            input[(size_t)mp + best_len] == input[pos + best_len]) {
-            size_t ml = 0;
-            size_t limit = MIN(LZ77_MAX_MATCH, input_size - pos);
-            while (ml < limit && input[(size_t)mp + ml] == input[pos + ml]) ml++;
-
-            if (ml > best_len) {
-                best_len = ml;
-                *out_dist = pos - (size_t)mp;
-                if (best_len >= LZ77_NICE_MATCH) break; /* \u0414\u043e\u0441\u0442\u0430\u0442\u043e\u0447\u043d\u043e \u0445\u043e\u0440\u043e\u0448\u0435\u0435 \u0441\u043e\u0432\u043f\u0430\u0434\u0435\u043d\u0438\u0435 */
-            }
-        }
-        int32_t next = prev[(size_t)mp & (LZ77_WINDOW_SIZE - 1)];
-        if (next == mp) break;
-        mp = next;
-    }
-    return best_len;
-}
-
-/* --- LZ77 v50: \u0441\u0436\u0430\u0442\u0438\u0435 \u0441 Lazy Matching --- */
-static size_t compress_lz77(const uint8_t *input, size_t input_size,
-                            uint8_t *output, size_t output_size) {
-    if (!input || !output) return 0;
-    if (input_size < LZ77_MIN_MATCH) {
-        if (output_size < input_size) return 0;
-        memcpy(output, input, input_size);
-        return input_size;
-    }
-
-    int32_t *head = (int32_t *)malloc(LZ77_HASH_SIZE * sizeof(int32_t));
-    int32_t *prev = (int32_t *)malloc(LZ77_WINDOW_SIZE * sizeof(int32_t));
-    if (!head || !prev) { free(head); free(prev); return 0; }
-    for (int i = 0; i < LZ77_HASH_SIZE; i++) head[i] = -1;
-
-    size_t out_pos = 0;
-    size_t in_pos = 0;
-
-    /* \u0412\u0441\u043f\u043e\u043c\u043e\u0433\u0430\u0442\u0435\u043b\u044c\u043d\u044b\u0439 \u043c\u0430\u043a\u0440\u043e\u0441: \u0434\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u043f\u043e\u0437\u0438\u0446\u0438\u044e \u0432 \u0445\u0435\u0448 */
-    #define LZ77_INSERT(p) do { \
-        if ((p) + 3 < input_size) { \
-            uint32_t _h = lz77_hash4(input + (p)); \
-            prev[(p) & (LZ77_WINDOW_SIZE - 1)] = head[_h]; \
-            head[_h] = (int32_t)(p); \
-        } \
-    } while(0)
-
-    #define LZ77_EMIT_LIT(byte) do { \
-        if ((byte) == 0xFE) { \
-            if (out_pos + 2 > output_size) goto lz77_fail; \
-            output[out_pos++] = 0xFE; output[out_pos++] = 0xFF; \
-        } else { \
-            if (out_pos >= output_size) goto lz77_fail; \
-            output[out_pos++] = (byte); \
-        } \
-    } while(0)
-
-    while (in_pos < input_size) {
-        size_t match_dist = 0;
-        size_t match_len = lz77_find_best(input, input_size, head, prev,
-                                           in_pos, &match_dist);
-        LZ77_INSERT(in_pos);
-
-        if (match_len >= LZ77_MIN_MATCH && match_dist <= 65535) {
-            /* === Lazy Matching: \u043f\u0440\u043e\u0432\u0435\u0440\u044f\u0435\u043c pos+1 === */
-            size_t next_dist = 0;
-            size_t next_len = 0;
-            if (in_pos + 1 < input_size) {
-                next_len = lz77_find_best(input, input_size, head, prev,
-                                           in_pos + 1, &next_dist);
-            }
-
-            if (next_len > match_len + 1 && next_dist <= 65535) {
-                /* \u041f\u043e\u0437\u0438\u0446\u0438\u044f +1 \u043b\u0443\u0447\u0448\u0435 \u2014 \u0432\u044b\u0432\u043e\u0434\u0438\u043c \u043b\u0438\u0442\u0435\u0440\u0430\u043b \u0438 \u0431\u0435\u0440\u0451\u043c \u0441\u043e\u0432\u043f\u0430\u0434\u0435\u043d\u0438\u0435 \u043e\u0442\u0442\u0443\u0434\u0430 */
-                LZ77_EMIT_LIT(input[in_pos]);
-                in_pos++;
-                LZ77_INSERT(in_pos);
-                match_len = next_len;
-                match_dist = next_dist;
-            }
-
-            /* \u0412\u044b\u0432\u043e\u0434\u0438\u043c \u0441\u043e\u0432\u043f\u0430\u0434\u0435\u043d\u0438\u0435 */
-            if (out_pos + 4 > output_size) goto lz77_fail;
-            output[out_pos++] = 0xFE;
-            output[out_pos++] = (uint8_t)(match_dist >> 8);
-            output[out_pos++] = (uint8_t)(match_dist & 0xFF);
-            output[out_pos++] = (uint8_t)match_len;
-
-            /* \u0414\u043e\u0431\u0430\u0432\u043b\u044f\u0435\u043c \u043f\u0440\u043e\u043f\u0443\u0449\u0435\u043d\u043d\u044b\u0435 \u043f\u043e\u0437\u0438\u0446\u0438\u0438 \u0432 \u0445\u0435\u0448 */
-            for (size_t k = 1; k < match_len; k++) {
-                LZ77_INSERT(in_pos + k);
-            }
-            in_pos += match_len;
-        } else {
-            LZ77_EMIT_LIT(input[in_pos]);
-            in_pos++;
-        }
-    }
-
-    #undef LZ77_INSERT
-    #undef LZ77_EMIT_LIT
-
-    free(head); free(prev);
-    return out_pos;
-
-lz77_fail:
-    free(head); free(prev);
-    return 0;
-}
 
 /* LZ77 decompression */
 static size_t decompress_lz77(const uint8_t *input, size_t input_size,
@@ -445,68 +249,6 @@ static size_t decompress_lz77(const uint8_t *input, size_t input_size,
  */
 
 /* ===================== BWT (Burrows-Wheeler Transform) ===================== */
-
-/* Глобальные переменные для сортировки ротаций BWT */
-static const uint8_t *_bwt_doubled_buf;
-static size_t _bwt_block_n;
-
-static int bwt_rotation_cmp(const void *a, const void *b) {
-    uint32_t i = *(const uint32_t *)a;
-    uint32_t j = *(const uint32_t *)b;
-    if (i == j) return 0;
-    /* Полное сравнение через удвоенный буфер — гарантирует корректный BWT */
-    int r = memcmp(_bwt_doubled_buf + i, _bwt_doubled_buf + j, _bwt_block_n);
-    return r ? r : ((int)i - (int)j);
-}
-
-/* BWT Forward Transform v50: Radix Sort + qsort \u0432\u043d\u0443\u0442\u0440\u0438 \u0431\u0430\u043a\u0435\u0442\u043e\u0432 */
-static int bwt_forward(const uint8_t *input, size_t len, uint8_t *output, uint32_t *primary_index) {
-    if (!input || !output || !primary_index || len == 0) return -1;
-    
-    uint8_t *doubled = (uint8_t *)malloc(len * 2);
-    uint32_t *sa = (uint32_t *)malloc(len * sizeof(uint32_t));
-    if (!doubled || !sa) { free(doubled); free(sa); return -1; }
-    
-    /* \u0414\u0443\u0431\u043b\u0438\u0440\u0443\u0435\u043c \u0431\u0443\u0444\u0435\u0440 \u0434\u043b\u044f \u0431\u0435\u0437\u043c\u043e\u0434\u0443\u043b\u044c\u043d\u043e\u0433\u043e \u0441\u0440\u0430\u0432\u043d\u0435\u043d\u0438\u044f */
-    memcpy(doubled, input, len);
-    memcpy(doubled + len, input, len);
-    
-    /* === v50: Radix sort \u043f\u043e \u043f\u0435\u0440\u0432\u043e\u043c\u0443 \u0431\u0430\u0439\u0442\u0443, \u0437\u0430\u0442\u0435\u043c qsort \u0432\u043d\u0443\u0442\u0440\u0438 \u0431\u0430\u043a\u0435\u0442\u043e\u0432 ===
-     * \u0423\u0441\u043a\u043e\u0440\u0435\u043d\u0438\u0435 ~256x \u043f\u0440\u043e\u0442\u0438\u0432 \u043f\u043e\u043b\u043d\u043e\u0433\u043e qsort, \u043f\u043e\u0437\u0432\u043e\u043b\u044f\u0435\u0442 128KB+ \u0431\u043b\u043e\u043a\u0438. */
-    uint32_t counts[256] = {0};
-    for (size_t i = 0; i < len; i++) counts[input[i]]++;
-    
-    uint32_t offsets[256];
-    offsets[0] = 0;
-    for (int c = 1; c < 256; c++) offsets[c] = offsets[c-1] + counts[c-1];
-    
-    uint32_t radix_run[256];
-    memcpy(radix_run, offsets, sizeof(offsets));
-    for (uint32_t i = 0; i < (uint32_t)len; i++) {
-        sa[radix_run[input[i]]++] = i;
-    }
-    
-    _bwt_doubled_buf = doubled;
-    _bwt_block_n = len;
-    
-    /* qsort \u0442\u043e\u043b\u044c\u043a\u043e \u0432\u043d\u0443\u0442\u0440\u0438 \u0431\u0430\u043a\u0435\u0442\u043e\u0432 (\u044d\u043b\u0435\u043c\u0435\u043d\u0442\u044b \u0441 \u043e\u0434\u0438\u043d\u0430\u043a\u043e\u0432\u044b\u043c \u043f\u0435\u0440\u0432\u044b\u043c \u0431\u0430\u0439\u0442\u043e\u043c) */
-    for (int c = 0; c < 256; c++) {
-        if (counts[c] > 1) {
-            qsort(sa + offsets[c], counts[c], sizeof(uint32_t), bwt_rotation_cmp);
-        }
-    }
-    
-    *primary_index = 0;
-    for (size_t i = 0; i < len; i++) {
-        if (sa[i] == 0) *primary_index = (uint32_t)i;
-        output[i] = input[(sa[i] + len - 1) % len];
-    }
-    
-    free(doubled);
-    free(sa);
-    return 0;
-}
-
 /* BWT Inverse Transform: Восстановление исходных данных из BWT */
 static int bwt_inverse(const uint8_t *L, size_t len, uint8_t *output, uint32_t primary_index) {
     if (!L || !output || primary_index >= (uint32_t)len) return -1;
@@ -546,23 +288,6 @@ static int bwt_inverse(const uint8_t *L, size_t len, uint8_t *output, uint32_t p
 
 /* ===================== MTF (Move-to-Front Transform) ===================== */
 
-/* MTF Encode: Преобразует байты в ранги (маленькие числа для повторяющихся контекстов) */
-static void mtf_encode(uint8_t *data, size_t len) {
-    uint8_t table[256];
-    for (int i = 0; i < 256; i++) table[i] = (uint8_t)i;
-    
-    for (size_t i = 0; i < len; i++) {
-        uint8_t ch = data[i];
-        uint8_t rank = 0;
-        while (table[rank] != ch) rank++;
-        
-        data[i] = rank;
-        /* Перемещаем символ в начало таблицы */
-        memmove(table + 1, table, rank);
-        table[0] = ch;
-    }
-}
-
 /* MTF Decode: Обратное преобразование рангов в байты */
 static void mtf_decode(uint8_t *data, size_t len) {
     uint8_t table[256];
@@ -590,75 +315,6 @@ static void mtf_decode(uint8_t *data, size_t len) {
 #define CTX3_TABLE_SIZE 262144 /* 2^18 = \u0445\u0435\u0448\u0438\u0440\u043e\u0432\u0430\u043d\u043d\u044b\u0439 Order-3 context */
 #define CTX3_MASK (CTX3_TABLE_SIZE - 1)
 
-/* \u0410\u0434\u0430\u043f\u0442\u0438\u0432\u043d\u043e\u0435 \u043f\u0440\u0435\u0434\u0441\u043a\u0430\u0437\u0430\u043d\u0438\u0435 v50: Order-1/2/3 \u0441 \u0441\u043c\u0435\u0448\u0438\u0432\u0430\u043d\u0438\u0435\u043c */
-static void context_predict_encode(const uint8_t *input, size_t len, uint8_t *output) {
-    /* \u0422\u0430\u0431\u043b\u0438\u0446\u044b \u043f\u0440\u0435\u0434\u0441\u043a\u0430\u0437\u0430\u043d\u0438\u0439 */
-    uint8_t *pred1 = (uint8_t *)calloc(256, 1);           /* Order-1 */
-    uint8_t *pred2 = (uint8_t *)calloc(CTX_TABLE_SIZE, 1); /* Order-2 */
-    uint8_t *pred3 = (uint8_t *)calloc(CTX3_TABLE_SIZE, 1); /* Order-3 (\u0445\u0435\u0448) */
-    uint8_t *hit1  = (uint8_t *)calloc(256, 1);           /* \u0421\u0447\u0451\u0442\u0447\u0438\u043a \u043f\u043e\u043f\u0430\u0434\u0430\u043d\u0438\u0439 O1 */
-    uint8_t *hit2  = (uint8_t *)calloc(CTX_TABLE_SIZE, 1); /* \u0421\u0447\u0451\u0442\u0447\u0438\u043a \u043f\u043e\u043f\u0430\u0434\u0430\u043d\u0438\u0439 O2 */
-    uint8_t *hit3  = (uint8_t *)calloc(CTX3_TABLE_SIZE, 1); /* \u0421\u0447\u0451\u0442\u0447\u0438\u043a \u043f\u043e\u043f\u0430\u0434\u0430\u043d\u0438\u0439 O3 */
-    
-    if (!pred1 || !pred2 || !pred3 || !hit1 || !hit2 || !hit3) {
-        /* Fallback: \u043a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435 \u0431\u0435\u0437 \u043f\u0440\u0435\u0434\u0441\u043a\u0430\u0437\u0430\u043d\u0438\u044f */
-        memcpy(output, input, len);
-        free(pred1); free(pred2); free(pred3);
-        free(hit1); free(hit2); free(hit3);
-        return;
-    }
-    
-    /* \u041f\u0435\u0440\u0432\u044b\u0435 3 \u0431\u0430\u0439\u0442\u0430 \u0441\u043e\u0445\u0440\u0430\u043d\u044f\u0435\u043c \u043a\u0430\u043a \u0435\u0441\u0442\u044c */
-    if (len > 0) output[0] = input[0];
-    if (len > 1) output[1] = input[1];
-    if (len > 2) output[2] = input[2];
-    
-    for (size_t i = 3; i < len; i++) {
-        /* \u041a\u043e\u043d\u0442\u0435\u043a\u0441\u0442\u044b */
-        uint8_t ctx1_key = input[i-1];
-        uint16_t ctx2_key = ((uint16_t)input[i-2] << 8) | (uint16_t)input[i-1];
-        uint32_t ctx3_key = (((uint32_t)input[i-3] * 65599U) ^
-                             ((uint32_t)input[i-2] * 257U) ^
-                             (uint32_t)input[i-1]) & CTX3_MASK;
-        
-        /* \u041f\u0440\u0435\u0434\u0441\u043a\u0430\u0437\u0430\u043d\u0438\u044f \u043e\u0442 \u043a\u0430\u0436\u0434\u043e\u0433\u043e \u043a\u043e\u043d\u0442\u0435\u043a\u0441\u0442\u0430 */
-        int p1 = (int)pred1[ctx1_key];
-        int p2 = (int)pred2[ctx2_key];
-        int p3 = (int)pred3[ctx3_key];
-        int h1 = (int)hit1[ctx1_key];
-        int h2 = (int)hit2[ctx2_key];
-        int h3 = (int)hit3[ctx3_key];
-        
-        /* \u0412\u0437\u0432\u0435\u0448\u0435\u043d\u043d\u043e\u0435 \u0441\u043c\u0435\u0448\u0438\u0432\u0430\u043d\u0438\u0435: \u0431\u043e\u043b\u044c\u0448\u0435 \u043f\u043e\u043f\u0430\u0434\u0430\u043d\u0438\u0439 \u2192 \u0431\u043e\u043b\u044c\u0448\u0438\u0439 \u0432\u0435\u0441 */
-        int w1 = 1 + h1;
-        int w2 = 2 + h2 * 2;
-        int w3 = 3 + h3 * 3;
-        int total_w = w1 + w2 + w3;
-        int predicted = (p1 * w1 + p2 * w2 + p3 * w3 + total_w / 2) / total_w;
-        predicted = predicted & 0xFF;
-        
-        /* \u0421\u043e\u0445\u0440\u0430\u043d\u044f\u0435\u043c \u043e\u0448\u0438\u0431\u043a\u0443 (\u0440\u0435\u0437\u0438\u0434\u0443\u0430\u043b) */
-        output[i] = input[i] - (uint8_t)predicted;
-        
-        /* \u041e\u0431\u043d\u043e\u0432\u043b\u044f\u0435\u043c \u0442\u0430\u0431\u043b\u0438\u0446\u044b \u0438 \u0441\u0447\u0451\u0442\u0447\u0438\u043a\u0438 \u043f\u043e\u043f\u0430\u0434\u0430\u043d\u0438\u0439 */
-        uint8_t actual = input[i];
-        if (pred1[ctx1_key] == actual && hit1[ctx1_key] < 255) hit1[ctx1_key]++;
-        else { hit1[ctx1_key] = 0; }
-        if (pred2[ctx2_key] == actual && hit2[ctx2_key] < 255) hit2[ctx2_key]++;
-        else { hit2[ctx2_key] = 0; }
-        if (pred3[ctx3_key] == actual && hit3[ctx3_key] < 255) hit3[ctx3_key]++;
-        else { hit3[ctx3_key] = 0; }
-        
-        pred1[ctx1_key] = actual;
-        pred2[ctx2_key] = actual;
-        pred3[ctx3_key] = actual;
-    }
-    
-    free(pred1); free(pred2); free(pred3);
-    free(hit1); free(hit2); free(hit3);
-}
-
-/* \u041e\u0431\u0440\u0430\u0442\u043d\u043e\u0435 \u043f\u0440\u0435\u0434\u0441\u043a\u0430\u0437\u0430\u043d\u0438\u0435 v50: \u0432\u043e\u0441\u0441\u0442\u0430\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0435 \u0438\u0437 \u043e\u0448\u0438\u0431\u043e\u043a */
 static void context_predict_decode(const uint8_t *input, size_t len, uint8_t *output) {
     uint8_t *pred1 = (uint8_t *)calloc(256, 1);
     uint8_t *pred2 = (uint8_t *)calloc(CTX_TABLE_SIZE, 1);
@@ -719,18 +375,6 @@ static void context_predict_decode(const uint8_t *input, size_t len, uint8_t *ou
     free(hit1); free(hit2); free(hit3);
 }
 
-/* Оценка энтропии блока (сумма квадратов частот — выше = лучше сжатие) */
-static uint64_t estimate_compressibility(const uint8_t *data, size_t len) {
-    uint32_t counts[256] = {0};
-    for (size_t i = 0; i < len; i++) counts[data[i]]++;
-    
-    uint64_t sum_sq = 0;
-    for (int i = 0; i < 256; i++) {
-        sum_sq += (uint64_t)counts[i] * (uint64_t)counts[i];
-    }
-    return sum_sq; /* Выше = более сжимаемые данные */
-}
-
 /* =====================================================================
  * KOLIBRI FORMULA PREDICTOR — «Number-Thinking» Compression
  * =====================================================================
@@ -749,9 +393,6 @@ static uint64_t estimate_compressibility(const uint8_t *data, size_t len) {
 #define KF_GENE_LEN      64   /* Длина генома (цифры 0-9): 8 слоёв × 8 цифр */
 #define KF_GENE_PACKED    32   /* Упакованный размер (байты) */
 #define KF_LAYERS          8   /* Количество слоёв-ReasonBlock'ов */
-#define KF_POPULATION     24   /* Популяция (баланс скорости/качества) — v50 */
-#define KF_GENERATIONS    40   /* Поколений эволюции — v50 */
-#define KF_SAMPLE_SIZE  2048   /* Выборка для оценки fitness — v50 */
 
 typedef struct {
     uint8_t digits[KF_GENE_LEN];
@@ -817,144 +458,11 @@ static int kf_compact_predict(const KolibriCompactFormula *f, int prev_byte) {
     return (int)(((x % 256) + 256) % 256);
 }
 
-/* --- Упаковка/распаковка генома: 48 цифр ↔ 24 байта --- */
-static void kf_pack_gene(const uint8_t *digits, uint8_t *packed) {
-    for (int i = 0; i < KF_GENE_PACKED; i++) {
-        packed[i] = (uint8_t)((digits[i * 2] << 4) | (digits[i * 2 + 1] & 0x0F));
-    }
-}
-
+/* --- Распаковка генома: 32 байта → 64 цифры --- */
 static void kf_unpack_gene(const uint8_t *packed, uint8_t *digits) {
     for (int i = 0; i < KF_GENE_PACKED; i++) {
         digits[i * 2]     = (packed[i] >> 4) & 0x0F;
         digits[i * 2 + 1] = packed[i] & 0x0F;
-    }
-}
-
-/* --- Эволюционное обучение формулы на блоке данных ---
- * Формула учится предсказывать data[i] по data[i-1].
- * Fitness = количество точных совпадений (residual=0) — это то, 
- * что максимизирует сжатие через ZRLE.
- */
-static void kf_train_formula(KolibriCompactFormula *best,
-                             const uint8_t *data, size_t len,
-                             uint64_t block_seed) {
-    KolibriRng evo_rng;
-    k_rng_seed(&evo_rng, block_seed ^ 0xF0AAUL);
-    
-    KolibriCompactFormula population[KF_POPULATION];
-    
-    /* Инициализация: одна "нулевая" формула (predict=prev) + случайные */
-    for (int p = 0; p < KF_POPULATION; p++) {
-        if (p == 0) {
-            /* Сид #0: identity (slope≈0, bias≈0 → output ≈ input) */
-            for (int d = 0; d < KF_GENE_LEN; d += 8) {
-                population[p].digits[d]   = 0; /* op=0: linear */
-                population[p].digits[d+1] = 5; /* slope_hi → slope=0 */
-                population[p].digits[d+2] = 0; /* slope_lo */
-                population[p].digits[d+3] = 5; /* bias_hi → bias=0 */
-                population[p].digits[d+4] = 0; /* bias_lo */
-                population[p].digits[d+5] = 0;
-                population[p].digits[d+6] = 0;
-                population[p].digits[d+7] = 0;
-            }
-        } else if (p == 1) {
-            /* Сид #1: "predict zero" (slope=0, bias=-prev → output≈0) */
-            for (int d = 0; d < KF_GENE_LEN; d += 8) {
-                population[p].digits[d]   = 0;
-                population[p].digits[d+1] = 4; /* slope ≈ -10 */
-                population[p].digits[d+2] = 0;
-                population[p].digits[d+3] = 5;
-                population[p].digits[d+4] = 0;
-                population[p].digits[d+5] = 0;
-                population[p].digits[d+6] = 5;
-                population[p].digits[d+7] = 0;
-            }
-        } else {
-            for (int d = 0; d < KF_GENE_LEN; d++) {
-                population[p].digits[d] = (uint8_t)(k_rng_next(&evo_rng) % 10);
-            }
-        }
-        population[p].fitness = -1e18;
-    }
-    
-    /* Подготовка выборки: используем максимум данных */
-    int num_samples = (int)(len < (size_t)KF_SAMPLE_SIZE ? len : (size_t)KF_SAMPLE_SIZE);
-    size_t stride = len / (size_t)num_samples;
-    if (stride == 0) stride = 1;
-    
-    /* === Эволюционный цикл === */
-    for (int gen = 0; gen < KF_GENERATIONS; gen++) {
-        /* Оценка fitness каждой формулы */
-        for (int p = 0; p < KF_POPULATION; p++) {
-            int zero_residuals = 0;
-            int small_residuals = 0; /* |residual| <= 1 */
-            double error_sum = 0;
-            
-            for (int s = 0; s < num_samples; s++) {
-                size_t pos = (size_t)s * stride;
-                if (pos >= len) break;
-                
-                /* Контекст = предыдущий байт (КЛЮЧЕВОЕ ИЗМЕНЕНИЕ!) */
-                int prev_byte = (pos > 0) ? (int)data[pos - 1] : 0;
-                int predicted = kf_compact_predict(&population[p], prev_byte);
-                int actual = (int)data[pos];
-                
-                int diff = (actual - predicted + 128) & 0xFF;
-                if (diff > 128) diff -= 256;
-                
-                if (diff == 0) zero_residuals++;
-                if (diff >= -1 && diff <= 1) small_residuals++;
-                error_sum += (double)(diff * diff);
-            }
-            
-            /* Fitness: ZRLE выигрывает от нулевых остатков.
-             * zero_residuals × 300 — огромный бонус за точные совпадения
-             * small_residuals × 50 — бонус за почти точные
-             * -MSE — штраф за большие ошибки */
-            population[p].fitness = (double)zero_residuals * 300.0 
-                                    + (double)small_residuals * 50.0
-                                    - error_sum / (double)num_samples;
-        }
-        
-        /* Сортировка по fitness (убывание) */
-        for (int i = 0; i < KF_POPULATION - 1; i++) {
-            for (int j = i + 1; j < KF_POPULATION; j++) {
-                if (population[j].fitness > population[i].fitness) {
-                    KolibriCompactFormula tmp = population[i];
-                    population[i] = population[j];
-                    population[j] = tmp;
-                }
-            }
-        }
-        
-        /* Размножение: элита (top-5) выживает, остальные — мутанты */
-        int elite = 5;
-        for (int p = elite; p < KF_POPULATION; p++) {
-            population[p] = population[p % elite]; /* Копия родителя */
-            /* Мутация: 2-6 цифр генома */
-            int mutations = 2 + (int)(k_rng_next(&evo_rng) % 5);
-            for (int m = 0; m < mutations; m++) {
-                int idx = (int)(k_rng_next(&evo_rng) % KF_GENE_LEN);
-                population[p].digits[idx] = (uint8_t)(k_rng_next(&evo_rng) % 10);
-            }
-        }
-    }
-    
-    *best = population[0]; /* Лучшая формула */
-}
-
-/* --- Секвенциальное кодирование: формула предсказывает byte[i] из byte[i-1] ---
- * Данные = Формула(prev_byte) + Остатки
- * Если формула точна → остатки = 0 → ZRLE сжимает до минимума */
-static void kf_formula_encode_block(const KolibriCompactFormula *formula,
-                                     const uint8_t *data, size_t len,
-                                     uint8_t *residuals) {
-    int prev = 0;
-    for (size_t i = 0; i < len; i++) {
-        int predicted = kf_compact_predict(formula, prev);
-        residuals[i] = (uint8_t)((int)data[i] - predicted);
-        prev = (int)data[i]; /* Следующий контекст = текущий ОРИГИНАЛЬНЫЙ байт */
     }
 }
 
@@ -981,38 +489,6 @@ static void kf_formula_decode_block(const KolibriCompactFormula *formula,
  * v50: поддержка длинных серий для больших BWT-блоков (512KB+).
  */
 
-static size_t zrle_encode(const uint8_t *input, size_t len, uint8_t *output, size_t max_out) {
-    size_t in_pos = 0, out_pos = 0;
-    while (in_pos < len) {
-        if (input[in_pos] == 0) {
-            /* Подсчитываем серию нулей (до 65535) */
-            size_t run = 0;
-            while (in_pos + run < len && input[in_pos + run] == 0 && run < 65535) {
-                run++;
-            }
-            if (run <= 255) {
-                /* Короткая серия: 2 байта [0x00][run-1], run-1 ∈ [0..253] 
-                 * 0xFF зарезервирован как маркер длинной серии! */
-                if (run > 254) run = 254;  /* Отдаём остаток следующей итерации */
-                if (out_pos + 2 > max_out) return 0;
-                output[out_pos++] = 0;
-                output[out_pos++] = (uint8_t)(run - 1);
-            } else {
-                /* Длинная серия: 4 байта — [0x00][0xFF][hi][lo] */
-                if (out_pos + 4 > max_out) return 0;
-                output[out_pos++] = 0;
-                output[out_pos++] = 0xFF;  /* маркер длинной серии */
-                output[out_pos++] = (uint8_t)((run >> 8) & 0xFF);
-                output[out_pos++] = (uint8_t)(run & 0xFF);
-            }
-            in_pos += run;
-        } else {
-            if (out_pos >= max_out) return 0;
-            output[out_pos++] = input[in_pos++];
-        }
-    }
-    return out_pos;
-}
 
 static size_t zrle_decode(const uint8_t *input, size_t compressed_len, uint8_t *output, size_t max_out) {
     size_t in_pos = 0, out_pos = 0;
@@ -1040,484 +516,6 @@ static size_t zrle_decode(const uint8_t *input, size_t compressed_len, uint8_t *
     }
     return out_pos;
 }
-
-static size_t compress_mathematical(const uint8_t *input, size_t input_size,
-                                   uint8_t *output, size_t output_size) {
-    /* If input is too small, just store as raw global block */
-    if (input_size < 128) {
-        if (output_size < input_size + 1) return 0;
-        output[0] = 0; /* RAW */
-        memcpy(output + 1, input, input_size);
-        return input_size + 1;
-    }
-    
-    size_t in_processed = 0;
-    size_t out_pos = 0;
-
-    /* Generator Persistence */
-    KolibriRng current_rng;
-    int last_was_generator = 0;
-
-    while (in_processed < input_size) {
-        size_t block_len = MIN(MATH_BLOCK_SIZE, input_size - in_processed);
-        const uint8_t *blk = input + in_processed;
-        
-        /* Check if we have space for method byte + worst case block + BWT/ZRLE/Formula overhead
-         * Method 11: 1(method) + 4(BWT) + 32(gene) + 3(zrle_len) = 40
-         * Method 12: 1(method) + 32(gene) + 3(zrle_len) = 36 */
-        if (out_pos + block_len + 48 > output_size) return 0;
-
-        uint8_t method = 0;
-        uint16_t matched_seed = 0;
-        int found_gen = 0;
-        
-        /* Per-block BWT/Context buffers (initialized to NULL) */
-        uint8_t *bwt_result = NULL;
-        uint32_t bwt_primary = 0;
-        uint8_t *ctx_result = NULL;
-        uint8_t *combined_result = NULL;
-        uint32_t combined_bwt_primary = 0;
-        uint8_t *formula_result = NULL;
-        KolibriCompactFormula best_formula;
-        memset(&best_formula, 0, sizeof(best_formula));
-
-        /* METHOD 5: GENERATOR CONTINUE */
-        if (last_was_generator) {
-            /* Check if current block continues the sequence */
-            KolibriRng test_rng = current_rng; /* Copy state */
-            int mismatch = 0;
-            for (size_t k = 0; k < block_len; k++) {
-                uint8_t byte = (uint8_t)(k_rng_next(&test_rng) % 256);
-                if (byte != blk[k]) { mismatch = 1; break; }
-            }
-            
-            if (!mismatch) {
-                method = 5;
-                found_gen = 1;
-                /* Update state for next block */
-                current_rng = test_rng; 
-            }
-        }
-
-        if (!found_gen) {
-            /* Analyze best formula for this block (Methods 0-3) */
-            uint64_t sum_raw = 0;
-            uint64_t sum_d1 = 0;
-            uint64_t sum_d2 = 0;
-            uint64_t sum_s4 = 0;
-
-            size_t sample_step = (block_len > 1024) ? 8 : 1;
-            size_t check_end = block_len;
-
-            for (size_t i = 4; i < check_end; i += sample_step) {
-                int8_t val = (int8_t)blk[i];
-                sum_raw += abs(val);
-                
-                sum_d1 += abs((int8_t)(blk[i] - blk[i-1]));
-                sum_d2 += abs((int8_t)(blk[i] - 2*blk[i-1] + blk[i-2]));
-                sum_s4 += abs((int8_t)(blk[i] - blk[i-4]));
-            }
-
-            uint64_t best_sum = sum_raw;
-            /* Reset method to 0 (RAW) */
-            method = 0; 
-
-            if (sum_d1 * 10 < best_sum * 8) { best_sum = sum_d1; method = 1; }
-            if (sum_d2 * 10 < best_sum * 8) { best_sum = sum_d2; method = 2; }
-            if (sum_s4 * 10 < best_sum * 8) { best_sum = sum_s4; method = 3; }
-
-            /* ===== METHOD 8: BWT + MTF (Burrows-Wheeler Transform) ===== */
-            /* BWT группирует похожие контексты вместе, MTF превращает их в маленькие числа.
-               Это КЛЮЧЕВОЙ метод для текстовых данных — то, что делает bzip2 лучше gzip. */
-            uint64_t score_bwt = 0;
-            
-            if (block_len >= 64) {
-                bwt_result = (uint8_t *)malloc(block_len);
-                if (bwt_result && bwt_forward(blk, block_len, bwt_result, &bwt_primary) == 0) {
-                    mtf_encode(bwt_result, block_len);
-                    score_bwt = estimate_compressibility(bwt_result, block_len);
-                }
-            }
-
-            /* ===== METHOD 9: CONTEXT PREDICTION (Kolibri AI) ===== */
-            /* Адаптивная таблица предсказаний: запоминает паттерны и хранит только ошибки.
-               Это "формула Kolibri" — логическая цепочка запоминания. */
-            ctx_result = (uint8_t *)malloc(block_len);
-            uint64_t score_ctx = 0;
-            if (ctx_result) {
-                context_predict_encode(blk, block_len, ctx_result);
-                score_ctx = estimate_compressibility(ctx_result, block_len);
-            }
-
-            /* ===== METHOD 10: BWT + MTF + CONTEXT (Full Kolibri Pipeline) ===== */
-            uint64_t score_combined = 0;
-            
-            if (block_len >= 64) {
-                combined_result = (uint8_t *)malloc(block_len);
-                if (combined_result) {
-                    /* Шаг 1: BWT + MTF */
-                    if (bwt_forward(blk, block_len, combined_result, &combined_bwt_primary) == 0) {
-                        mtf_encode(combined_result, block_len);
-                        /* Шаг 2: Context prediction на MTF-выходе */
-                        uint8_t *temp_ctx = (uint8_t *)malloc(block_len);
-                        if (temp_ctx) {
-                            context_predict_encode(combined_result, block_len, temp_ctx);
-                            score_combined = estimate_compressibility(temp_ctx, block_len);
-                            memcpy(combined_result, temp_ctx, block_len);
-                            free(temp_ctx);
-                        }
-                    }
-                }
-            }
-
-            /* Оценка RAW для сравнения */
-            uint64_t score_raw = estimate_compressibility(blk, block_len);
-            /* Оценка лучшего Delta-метода */
-            uint8_t *delta_result = (uint8_t *)malloc(block_len);
-            uint64_t score_delta = 0;
-            if (delta_result && method >= 1 && method <= 3) {
-                /* Применяем выбранный delta метод */
-                if (method == 1) {
-                    delta_result[0] = blk[0];
-                    for (size_t i = 1; i < block_len; i++)
-                        delta_result[i] = blk[i] - blk[i-1];
-                } else if (method == 2) {
-                    delta_result[0] = blk[0]; delta_result[1] = blk[1];
-                    for (size_t i = 2; i < block_len; i++)
-                        delta_result[i] = blk[i] - 2*blk[i-1] + blk[i-2];
-                } else if (method == 3) {
-                    memcpy(delta_result, blk, 4);
-                    for (size_t i = 4; i < block_len; i++)
-                        delta_result[i] = blk[i] - blk[i-4];
-                }
-                score_delta = estimate_compressibility(delta_result, block_len);
-            }
-            
-            /* Выбираем ЛУЧШИЙ метод по score (выше = лучше сжатие) */
-            uint64_t best_score = score_raw;
-            /* method уже установлен из delta-анализа, переоценим */
-            
-            if (score_delta > best_score && method >= 1 && method <= 3) {
-                best_score = score_delta;
-                /* method уже установлен */
-            }
-            
-            if (bwt_result && score_bwt > best_score) {
-                best_score = score_bwt;
-                method = 8;
-            }
-            
-            if (ctx_result && score_ctx > best_score) {
-                best_score = score_ctx;
-                method = 9;
-            }
-            
-            if (combined_result && score_combined > best_score) {
-                best_score = score_combined;
-                method = 10;
-            }
-            
-            /* ===== METHOD 11: BWT + MTF + FORMULA PREDICTION ===== */
-            /* «Number-Thinking»: Формула эволюционирует, чтобы предсказать
-               данные после BWT+MTF. Хранятся только остатки (residuals).
-               Если формула хорошо предсказывает → остатки = почти нули → 
-               ZRLE сжимает их до минимума! */
-            uint64_t score_formula = 0;
-            
-            if (bwt_result && block_len >= 256) {
-                formula_result = (uint8_t *)malloc(block_len);
-                if (formula_result) {
-                    /* Обучаем формулу на BWT+MTF данных */
-                    kf_train_formula(&best_formula, bwt_result, block_len, 
-                                     (uint64_t)in_processed);
-                    
-                    /* Вычисляем остатки: res = data - prediction */
-                    kf_formula_encode_block(&best_formula, bwt_result, block_len,
-                                            formula_result);
-                    
-                    score_formula = estimate_compressibility(formula_result, block_len);
-                    
-                    if (score_formula > best_score) {
-                        best_score = score_formula;
-                        method = 11;
-                    }
-                }
-            }
-            
-            /* ===== METHOD 12: PURE FORMULA (без BWT) ===== */
-            /* «Вся информация в формуле»: формула предсказывает байты
-               НАПРЯМУЮ из сырых данных. Для файлов где BWT мешает,
-               или где байт-к-байту зависимость сильнее чем BWT-контекст.
-               Overhead: 32 байта генома + 3 байта ZRLE len = 35 байт
-               (нет 4-байтного BWT primary → экономия 4 байта vs Method 11) */
-            if (block_len >= 128) {
-                uint8_t *raw_formula_result = (uint8_t *)malloc(block_len);
-                if (raw_formula_result) {
-                    KolibriCompactFormula raw_formula;
-                    kf_train_formula(&raw_formula, blk, block_len,
-                                     (uint64_t)in_processed ^ 0xDEADUL);
-                    kf_formula_encode_block(&raw_formula, blk, block_len,
-                                            raw_formula_result);
-                    
-                    uint64_t score_raw_formula = estimate_compressibility(
-                                                    raw_formula_result, block_len);
-                    
-                    if (score_raw_formula > best_score) {
-                        best_score = score_raw_formula;
-                        method = 12;
-                        /* Сохраняем в formula_result для вывода */
-                        if (!formula_result) {
-                            formula_result = raw_formula_result;
-                            raw_formula_result = NULL;
-                        } else {
-                            memcpy(formula_result, raw_formula_result, block_len);
-                        }
-                        best_formula = raw_formula;
-                    }
-                    free(raw_formula_result);
-                }
-            }
-            
-            free(delta_result);
-
-            /* METHOD 4: GENERATOR INIT (Exact Match) — только быстрая проверка нескольких seed'ов */
-            if (block_len >= 16 && block_len <= 16384) {
-                for (uint32_t s = 0; s < 65536; s++) {
-                    KolibriRng rng;
-                    k_rng_seed(&rng, s);
-                    
-                    int mismatch = 0;
-                    for (int k=0; k<8; k++) {
-                        uint8_t byte = (uint8_t)(k_rng_next(&rng) % 256);
-                        if (byte != blk[k]) { mismatch = 1; break; }
-                    }
-                    
-                    if (!mismatch) {
-                        k_rng_seed(&rng, s);
-                        for (size_t k=0; k<block_len; k++) {
-                            uint8_t byte = (uint8_t)(k_rng_next(&rng) % 256);
-                            if (byte != blk[k]) { mismatch = 1; break; }
-                        }
-                        if (!mismatch) {
-                            method = 4;
-                            matched_seed = (uint16_t)s;
-                            current_rng = rng;
-                            found_gen = 1;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        
-        /* Update generator tracking */
-        if (method == 4 || method == 5 || method == 6) {
-            last_was_generator = 1;
-        } else {
-            last_was_generator = 0;
-        }
-
-        output[out_pos++] = method;
-
-        if (method == 0) {
-            memcpy(output + out_pos, blk, block_len);
-            out_pos += block_len;
-        } else if (method == 1) {
-            output[out_pos++] = blk[0];
-            for (size_t i = 1; i < block_len; i++) {
-                output[out_pos++] = blk[i] - blk[i-1];
-            }
-        } else if (method == 2) {
-            output[out_pos++] = blk[0];
-            output[out_pos++] = blk[1];
-            for (size_t i = 2; i < block_len; i++) {
-                output[out_pos++] = blk[i] - 2*blk[i-1] + blk[i-2];
-            }
-        } else if (method == 3) {
-            memcpy(output + out_pos, blk, 4);
-            out_pos += 4;
-            for (size_t i = 4; i < block_len; i++) {
-                output[out_pos++] = blk[i] - blk[i-4];
-            }
-        } else if (method == 4) {
-            /* Store Seed (Little Endian) */
-            output[out_pos++] = (uint8_t)(matched_seed & 0xFF);
-            output[out_pos++] = (uint8_t)(matched_seed >> 8);
-        } else if (method == 5) {
-            /* No data needed! Just the method byte (which is already written) */
-        } else if (method == 6) {
-            /* Method 6: Seed + Delta Stream */
-            output[out_pos++] = (uint8_t)(matched_seed & 0xFF);
-            output[out_pos++] = (uint8_t)(matched_seed >> 8);
-            
-            /* Re-run generator to produce deltas */
-            KolibriRng rng;
-            k_rng_seed(&rng, matched_seed);
-            for (size_t i = 0; i < block_len; i++) {
-                 uint8_t gen = (uint8_t)(k_rng_next(&rng) % 256);
-                 /* Store delta: Real - Gen */
-                 output[out_pos++] = blk[i] - gen;
-            }
-            /* Note: current_rng is already set to end state of this block inside detection */
-             KolibriRng tmp; k_rng_seed(&tmp, matched_seed);
-             for(size_t k=0; k<block_len; k++) k_rng_next(&tmp);
-             current_rng = tmp;
-        } else if (method == 8) {
-            /* Method 8: BWT + MTF + ZRLE */
-            output[out_pos++] = (uint8_t)(bwt_primary & 0xFF);
-            output[out_pos++] = (uint8_t)((bwt_primary >> 8) & 0xFF);
-            output[out_pos++] = (uint8_t)((bwt_primary >> 16) & 0xFF);
-            output[out_pos++] = (uint8_t)((bwt_primary >> 24) & 0xFF);
-            
-            /* ZRLE кодирование — сжимает серии нулей после MTF */
-            uint8_t *zrle_buf = (uint8_t *)malloc(block_len * 2);
-            if (zrle_buf) {
-                size_t zrle_len = zrle_encode(bwt_result, block_len, zrle_buf, block_len * 2);
-                if (zrle_len > 0 && zrle_len < block_len) {
-                    /* ZRLE помогло — сохраняем сжатые данные */
-                    output[out_pos++] = (uint8_t)(zrle_len & 0xFF);
-                    output[out_pos++] = (uint8_t)((zrle_len >> 8) & 0xFF);
-                    output[out_pos++] = (uint8_t)((zrle_len >> 16) & 0xFF);
-                    memcpy(output + out_pos, zrle_buf, zrle_len);
-                    out_pos += zrle_len;
-                } else {
-                    /* ZRLE не помогло — сохраняем без него (размер = 0 = маркер raw) */
-                    output[out_pos++] = 0;
-                    output[out_pos++] = 0;
-                    output[out_pos++] = 0;
-                    memcpy(output + out_pos, bwt_result, block_len);
-                    out_pos += block_len;
-                }
-                free(zrle_buf);
-            } else {
-                output[out_pos++] = 0; output[out_pos++] = 0; output[out_pos++] = 0;
-                memcpy(output + out_pos, bwt_result, block_len);
-                out_pos += block_len;
-            }
-        } else if (method == 9) {
-            /* Method 9: Context Prediction + ZRLE */
-            uint8_t *zrle_buf = (uint8_t *)malloc(block_len * 2);
-            if (zrle_buf) {
-                size_t zrle_len = zrle_encode(ctx_result, block_len, zrle_buf, block_len * 2);
-                if (zrle_len > 0 && zrle_len < block_len) {
-                    output[out_pos++] = (uint8_t)(zrle_len & 0xFF);
-                    output[out_pos++] = (uint8_t)((zrle_len >> 8) & 0xFF);
-                    output[out_pos++] = (uint8_t)((zrle_len >> 16) & 0xFF);
-                    memcpy(output + out_pos, zrle_buf, zrle_len);
-                    out_pos += zrle_len;
-                } else {
-                    output[out_pos++] = 0; output[out_pos++] = 0; output[out_pos++] = 0;
-                    memcpy(output + out_pos, ctx_result, block_len);
-                    out_pos += block_len;
-                }
-                free(zrle_buf);
-            } else {
-                output[out_pos++] = 0; output[out_pos++] = 0; output[out_pos++] = 0;
-                memcpy(output + out_pos, ctx_result, block_len);
-                out_pos += block_len;
-            }
-        } else if (method == 10) {
-            /* Method 10: BWT + MTF + Context + ZRLE */
-            output[out_pos++] = (uint8_t)(combined_bwt_primary & 0xFF);
-            output[out_pos++] = (uint8_t)((combined_bwt_primary >> 8) & 0xFF);
-            output[out_pos++] = (uint8_t)((combined_bwt_primary >> 16) & 0xFF);
-            output[out_pos++] = (uint8_t)((combined_bwt_primary >> 24) & 0xFF);
-            
-            uint8_t *zrle_buf = (uint8_t *)malloc(block_len * 2);
-            if (zrle_buf) {
-                size_t zrle_len = zrle_encode(combined_result, block_len, zrle_buf, block_len * 2);
-                if (zrle_len > 0 && zrle_len < block_len) {
-                    output[out_pos++] = (uint8_t)(zrle_len & 0xFF);
-                    output[out_pos++] = (uint8_t)((zrle_len >> 8) & 0xFF);
-                    output[out_pos++] = (uint8_t)((zrle_len >> 16) & 0xFF);
-                    memcpy(output + out_pos, zrle_buf, zrle_len);
-                    out_pos += zrle_len;
-                } else {
-                    output[out_pos++] = 0; output[out_pos++] = 0; output[out_pos++] = 0;
-                    memcpy(output + out_pos, combined_result, block_len);
-                    out_pos += block_len;
-                }
-                free(zrle_buf);
-            } else {
-                output[out_pos++] = 0; output[out_pos++] = 0; output[out_pos++] = 0;
-                memcpy(output + out_pos, combined_result, block_len);
-                out_pos += block_len;
-            }
-        } else if (method == 11) {
-            /* Method 11: BWT + MTF + FORMULA PREDICTION + ZRLE
-             * Формат: [BWT_primary:4] [gene_packed:32] [zrle_len:3] [zrle_data...]
-             * «Number-Thinking»: данные = формула + минимальная коррекция */
-            output[out_pos++] = (uint8_t)(bwt_primary & 0xFF);
-            output[out_pos++] = (uint8_t)((bwt_primary >> 8) & 0xFF);
-            output[out_pos++] = (uint8_t)((bwt_primary >> 16) & 0xFF);
-            output[out_pos++] = (uint8_t)((bwt_primary >> 24) & 0xFF);
-            
-            /* Упаковываем геном формулы: 64 цифры → 32 байта */
-            kf_pack_gene(best_formula.digits, output + out_pos);
-            out_pos += KF_GENE_PACKED;
-            
-            /* ZRLE на остатках (residuals) — предсказанные байты = 0, сжимаются отлично */
-            uint8_t *zrle_buf = (uint8_t *)malloc(block_len * 2);
-            if (zrle_buf) {
-                size_t zrle_len = zrle_encode(formula_result, block_len, zrle_buf, block_len * 2);
-                if (zrle_len > 0 && zrle_len < block_len) {
-                    output[out_pos++] = (uint8_t)(zrle_len & 0xFF);
-                    output[out_pos++] = (uint8_t)((zrle_len >> 8) & 0xFF);
-                    output[out_pos++] = (uint8_t)((zrle_len >> 16) & 0xFF);
-                    memcpy(output + out_pos, zrle_buf, zrle_len);
-                    out_pos += zrle_len;
-                } else {
-                    output[out_pos++] = 0; output[out_pos++] = 0; output[out_pos++] = 0;
-                    memcpy(output + out_pos, formula_result, block_len);
-                    out_pos += block_len;
-                }
-                free(zrle_buf);
-            } else {
-                output[out_pos++] = 0; output[out_pos++] = 0; output[out_pos++] = 0;
-                memcpy(output + out_pos, formula_result, block_len);
-                out_pos += block_len;
-            }
-        } else if (method == 12) {
-            /* Method 12: PURE FORMULA + ZRLE (без BWT!)
-             * Формат: [gene_packed:32] [zrle_len:3] [zrle_data...]
-             * «Вся информация в формуле»: нет BWT overhead (экономия 4 байта) */
-            kf_pack_gene(best_formula.digits, output + out_pos);
-            out_pos += KF_GENE_PACKED;
-            
-            uint8_t *zrle_buf = (uint8_t *)malloc(block_len * 2);
-            if (zrle_buf) {
-                size_t zrle_len = zrle_encode(formula_result, block_len, zrle_buf, block_len * 2);
-                if (zrle_len > 0 && zrle_len < block_len) {
-                    output[out_pos++] = (uint8_t)(zrle_len & 0xFF);
-                    output[out_pos++] = (uint8_t)((zrle_len >> 8) & 0xFF);
-                    output[out_pos++] = (uint8_t)((zrle_len >> 16) & 0xFF);
-                    memcpy(output + out_pos, zrle_buf, zrle_len);
-                    out_pos += zrle_len;
-                } else {
-                    output[out_pos++] = 0; output[out_pos++] = 0; output[out_pos++] = 0;
-                    memcpy(output + out_pos, formula_result, block_len);
-                    out_pos += block_len;
-                }
-                free(zrle_buf);
-            } else {
-                output[out_pos++] = 0; output[out_pos++] = 0; output[out_pos++] = 0;
-                memcpy(output + out_pos, formula_result, block_len);
-                out_pos += block_len;
-            }
-        }
-
-        /* Cleanup per-block allocations */
-        free(bwt_result);
-        free(ctx_result);
-        free(combined_result);
-        free(formula_result);
-
-        in_processed += block_len;
-    }
-
-    return out_pos;
-}
-
 /* Mathematical pattern decompression */
 static size_t decompress_mathematical(const uint8_t *input, size_t input_size,
                                      uint8_t *output, size_t output_size,
@@ -2228,17 +1226,18 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
                     const uint8_t *bb_ = input + ca_;                        \
                     int ll_ = 0;                                             \
                     int mx_ = (int)MIN((size_t)LZ_MAX_MATCH, input_size-(pos_)); \
-                    /* v58: 4-байтное сравнение */                             \
+                    /* v61: 8-байтное сравнение */                             \
                     if (mx_ >= 4) {                                          \
                         uint32_t va_, vb_;                                   \
                         memcpy(&va_, aa_, 4); memcpy(&vb_, bb_, 4);          \
                         if (va_ == vb_) {                                    \
                             ll_ = 4;                                         \
-                            while (ll_ + 4 <= mx_) {                         \
-                                memcpy(&va_, aa_+ll_, 4);                    \
-                                memcpy(&vb_, bb_+ll_, 4);                    \
-                                if (va_ != vb_) break;                       \
-                                ll_ += 4;                                    \
+                            while (ll_ + 8 <= mx_) {                         \
+                                uint64_t va8_,vb8_;                          \
+                                memcpy(&va8_, aa_+ll_, 8);                   \
+                                memcpy(&vb8_, bb_+ll_, 8);                   \
+                                if (va8_ != vb8_) break;                     \
+                                ll_ += 8;                                    \
                             }                                                \
                             while (ll_ < mx_ && aa_[ll_] == bb_[ll_]) ll_++; \
                         }                                                    \
@@ -2252,6 +1251,7 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
                 }                                                            \
                 cc_ = prev[ca_ & LZ_WMASK];                                 \
                 if (cc_ >= (int32_t)(pos_)) break;                           \
+                if (cc_ >= 0) __builtin_prefetch(input+(size_t)cc_, 0, 0);   \
                 ch_++;                                                       \
             }                                                                \
         }                                                                    \
@@ -2272,7 +1272,23 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
                 const uint8_t *a = input + ip;
                 const uint8_t *b = input + ip - rep[ri];
                 int rlen = 0;
-                while (rlen < max_rep_len && a[rlen] == b[rlen]) rlen++;
+                /* v61: fast 4-byte check + 8-byte inner loop */
+                if (max_rep_len >= 4) {
+                    uint32_t rv, rbv;
+                    memcpy(&rv, a, 4); memcpy(&rbv, b, 4);
+                    if (rv == rbv) {
+                        rlen = 4;
+                        while (rlen + 8 <= max_rep_len) {
+                            uint64_t rv8, rbv8;
+                            memcpy(&rv8, a+rlen, 8); memcpy(&rbv8, b+rlen, 8);
+                            if (rv8 != rbv8) break;
+                            rlen += 8;
+                        }
+                        while (rlen < max_rep_len && a[rlen] == b[rlen]) rlen++;
+                    }
+                } else {
+                    while (rlen < max_rep_len && a[rlen] == b[rlen]) rlen++;
+                }
                 /* Rep-match дешевле: 3B vs 3-4B, бонус к длине */
                 if (rlen >= LZ_MIN_MATCH && rlen > best_len) {
                     best_len = rlen;
@@ -2295,16 +1311,17 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
                     const uint8_t *b = input + candidate;
                     int len = 0;
                     int max_possible = (int)MIN((size_t)LZ_MAX_MATCH, input_size - ip);
-                    /* v58: 4-байтное сравнение */
+                    /* v61: 8-байтное сравнение */
                     if (max_possible >= 4) {
                         uint32_t va, vb;
                         memcpy(&va, a, 4); memcpy(&vb, b, 4);
                         if (va == vb) {
                             len = 4;
-                            while (len + 4 <= max_possible) {
-                                memcpy(&va, a+len, 4); memcpy(&vb, b+len, 4);
-                                if (va != vb) break;
-                                len += 4;
+                            while (len + 8 <= max_possible) {
+                                uint64_t va8, vb8;
+                                memcpy(&va8, a+len, 8); memcpy(&vb8, b+len, 8);
+                                if (va8 != vb8) break;
+                                len += 8;
                             }
                             while (len < max_possible && a[len] == b[len]) len++;
                         }
@@ -2323,6 +1340,7 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
                 }
                 cur = prev[candidate & LZ_WMASK];
                 if (cur >= (int32_t)ip) break;
+                if (cur >= 0) __builtin_prefetch(input + (size_t)cur, 0, 0);
                 chain++;
                 if (best_len >= 32 && chain >= 64) break; /* v60: adaptive chain */
             }
