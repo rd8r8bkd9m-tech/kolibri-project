@@ -2629,6 +2629,7 @@ static inline int krc_dec_bit(KolibriRC *c, uint32_t prob) {
 #define SSE_Q    33
 #define SSE_SZ   (256u * 8u * SSE_Q)
 #define TRUN_SIZE  4096u    /* v55: run-length context (16 run_len × 256 cx) */
+#define APM_SIZE   16384u   /* v56: 2nd SSE (APM chain) — cx*33+q, max~8500 */
 
 /* --- v54: Логистическое смешивание (stretch/squash) ---
  * stretch(p) = ln(p/(1-p)) — переводит вероятность в logit-пространство
@@ -2672,22 +2673,25 @@ static inline uint32_t kf_squash(int32_t x) {
     return squash_table[idx];
 }
 
-/* v55: Расширенная модель: 13 предикторов (O0-O8 + state + word + sparse + run) */
+/* v56: Модель: 13 предикторов + APM chain
+ * O0-O8, LZ state, word boundary, sparse, run.
+ * APM (2-й SSE) уточняет вероятность по контексту partial byte (cx). */
 typedef struct {
     uint16_t *t0, *t1, *t2, *t3, *t4, *t5, *t6, *t7;
     uint16_t *t8;        /* v55: Order-8 context */
     uint16_t *sse;
+    uint16_t *apm;       /* v56: 2nd SSE (APM chain) */
     uint16_t *tstate;    /* LZ state-aware */
     uint16_t *tword;     /* word boundary */
     uint16_t *tsparse;   /* sparse context */
     uint16_t *trun;      /* v55: run-length context */
-    /* v55: адаптивные веса для логистического смешивания (13 предикторов) */
+    /* v55: адаптивные веса (13 предикторов) */
     int32_t w[13];
     int32_t wsum;
 } KF51M;
 
-#define KF_NUM_PREDS 13  /* v55: кол-во предикторов */
-#define TSTATE_SIZE  65536u  /* compact: state*256 + byte hashed to 64K */
+#define KF_NUM_PREDS 13  /* кол-во предикторов */
+#define TSTATE_SIZE  262144u /* v56: 256K — для 10-state machine */
 #define TWORD_SIZE   65536u         /* word boundary context */
 #define TSPARSE_SIZE 65536u         /* sparse (gap) context */
 
@@ -2697,32 +2701,34 @@ static uint16_t *kf51_new(size_t n) {
     return p;
 }
 static int kf51_init(KF51M *m) {
-    kf_init_tables(); /* v54: stretch/squash LUT */
+    kf_init_tables();
     m->t0 = kf51_new(T0_SIZE);  m->t1 = kf51_new(T1_SIZE);
     m->t2 = kf51_new(T2_SIZE);  m->t3 = kf51_new(T3_SIZE);
     m->t4 = kf51_new(T4_SIZE);  m->t5 = kf51_new(T5_SIZE);
     m->t6 = kf51_new(T6_SIZE);  m->t7 = kf51_new(T7_SIZE);
-    m->t8 = kf51_new(T8_SIZE);  /* v55: Order-8 */
+    m->t8 = kf51_new(T8_SIZE);
     m->sse = kf51_new(SSE_SZ);
+    m->apm = kf51_new(APM_SIZE);    /* v56: 2nd SSE */
     m->tstate = kf51_new(TSTATE_SIZE);
     m->tword = kf51_new(TWORD_SIZE);
     m->tsparse = kf51_new(TSPARSE_SIZE);
-    m->trun = kf51_new(TRUN_SIZE);  /* v55: run model */
-    /* v55: начальные веса (13 предикторов для логистического смешивания) */
+    m->trun = kf51_new(TRUN_SIZE);
+    /* v55: начальные веса (13 предикторов) */
     m->w[0] =  4;  m->w[1] =  4;  m->w[2] =  8;  m->w[3] = 16;
     m->w[4] = 32;  m->w[5] = 48;  m->w[6] = 72;  m->w[7] = 112;
-    m->w[8] = 128; /* v55: O8 — высокий начальный вес */
+    m->w[8] = 128; /* O8 */
     m->w[9] = 32;  m->w[10] = 12;  m->w[11] = 12;
-    m->w[12] = 16; /* v55: run model */
+    m->w[12] = 16; /* run */
     m->wsum = 0;
     return (m->t0 && m->t1 && m->t2 && m->t3 &&
-            m->t4 && m->t5 && m->t6 && m->t7 && m->t8 && m->sse &&
-            m->tstate && m->tword && m->tsparse && m->trun);
+            m->t4 && m->t5 && m->t6 && m->t7 && m->t8 &&
+            m->sse && m->apm && m->tstate && m->tword &&
+            m->tsparse && m->trun);
 }
 static void kf51_destroy(KF51M *m) {
     free(m->t0); free(m->t1); free(m->t2); free(m->t3);
     free(m->t4); free(m->t5); free(m->t6); free(m->t7);
-    free(m->t8); free(m->sse); free(m->tstate);
+    free(m->t8); free(m->sse); free(m->apm); free(m->tstate);
     free(m->tword); free(m->tsparse); free(m->trun);
 }
 
@@ -2737,23 +2743,9 @@ static inline void kf_upd(uint16_t *p, int bit, int rate) {
     else     *p -= (*p >> rate);
 }
 
-/* Общая inline-логика для одного байта (encoder/decoder)
- *
- * v55: 10-state LZ token tracking, 13 предикторов,
- * Order-0..8, LZ state, word boundary, sparse, run-length.
- *
- * State machine:
- *   0: normal literal
- *   1: after 0xFF (match type selector)
- *   2: regular long - reading dist_hi
- *   3: regular long - reading dist_lo
- *   4: short match (0xFE) - reading dist_lo
- *   5: rep match (0xFD) - reading rep_byte
- *   6: extended (0xFC) - reading len
- *   7: extended - reading dist[23:16]
- *   8: extended - reading dist[15:8]
- *   9: extended - reading dist[7:0]
- */
+/* v56: 13 предикторов + APM chain (2-й SSE).
+ * O0-O8, LZ state, word boundary, sparse, run.
+ * APM уточняет вероятность по partial byte (cx). */
 #define KF51_PROCESS_BYTE(ENCODE)                                           \
 do {                                                                        \
     /* Хеши контекстов (Order 1..8) */                                      \
@@ -2807,11 +2799,11 @@ do {                                                                        \
         uint32_t p2 = mm->t2[i2], p3 = mm->t3[i3];                         \
         uint32_t p4 = mm->t4[i4], p5 = mm->t5[i5];                         \
         uint32_t p6 = mm->t6[i6], p7 = mm->t7[i7];                         \
-        uint32_t p8 = mm->t8[i8]; /* v55 */                                \
+        uint32_t p8 = mm->t8[i8];                                           \
         uint32_t pst = mm->tstate[ist];                                     \
         uint32_t pw = mm->tword[iw];                                        \
         uint32_t psp = mm->tsparse[isp];                                    \
-        uint32_t prun = mm->trun[irun]; /* v55 */                          \
+        uint32_t prun = mm->trun[irun];                                     \
                                                                             \
         /* v55: Логистическое смешивание (13 предикторов) */                \
         int16_t s[KF_NUM_PREDS];                                            \
@@ -2826,12 +2818,19 @@ do {                                                                        \
         logit_mix >>= 8;                                                     \
         uint32_t mx = kf_squash(logit_mix);                                  \
                                                                             \
-        /* SSE */                                                            \
+        /* SSE (1-й этап) */                                                \
         int q = (int)(mx >> 7);                                             \
         if (q > 32) q = 32;                                                 \
         int si = ((int)hist[0] * 8 + (7 - b)) * SSE_Q + q;                 \
         uint32_t sp = mm->sse[si];                                          \
         uint32_t fp = (mx * 3 + sp) >> 2;                                   \
+        if (fp < 1) fp = 1; if (fp > 4095) fp = 4095;                      \
+        /* v56: APM — 2-й этап SSE (partial byte context) */                 \
+        int q2 = (int)(fp >> 7); if (q2 > 32) q2 = 32;                     \
+        int api = (int)cx * 33 + q2;  /* cx: 1..255, max=255*33+32=8447 */ \
+        if (api > (int)(APM_SIZE - 1)) api = (int)(APM_SIZE - 1);           \
+        uint32_t ap = mm->apm[api];                                         \
+        fp = (fp * 7 + ap) >> 3; /* 87.5% SSE + 12.5% APM */               \
         if (fp < 1) fp = 1; if (fp > 4095) fp = 4095;                      \
                                                                             \
         int bit;                                                             \
@@ -2856,8 +2855,9 @@ do {                                                                        \
         kf_upd(&mm->tstate[ist], bit, 3);                                   \
         kf_upd(&mm->tword[iw], bit, 4);                                     \
         kf_upd(&mm->tsparse[isp], bit, 4);                                  \
-        kf_upd(&mm->trun[irun], bit, 4); /* v55 */                         \
+        kf_upd(&mm->trun[irun], bit, 4);                                    \
         kf_upd(&mm->sse[si], bit, 4);                                       \
+        kf_upd(&mm->apm[api], bit, 5);     /* v56: APM (rate 5 — медленно) */\
                                                                             \
         /* v55: обучение весов — ускоренный learning rate (>>15) */         \
         {                                                                    \
