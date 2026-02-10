@@ -15,10 +15,11 @@ import {
   Zap,
   ChevronLeft,
   ChevronRight,
-  Globe
+  Globe,
+  Archive
 } from 'lucide-react';
 
-export type TabId = 'chat' | 'tasks' | 'crawler' | 'knowledge' | 'terminal' | 'settings';
+export type TabId = 'chat' | 'tasks' | 'crawler' | 'knowledge' | 'archiver' | 'terminal' | 'settings';
 
 interface Tab {
   id: TabId;
@@ -31,6 +32,7 @@ const TABS: Tab[] = [
   { id: 'crawler', label: 'AI Агент', icon: <Globe size={18} /> },
   { id: 'tasks', label: 'Задачи', icon: <ListTodo size={18} /> },
   { id: 'knowledge', label: 'Знания', icon: <Database size={18} /> },
+  { id: 'archiver', label: 'Архиватор', icon: <Archive size={18} /> },
   { id: 'terminal', label: 'Терминал', icon: <TerminalIcon size={18} /> },
   { id: 'settings', label: 'Настройки', icon: <Settings size={18} /> },
 ];

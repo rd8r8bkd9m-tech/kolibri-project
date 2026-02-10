@@ -17,6 +17,7 @@ export { TasksTab } from './tabs/TasksTab';
 export { KnowledgeTab } from './tabs/KnowledgeTab';
 export { TerminalTab } from './tabs/TerminalTab';
 export { SettingsTab } from './tabs/SettingsTab';
+export { ArchiverTab } from './tabs/ArchiverTab';
 
 // Старые компоненты (deprecated, для совместимости)
 export { ManusApp, type Task, type Message } from './ManusApp';

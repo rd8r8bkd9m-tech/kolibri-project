@@ -13,6 +13,7 @@ import { TasksTab } from './tabs/TasksTab';
 import { KnowledgeTab } from './tabs/KnowledgeTab';
 import { TerminalTab } from './tabs/TerminalTab';
 import { SettingsTab } from './tabs/SettingsTab';
+import { ArchiverTab } from './tabs/ArchiverTab';
 import { ThemeProvider } from './ThemeContext';
 
 export const ManusAppUnified = () => {
@@ -31,6 +32,8 @@ export const ManusAppUnified = () => {
         return <KnowledgeTab />;
       case 'terminal':
         return <TerminalTab />;
+      case 'archiver':
+        return <ArchiverTab />;
       case 'settings':
         return <SettingsTab />;
       default:
