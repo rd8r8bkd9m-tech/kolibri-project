@@ -2179,7 +2179,7 @@ static size_t token_decode_text(const uint8_t *input, size_t input_size,
 #define LZ_HTMASK  (LZ_HTSIZE - 1)
 #define LZ_MIN_MATCH  3
 #define LZ_MAX_MATCH  257       /* long: len-4 max 253, short: len=3 only */
-#define LZ_MAX_CHAIN  128       /* макс. глубина цепочки */
+#define LZ_MAX_CHAIN  512       /* макс. глубина цепочки (v53: увеличена для лучших совпадений) */
 #define LZ_ESCAPE     0xFF      /* escape-байт для совпадений */
 
 static inline uint32_t lz_hash4(const uint8_t *p) {
@@ -2246,7 +2246,7 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
                 uint32_t h2_ = lz_hash4(input + ip + 1);
                 int32_t cur2 = head[h2_];
                 int lazy_len = 0, lazy_dist = 0, chain2 = 0;
-                while (cur2 >= 0 && chain2 < LZ_MAX_CHAIN / 2) {
+                while (cur2 >= 0 && chain2 < LZ_MAX_CHAIN) {
                     size_t cand2 = (size_t)cur2;
                     if ((ip + 1) > cand2 && ((ip + 1) - cand2) <= LZ_WSIZE) {
                         const uint8_t *a2 = input + ip + 1;
@@ -2459,9 +2459,9 @@ static inline int krc_dec_bit(KolibriRC *c, uint32_t prob) {
 #define T2_SIZE  131072u    /* 128K */
 #define T3_SIZE  262144u    /* 256K */
 #define T4_SIZE  262144u
-#define T5_SIZE  262144u    /* 256K */
-#define T6_SIZE  262144u
-#define T7_SIZE  262144u
+#define T5_SIZE  1048576u   /* 1M — v53: больше таблицы = меньше коллизий */
+#define T6_SIZE  1048576u
+#define T7_SIZE  1048576u
 #define SSE_Q    33
 #define SSE_SZ   (256u * 8u * SSE_Q)
 
@@ -2472,6 +2472,9 @@ typedef struct {
     uint16_t *tstate;    /* LZ state-aware: 4_states × 256 × 256 bit-tree */
     uint16_t *tword;     /* word boundary: 64K (контекст начала слова) */
     uint16_t *tsparse;   /* sparse context: (hist[0]^hist[2]) × 256 bit-tree */
+    /* v53: адаптивные веса для 11 предикторов (фиксированная точка ×256) */
+    int32_t w[11];
+    int32_t wsum;
 } KF51M;
 
 #define TSTATE_SIZE  65536u  /* compact: state*256 + byte hashed to 64K */
@@ -2492,6 +2495,11 @@ static int kf51_init(KF51M *m) {
     m->tstate = kf51_new(TSTATE_SIZE);
     m->tword = kf51_new(TWORD_SIZE);
     m->tsparse = kf51_new(TSPARSE_SIZE);
+    /* v53: адаптивные веса (fixed-point ×256) — стартуем с оригинальных */
+    m->w[0] =  1*256; m->w[1] =  1*256; m->w[2] =  2*256; m->w[3] =  4*256;
+    m->w[4] =  8*256; m->w[5] = 12*256; m->w[6] = 18*256; m->w[7] = 28*256;
+    m->w[8] =  8*256; m->w[9] =  3*256; m->w[10] = 3*256;
+    m->wsum = 88*256;
     return (m->t0 && m->t1 && m->t2 && m->t3 &&
             m->t4 && m->t5 && m->t6 && m->t7 && m->sse &&
             m->tstate && m->tword && m->tsparse);
@@ -2570,11 +2578,18 @@ do {                                                                        \
         uint32_t pw = mm->tword[iw];                                        \
         uint32_t psp = mm->tsparse[isp];                                    \
                                                                             \
-        /* Смешивание: 11 предикторов                                       \
-         * O0=1 O1=1 O2=2 O3=4 O4=8 O5=12 O6=18 O7=28                    \
-         * State=8 Word=3 Sparse=3  → sum=88 */                            \
-        uint32_t mx = (p0*1u+p1*1u+p2*2u+p3*4u+p4*8u+p5*12u               \
-                       +p6*18u+p7*28u+pst*8u+pw*3u+psp*3u) / 88u;          \
+        /* Смешивание: v53 адаптивные веса (fixed-point ×256)              \
+         * Веса обучаются по ошибке — кто точнее, получает больший вес */   \
+        int32_t preds[11] = {(int32_t)p0,(int32_t)p1,(int32_t)p2,          \
+                             (int32_t)p3,(int32_t)p4,(int32_t)p5,           \
+                             (int32_t)p6,(int32_t)p7,(int32_t)pst,          \
+                             (int32_t)pw,(int32_t)psp};                     \
+        int64_t wmx = 0;                                                     \
+        for (int wi = 0; wi < 11; wi++) wmx += (int64_t)mm->w[wi] * preds[wi]; \
+        int32_t wdiv = mm->wsum;                                             \
+        if (wdiv < 256) wdiv = 256;                                          \
+        uint32_t mx = (uint32_t)(wmx / wdiv);                                \
+        if (mx > 4095) mx = 4095;          \
                                                                             \
         /* SSE */                                                            \
         int q = (int)(mx >> 7);                                             \
@@ -2593,7 +2608,7 @@ do {                                                                        \
             if (bit) byte |= (1u << b);                                      \
         }                                                                    \
                                                                             \
-        /* Обучаем */                                                        \
+        /* Обучаем контекстные таблицы */                                    \
         kf_upd(&mm->t0[i0], bit, 5);                                        \
         kf_upd(&mm->t1[i1], bit, 5);                                        \
         kf_upd(&mm->t2[i2], bit, 4);                                        \
@@ -2606,6 +2621,20 @@ do {                                                                        \
         kf_upd(&mm->tword[iw], bit, 4);                                     \
         kf_upd(&mm->tsparse[isp], bit, 4);                                  \
         kf_upd(&mm->sse[si], bit, 4);                                       \
+                                                                            \
+        /* v53: обучение весов смешивания (online gradient descent)          \
+         * err = bit*4096 - mx; увеличиваем вес точных предикторов */       \
+        {                                                                    \
+            int32_t target = bit ? 4096 : 0;                                 \
+            int32_t err = target - (int32_t)mx;                              \
+            for (int wi = 0; wi < 11; wi++) {                                \
+                int32_t delta = (err * preds[wi]) >> 18;                     \
+                mm->w[wi] += delta;                                          \
+                if (mm->w[wi] < 1) mm->w[wi] = 1;                           \
+            }                                                                \
+            mm->wsum = 0;                                                    \
+            for (int wi = 0; wi < 11; wi++) mm->wsum += mm->w[wi];          \
+        }                                                                    \
                                                                             \
         cx = (cx << 1) | bit;                                                \
     }                                                                        \
