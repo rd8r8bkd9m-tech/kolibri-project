@@ -2396,6 +2396,11 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
              * Long:     0xFF (len-4) dist_hi dist_lo         (4B, len 4-255, dist≤65535)
              * Extended: 0xFF 0xFC (len-4) d[23:16] d[15:8] d[7:0]  (6B, 24-bit dist) */
             int rep_max_len = 66;
+            /* FIX: если rep-match слишком длинный для rep-формата,
+             * кодируем как обычный — сбрасываем best_rep для sync rep MRU */
+            if (best_rep >= 0 && best_len > rep_max_len) {
+                best_rep = -1;
+            }
             if (best_rep >= 0 && best_len <= rep_max_len) {
                 int rl = best_len;
                 if (rl > rep_max_len) rl = rep_max_len;
@@ -3644,3 +3649,5 @@ void kolibri_archive_close(KolibriArchive *archive) {
 
     free(archive);
 }
+
+
