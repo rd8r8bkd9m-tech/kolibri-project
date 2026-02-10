@@ -2178,9 +2178,12 @@ static size_t token_decode_text(const uint8_t *input, size_t input_size,
 #define LZ_HTSIZE  (1 << LZ_HTBITS)
 #define LZ_HTMASK  (LZ_HTSIZE - 1)
 #define LZ_MIN_MATCH  3
-#define LZ_MAX_MATCH  257       /* long: len-4 max 253, short: len=3 only */
-#define LZ_MAX_CHAIN  512       /* макс. глубина цепочки (v53: увеличена для лучших совпадений) */
+#define LZ_MAX_MATCH  256       /* long: len-4 max 252 (0xFC), short: len=3 */
+#define LZ_MAX_CHAIN  512       /* макс. глубина цепочки (v53+) */
+#define LZ_NICE_MATCH 64        /* v54: ранний выход при хорошем совпадении */
 #define LZ_ESCAPE     0xFF      /* escape-байт для совпадений */
+#define LZ_REP_CODE   0xFD      /* v54: опкод rep-match (LZMA-style) */
+#define LZ_NUM_REPS   4         /* кол-во хранимых последних дистанций */
 
 static inline uint32_t lz_hash4(const uint8_t *p) {
     uint32_t h = ((uint32_t)p[0]) | ((uint32_t)p[1] << 8)
@@ -2198,6 +2201,9 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
     int32_t *prev = (int32_t *)calloc(LZ_WSIZE, sizeof(int32_t));
     if (!head || !prev) { free(head); free(prev); return 0; }
 
+    /* v54: Rep-match — последние 4 дистанции (LZMA-style) */
+    int rep[LZ_NUM_REPS] = {0, 0, 0, 0};
+
     /* -1 = нет ссылки */
     for (size_t j = 0; j < (size_t)LZ_HTSIZE; j++) head[j] = -1;
     for (size_t j = 0; j < (size_t)LZ_WSIZE; j++) prev[j] = -1;
@@ -2206,16 +2212,65 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
     size_t ip = 0;
     size_t limit = input_size - 3; /* нужно 4 байта для хеша */
 
+    /* v54: Near-Optimal LZ parsing helper — поиск лучшего матча от позиции p */
+    #define LZ_FIND_MATCH(pos_, best_l_, best_d_)                          \
+    do {                                                                    \
+        best_l_ = 0; best_d_ = 0;                                          \
+        if ((pos_) < limit) {                                               \
+            uint32_t hh_ = lz_hash4(input + (pos_));                        \
+            int32_t cc_ = head[hh_];                                         \
+            int ch_ = 0;                                                     \
+            while (cc_ >= 0 && ch_ < LZ_MAX_CHAIN) {                        \
+                size_t ca_ = (size_t)cc_;                                    \
+                if ((pos_) > ca_ && ((pos_) - ca_) <= LZ_WSIZE) {           \
+                    const uint8_t *aa_ = input + (pos_);                     \
+                    const uint8_t *bb_ = input + ca_;                        \
+                    int ll_ = 0;                                             \
+                    int mx_ = (int)MIN((size_t)LZ_MAX_MATCH, input_size-(pos_)); \
+                    while (ll_ < mx_ && aa_[ll_] == bb_[ll_]) ll_++;         \
+                    if (ll_ >= LZ_MIN_MATCH && ll_ > best_l_) {              \
+                        best_l_ = ll_; best_d_ = (int)((pos_) - ca_);       \
+                        if (ll_ >= LZ_NICE_MATCH) break;                     \
+                    }                                                        \
+                }                                                            \
+                cc_ = prev[ca_ & LZ_WMASK];                                 \
+                if (cc_ >= (int32_t)(pos_)) break;                           \
+                ch_++;                                                       \
+            }                                                                \
+        }                                                                    \
+    } while(0)
+
     while (ip < input_size) {
         int best_len = 0;
         int best_dist = 0;
+        int best_rep = -1;  /* v54: индекс rep-match (-1 = обычный матч) */
 
+        /* v54: Rep-match поиск — проверяем последние 4 дистанции (LZMA-style)
+         * Rep-match кодируется за 3 байта (вместо 3-4 для обычного),
+         * поэтому выгоднее при прочих равных условиях */
         if (ip < limit) {
+            int max_rep_len = (int)MIN((size_t)LZ_MAX_MATCH, input_size - ip);
+            for (int ri = 0; ri < LZ_NUM_REPS; ri++) {
+                if (rep[ri] <= 0 || rep[ri] > (int)ip) continue;
+                const uint8_t *a = input + ip;
+                const uint8_t *b = input + ip - rep[ri];
+                int rlen = 0;
+                while (rlen < max_rep_len && a[rlen] == b[rlen]) rlen++;
+                /* Rep-match дешевле: 3B vs 3-4B, бонус к длине */
+                if (rlen >= LZ_MIN_MATCH && rlen > best_len) {
+                    best_len = rlen;
+                    best_dist = rep[ri];
+                    best_rep = ri;
+                }
+            }
+        }
+
+        /* Обычный хеш-цепочный поиск (если rep не дал NICE_MATCH) */
+        if (ip < limit && best_len < LZ_NICE_MATCH) {
             uint32_t h = lz_hash4(input + ip);
             int32_t cur = head[h];
             int chain = 0;
 
-            /* Поиск по хеш-цепочке */
             while (cur >= 0 && chain < LZ_MAX_CHAIN) {
                 size_t candidate = (size_t)cur;
                 if (ip > candidate && (ip - candidate) <= LZ_WSIZE) {
@@ -2225,10 +2280,13 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
                     int max_possible = (int)MIN((size_t)LZ_MAX_MATCH, input_size - ip);
                     while (len < max_possible && a[len] == b[len]) len++;
 
-                    if (len >= LZ_MIN_MATCH && len > best_len) {
+                    /* Обычный матч должен быть длиннее rep-match на 1+,
+                     * т.к. rep-match на 1 байт дешевле в кодировании */
+                    if (len >= LZ_MIN_MATCH && len > best_len + (best_rep >= 0 ? 1 : 0)) {
                         best_len = len;
                         best_dist = (int)(ip - candidate);
-                        if (len >= LZ_MAX_MATCH) break;
+                        best_rep = -1;  /* обычный матч */
+                        if (len >= LZ_NICE_MATCH) break;
                     }
                 }
                 cur = prev[candidate & LZ_WMASK]; if (cur >= (int32_t)ip) break;
@@ -2238,67 +2296,104 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
             /* Обновляем хеш-цепочку */
             prev[ip & LZ_WMASK] = head[h];
             head[h] = (int32_t)ip;
+        } else if (ip < limit) {
+            /* Если rep-match уже NICE — всё равно обновляем хеш */
+            uint32_t h = lz_hash4(input + ip);
+            prev[ip & LZ_WMASK] = head[h];
+            head[h] = (int32_t)ip;
         }
 
         if (best_len >= LZ_MIN_MATCH) {
-            /* Lazy matching: проверяем ip+1 — может там лучше */
-            if (best_len < LZ_MAX_MATCH && (ip + 1) < limit) {
-                uint32_t h2_ = lz_hash4(input + ip + 1);
-                int32_t cur2 = head[h2_];
-                int lazy_len = 0, lazy_dist = 0, chain2 = 0;
-                while (cur2 >= 0 && chain2 < LZ_MAX_CHAIN) {
-                    size_t cand2 = (size_t)cur2;
-                    if ((ip + 1) > cand2 && ((ip + 1) - cand2) <= LZ_WSIZE) {
-                        const uint8_t *a2 = input + ip + 1;
-                        const uint8_t *b2 = input + cand2;
-                        int len2 = 0;
-                        int max2 = (int)MIN((size_t)LZ_MAX_MATCH, input_size - ip - 1);
-                        while (len2 < max2 && a2[len2] == b2[len2]) len2++;
-                        if (len2 > lazy_len) {
-                            lazy_len = len2;
-                            lazy_dist = (int)((ip + 1) - cand2);
-                        }
-                    }
-                    cur2 = prev[cand2 & LZ_WMASK];
-                    if (cur2 >= (int32_t)(ip + 1)) break;
-                    chain2++;
+            /* v54 Near-Optimal: проверяем ip+1 и ip+2 (если не rep-NICE) */
+            if (best_len < LZ_NICE_MATCH && best_rep < 0) {
+                int len1 = 0, dist1 = 0;
+                if ((ip + 1) < limit) {
+                    LZ_FIND_MATCH(ip + 1, len1, dist1);
                 }
-                if (lazy_len > best_len + 1) {
-                    /* Литерал текущий байт, потом match от ip+1 */
+                int len2 = 0, dist2 = 0;
+                if ((ip + 2) < limit) {
+                    LZ_FIND_MATCH(ip + 2, len2, dist2);
+                }
+
+                int cost0 = best_len - (best_len == 3 && best_dist <= 256 ? 3 : 4);
+                int cost1 = len1 - (len1 == 3 && dist1 <= 256 ? 3 : 4)
+                            - (input[ip] == LZ_ESCAPE ? 2 : 1);
+                int cost2 = len2 - (len2 == 3 && dist2 <= 256 ? 3 : 4)
+                            - (input[ip] == LZ_ESCAPE ? 2 : 1)
+                            - (input[ip+1] == LZ_ESCAPE ? 2 : 1);
+
+                if (cost2 > cost0 && cost2 > cost1 && len2 >= LZ_MIN_MATCH) {
+                    for (int s = 0; s < 2; s++) {
+                        if (input[ip] == LZ_ESCAPE) {
+                            if (op + 2 > output_max) goto fail;
+                            output[op++] = LZ_ESCAPE; output[op++] = LZ_ESCAPE;
+                        } else {
+                            if (op + 1 > output_max) goto fail;
+                            output[op++] = input[ip];
+                        }
+                        prev[ip & LZ_WMASK] = head[lz_hash4(input + ip)];
+                        head[lz_hash4(input + ip)] = (int32_t)ip;
+                        ip++;
+                    }
+                    best_len = len2; best_dist = dist2;
+                    best_rep = -1;
+                } else if (cost1 > cost0 && len1 >= LZ_MIN_MATCH) {
                     if (input[ip] == LZ_ESCAPE) {
                         if (op + 2 > output_max) goto fail;
-                        output[op++] = LZ_ESCAPE;
-                        output[op++] = LZ_ESCAPE;
+                        output[op++] = LZ_ESCAPE; output[op++] = LZ_ESCAPE;
                     } else {
                         if (op + 1 > output_max) goto fail;
                         output[op++] = input[ip];
                     }
-                    /* Обновляем хеш для ip */
                     prev[ip & LZ_WMASK] = head[lz_hash4(input + ip)];
                     head[lz_hash4(input + ip)] = (int32_t)ip;
                     ip++;
-                    best_len = lazy_len;
-                    best_dist = lazy_dist;
+                    best_len = len1; best_dist = dist1;
+                    best_rep = -1;
                 }
             }
 
-            /* Match encoding:
+            /* v54 Match encoding:
+             * Rep:   0xFF 0xFD (rep_idx<<6 | len-3)   (3 bytes, len 3-66)
              * Short: 0xFF 0xFE dist_lo    (len=3, dist 1-256, 3 bytes)
-             * Long:  0xFF len-4 dist_hi dist_lo (len 4-257, 4 bytes) */
-            if (best_len == 3 && best_dist <= 256) {
-                /* Short match: 3 bytes */
+             * Long:  0xFF len-4 dist_hi dist_lo (len 4-256, 4 bytes) */
+            int rep_max_len = 66; /* 6 бит: 0-63 + 3 = 3-66 */
+            if (best_rep >= 0 && best_len <= rep_max_len) {
+                /* Rep-match: 3 bytes — экономим 1 байт vs long match */
+                int rl = best_len;
+                if (rl > rep_max_len) rl = rep_max_len;
+                if (op + 3 > output_max) goto fail;
+                output[op++] = LZ_ESCAPE;
+                output[op++] = LZ_REP_CODE;
+                output[op++] = (uint8_t)((best_rep << 6) | (rl - 3));
+                best_len = rl;
+            } else if (best_len == 3 && best_dist <= 256) {
                 if (op + 3 > output_max) goto fail;
                 output[op++] = LZ_ESCAPE;
                 output[op++] = 0xFE;
                 output[op++] = (uint8_t)(best_dist - 1);
             } else {
-                /* Long match: 4 bytes, len encoded as len-4 (0..253) */
                 if (op + 4 > output_max) goto fail;
                 output[op++] = LZ_ESCAPE;
                 output[op++] = (uint8_t)(best_len - 4);
                 output[op++] = (uint8_t)((best_dist >> 8) & 0xFF);
                 output[op++] = (uint8_t)(best_dist & 0xFF);
             }
+
+            /* v54: обновляем rep-дистанции (MRU — последний вперёд) */
+            if (best_rep < 0) {
+                /* Новая дистанция — сдвигаем всё вправо */
+                for (int ri = LZ_NUM_REPS - 1; ri > 0; ri--)
+                    rep[ri] = rep[ri - 1];
+                rep[0] = best_dist;
+            } else if (best_rep > 0) {
+                /* rep[1..3] → двигаем на позицию 0 (MRU) */
+                int tmp = rep[best_rep];
+                for (int ri = best_rep; ri > 0; ri--)
+                    rep[ri] = rep[ri - 1];
+                rep[0] = tmp;
+            }
+            /* best_rep == 0: rep[0] уже актуален, ничего не меняем */
 
             /* Обновляем хеш для пропущенных позиций */
             for (int k = 1; k < best_len && (ip + k) < limit; k++) {
@@ -2312,7 +2407,7 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
             if (input[ip] == LZ_ESCAPE) {
                 if (op + 2 > output_max) goto fail;
                 output[op++] = LZ_ESCAPE;
-                output[op++] = LZ_ESCAPE;  /* 0xFF 0xFF = литерал 0xFF */
+                output[op++] = LZ_ESCAPE;
             } else {
                 if (op + 1 > output_max) goto fail;
                 output[op++] = input[ip];
@@ -2341,6 +2436,9 @@ static size_t lz_lite_decode(const uint8_t *input, size_t input_size,
 {
     size_t ip = 0, op = 0;
 
+    /* v54: Rep-match — последние 4 дистанции */
+    int rep[LZ_NUM_REPS] = {0, 0, 0, 0};
+
     while (ip < input_size && op < original_size) {
         uint8_t c = input[ip++];
         if (c == LZ_ESCAPE) {
@@ -2350,6 +2448,26 @@ static size_t lz_lite_decode(const uint8_t *input, size_t input_size,
                 /* Экранированный литерал 0xFF */
                 if (op >= output_max) return 0;
                 output[op++] = LZ_ESCAPE;
+            } else if (next == LZ_REP_CODE) {
+                /* v54: Rep-match: 0xFF 0xFD (rep_idx<<6 | len-3) */
+                if (ip >= input_size) return 0;
+                uint8_t rb = input[ip++];
+                int rep_idx = (rb >> 6) & 3;
+                int len = (rb & 0x3F) + 3;
+                int dist = rep[rep_idx];
+                if (dist == 0 || dist > (int)op) return 0;
+                if (op + len > output_max) return 0;
+                for (int k = 0; k < len; k++) {
+                    output[op] = output[op - dist];
+                    op++;
+                }
+                /* MRU обновление rep */
+                if (rep_idx > 0) {
+                    int tmp = rep[rep_idx];
+                    for (int ri = rep_idx; ri > 0; ri--)
+                        rep[ri] = rep[ri - 1];
+                    rep[0] = tmp;
+                }
             } else if (next == 0xFE) {
                 /* Short match: len=3, dist=next_byte+1 */
                 if (ip >= input_size) return 0;
@@ -2362,6 +2480,10 @@ static size_t lz_lite_decode(const uint8_t *input, size_t input_size,
                     output[op] = output[op - dist];
                     op++;
                 }
+                /* Обновляем rep */
+                for (int ri = LZ_NUM_REPS - 1; ri > 0; ri--)
+                    rep[ri] = rep[ri - 1];
+                rep[0] = dist;
             } else {
                 /* Long match: len = next+4, dist = 2 bytes */
                 if (ip + 1 >= input_size) return 0;
@@ -2374,6 +2496,10 @@ static size_t lz_lite_decode(const uint8_t *input, size_t input_size,
                     output[op] = output[op - dist];
                     op++;
                 }
+                /* Обновляем rep */
+                for (int ri = LZ_NUM_REPS - 1; ri > 0; ri--)
+                    rep[ri] = rep[ri - 1];
+                rep[0] = dist;
             }
         } else {
             if (op >= output_max) return 0;
@@ -2465,6 +2591,48 @@ static inline int krc_dec_bit(KolibriRC *c, uint32_t prob) {
 #define SSE_Q    33
 #define SSE_SZ   (256u * 8u * SSE_Q)
 
+/* --- v54: Логистическое смешивание (stretch/squash) ---
+ * stretch(p) = ln(p/(1-p)) — переводит вероятность в logit-пространство
+ * squash(x) = 1/(1+exp(-x)) — обратно в вероятность
+ * Таблицы предвычислены для 12-бит вероятностей (0..4095) */
+static int16_t stretch_table[4096];
+static uint16_t squash_table[4096]; /* индекс: x+2048 → вероятность 0..4095 */
+static int kf_tables_ready = 0;
+
+static void kf_init_tables(void) {
+    if (kf_tables_ready) return;
+    /* stretch: p в 0..4095 → logit в ~[-2048..2047] */
+    for (int i = 1; i < 4095; i++) {
+        double p = (double)i / 4096.0;
+        double logit = log(p / (1.0 - p)) * 256.0; /* масштаб ×256 */
+        if (logit < -2047) logit = -2047;
+        if (logit > 2047) logit = 2047;
+        stretch_table[i] = (int16_t)logit;
+    }
+    stretch_table[0] = -2047;
+    stretch_table[4095] = 2047;
+    /* squash: x в -2048..2047 → p в 0..4095 */
+    for (int i = 0; i < 4096; i++) {
+        int x = i - 2048;
+        double ex = exp(-(double)x / 256.0);
+        double p = 1.0 / (1.0 + ex);
+        int q = (int)(p * 4096.0 + 0.5);
+        if (q < 1) q = 1; if (q > 4095) q = 4095;
+        squash_table[i] = (uint16_t)q;
+    }
+    kf_tables_ready = 1;
+}
+static inline int16_t kf_stretch(uint32_t p) {
+    if (p > 4095) p = 4095;
+    return stretch_table[p];
+}
+static inline uint32_t kf_squash(int32_t x) {
+    int idx = x + 2048;
+    if (idx < 0) idx = 0;
+    if (idx > 4095) idx = 4095;
+    return squash_table[idx];
+}
+
 /* Расширенная модель: контексты + match model + word boundary */
 typedef struct {
     uint16_t *t0, *t1, *t2, *t3, *t4, *t5, *t6, *t7;
@@ -2472,9 +2640,9 @@ typedef struct {
     uint16_t *tstate;    /* LZ state-aware: 4_states × 256 × 256 bit-tree */
     uint16_t *tword;     /* word boundary: 64K (контекст начала слова) */
     uint16_t *tsparse;   /* sparse context: (hist[0]^hist[2]) × 256 bit-tree */
-    /* v53: адаптивные веса для 11 предикторов (фиксированная точка ×256) */
+    /* v54: адаптивные веса для логистического смешивания */
     int32_t w[11];
-    int32_t wsum;
+    int32_t wsum;       /* не используется в логистическом режиме, зарезервирован */
 } KF51M;
 
 #define TSTATE_SIZE  65536u  /* compact: state*256 + byte hashed to 64K */
@@ -2487,6 +2655,7 @@ static uint16_t *kf51_new(size_t n) {
     return p;
 }
 static int kf51_init(KF51M *m) {
+    kf_init_tables(); /* v54: stretch/squash LUT */
     m->t0 = kf51_new(T0_SIZE);  m->t1 = kf51_new(T1_SIZE);
     m->t2 = kf51_new(T2_SIZE);  m->t3 = kf51_new(T3_SIZE);
     m->t4 = kf51_new(T4_SIZE);  m->t5 = kf51_new(T5_SIZE);
@@ -2495,11 +2664,11 @@ static int kf51_init(KF51M *m) {
     m->tstate = kf51_new(TSTATE_SIZE);
     m->tword = kf51_new(TWORD_SIZE);
     m->tsparse = kf51_new(TSPARSE_SIZE);
-    /* v53: адаптивные веса (fixed-point ×256) — стартуем с оригинальных */
-    m->w[0] =  1*256; m->w[1] =  1*256; m->w[2] =  2*256; m->w[3] =  4*256;
-    m->w[4] =  8*256; m->w[5] = 12*256; m->w[6] = 18*256; m->w[7] = 28*256;
-    m->w[8] =  8*256; m->w[9] =  3*256; m->w[10] = 3*256;
-    m->wsum = 88*256;
+    /* v54: начальные веса для логистического смешивания (fixed-point ×64) */
+    m->w[0] =  4;  m->w[1] =  4;  m->w[2] =  8;  m->w[3] = 16;
+    m->w[4] = 32;  m->w[5] = 48;  m->w[6] = 72;  m->w[7] = 112;
+    m->w[8] = 32;  m->w[9] = 12;  m->w[10] = 12;
+    m->wsum = 0;
     return (m->t0 && m->t1 && m->t2 && m->t3 &&
             m->t4 && m->t5 && m->t6 && m->t7 && m->sse &&
             m->tstate && m->tword && m->tsparse);
@@ -2578,18 +2747,21 @@ do {                                                                        \
         uint32_t pw = mm->tword[iw];                                        \
         uint32_t psp = mm->tsparse[isp];                                    \
                                                                             \
-        /* Смешивание: v53 адаптивные веса (fixed-point ×256)              \
-         * Веса обучаются по ошибке — кто точнее, получает больший вес */   \
-        int32_t preds[11] = {(int32_t)p0,(int32_t)p1,(int32_t)p2,          \
-                             (int32_t)p3,(int32_t)p4,(int32_t)p5,           \
-                             (int32_t)p6,(int32_t)p7,(int32_t)pst,          \
-                             (int32_t)pw,(int32_t)psp};                     \
-        int64_t wmx = 0;                                                     \
-        for (int wi = 0; wi < 11; wi++) wmx += (int64_t)mm->w[wi] * preds[wi]; \
-        int32_t wdiv = mm->wsum;                                             \
-        if (wdiv < 256) wdiv = 256;                                          \
-        uint32_t mx = (uint32_t)(wmx / wdiv);                                \
-        if (mx > 4095) mx = 4095;          \
+        /* v54: Логистическое смешивание (PAQ-style)                        \
+         * 1) stretch(p) — переводим каждую вероятность в logit             \
+         * 2) Линейная комбинация logits с адаптивными весами               \
+         * 3) squash() — обратно в вероятность                              \
+         * Даёт значительно лучшее смешивание около p≈0 и p≈1 */           \
+        int16_t s[11];                                                       \
+        s[0]=kf_stretch(p0);  s[1]=kf_stretch(p1);  s[2]=kf_stretch(p2);   \
+        s[3]=kf_stretch(p3);  s[4]=kf_stretch(p4);  s[5]=kf_stretch(p5);   \
+        s[6]=kf_stretch(p6);  s[7]=kf_stretch(p7);  s[8]=kf_stretch(pst);  \
+        s[9]=kf_stretch(pw);  s[10]=kf_stretch(psp);                        \
+        int32_t logit_mix = 0;                                               \
+        for (int wi = 0; wi < 11; wi++)                                      \
+            logit_mix += (int32_t)mm->w[wi] * (int32_t)s[wi];               \
+        logit_mix >>= 8;   /* делим на 256 (масштаб весов) */               \
+        uint32_t mx = kf_squash(logit_mix);                                  \
                                                                             \
         /* SSE */                                                            \
         int q = (int)(mx >> 7);                                             \
@@ -2622,18 +2794,17 @@ do {                                                                        \
         kf_upd(&mm->tsparse[isp], bit, 4);                                  \
         kf_upd(&mm->sse[si], bit, 4);                                       \
                                                                             \
-        /* v53: обучение весов смешивания (online gradient descent)          \
-         * err = bit*4096 - mx; увеличиваем вес точных предикторов */       \
+        /* v54: обучение весов в logit-пространстве                         \
+         * gradient = (bit - p) * stretch(pred_i)                            \
+         * w[i] += lr * gradient */                                          \
         {                                                                    \
-            int32_t target = bit ? 4096 : 0;                                 \
-            int32_t err = target - (int32_t)mx;                              \
+            int32_t err = (bit ? 4096 : 0) - (int32_t)mx;                   \
             for (int wi = 0; wi < 11; wi++) {                                \
-                int32_t delta = (err * preds[wi]) >> 18;                     \
+                int32_t delta = (err * (int32_t)s[wi]) >> 16;               \
                 mm->w[wi] += delta;                                          \
-                if (mm->w[wi] < 1) mm->w[wi] = 1;                           \
+                if (mm->w[wi] < -4096) mm->w[wi] = -4096;                   \
+                if (mm->w[wi] > 4096) mm->w[wi] = 4096;                    \
             }                                                                \
-            mm->wsum = 0;                                                    \
-            for (int wi = 0; wi < 11; wi++) mm->wsum += mm->w[wi];          \
         }                                                                    \
                                                                             \
         cx = (cx << 1) | bit;                                                \
