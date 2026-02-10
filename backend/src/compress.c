@@ -32,7 +32,7 @@
 
 /* Magic number for compressed data format */
 #define KOLIBRI_COMPRESS_MAGIC 0x4B4C4252 /* "KLBR" */
-#define KOLIBRI_COMPRESS_VERSION 63  /* v63: TURBO LZ default, KOLIBRI_QUALITY=max for CM */
+#define KOLIBRI_COMPRESS_VERSION 64  /* v64: Match Model + Fractal Memory + Generation */
 
 /* Compression header */
 typedef struct {
@@ -1833,9 +1833,14 @@ static inline int krc_dec_bit(KolibriRC *c, uint32_t prob) {
 
 /* v62: объединённые таблицы + SIMD параметры */
 #define T678_SIZE     1048576u  /* v62: merged O6+O7+O8 → одна таблица 1M */
-#define KF62_NUM_PREDS 11       /* v62: 11 предикторов (O0-O5,O678,st,w,sp,run) */
+#define KF62_NUM_PREDS 12       /* v64: 12 предикторов (+match model) */
 #define KF62_PAD       16       /* v62: padding до 16 для SIMD (2 × __m128i) */
 #define KF62_BLOCK_SIZE 65536   /* v62: размер блока для многопоточности */
+
+/* v64: Match Model — дальний контекст (уровень PAQ8) */
+#define MATCH_HT_BITS  16
+#define MATCH_HT_SIZE  (1u << MATCH_HT_BITS)
+#define MATCH_HT_MASK  (MATCH_HT_SIZE - 1)
 
 /* --- v54: Логистическое смешивание (stretch/squash) ---
  * stretch(p) = ln(p/(1-p)) — переводит вероятность в logit-пространство
@@ -1951,6 +1956,14 @@ typedef struct {
     uint16_t *t678;     /* v62: merged O6+O7+O8 */
     uint16_t *sse, *apm;
     uint16_t *tstate, *tword, *tsparse, *trun;
+    /* v64: Match Model — предсказание по длинным совпадениям */
+    uint32_t *match_ht;       /* хеш-таблица: 4-byte context → позиция */
+    uint8_t  *match_buf;      /* кольцевой буфер обработанных байт */
+    size_t    match_buf_pos;  /* текущая позиция записи */
+    size_t    match_pos;      /* позиция совпадения */
+    int       match_len;      /* длина текущего совпадения */
+    int       match_active;   /* есть ли активное совпадение */
+    uint8_t   match_byte;     /* предсказанный байт из совпадения */
     /* v62: int16 веса, aligned для SSE2 */
     int16_t w[8][KF62_PAD] __attribute__((aligned(16)));
 } KF62M;
@@ -1967,6 +1980,14 @@ static int kf62_init(KF62M *m) {
     m->tword  = kf51_new(TWORD_SIZE);
     m->tsparse= kf51_new(TSPARSE_SIZE);
     m->trun   = kf51_new(TRUN_SIZE);
+    /* v64: Match Model */
+    m->match_ht  = (uint32_t *)calloc(MATCH_HT_SIZE, sizeof(uint32_t));
+    m->match_buf = (uint8_t *)calloc(KF62_BLOCK_SIZE + 256, 1);
+    m->match_buf_pos = 0;
+    m->match_pos = 0;
+    m->match_len = 0;
+    m->match_active = 0;
+    m->match_byte = 0;
     for (int bp = 0; bp < 8; bp++) {
         m->w[bp][0]  =  4;   m->w[bp][1]  =  4;   m->w[bp][2]  =  8;
         m->w[bp][3]  = 16;   m->w[bp][4]  = 32;   m->w[bp][5]  = 48;
@@ -1975,17 +1996,20 @@ static int kf62_init(KF62M *m) {
         m->w[bp][8]  = 12;   /* word */
         m->w[bp][9]  = 12;   /* sparse */
         m->w[bp][10] = 16;   /* run */
-        for (int p = 11; p < KF62_PAD; p++) m->w[bp][p] = 0;
+        m->w[bp][11] = 24;   /* v64: match model */
+        for (int p = 12; p < KF62_PAD; p++) m->w[bp][p] = 0;
     }
     return (m->t0 && m->t1 && m->t2 && m->t3 && m->t4 && m->t5 &&
             m->t678 && m->sse && m->apm && m->tstate &&
-            m->tword && m->tsparse && m->trun);
+            m->tword && m->tsparse && m->trun &&
+            m->match_ht && m->match_buf);
 }
 static void kf62_destroy(KF62M *m) {
     free(m->t0);  free(m->t1);  free(m->t2);  free(m->t3);
     free(m->t4);  free(m->t5);  free(m->t678);
     free(m->sse); free(m->apm); free(m->tstate);
     free(m->tword); free(m->tsparse); free(m->trun);
+    free(m->match_ht); free(m->match_buf);
 }
 
 /* v62: SIMD-оптимизированное смешивание и обновление весов */
@@ -2210,7 +2234,7 @@ do {                                                                        \
 } while(0)
 
 /* =====================================================================
- * v62 PROCESS BYTE: 11 предикторов, merged O678, SIMD mixing/update
+ * v64 PROCESS BYTE: 12 предикторов + Match Model, SIMD mixing/update
  * ===================================================================== */
 #define KF62_PROCESS_BYTE(ENCODE)                                           \
 do {                                                                        \
@@ -2227,6 +2251,16 @@ do {                                                                        \
     int run_len = 0;                                                         \
     while (run_len < 15 && run_len < 7                                       \
            && hist[run_len] == hist[run_len+1]) run_len++;                   \
+    /* v64: Match Model — предсказание по дальним совпадениям */             \
+    int16_t match_str = 0;                                                   \
+    if (mm->match_active) {                                                  \
+        /* Сила предсказания зависит от длины совпадения */                  \
+        int ml = mm->match_len;                                              \
+        int conf = ml < 4 ? 2 : (ml < 8 ? 4 : (ml < 32 ? 6 : 8));         \
+        int mbit = (mm->match_byte >> 7) & 1; /* будем проверять per-bit */ \
+        (void)mbit;                                                          \
+        match_str = kf_stretch(mm->match_byte >= 128 ? (uint32_t)(2048 + conf * 200) : (uint32_t)(2048 - conf * 200)); \
+    }                                                                        \
     uint32_t cx = 1;                                                        \
     for (int b = 7; b >= 0; b--) {                                          \
         uint32_t i0 = (hist[0] * 256u + cx) & (T0_SIZE - 1);               \
@@ -2245,7 +2279,7 @@ do {                                                                        \
                         & (TSPARSE_SIZE - 1);                               \
         uint32_t irun = ((uint32_t)run_len * 256u + cx)                     \
                          & (TRUN_SIZE - 1);                                 \
-        /* v62: 11 stretch-значений, SIMD-aligned */                        \
+        /* v64: 12 stretch-значений, SIMD-aligned */                        \
         int16_t s_[KF62_PAD] __attribute__((aligned(16)));                  \
         s_[0]  = kf_stretch(mm->t0[i0]);                                    \
         s_[1]  = kf_stretch(mm->t1[i1]);                                    \
@@ -2258,7 +2292,16 @@ do {                                                                        \
         s_[8]  = kf_stretch(mm->tword[iw]);                                 \
         s_[9]  = kf_stretch(mm->tsparse[isp]);                              \
         s_[10] = kf_stretch(mm->trun[irun]);                                \
-        for(int p_=11; p_<KF62_PAD; p_++) s_[p_]=0;                        \
+        /* v64: match model — per-bit предсказание */                        \
+        if (mm->match_active) {                                              \
+            int mbit = (mm->match_byte >> b) & 1;                           \
+            int ml = mm->match_len;                                          \
+            int conf = ml < 4 ? 180 : (ml < 8 ? 400 : (ml < 32 ? 700 : 900)); \
+            s_[11] = (int16_t)(mbit ? conf : -conf);                        \
+        } else {                                                             \
+            s_[11] = 0;                                                      \
+        }                                                                    \
+        for(int p_=12; p_<KF62_PAD; p_++) s_[p_]=0;                        \
         const int bp_ = 7 - b;                                              \
         /* v62: SIMD dot-product mixing */                                   \
         int32_t logit_mix = kf62_mix(mm->w[bp_], s_) >> 8;                  \
@@ -2301,6 +2344,43 @@ do {                                                                        \
             kf62_update_weights(mm->w[bp_], s_, err_);                      \
         }                                                                    \
         cx = (cx << 1) | bit;                                                \
+    }                                                                        \
+    /* v64: Match Model — обновление после полного байта */                  \
+    {                                                                        \
+        size_t mbp = mm->match_buf_pos;                                      \
+        mm->match_buf[mbp] = byte;                                           \
+        if (mm->match_active) {                                              \
+            size_t expected_pos = mm->match_pos + mm->match_len;             \
+            if (expected_pos < mbp                                           \
+                && mm->match_buf[expected_pos] == byte) {                    \
+                mm->match_len++;                                             \
+                mm->match_byte = (expected_pos + 1 < mbp + 1)               \
+                    ? mm->match_buf[expected_pos + 1] : 0;                  \
+            } else {                                                         \
+                mm->match_active = 0;                                        \
+            }                                                                \
+        }                                                                    \
+        if (!mm->match_active && mbp >= 4) {                                 \
+            uint32_t mh = (uint32_t)hist[0]                                  \
+                ^ ((uint32_t)byte * 0x9E3779B1u);                           \
+            mh = (mh ^ (mh >> 16)) & MATCH_HT_MASK;                         \
+            uint32_t mpos = mm->match_ht[mh];                               \
+            if (mpos > 0 && mpos < (uint32_t)mbp                            \
+                && mm->match_buf[mpos] == byte) {                           \
+                mm->match_pos = mpos;                                        \
+                mm->match_len = 1;                                           \
+                mm->match_active = 1;                                        \
+                mm->match_byte = (mpos + 1 < mbp + 1)                       \
+                    ? mm->match_buf[mpos + 1] : 0;                          \
+            }                                                                \
+            mm->match_ht[mh] = (uint32_t)mbp;                               \
+        } else if (mbp >= 4) {                                               \
+            uint32_t mh = (uint32_t)hist[0]                                  \
+                ^ ((uint32_t)byte * 0x9E3779B1u);                           \
+            mh = (mh ^ (mh >> 16)) & MATCH_HT_MASK;                         \
+            mm->match_ht[mh] = (uint32_t)mbp;                               \
+        }                                                                    \
+        mm->match_buf_pos = mbp + 1;                                         \
     }                                                                        \
     switch (lz_state) {                                                      \
     case 0: if (byte == 0xFF) lz_state = 1; break;                          \

@@ -744,19 +744,236 @@ int k_gen_beam_search(KolibriGenerationContext *ctx, KolibriGenerationCandidate 
 
 int k_gen_evolve_text(KolibriGenerationContext *ctx, size_t generations,
                       char *output, size_t output_size) {
-    if (!ctx || !output || output_size == 0) return -1;
+    if (!ctx || !output || output_size == 0 || !ctx->corpus) return -1;
+    if (ctx->corpus->store.count == 0) return -1;
+
     output[0] = '\0';
-    return 0;
+
+    /*
+     * Эволюционная генерация:
+     * 1. Создаём популяцию случайных текстов (как последовательностей индексов)
+     * 2. Оцениваем каждого кандидата по когерентности
+     * 3. Отбираем лучших, мутируем, создаём потомков
+     * 4. Повторяем generations раз
+     */
+    #define EVOLVE_POP 16
+    #define EVOLVE_LEN 12
+
+    size_t pop[EVOLVE_POP][EVOLVE_LEN];
+    double fitness[EVOLVE_POP];
+    size_t corpus_n = ctx->corpus->store.count;
+    if (corpus_n == 0) return -1;
+
+    /* Инициализация популяции случайными последовательностями */
+    for (int p = 0; p < EVOLVE_POP; p++) {
+        for (int t = 0; t < EVOLVE_LEN; t++) {
+            pop[p][t] = (size_t)((unsigned)rand() % corpus_n);
+        }
+        fitness[p] = 0.0;
+    }
+
+    /* Эволюция */
+    for (size_t gen = 0; gen < generations; gen++) {
+        /* Оценка фитнеса: средняя попарная семантическая схожесть */
+        for (int p = 0; p < EVOLVE_POP; p++) {
+            double total = 0.0;
+            int pairs = 0;
+            for (int i = 0; i < EVOLVE_LEN - 1; i++) {
+                double sim = k_semantic_similarity(
+                    &ctx->corpus->store.patterns[pop[p][i]],
+                    &ctx->corpus->store.patterns[pop[p][i + 1]]);
+                total += sim;
+                pairs++;
+            }
+            fitness[p] = pairs > 0 ? total / (double)pairs : 0.0;
+
+            /* Штраф за повторения */
+            for (int i = 0; i < EVOLVE_LEN; i++) {
+                for (int j = i + 1; j < EVOLVE_LEN; j++) {
+                    if (pop[p][i] == pop[p][j]) fitness[p] -= 0.2;
+                }
+            }
+        }
+
+        /* Турнирный отбор + мутация */
+        size_t next_pop[EVOLVE_POP][EVOLVE_LEN];
+        for (int p = 0; p < EVOLVE_POP; p++) {
+            /* Турнир: выбираем 2 случайных, берём лучшего */
+            int a = (unsigned)rand() % EVOLVE_POP;
+            int b = (unsigned)rand() % EVOLVE_POP;
+            int parent = (fitness[a] >= fitness[b]) ? a : b;
+            memcpy(next_pop[p], pop[parent], sizeof(pop[parent]));
+
+            /* Мутация: заменяем 1-2 токена */
+            int nmut = 1 + ((unsigned)rand() % 2);
+            for (int m = 0; m < nmut; m++) {
+                int pos = (unsigned)rand() % EVOLVE_LEN;
+                next_pop[p][pos] = (size_t)((unsigned)rand() % corpus_n);
+            }
+        }
+        /* Элитизм: сохраняем лучшего */
+        int best = 0;
+        for (int p = 1; p < EVOLVE_POP; p++) {
+            if (fitness[p] > fitness[best]) best = p;
+        }
+        memcpy(next_pop[0], pop[best], sizeof(pop[best]));
+        memcpy(pop, next_pop, sizeof(pop));
+    }
+
+    /* Финальная оценка для выбора лучшего */
+    int best = 0;
+    for (int p = 0; p < EVOLVE_POP; p++) {
+        double total = 0.0;
+        for (int i = 0; i < EVOLVE_LEN - 1; i++) {
+            total += k_semantic_similarity(
+                &ctx->corpus->store.patterns[pop[p][i]],
+                &ctx->corpus->store.patterns[pop[p][i + 1]]);
+        }
+        fitness[p] = total;
+        if (fitness[p] > fitness[best]) best = p;
+    }
+
+    /* Собираем текст из лучшего кандидата */
+    size_t pos = 0;
+    for (int t = 0; t < EVOLVE_LEN; t++) {
+        const char *word = ctx->corpus->store.words[pop[best][t]];
+        size_t wlen = strlen(word);
+        if (pos + wlen + 2 >= output_size) break;
+        if (pos > 0) output[pos++] = ' ';
+        memcpy(output + pos, word, wlen);
+        pos += wlen;
+    }
+    output[pos] = '\0';
+
+    ctx->tokens_generated += EVOLVE_LEN;
+    return (int)EVOLVE_LEN;
+
+    #undef EVOLVE_POP
+    #undef EVOLVE_LEN
 }
 
 double k_gen_perplexity(KolibriGenerationContext *ctx, const char *text, size_t text_len) {
-    if (!ctx || !text) return -1.0;
-    return 1.0;
+    if (!ctx || !text || text_len == 0 || !ctx->corpus) return -1.0;
+    if (ctx->corpus->store.count == 0) return -1.0;
+
+    /*
+     * Приблизительная perplexity:
+     *   PP = exp(-1/N * Σ log P(token_i | context))
+     *
+     * P(token | context) аппроксимируется как семантическое сходство
+     * с наиболее близким словом в корпусе, нормализованное по размеру корпуса.
+     */
+    char **tokens = NULL;
+    size_t token_count = 0;
+    if (k_corpus_tokenize(text, text_len, &tokens, &token_count) != 0)
+        return -1.0;
+    if (token_count == 0) return -1.0;
+
+    double log_sum = 0.0;
+    size_t counted = 0;
+
+    KolibriSemanticPattern context_pattern;
+    k_semantic_pattern_init(&context_pattern);
+
+    for (size_t i = 0; i < token_count; i++) {
+        /* Находим паттерн текущего токена */
+        KolibriSemanticPattern *tok_pat = NULL;
+        for (size_t j = 0; j < ctx->corpus->store.count; j++) {
+            if (strcmp(ctx->corpus->store.words[j], tokens[i]) == 0) {
+                tok_pat = &ctx->corpus->store.patterns[j];
+                break;
+            }
+        }
+        if (!tok_pat) { free(tokens[i]); continue; }
+
+        /* Максимальная схожесть с контекстом → «вероятность» */
+        double max_sim = 0.0;
+        if (i > 0) {
+            max_sim = k_semantic_similarity(&context_pattern, tok_pat);
+        } else {
+            max_sim = 0.5; /* базовая вероятность для первого токена */
+        }
+
+        /* Ограничиваем [0.001, 1.0] для log */
+        if (max_sim < 0.001) max_sim = 0.001;
+        if (max_sim > 1.0) max_sim = 1.0;
+        log_sum += log(max_sim);
+        counted++;
+
+        /* Обновляем контекстный паттерн (скользящее среднее) */
+        for (size_t j = 0; j < KOLIBRI_SEMANTIC_PATTERN_SIZE; j++) {
+            context_pattern.pattern[j] = (uint8_t)(
+                (context_pattern.pattern[j] * (uint16_t)i + tok_pat->pattern[j]) / (i + 1));
+        }
+
+        free(tokens[i]);
+    }
+    free(tokens);
+
+    if (counted == 0) return -1.0;
+
+    double avg_log_p = log_sum / (double)counted;
+    return exp(-avg_log_p);
 }
 
 double k_gen_coherence(KolibriGenerationContext *ctx, const char *text, size_t text_len) {
-    if (!ctx || !text) return -1.0;
-    return 1.0;
+    if (!ctx || !text || text_len == 0 || !ctx->corpus) return -1.0;
+    if (ctx->corpus->store.count == 0) return -1.0;
+
+    /*
+     * Семантическая когерентность:
+     *   Средняя попарная семантическая схожесть соседних токенов.
+     *   0.0 = хаос, 1.0 = идеальная связность.
+     */
+    char **tokens = NULL;
+    size_t token_count = 0;
+    if (k_corpus_tokenize(text, text_len, &tokens, &token_count) != 0)
+        return -1.0;
+    if (token_count < 2) {
+        for (size_t i = 0; i < token_count; i++) free(tokens[i]);
+        free(tokens);
+        return token_count == 1 ? 1.0 : -1.0;
+    }
+
+    /* Находим паттерны всех токенов */
+    KolibriSemanticPattern *pats = calloc(token_count, sizeof(KolibriSemanticPattern));
+    int *found = calloc(token_count, sizeof(int));
+    if (!pats || !found) {
+        for (size_t i = 0; i < token_count; i++) free(tokens[i]);
+        free(tokens); free(pats); free(found);
+        return -1.0;
+    }
+
+    for (size_t i = 0; i < token_count; i++) {
+        for (size_t j = 0; j < ctx->corpus->store.count; j++) {
+            if (strcmp(ctx->corpus->store.words[j], tokens[i]) == 0) {
+                pats[i] = ctx->corpus->store.patterns[j];
+                found[i] = 1;
+                break;
+            }
+        }
+        free(tokens[i]);
+    }
+    free(tokens);
+
+    /* Средняя схожесть соседних пар */
+    double total_sim = 0.0;
+    size_t pairs = 0;
+    for (size_t i = 0; i + 1 < token_count; i++) {
+        if (found[i] && found[i + 1]) {
+            total_sim += k_semantic_similarity(&pats[i], &pats[i + 1]);
+            pairs++;
+        }
+    }
+
+    free(pats);
+    free(found);
+
+    if (pairs == 0) return 0.0;
+    double coherence = total_sim / (double)pairs;
+    if (coherence > 1.0) coherence = 1.0;
+    if (coherence < 0.0) coherence = 0.0;
+    return coherence;
 }
 
 void k_gen_set_temperature(KolibriGenerationContext *ctx, double temperature) {

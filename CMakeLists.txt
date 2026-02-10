@@ -68,6 +68,7 @@ add_library(kolibri_core_objects OBJECT
     backend/src/inference.c
     backend/src/corpus_trainer.c
     backend/src/web_crawler.c
+    backend/src/fractal_memory.c
 )
 
 target_include_directories(kolibri_core_objects
@@ -407,6 +408,10 @@ if(KOLIBRI_ENABLE_TESTS)
     add_executable(test_corpus_trainer tests/test_corpus_trainer.c)
     target_link_libraries(test_corpus_trainer PRIVATE kolibri_core Threads::Threads m)
     add_test(NAME test_corpus_trainer COMMAND test_corpus_trainer)
+
+    add_executable(test_fractal_memory tests/test_fractal_memory.c)
+    target_link_libraries(test_fractal_memory PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_fractal_memory COMMAND test_fractal_memory)
 
     configure_file(tests/ks_compiler_roundtrip.cmake
                    ${CMAKE_CURRENT_BINARY_DIR}/ks_compiler_roundtrip.cmake

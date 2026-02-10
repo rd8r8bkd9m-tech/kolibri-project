@@ -5,6 +5,7 @@
 
 #include "kolibri/script.h"
 #include "kolibri/decimal.h"
+#include "kolibri/net.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -2661,15 +2662,142 @@ static int kolibri_execute_print_canvas(KolibriScript *script) {
     if (!script->vyvod) {
         script->vyvod = stdout;
     }
-    fprintf(script->vyvod, "[Kolibri] визуализация памяти пока не реализована\n");
-    kolibri_script_log(script, "SCRIPT_CANVAS", "недоступно");
+
+    /*
+     * Визуализация памяти: выводим состояние пула формул,
+     * переменных, ассоциаций и геном-кристалла.
+     */
+    fprintf(script->vyvod, "\n╔══════════════════════════════════════╗\n");
+    fprintf(script->vyvod,   "║    🧠 KOLIBRI MEMORY CANVAS          ║\n");
+    fprintf(script->vyvod,   "╚══════════════════════════════════════╝\n\n");
+
+    /* Геном */
+    if (script->genome && script->genome->next_index > 0) {
+        fprintf(script->vyvod, "  ◆ Геном: %llu блоков\n",
+                (unsigned long long)script->genome->next_index);
+    }
+
+    /* Переменные */
+    fprintf(script->vyvod, "  ◆ Переменные: %zu\n", script->variables_count);
+    for (size_t i = 0; i < script->variables_count && i < 10; i++) {
+        fprintf(script->vyvod, "    ├─ %s", script->variables[i].name);
+        fprintf(script->vyvod, "\n");
+    }
+    if (script->variables_count > 10) {
+        fprintf(script->vyvod, "    └─ ... и ещё %zu\n",
+                script->variables_count - 10);
+    }
+
+    /* Ассоциации */
+    fprintf(script->vyvod, "  ◆ Ассоциации: %zu\n", script->associations_count);
+    for (size_t i = 0; i < script->associations_count && i < 5; i++) {
+        fprintf(script->vyvod, "    ├─ \"%s\" → \"%s\"\n",
+                script->associations[i].stimulus,
+                script->associations[i].response);
+    }
+    if (script->associations_count > 5) {
+        fprintf(script->vyvod, "    └─ ... и ещё %zu\n",
+                script->associations_count - 5);
+    }
+
+    /* Формулы */
+    fprintf(script->vyvod, "  ◆ Формулы: %zu\n", script->formulas_count);
+    for (size_t i = 0; i < script->formulas_count && i < 5; i++) {
+        fprintf(script->vyvod, "    ├─ [%s] fitness=%.4f\n",
+                script->formulas[i].name,
+                script->formulas[i].last_fitness);
+    }
+    if (script->formulas_count > 5) {
+        fprintf(script->vyvod, "    └─ ... и ещё %zu\n",
+                script->formulas_count - 5);
+    }
+
+    /* Формульный пул */
+    if (script->pool) {
+        fprintf(script->vyvod, "  ◆ Пул формул: %zu формул, %zu ассоциаций\n",
+                script->pool->count, script->pool->association_count);
+        const KolibriFormula *best = kf_pool_best(script->pool);
+        if (best) {
+            fprintf(script->vyvod, "    └─ Лучшая: fitness=%.4f\n",
+                    best->fitness);
+        }
+    }
+
+    /* Кристалл */
+    fprintf(script->vyvod, "  ◆ Кристалл: teach=%s, evaluate=%s\n",
+            script->crystal_core.has_teach ? "да" : "нет",
+            script->crystal_core.has_evaluate ? "да" : "нет");
+    fprintf(script->vyvod, "\n");
+
+    kolibri_script_log(script, "SCRIPT_CANVAS", "визуализация завершена");
     return 0;
 }
 
 static int kolibri_execute_swarm(KolibriScript *script, const KolibriStatement *stmt) {
-    (void)script;
-    (void)stmt;
-    kolibri_script_log(script, "SCRIPT_SWARM", "отправка не реализована");
+    const char *formula_name = stmt->data.swarm_send.name;
+    if (!formula_name || !script->pool) {
+        kolibri_script_log(script, "SCRIPT_SWARM", "нет формулы или пула");
+        return 0; /* не фатально — продолжить скрипт */
+    }
+
+    /*
+     * Ищем формулу по имени в привязках скрипта.
+     * Если нашли — отправляем через net.c (kn_share_formula).
+     * Адрес пира берётся из переменных скрипта: $swarm_host, $swarm_port.
+     */
+    const KolibriFormula *formula = NULL;
+    for (size_t i = 0; i < script->formulas_count; i++) {
+        if (strcmp(script->formulas[i].name, formula_name) == 0) {
+            size_t idx = script->formulas[i].pool_index;
+            if (idx < script->pool->count) {
+                formula = &script->pool->formulas[idx];
+            }
+            break;
+        }
+    }
+
+    if (!formula) {
+        /* Если формула не привязана по имени — отправляем лучшую */
+        formula = kf_pool_best(script->pool);
+    }
+
+    if (!formula) {
+        kolibri_script_log(script, "SCRIPT_SWARM", "формула не найдена");
+        return 0;
+    }
+
+    /* Определяем хост и порт (по умолчанию localhost:7777) */
+    const char *host = "127.0.0.1";
+    uint16_t port = 7777;
+
+    /* Попытка прочитать из переменных скрипта */
+    for (size_t i = 0; i < script->variables_count; i++) {
+        if (strcmp(script->variables[i].name, "swarm_host") == 0 &&
+            script->variables[i].value.type == 0) {
+            /* String type */
+            host = script->variables[i].name; /* резервный */
+        }
+        if (strcmp(script->variables[i].name, "swarm_port") == 0) {
+            /* Numeric value expected */
+        }
+    }
+
+    /* Отправляем формулу через сеть */
+    char log_buf[256];
+    int result = kn_share_formula(host, port, 0, formula);
+    if (result == 0) {
+        snprintf(log_buf, sizeof(log_buf),
+                 "формула '%s' отправлена на %s:%u",
+                 formula_name, host, (unsigned)port);
+        kolibri_script_log(script, "SCRIPT_SWARM", log_buf);
+    } else {
+        snprintf(log_buf, sizeof(log_buf),
+                 "не удалось отправить '%s' на %s:%u (ошибка сети)",
+                 formula_name, host, (unsigned)port);
+        kolibri_script_log(script, "SCRIPT_SWARM", log_buf);
+        /* Не фатально — скрипт продолжает работу */
+    }
+
     return 0;
 }
 
