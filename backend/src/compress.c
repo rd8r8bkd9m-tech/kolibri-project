@@ -2221,7 +2221,7 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
             uint32_t hh_ = lz_hash4(input + (pos_));                        \
             int32_t cc_ = head[hh_];                                         \
             int ch_ = 0;                                                     \
-            while (cc_ >= 0 && ch_ < LZ_MAX_CHAIN) {                        \
+            while (cc_ >= 0 && ch_ < 256) {  /* v60: near-optimal chain/2 */ \
                 size_t ca_ = (size_t)cc_;                                    \
                 if ((pos_) > ca_ && ((pos_) - ca_) <= LZ_WSIZE) {           \
                     const uint8_t *aa_ = input + (pos_);                     \
@@ -2324,6 +2324,7 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
                 cur = prev[candidate & LZ_WMASK];
                 if (cur >= (int32_t)ip) break;
                 chain++;
+                if (best_len >= 32 && chain >= 64) break; /* v60: adaptive chain */
             }
 
             /* Обновляем хеш-цепочку */
@@ -2452,8 +2453,9 @@ static size_t lz_lite_encode(const uint8_t *input, size_t input_size,
             }
             /* best_rep == 0: rep[0] уже актуален, ничего не меняем */
 
-            /* Обновляем хеш для пропущенных позиций */
+            /* v60: sparse hash update — для длинных матчей обновляем каждую 4-ю */
             for (int k = 1; k < best_len && (ip + k) < limit; k++) {
+                if (k > 32 && (k & 3)) continue;
                 uint32_t hk = lz_hash4(input + ip + k);
                 prev[(ip + k) & LZ_WMASK] = head[hk];
                 head[hk] = (int32_t)(ip + k);
@@ -2725,8 +2727,8 @@ typedef struct {
     uint16_t *tword;     /* word boundary */
     uint16_t *tsparse;   /* sparse context */
     uint16_t *trun;      /* v55: run-length context */
-    /* адаптивные веса (13 предикторов) */
-    int32_t w[KF_NUM_PREDS];
+    /* v60: per-bit weights (8 позиций × 13 предикторов) */
+    int32_t w[8][KF_NUM_PREDS];
     int32_t wsum;
 } KF51M;
 
@@ -2752,12 +2754,14 @@ static int kf51_init(KF51M *m) {
     m->tword = kf51_new(TWORD_SIZE);
     m->tsparse = kf51_new(TSPARSE_SIZE);
     m->trun = kf51_new(TRUN_SIZE);
-    /* начальные веса (13 предикторов) */
-    m->w[0] =  4;  m->w[1] =  4;  m->w[2] =  8;  m->w[3] = 16;
-    m->w[4] = 32;  m->w[5] = 48;  m->w[6] = 72;  m->w[7] = 112;
-    m->w[8] = 128; /* O8 */
-    m->w[9] = 32;  m->w[10] = 12;  m->w[11] = 12;
-    m->w[12] = 16; /* run */
+    /* v60: per-bit weights — отдельные веса для каждой битовой позиции */
+    for (int bp = 0; bp < 8; bp++) {
+        m->w[bp][0]  =  4;  m->w[bp][1]  =  4;  m->w[bp][2]  =  8;
+        m->w[bp][3]  = 16;  m->w[bp][4]  = 32;  m->w[bp][5]  = 48;
+        m->w[bp][6]  = 72;  m->w[bp][7]  = 112; m->w[bp][8]  = 128;
+        m->w[bp][9]  = 32;  m->w[bp][10] = 12;  m->w[bp][11] = 12;
+        m->w[bp][12] = 16;
+    }
     m->wsum = 0;
     return (m->t0 && m->t1 && m->t2 && m->t3 &&
             m->t4 && m->t5 && m->t6 && m->t7 && m->t8 &&
@@ -2853,8 +2857,9 @@ do {                                                                        \
         s[9]=kf_stretch(pst); s[10]=kf_stretch(pw);  s[11]=kf_stretch(psp);\
         s[12]=kf_stretch(prun);                                              \
         int32_t logit_mix = 0;                                               \
+        const int bp_ = 7 - b;  /* v60: per-bit weight index */              \
         for (int wi = 0; wi < KF_NUM_PREDS; wi++)                           \
-            logit_mix += (int32_t)mm->w[wi] * (int32_t)s[wi];               \
+            logit_mix += (int32_t)mm->w[bp_][wi] * (int32_t)s[wi];          \
         logit_mix >>= 8;                                                     \
         uint32_t mx = kf_squash(logit_mix);                                  \
                                                                             \
@@ -2906,9 +2911,9 @@ do {                                                                        \
             int32_t err = (bit ? 4096 : 0) - (int32_t)mx;                   \
             for (int wi = 0; wi < KF_NUM_PREDS; wi++) {                     \
                 int32_t delta = (err * (int32_t)s[wi]) >> 15;               \
-                mm->w[wi] += delta;                                          \
-                if (mm->w[wi] < -8192) mm->w[wi] = -8192;                   \
-                if (mm->w[wi] > 8192) mm->w[wi] = 8192;                    \
+                mm->w[bp_][wi] += delta;                 /* v60: per-bit */  \
+                if (mm->w[bp_][wi] < -8192) mm->w[bp_][wi] = -8192;         \
+                if (mm->w[bp_][wi] > 8192) mm->w[bp_][wi] = 8192;          \
             }                                                                \
         }                                                                    \
                                                                             \
@@ -2934,7 +2939,7 @@ do {                                                                        \
     case 9: lz_state = 0; break; /* dist[7:0] → normal */                  \
     default: lz_state = 0; break;                                            \
     }                                                                        \
-    for (int k = 7; k > 0; k--) hist[k] = hist[k-1];                        \
+    memmove(hist + 1, hist, 7);  /* v60: быстрый сдвиг истории */             \
     hist[0] = byte;                                                          \
 } while(0)
 
