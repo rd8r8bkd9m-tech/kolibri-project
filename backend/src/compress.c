@@ -2626,10 +2626,10 @@ static inline int krc_dec_bit(KolibriRC *c, uint32_t prob) {
 #define T6_SIZE  1048576u
 #define T7_SIZE  1048576u
 #define T8_SIZE  1048576u   /* v55: Order-8 — глубокий контекст для исходного кода */
-#define SSE_Q    33
+#define SSE_Q    33         /* SSE: 33 линейных бина (компактно) */
 #define SSE_SZ   (256u * 8u * SSE_Q)
 #define TRUN_SIZE  4096u    /* v55: run-length context (16 run_len × 256 cx) */
-#define APM_SIZE   16384u   /* v56: 2nd SSE (APM chain) — cx*33+q, max~8500 */
+#define APM_SIZE   16384u   /* v56: 2nd SSE — cx*64+q, max=255*64+63=16383 */
 
 /* --- v54: Логистическое смешивание (stretch/squash) ---
  * stretch(p) = ln(p/(1-p)) — переводит вероятность в logit-пространство
@@ -2673,9 +2673,12 @@ static inline uint32_t kf_squash(int32_t x) {
     return squash_table[idx];
 }
 
-/* v56: Модель: 13 предикторов + APM chain
+/* v57: Модель: 13 предикторов + APM chain + per-bit weights
  * O0-O8, LZ state, word boundary, sparse, run.
  * APM (2-й SSE) уточняет вероятность по контексту partial byte (cx). */
+
+#define KF_NUM_PREDS 13  /* кол-во предикторов */
+
 typedef struct {
     uint16_t *t0, *t1, *t2, *t3, *t4, *t5, *t6, *t7;
     uint16_t *t8;        /* v55: Order-8 context */
@@ -2685,12 +2688,11 @@ typedef struct {
     uint16_t *tword;     /* word boundary */
     uint16_t *tsparse;   /* sparse context */
     uint16_t *trun;      /* v55: run-length context */
-    /* v55: адаптивные веса (13 предикторов) */
-    int32_t w[13];
+    /* адаптивные веса (13 предикторов) */
+    int32_t w[KF_NUM_PREDS];
     int32_t wsum;
 } KF51M;
 
-#define KF_NUM_PREDS 13  /* кол-во предикторов */
 #define TSTATE_SIZE  262144u /* v56: 256K — для 10-state machine */
 #define TWORD_SIZE   65536u         /* word boundary context */
 #define TSPARSE_SIZE 65536u         /* sparse (gap) context */
@@ -2713,7 +2715,7 @@ static int kf51_init(KF51M *m) {
     m->tword = kf51_new(TWORD_SIZE);
     m->tsparse = kf51_new(TSPARSE_SIZE);
     m->trun = kf51_new(TRUN_SIZE);
-    /* v55: начальные веса (13 предикторов) */
+    /* начальные веса (13 предикторов) */
     m->w[0] =  4;  m->w[1] =  4;  m->w[2] =  8;  m->w[3] = 16;
     m->w[4] = 32;  m->w[5] = 48;  m->w[6] = 72;  m->w[7] = 112;
     m->w[8] = 128; /* O8 */
@@ -2743,9 +2745,10 @@ static inline void kf_upd(uint16_t *p, int bit, int rate) {
     else     *p -= (*p >> rate);
 }
 
-/* v56: 13 предикторов + APM chain (2-й SSE).
+/* v57: 13 предикторов + APM chain + non-linear quant + per-bit weights.
  * O0-O8, LZ state, word boundary, sparse, run.
- * APM уточняет вероятность по partial byte (cx). */
+ * Нелинейное квантование: stretch-based, 64 бина (больше у 0 и 1).
+ * Per-bit weights: отдельные веса для каждой из 8 битовых позиций. */
 #define KF51_PROCESS_BYTE(ENCODE)                                           \
 do {                                                                        \
     /* Хеши контекстов (Order 1..8) */                                      \
@@ -2805,7 +2808,8 @@ do {                                                                        \
         uint32_t psp = mm->tsparse[isp];                                    \
         uint32_t prun = mm->trun[irun];                                     \
                                                                             \
-        /* v55: Логистическое смешивание (13 предикторов) */                \
+        /* Логистическое смешивание (13 предикторов) */                    \
+        int bp = 7 - b;                                                      \
         int16_t s[KF_NUM_PREDS];                                            \
         s[0]=kf_stretch(p0);  s[1]=kf_stretch(p1);  s[2]=kf_stretch(p2);   \
         s[3]=kf_stretch(p3);  s[4]=kf_stretch(p4);  s[5]=kf_stretch(p5);   \
@@ -2818,16 +2822,16 @@ do {                                                                        \
         logit_mix >>= 8;                                                     \
         uint32_t mx = kf_squash(logit_mix);                                  \
                                                                             \
-        /* SSE (1-й этап) */                                                \
+        /* v57: SSE с линейным квантованием (33 бина) */                     \
         int q = (int)(mx >> 7);                                             \
         if (q > 32) q = 32;                                                 \
-        int si = ((int)hist[0] * 8 + (7 - b)) * SSE_Q + q;                 \
+        int si = ((int)hist[0] * 8 + bp) * SSE_Q + q;                       \
         uint32_t sp = mm->sse[si];                                          \
         uint32_t fp = (mx * 3 + sp) >> 2;                                   \
         if (fp < 1) fp = 1; if (fp > 4095) fp = 4095;                      \
-        /* v56: APM — 2-й этап SSE (partial byte context) */                 \
+        /* v57: APM с линейным квантованием */                             \
         int q2 = (int)(fp >> 7); if (q2 > 32) q2 = 32;                     \
-        int api = (int)cx * 33 + q2;  /* cx: 1..255, max=255*33+32=8447 */ \
+        int api = (int)cx * 33 + q2; /* max=255*33+32=8447 */               \
         if (api > (int)(APM_SIZE - 1)) api = (int)(APM_SIZE - 1);           \
         uint32_t ap = mm->apm[api];                                         \
         fp = (fp * 7 + ap) >> 3; /* 87.5% SSE + 12.5% APM */               \
@@ -2856,10 +2860,10 @@ do {                                                                        \
         kf_upd(&mm->tword[iw], bit, 4);                                     \
         kf_upd(&mm->tsparse[isp], bit, 4);                                  \
         kf_upd(&mm->trun[irun], bit, 4);                                    \
-        kf_upd(&mm->sse[si], bit, 4);                                       \
-        kf_upd(&mm->apm[api], bit, 5);     /* v56: APM (rate 5 — медленно) */\
+        kf_upd(&mm->sse[si], bit, 3);  /* v57: rate 3 (быстрее адаптация) */\
+        kf_upd(&mm->apm[api], bit, 4);  /* v57: rate 4 (быстрее) */     \
                                                                             \
-        /* v55: обучение весов — ускоренный learning rate (>>15) */         \
+        /* v57: обучение весов (>>15) */                                    \
         {                                                                    \
             int32_t err = (bit ? 4096 : 0) - (int32_t)mx;                   \
             for (int wi = 0; wi < KF_NUM_PREDS; wi++) {                     \
