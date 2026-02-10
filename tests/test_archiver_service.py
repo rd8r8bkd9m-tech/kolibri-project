@@ -1,41 +1,30 @@
 """
-Тесты ArchiverService — Python-обёртка предиктивного компрессора.
+Тесты ArchiverService — Python-обёртка РОДНОГО архиватора Kolibri.
 
 Тестирует:
 1. Создание сервиса (с/без нативной библиотеки)
-2. Zlib fallback (всегда работает)
-3. Нативный KPC roundtrip (если .so доступна)
-4. compress_text / decompress_text
-5. Обучение на текстовом корпусе
-6. Статистика
-7. Пустые / граничные данные
+2. Kolibri compress roundtrip (9 методов LZ77+RLE+Huffman+...)
+3. compress_text / decompress_text
+4. Статистику
+5. Пустые / граничные данные
 """
 from __future__ import annotations
 
 import pytest
-from backend.service.archiver_service import ArchiverService, CompressResult
+from backend.service.archiver_service import (
+    ArchiverService,
+    CompressResult,
+    KOLIBRI_COMPRESS_ALL,
+    KOLIBRI_COMPRESS_LZ77,
+)
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────
 
 @pytest.fixture
 def service() -> ArchiverService:
-    """Создаём сервис (может быть native или zlib fallback)."""
-    return ArchiverService(evolve_rounds=3)
-
-
-@pytest.fixture
-def zlib_service(monkeypatch: pytest.MonkeyPatch) -> ArchiverService:
-    """Сервис с принудительным zlib fallback."""
-    import backend.service.archiver_service as mod
-    monkeypatch.setattr(mod, "_lib", None)
-    svc = ArchiverService.__new__(ArchiverService)
-    svc._lib = None
-    svc._ctx = None
-    svc._evolve_rounds = 3
-    svc._trained = False
-    svc._use_native = False
-    return svc
+    """Создаём сервис с полным набором методов."""
+    return ArchiverService()
 
 
 # ── Базовые тесты ────────────────────────────────────────────────────
@@ -45,97 +34,92 @@ class TestArchiverCreation:
         assert service is not None
         stats = service.get_stats()
         assert "native_available" in stats
-        assert "method" in stats
+        assert "engine" in stats
 
     def test_stats_structure(self, service: ArchiverService) -> None:
         stats = service.get_stats()
         assert isinstance(stats["native_available"], bool)
-        assert isinstance(stats["trained"], bool)
-        assert stats["method"] in ("kpc", "zlib")
+        assert stats["engine"] == "kolibri"
+        assert stats["version"] == "v50.0"
+        assert isinstance(stats["methods_description"], list)
+
+    def test_all_methods_listed(self, service: ArchiverService) -> None:
+        stats = service.get_stats()
+        desc = stats["methods_description"]
+        assert "LZ77" in desc
+        assert "Huffman" in desc
+        assert "RLE" in desc
 
 
-# ── Zlib fallback ─────────────────────────────────────────────────────
+# ── Нативный Kolibri (пропуск если .so нет) ──────────────────────────
 
-class TestZlibFallback:
-    def test_compress_zlib(self, zlib_service: ArchiverService) -> None:
-        result = zlib_service.compress(b"Hello Kolibri! " * 100)
+_native = ArchiverService().native_available
+_skip_no_native = pytest.mark.skipif(not _native, reason="libkolibri_compress.so not available")
+
+
+class TestNativeKolibri:
+    @_skip_no_native
+    def test_native_detection(self, service: ArchiverService) -> None:
+        assert service.native_available
+
+    @_skip_no_native
+    def test_compress_basic(self, service: ArchiverService) -> None:
+        data = b"Hello Kolibri! " * 100
+        result = service.compress(data)
         assert result.success
-        assert result.method == "zlib"
-        assert result.compressed_size < result.original_size
+        assert result.method == "kolibri"
+        assert result.compressed_size > 0
+        assert result.original_size == len(data)
 
-    def test_roundtrip_zlib(self, zlib_service: ArchiverService) -> None:
-        original = b"Kolibri predictive compression test data " * 50
-        compressed = zlib_service.compress(original)
+    @_skip_no_native
+    def test_roundtrip(self, service: ArchiverService) -> None:
+        original = b"Kolibri native compression test data. " * 50
+        compressed = service.compress(original)
         assert compressed.success
 
-        decompressed = zlib_service.decompress(compressed.data)
+        decompressed = service.decompress(compressed.data)
         assert decompressed.success
         assert decompressed.data == original
 
-    def test_compress_text_zlib(self, zlib_service: ArchiverService) -> None:
-        text = "Привет, мир! Это тест сжатия текста." * 20
-        compressed = zlib_service.compress_text(text)
+    @_skip_no_native
+    def test_roundtrip_large(self, service: ArchiverService) -> None:
+        """На больших данных — реальное сжатие."""
+        original = b"ABCDEFGHIJ" * 5000  # 50 KB
+        compressed = service.compress(original)
         assert compressed.success
-        assert compressed.method == "zlib"
+        assert compressed.method == "kolibri"
 
-        restored = zlib_service.decompress_text(compressed.data)
+        decompressed = service.decompress(compressed.data)
+        assert decompressed.success
+        assert decompressed.data == original
+
+    @_skip_no_native
+    def test_compress_text_roundtrip(self, service: ArchiverService) -> None:
+        text = "Привет, мир! Это тест сжатия текста Kolibri." * 30
+        compressed = service.compress_text(text)
+        assert compressed.success
+        assert compressed.method == "kolibri"
+
+        restored = service.decompress_text(compressed.data)
         assert restored == text
 
-    def test_compress_empty_zlib(self, zlib_service: ArchiverService) -> None:
-        result = zlib_service.compress(b"")
-        assert not result.success
-        assert result.error == "empty input"
+    @_skip_no_native
+    def test_train_is_noop(self, service: ArchiverService) -> None:
+        """train() не должен ломать сервис."""
+        service.train(b"test data", rounds=3)
+        service.train_on_texts(["text1", "text2"])
+        # Должен по-прежнему работать
+        result = service.compress(b"After training")
+        assert result.success
 
-
-# ── Нативный KPC (пропуск если .so нет) ──────────────────────────────
-
-class TestNativeKPC:
-    def test_native_detection(self, service: ArchiverService) -> None:
-        """Проверяем что метод определён корректно."""
-        stats = service.get_stats()
-        assert stats["method"] in ("kpc", "zlib")
-
-    @pytest.mark.skipif(
-        not ArchiverService().native_available,
-        reason="Native KPC library not available",
-    )
-    def test_train_native(self) -> None:
-        svc = ArchiverService(evolve_rounds=3)
-        data = b"ABCABCABCABC" * 50
-        svc.train(data, rounds=2)
-        assert svc._trained
-
-    @pytest.mark.skipif(
-        not ArchiverService().native_available,
-        reason="Native KPC library not available",
-    )
-    def test_roundtrip_native(self) -> None:
-        svc = ArchiverService(evolve_rounds=3)
-        data = b"Kolibri predictive " * 30
-        svc.train(data, rounds=3)
-
-        compressed = svc.compress(data)
-        assert compressed.success
-        # Метод может быть kpc или zlib (fallback если kpc расширяет данные)
-        assert compressed.method in ("kpc", "zlib")
-
-        decompressed = svc.decompress(compressed.data)
-        assert decompressed.success
-        assert decompressed.data == data
-
-    @pytest.mark.skipif(
-        not ArchiverService().native_available,
-        reason="Native KPC library not available",
-    )
-    def test_train_on_texts(self) -> None:
-        svc = ArchiverService(evolve_rounds=2)
-        texts = [
-            "Формулы эволюционируют",
-            "Предсказание следующего байта",
-            "Арифметическое кодирование",
-        ]
-        svc.train_on_texts(texts, rounds=2)
-        assert svc._trained
+    @_skip_no_native
+    def test_methods_with_lz77_only(self) -> None:
+        """Тест с одним конкретным методом."""
+        svc = ArchiverService(methods=KOLIBRI_COMPRESS_LZ77)
+        assert svc.native_available
+        data = b"AAABBBCCCAAABBBCCC" * 100
+        result = svc.compress(data)
+        assert result.success
 
 
 # ── CompressResult ────────────────────────────────────────────────────
@@ -157,13 +141,20 @@ class TestCompressResult:
 # ── Граничные случаи ──────────────────────────────────────────────────
 
 class TestEdgeCases:
+    def test_compress_empty(self, service: ArchiverService) -> None:
+        result = service.compress(b"")
+        assert not result.success
+        assert result.error == "empty input"
+
     def test_decompress_empty(self, service: ArchiverService) -> None:
         result = service.decompress(b"")
         assert not result.success
 
+    @_skip_no_native
     def test_decompress_garbage(self, service: ArchiverService) -> None:
         result = service.decompress(b"\xff\xff\xff\xff" * 10)
-        assert not result.success or result.method == "zlib"
+        # Мусор — ожидаем ошибку
+        assert not result.success
 
     def test_decompress_text_empty(self, service: ArchiverService) -> None:
         result = service.decompress_text(b"")

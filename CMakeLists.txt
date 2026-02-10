@@ -175,6 +175,16 @@ set_target_properties(kolibri_kpc PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 )
 
+# --- FFI библиотека основного архиватора для Python ctypes ---
+add_library(kolibri_compress_ffi SHARED $<TARGET_OBJECTS:kolibri_core_objects>)
+target_include_directories(kolibri_compress_ffi PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/backend/include)
+target_link_libraries(kolibri_compress_ffi PRIVATE ${KOLIBRI_OPENSSL_TARGET} SQLite::SQLite3 m)
+set_target_properties(kolibri_compress_ffi PROPERTIES
+    OUTPUT_NAME "kolibri_compress"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+)
+
 # --- Huffman + tANS энтропийное кодирование ---
 add_library(kolibri_huffman_ans SHARED backend/src/huffman_ans.c)
 target_include_directories(kolibri_huffman_ans PRIVATE

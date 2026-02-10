@@ -1,50 +1,78 @@
 """
-archiver_service.py — Python-обёртка предиктивного компрессора Kolibri (KPC)
+archiver_service.py — Python-обёртка РОДНОГО архиватора Kolibri
 
 Обеспечивает:
-1. ctypes-биндинг к libkolibri_kpc.so (MLP-предсказатель + арифм. кодирование)
-2. Fallback на чистый Python (zlib) если .so недоступна
+1. ctypes-биндинг к libkolibri_compress.so (LZ77+RLE+Huffman+Formula — 9 методов)
+2. Тот же движок что в CLI-утилите kolibri_archiver
 3. FastAPI-роутер /api/archiver/* для REST-доступа
-4. Высокоуровневый API: compress_text(), decompress_text(), train_on_corpus()
+4. Высокоуровневый API: compress_text(), decompress_text()
+
+НЕ использует сторонние библиотеки (без zlib, без gzip).
+Вся компрессия — собственная реализация Kolibri.
 """
 from __future__ import annotations
 
 import ctypes
-import os
-import struct
-import zlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
 # ──────────────────────────────────────────────────────────────────────
-#  ctypes-биндинг к libkolibri_kpc.so
+#  Константы методов сжатия Kolibri (из compress.h)
+# ──────────────────────────────────────────────────────────────────────
+KOLIBRI_COMPRESS_LZ77     = 0x01
+KOLIBRI_COMPRESS_RLE      = 0x02
+KOLIBRI_COMPRESS_HUFFMAN  = 0x04
+KOLIBRI_COMPRESS_FORMULA  = 0x08
+KOLIBRI_COMPRESS_MATH     = 0x10
+KOLIBRI_COMPRESS_LZMA     = 0x20
+KOLIBRI_COMPRESS_ZSTD     = 0x40
+KOLIBRI_COMPRESS_ADAPTIVE = 0x80
+KOLIBRI_COMPRESS_TOKEN    = 0x100
+KOLIBRI_COMPRESS_ALL      = 0x1FF
+
+
+# ──────────────────────────────────────────────────────────────────────
+#  ctypes-биндинг к libkolibri_compress.so
 # ──────────────────────────────────────────────────────────────────────
 
 _lib: Optional[ctypes.CDLL] = None
 _LIB_NAMES = [
-    "build/libkolibri_kpc.so",
-    "libkolibri_kpc.so",
-    "../build/libkolibri_kpc.so",
+    "build/libkolibri_compress.so",
+    "libkolibri_compress.so",
+    "../build/libkolibri_compress.so",
 ]
+
+
+class KolibriCompressStats(ctypes.Structure):
+    """Зеркало C-структуры KolibriCompressStats."""
+    _fields_ = [
+        ("original_size", ctypes.c_size_t),
+        ("compressed_size", ctypes.c_size_t),
+        ("compression_ratio", ctypes.c_double),
+        ("checksum", ctypes.c_uint32),
+        ("file_type", ctypes.c_int),
+        ("methods_used", ctypes.c_uint32),
+        ("compression_time_ms", ctypes.c_double),
+        ("decompression_time_ms", ctypes.c_double),
+    ]
 
 
 def _find_lib() -> Optional[ctypes.CDLL]:
     """Ищем shared library в стандартных путях."""
-    root = Path(__file__).resolve().parent.parent.parent  # project root
+    root = Path(__file__).resolve().parent.parent.parent
     for name in _LIB_NAMES:
         path = root / name
         if path.exists():
             try:
-                lib = ctypes.CDLL(str(path))
-                return lib
+                return ctypes.CDLL(str(path))
             except OSError:
                 continue
     return None
 
 
 def _init_lib() -> Optional[ctypes.CDLL]:
-    """Инициализация ctypes сигнатур."""
+    """Инициализация ctypes сигнатур для kolibri_compress API."""
     global _lib
     if _lib is not None:
         return _lib
@@ -53,40 +81,33 @@ def _init_lib() -> Optional[ctypes.CDLL]:
     if lib is None:
         return None
 
-    # kpc_create() -> KPCContext*
-    lib.kpc_create.restype = ctypes.c_void_p
-    lib.kpc_create.argtypes = []
+    # kolibri_compressor_create(methods) -> KolibriCompressor*
+    lib.kolibri_compressor_create.restype = ctypes.c_void_p
+    lib.kolibri_compressor_create.argtypes = [ctypes.c_uint32]
 
-    # kpc_destroy(ctx)
-    lib.kpc_destroy.restype = None
-    lib.kpc_destroy.argtypes = [ctypes.c_void_p]
+    # kolibri_compressor_destroy(comp)
+    lib.kolibri_compressor_destroy.restype = None
+    lib.kolibri_compressor_destroy.argtypes = [ctypes.c_void_p]
 
-    # kpc_train(ctx, data, size, rounds)
-    lib.kpc_train.restype = None
-    lib.kpc_train.argtypes = [
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_uint8),
-        ctypes.c_size_t,
-        ctypes.c_int,
-    ]
-
-    # kpc_compress(ctx, input, input_size, &output, &output_size) -> int
-    lib.kpc_compress.restype = ctypes.c_int
-    lib.kpc_compress.argtypes = [
+    # kolibri_compress(comp, input, input_size, &output, &output_size, &stats) -> int
+    lib.kolibri_compress.restype = ctypes.c_int
+    lib.kolibri_compress.argtypes = [
         ctypes.c_void_p,
         ctypes.POINTER(ctypes.c_uint8),
         ctypes.c_size_t,
         ctypes.POINTER(ctypes.POINTER(ctypes.c_uint8)),
         ctypes.POINTER(ctypes.c_size_t),
+        ctypes.POINTER(KolibriCompressStats),
     ]
 
-    # kpc_decompress(input, input_size, &output, &output_size) -> int
-    lib.kpc_decompress.restype = ctypes.c_int
-    lib.kpc_decompress.argtypes = [
+    # kolibri_decompress(input, input_size, &output, &output_size, &stats) -> int
+    lib.kolibri_decompress.restype = ctypes.c_int
+    lib.kolibri_decompress.argtypes = [
         ctypes.POINTER(ctypes.c_uint8),
         ctypes.c_size_t,
         ctypes.POINTER(ctypes.POINTER(ctypes.c_uint8)),
         ctypes.POINTER(ctypes.c_size_t),
+        ctypes.POINTER(KolibriCompressStats),
     ]
 
     _lib = lib
@@ -104,9 +125,11 @@ class CompressResult:
     compressed_size: int = 0
     ratio: float = 0.0
     data: bytes = b""
-    method: str = "none"  # "kpc" | "zlib" | "none"
+    method: str = "none"
     success: bool = False
     error: str = ""
+    methods_used: int = 0
+    compression_time_ms: float = 0.0
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -116,18 +139,21 @@ class CompressResult:
 class ArchiverService:
     """Высокоуровневый сервис сжатия Kolibri.
 
-    Использует нативный KPC (ctypes) если доступен, иначе fallback на zlib.
+    Использует родной движок Kolibri (LZ77+RLE+Huffman+Formula+LZMA+ZSTD и др.).
+    Тот же движок что в CLI-утилите kolibri_archiver.
+    НЕ использует сторонних библиотек.
     """
 
-    def __init__(self, evolve_rounds: int = 5) -> None:
+    def __init__(self, methods: int = KOLIBRI_COMPRESS_ALL) -> None:
         self._lib = _init_lib()
-        self._ctx: Optional[int] = None  # KPCContext pointer (as int)
-        self._evolve_rounds = evolve_rounds
-        self._trained = False
+        self._ctx: Optional[int] = None
+        self._methods = methods
         self._use_native = self._lib is not None
 
         if self._use_native:
-            ptr = self._lib.kpc_create()  # type: ignore[union-attr]
+            ptr = self._lib.kolibri_compressor_create(  # type: ignore[union-attr]
+                ctypes.c_uint32(methods)
+            )
             if ptr:
                 self._ctx = ptr
             else:
@@ -135,77 +161,45 @@ class ArchiverService:
 
     def __del__(self) -> None:
         if self._ctx and self._lib:
-            self._lib.kpc_destroy(ctypes.c_void_p(self._ctx))
+            self._lib.kolibri_compressor_destroy(ctypes.c_void_p(self._ctx))
             self._ctx = None
 
     @property
     def native_available(self) -> bool:
-        """True если нативная KPC библиотека загружена."""
+        """True если нативная библиотека Kolibri загружена."""
         return self._use_native
-
-    # ── Обучение ──────────────────────────────────────────────────────
-
-    def train(self, data: bytes, rounds: int = 0) -> None:
-        """Адаптировать модель к данным."""
-        if rounds <= 0:
-            rounds = self._evolve_rounds
-
-        if self._use_native and self._ctx:
-            buf = (ctypes.c_uint8 * len(data))(*data)
-            self._lib.kpc_train(  # type: ignore[union-attr]
-                ctypes.c_void_p(self._ctx),
-                buf,
-                ctypes.c_size_t(len(data)),
-                ctypes.c_int(rounds),
-            )
-            self._trained = True
-        # Для zlib fallback обучение не нужно
-
-    def train_on_texts(self, texts: list[str], rounds: int = 0) -> None:
-        """Обучить на массиве текстов (конкатенация в bytes)."""
-        combined = "\n".join(texts).encode("utf-8")
-        self.train(combined, rounds)
 
     # ── Сжатие ────────────────────────────────────────────────────────
 
     def compress(self, data: bytes) -> CompressResult:
-        """Сжать произвольные байты.
-
-        Если KPC расширяет данные — автоматически переключаемся на zlib.
-        """
+        """Сжать произвольные байты через Kolibri."""
         if not data:
             return CompressResult(error="empty input")
 
-        if self._use_native and self._ctx:
-            result = self._compress_native(data)
-            # Если KPC расширил данные — fallback на zlib
-            if result.success and result.compressed_size > len(data):
-                return self._compress_zlib(data)
-            return result
-        return self._compress_zlib(data)
+        if not self._use_native or not self._ctx:
+            return CompressResult(
+                original_size=len(data),
+                error="Kolibri native library not available",
+            )
 
-    def compress_text(self, text: str) -> CompressResult:
-        """Сжать текст (UTF-8 → bytes → compress)."""
-        return self.compress(text.encode("utf-8"))
-
-    def _compress_native(self, data: bytes) -> CompressResult:
-        """Сжатие через нативную KPC библиотеку."""
         inp = (ctypes.c_uint8 * len(data))(*data)
         out_ptr = ctypes.POINTER(ctypes.c_uint8)()
         out_size = ctypes.c_size_t(0)
+        stats = KolibriCompressStats()
 
-        rc = self._lib.kpc_compress(  # type: ignore[union-attr]
+        rc = self._lib.kolibri_compress(  # type: ignore[union-attr]
             ctypes.c_void_p(self._ctx),
             inp,
             ctypes.c_size_t(len(data)),
             ctypes.byref(out_ptr),
             ctypes.byref(out_size),
+            ctypes.byref(stats),
         )
 
         if rc != 0:
             return CompressResult(
                 original_size=len(data),
-                error=f"kpc_compress returned {rc}",
+                error=f"kolibri_compress returned {rc}",
             )
 
         sz = out_size.value
@@ -220,69 +214,46 @@ class ArchiverService:
             compressed_size=sz,
             ratio=len(data) / sz if sz > 0 else 0.0,
             data=result_bytes,
-            method="kpc",
+            method="kolibri",
             success=True,
+            methods_used=stats.methods_used,
+            compression_time_ms=stats.compression_time_ms,
         )
 
-    def _compress_zlib(self, data: bytes) -> CompressResult:
-        """Fallback: сжатие через zlib."""
-        compressed = zlib.compress(data, level=9)
-        # Добавляем 4-байт заголовок с оригинальным размером
-        header = struct.pack("<I", len(data))
-        result = header + compressed
-
-        return CompressResult(
-            original_size=len(data),
-            compressed_size=len(result),
-            ratio=len(data) / len(result) if len(result) > 0 else 0.0,
-            data=result,
-            method="zlib",
-            success=True,
-        )
+    def compress_text(self, text: str) -> CompressResult:
+        """Сжать текст (UTF-8 -> bytes -> compress)."""
+        return self.compress(text.encode("utf-8"))
 
     # ── Распаковка ────────────────────────────────────────────────────
 
     def decompress(self, data: bytes) -> CompressResult:
-        """Распаковать данные (авто-определение формата)."""
+        """Распаковать данные через Kolibri."""
         if not data:
             return CompressResult(error="empty input")
 
-        # Проверяем KPC magic (0x4B504300 = "KPC\0")
-        if len(data) >= 4:
-            magic = struct.unpack("<I", data[:4])[0]
-            if magic == 0x4B504300:
-                return self._decompress_native(data)
-
-        # Иначе — zlib формат
-        return self._decompress_zlib(data)
-
-    def decompress_text(self, data: bytes) -> str:
-        """Распаковать и вернуть текст."""
-        result = self.decompress(data)
-        if result.success:
-            return result.data.decode("utf-8", errors="replace")
-        return ""
-
-    def _decompress_native(self, data: bytes) -> CompressResult:
-        """Распаковка через нативную KPC библиотеку."""
-        if not self._lib:
-            return CompressResult(error="native library not available")
+        if not self._use_native or not self._lib:
+            return CompressResult(
+                compressed_size=len(data),
+                error="Kolibri native library not available",
+            )
 
         inp = (ctypes.c_uint8 * len(data))(*data)
         out_ptr = ctypes.POINTER(ctypes.c_uint8)()
         out_size = ctypes.c_size_t(0)
+        stats = KolibriCompressStats()
 
-        rc = self._lib.kpc_decompress(
+        rc = self._lib.kolibri_decompress(
             inp,
             ctypes.c_size_t(len(data)),
             ctypes.byref(out_ptr),
             ctypes.byref(out_size),
+            ctypes.byref(stats),
         )
 
         if rc != 0:
             return CompressResult(
                 compressed_size=len(data),
-                error=f"kpc_decompress returned {rc}",
+                error=f"kolibri_decompress returned {rc}",
             )
 
         sz = out_size.value
@@ -294,31 +265,28 @@ class ArchiverService:
         return CompressResult(
             original_size=sz,
             compressed_size=len(data),
-            ratio=len(data) / sz if sz > 0 else 0.0,
+            ratio=sz / len(data) if len(data) > 0 else 0.0,
             data=result_bytes,
-            method="kpc",
+            method="kolibri",
             success=True,
         )
 
-    def _decompress_zlib(self, data: bytes) -> CompressResult:
-        """Fallback: распаковка через zlib."""
-        if len(data) < 4:
-            return CompressResult(error="data too short for zlib format")
+    def decompress_text(self, data: bytes) -> str:
+        """Распаковать и вернуть текст."""
+        result = self.decompress(data)
+        if result.success:
+            return result.data.decode("utf-8", errors="replace")
+        return ""
 
-        original_size = struct.unpack("<I", data[:4])[0]
-        try:
-            decompressed = zlib.decompress(data[4:])
-        except zlib.error as e:
-            return CompressResult(error=f"zlib error: {e}")
+    # ── Совместимость (train не нужен для основного движка) ───────────
 
-        return CompressResult(
-            original_size=len(decompressed),
-            compressed_size=len(data),
-            ratio=len(data) / len(decompressed) if len(decompressed) > 0 else 0.0,
-            data=decompressed,
-            method="zlib",
-            success=True,
-        )
+    def train(self, data: bytes, rounds: int = 0) -> None:
+        """Kolibri автоматически адаптируется — train не нужен."""
+        pass
+
+    def train_on_texts(self, texts: list[str], rounds: int = 0) -> None:
+        """Kolibri автоматически адаптируется — train не нужен."""
+        pass
 
     # ── Статистика ────────────────────────────────────────────────────
 
@@ -326,10 +294,30 @@ class ArchiverService:
         """Информация о состоянии сервиса."""
         return {
             "native_available": self._use_native,
-            "trained": self._trained,
-            "method": "kpc" if self._use_native else "zlib",
-            "evolve_rounds": self._evolve_rounds,
+            "engine": "kolibri",
+            "version": "v50.0",
+            "methods": self._methods,
+            "methods_description": self._describe_methods(),
         }
+
+    def _describe_methods(self) -> list[str]:
+        """Человекочитаемое описание включённых методов."""
+        names: list[str] = []
+        method_map = {
+            KOLIBRI_COMPRESS_LZ77: "LZ77",
+            KOLIBRI_COMPRESS_RLE: "RLE",
+            KOLIBRI_COMPRESS_HUFFMAN: "Huffman",
+            KOLIBRI_COMPRESS_FORMULA: "Formula",
+            KOLIBRI_COMPRESS_MATH: "Math Analysis",
+            KOLIBRI_COMPRESS_LZMA: "LZMA",
+            KOLIBRI_COMPRESS_ZSTD: "Zstandard",
+            KOLIBRI_COMPRESS_ADAPTIVE: "Adaptive Dict",
+            KOLIBRI_COMPRESS_TOKEN: "Token Stream",
+        }
+        for flag, name in method_map.items():
+            if self._methods & flag:
+                names.append(name)
+        return names
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -337,14 +325,13 @@ class ArchiverService:
 # ──────────────────────────────────────────────────────────────────────
 
 def create_archiver_router() -> object:
-    """Создать FastAPI роутер для архиватора.
+    """Создать FastAPI роутер для архиватора Kolibri.
 
     Returns:
         APIRouter с маршрутами /compress, /decompress, /stats
     """
     try:
         from fastapi import APIRouter, Body
-        from pydantic import BaseModel
         import base64
     except ImportError:
         return None
@@ -355,11 +342,9 @@ def create_archiver_router() -> object:
     @router.post("/compress")
     def compress_endpoint(
         text: str = Body(..., embed=True),
-        train_rounds: int = Body(5, embed=True),
+        train_rounds: int = Body(0, embed=True),
     ) -> dict[str, object]:
         data = text.encode("utf-8")
-        if train_rounds > 0:
-            _service.train(data, train_rounds)
         result = _service.compress(data)
         return {
             "original_size": result.original_size,
@@ -369,6 +354,8 @@ def create_archiver_router() -> object:
             "success": result.success,
             "error": result.error,
             "compressed_b64": base64.b64encode(result.data).decode() if result.success else "",
+            "methods_used": result.methods_used,
+            "compression_time_ms": result.compression_time_ms,
         }
 
     @router.post("/decompress")
@@ -383,6 +370,7 @@ def create_archiver_router() -> object:
                     "success": True,
                     "text": result.data.decode("utf-8", errors="replace"),
                     "size": len(result.data),
+                    "method": result.method,
                 }
             return {"success": False, "error": result.error}
         except Exception as e:
