@@ -2694,11 +2694,11 @@ int kolibri_compress(KolibriCompressor *comp,
     size_t formula_input_size = input_size;
     int lz_used = 0;
 
-    /* v63: TURBO mode (default) — skip token dict + formula CM.
-     * Установите KOLIBRI_QUALITY=max для полного v62 pipeline. */
-    int turbo = 1;
-    { const char *q = getenv("KOLIBRI_QUALITY");
-      if (q && strcmp(q, "max") == 0) turbo = 0; }
+    /* v63: TURBO mode — быстрый LZ-only (без CM/Formula).
+     * По умолчанию выключен. Включите: KOLIBRI_TURBO=1 */
+    int turbo = 0;
+    { const char *q = getenv("KOLIBRI_TURBO");
+      if (q && strcmp(q, "1") == 0) turbo = 1; }
 
     if (file_type == KOLIBRI_FILE_TEXT && !turbo) {
         if (token_dict_build(&tdict, input, input_size)) {
