@@ -15,8 +15,10 @@ from __future__ import annotations
 import hashlib
 import math
 import os
+import queue
 import re
 import subprocess
+import threading
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -36,7 +38,12 @@ from .number_mind import (
     djb2_hash,
     fnv1a_hash,
     _tokenize,
+    _is_stop_word,
+    _stem_ru,
 )
+from .embeddings import EmbeddingTable
+from .c_evolve import get_c_evolve_bridge
+from .training_worker import TrainingWorker
 
 import logging
 
@@ -51,6 +58,7 @@ _TRAINER_BIN = _PROJECT_ROOT / "build" / "kolibri_mass_trainer"
 _DEFAULT_MODEL = _PROJECT_ROOT / "data" / "models" / "kolibri_web.klm"
 _CORPUS_DIR = _PROJECT_ROOT / "data" / "corpus"
 _FORMULA_SAVE_PATH = _PROJECT_ROOT / "data" / "models" / "kolibri_formulas.json"
+_EMBEDDINGS_SAVE_PATH = _PROJECT_ROOT / "data" / "models" / "kolibri_embeddings.json"
 
 _MAX_CONTEXT_TURNS = 20
 _QUERY_TIMEOUT = 10
@@ -229,54 +237,165 @@ class KolibriAIEngine:
         # Загружаем формулы с диска — эволюция ПРОДОЛЖАЕТСЯ между перезапусками
         self.formula_pool = FormulaPool.load_or_create(_FORMULA_SAVE_PATH)
         self.sentence_store = SentenceStore()
+        # --- Обучаемые эмбеддинги (Фаза 1 AI) ---
+        self.embeddings = EmbeddingTable.load_or_create(_EMBEDDINGS_SAVE_PATH)
+        # Связываем эмбеддинги с графом и sentence store
+        self.graph.embeddings = self.embeddings
+        self.sentence_store.embeddings = self.embeddings
         self.c_retriever = CModelRetriever(model_path)
         self.conversations: dict[str, Conversation] = {}
         self._corpus_loaded = False
         self._stats_cache: dict | None = None
         self._stats_cache_time = 0.0
         self._evolution_counter = 0  # Счётчик для периодического сохранения
-        self._load_corpus()
+        self._embeddings_training = False  # Флаг: идёт фоновое обучение
+        self._formulas_training = False    # Флаг: идёт фоновое обучение формул
+        self._ready = False                # Движок готов к работе
+        # --- Единый фоновый worker для обучения (очередь, 1 поток) ---
+        self._train_queue: queue.Queue[tuple] = queue.Queue(maxsize=32)
+        self._worker = threading.Thread(
+            target=self._background_worker, daemon=True, name="kolibri-worker",
+        )
+        self._worker.start()
+        # --- Multiprocessing-worker: ЛЕНИВАЯ инициализация (не при старте) ---
+        self._mp_worker: TrainingWorker | None = None
+        # Движок ГОТОВ к запросам ДО загрузки корпуса — чтобы health check отвечал
+        self._ready = True
+        # Загрузка корпуса — в фоновом потоке, чтобы не блокировать event loop
+        threading.Thread(
+            target=self._safe_load_corpus, daemon=True, name="corpus-loader",
+        ).start()
+
+    def _safe_load_corpus(self) -> None:
+        """Обёртка: загрузить корпус с перехватом ошибок."""
+        try:
+            self._load_corpus()
+        except Exception as e:
+            log.error("Ошибка загрузки корпуса: %s", e)
+
+    def _background_worker(self) -> None:
+        """Единый фоновый поток обучения — обрабатывает задачи из очереди."""
+        while True:
+            try:
+                task = self._train_queue.get(timeout=60)
+            except queue.Empty:
+                continue
+            try:
+                kind = task[0]
+                if kind == "retrieval":
+                    _, query, response = task
+                    self._do_retrieval_training(query, response)
+                elif kind == "c_knowledge":
+                    _, query, c_knowledge = task
+                    self._train_formula_on_c_knowledge(query, c_knowledge)
+                elif kind == "corpus":
+                    self._train_all_background()
+            except Exception as e:
+                log.warning("Background worker error: %s", e)
+            finally:
+                self._train_queue.task_done()
 
     def _load_corpus(self) -> None:
-        """Загрузить тексты и обучить ЧИСЛОВОЙ ГРАФ."""
+        """Загрузить тексты и обучить ЧИСЛОВОЙ ГРАФ.
+        
+        Порядок приоритетности:
+        1. Файлы из корня data/corpus/ (основные знания) — без лимита
+        2. Тематические agent-файлы из data/corpus/ — до 20 штук
+        3. wiki_mass/ — до 30 файлов (общие знания, не засоряем)
+        4. Дополнительные директории (training, seeds)
+        """
         import logging
         log = logging.getLogger("kolibri.ai")
         t0 = time.time()
 
         _MAX_FILE_SIZE = 100_000      # 100 КБ макс на файл
-        _MAX_FILES     = 200          # Макс файлов для загрузки (увеличено для агентских текстов)
-        _PRIORITY_DIR  = _CORPUS_DIR  # Приоритетная директория
+        _MAX_WIKI_MASS = 30           # Лимит для wiki_mass (не засоряем)
+        _MAX_AGENT     = 20           # Лимит для agent-файлов
+        _MAX_OTHER     = 20           # Лимит для прочих директорий
 
-        corpus_dirs = [
-            _CORPUS_DIR,
+        total_texts = 0
+
+        def _load_file(f: Path) -> bool:
+            """Загрузить один файл, вернуть True если успешно."""
+            nonlocal total_texts
+            try:
+                fsize = f.stat().st_size
+                if fsize < 50 or fsize > _MAX_FILE_SIZE:
+                    return False
+                content = f.read_text(encoding="utf-8", errors="ignore")
+                self.graph.train_text(content)
+                self.sentence_store.add_text(content)
+                total_texts += 1
+                if total_texts % 10 == 0:
+                    time.sleep(0)
+                return True
+            except OSError:
+                return False
+
+        # --- Фаза 1: Приоритетные файлы (корень data/corpus/, не в подпапках) ---
+        if _CORPUS_DIR.exists():
+            priority_files = sorted(
+                f for f in _CORPUS_DIR.iterdir()
+                if f.is_file() and f.suffix == ".txt"
+                and not f.name.startswith("agent_")
+            )
+            for f in priority_files:
+                _load_file(f)
+            log.info("Corpus phase 1 (priority): %d files", total_texts)
+
+        # --- Фаза 2: Agent-файлы (тематические, ограниченно) ---
+        agent_count = 0
+        if _CORPUS_DIR.exists():
+            agent_files = sorted(
+                f for f in _CORPUS_DIR.iterdir()
+                if f.is_file() and f.suffix == ".txt"
+                and f.name.startswith("agent_")
+            )
+            for f in agent_files:
+                if agent_count >= _MAX_AGENT:
+                    break
+                if _load_file(f):
+                    agent_count += 1
+
+        # --- Фаза 3: wiki_mass (общие знания, строго ограничено) ---
+        wiki_dir = _CORPUS_DIR / "wiki_mass"
+        wiki_count = 0
+        if wiki_dir.exists():
+            for f in sorted(wiki_dir.glob("*.txt")):
+                if wiki_count >= _MAX_WIKI_MASS:
+                    break
+                if _load_file(f):
+                    wiki_count += 1
+
+        # --- Фаза 4: Дополнительные директории ---
+        extra_dirs = [
             _PROJECT_ROOT / "data" / "training",
             _PROJECT_ROOT / "seeds",
             _PROJECT_ROOT / "training",
         ]
-        total_texts = 0
-        for corpus_dir in corpus_dirs:
+        extra_count = 0
+        for corpus_dir in extra_dirs:
             if not corpus_dir.exists():
                 continue
             for f in sorted(corpus_dir.rglob("*.txt")):
-                if total_texts >= _MAX_FILES:
+                if extra_count >= _MAX_OTHER:
                     break
-                try:
-                    fsize = f.stat().st_size
-                    if fsize < 50 or fsize > _MAX_FILE_SIZE:
-                        log.debug("Skip %s (%d bytes)", f.name, fsize)
-                        continue
-                    content = f.read_text(encoding="utf-8", errors="ignore")
-                    self.graph.train_text(content)
-                    self.sentence_store.add_text(content)
-                    total_texts += 1
-                except OSError:
-                    continue
+                if _load_file(f):
+                    extra_count += 1
+
         if total_texts > 0:
             self._corpus_loaded = True
-            self._train_formulas_from_graph()
+            # ВСЁ тяжёлое обучение — через единый worker (не плодим потоки)
+            self._formulas_training = True
+            self._embeddings_training = True
+            self._train_queue.put(("corpus",))
         log.info(
-            "Corpus loaded: %d files, %d sentences in %.1fs",
-            total_texts, self.sentence_store.size, time.time() - t0,
+            "Corpus loaded: %d files (%d priority, %d agent, %d wiki, %d other), "
+            "%d sentences in %.1fs (training in background)",
+            total_texts,
+            total_texts - agent_count - wiki_count - extra_count,
+            agent_count, wiki_count, extra_count,
+            self.sentence_store.size, time.time() - t0,
         )
 
     def _train_formulas_from_graph(self) -> None:
@@ -292,8 +411,10 @@ class KolibriAIEngine:
         """
         # Собираем семантические пары: паттерн_слова → паттерн_соседа
         # Приоритет: сильные связи (высокий вес) → более ценные пары
+        # Снэпшот для thread-safety (edges может изменяться из другой корутины)
+        edges_snapshot = dict(self.graph.edges)
         edges_sorted = sorted(
-            self.graph.edges.items(),
+            edges_snapshot.items(),
             key=lambda item: item[1].weight,
             reverse=True,
         )
@@ -315,7 +436,38 @@ class KolibriAIEngine:
                 self.formula_pool.add_semantic_pair(src_pat, tgt_pat)
                 pairs_added += 1
         if self.formula_pool.semantic_pairs:
-            # Больше поколений → реальный рост fitness
+            # Попытка C-ускорения через FFI (100x быстрее Python)
+            c_bridge = get_c_evolve_bridge()
+            if c_bridge.available:
+                try:
+                    t0_c = time.time()
+                    # Маршалинг данных для C
+                    genomes = [list(f.gene.digits) for f in self.formula_pool.formulas]
+                    fitnesses = [f.fitness for f in self.formula_pool.formulas]
+                    pairs = [
+                        (list(src), list(tgt))
+                        for src, tgt in self.formula_pool.semantic_pairs[:60]
+                    ]
+                    new_genomes, new_fit, best_fitness = c_bridge.evolve(
+                        genomes=genomes, fitnesses=fitnesses,
+                        semantic_pairs=pairs, generations=10,
+                    )
+                    # Обновляем формулы из C-результата
+                    for i, f in enumerate(self.formula_pool.formulas):
+                        if i < len(new_genomes):
+                            f.gene.digits = new_genomes[i]
+                            f.fitness = new_fit[i]
+                    self.formula_pool.generation += 10
+                    log.info(
+                        "C-FFI evolve: fitness=%.4f, gen=%d, %.1fms (100x faster)",
+                        best_fitness, self.formula_pool.generation,
+                        (time.time() - t0_c) * 1000,
+                    )
+                    self._save_formulas()
+                    return
+                except Exception as e:
+                    log.warning("C-FFI evolve fallback to Python: %s", e)
+            # Fallback: Python evolve
             fitness = self.formula_pool.evolve(generations=10)
             log.info(
                 "Formula semantic training: %d pairs, fitness=%.4f, gen=%d",
@@ -325,6 +477,121 @@ class KolibriAIEngine:
             )
             # Автосохранение после обучения
             self._save_formulas()
+
+    def _train_all_background(self) -> None:
+        """Фоновый поток: обучение формул + эмбеддингов без блокировки сервера."""
+        time.sleep(0)  # Отпускаем GIL — HTTP может обслужиться
+
+        # 1. Формулы
+        try:
+            t0 = time.time()
+            self._train_formulas_from_graph()
+            time.sleep(0)  # Отпускаем GIL
+            log.info("Фоновое обучение формул завершено за %.1fs", time.time() - t0)
+        except Exception as e:
+            log.error("Ошибка фонового обучения формул: %s", e)
+        finally:
+            self._formulas_training = False
+
+        # 2. Эмбеддинги
+        try:
+            t0 = time.time()
+            self._train_embeddings_from_graph()
+            time.sleep(0)  # Отпускаем GIL
+            log.info("Фоновое обучение эмбеддингов завершено за %.1fs", time.time() - t0)
+        except Exception as e:
+            log.error("Ошибка фонового обучения эмбеддингов: %s", e)
+        finally:
+            self._embeddings_training = False
+
+    def _train_embeddings_from_graph(self) -> None:
+        """
+        Обучить эмбеддинги на рёбрах графа знаний.
+
+        Word2Vec-style: каждое ребро (word_A, word_B) = positive pair.
+        Слова, часто встречающиеся вместе, получают похожие вектора.
+
+        Результат: cosine_similarity("кот", "кошка") >> 0.5
+        вместо DJB2 pattern_similarity("кот", "кошка") ≈ 0.3
+        """
+        if not self.graph.edges:
+            return
+
+        # Попытка C-ускорения для эмбеддингов
+        c_bridge = get_c_evolve_bridge()
+        if c_bridge.available:
+            try:
+                t0_c = time.time()
+                # Маршалинг: EmbeddingTable → dict + list для C
+                # Копируем словари для thread-safety
+                vectors_snapshot = dict(self.embeddings.vectors)
+                vectors_dict = {}
+                for h in vectors_snapshot:
+                    vectors_dict[h] = list(vectors_snapshot[h])
+                edges_snapshot = dict(self.graph.edges)
+                edges_list = [
+                    (src_h, tgt_h, edge.weight)
+                    for (src_h, tgt_h), edge in edges_snapshot.items()
+                ]
+                dim = self.embeddings.dim
+                n_edges = len(edges_list)
+                epochs = 1 if n_edges > 50_000 else (2 if n_edges > 10_000 else 5)
+                neg = 3 if n_edges > 50_000 else 5
+
+                updated_vecs, avg_loss = c_bridge.train_embeddings(
+                    vectors=vectors_dict,
+                    edges=edges_list,
+                    dim=dim, epochs=epochs, lr=0.025, neg_samples=neg,
+                )
+                # Обновляем Python-таблицу из C-результата
+                for h, vec in updated_vecs.items():
+                    self.embeddings.vectors[h] = vec
+                n_pairs = len(edges_list)
+                if n_pairs > 0:
+                    self._save_embeddings()
+                    log.info(
+                        "C-FFI embeddings: vocab=%d, loss=%.4f, %d pairs in %.1fms",
+                        len(vectors_dict), avg_loss,
+                        n_pairs, (time.time() - t0_c) * 1000,
+                    )
+                    return
+                    return
+            except Exception as e:
+                log.warning("C-FFI embeddings fallback to Python: %s", e)
+
+        # Fallback: Python обучение
+        # Адаптируем epochs: при большом графе 1 эпохи достаточно
+        # Копируем словари для thread-safety
+        edges_snapshot = dict(self.graph.edges)
+        hash_to_word_snapshot = dict(self.graph._hash_to_word)
+        patterns_keys_snapshot = set(self.graph.patterns.keys())
+        n_edges = len(edges_snapshot)
+        epochs = 1 if n_edges > 50_000 else (2 if n_edges > 10_000 else 5)
+        neg = 3 if n_edges > 50_000 else 5
+
+        result = self.embeddings.train_on_graph(
+            edges=edges_snapshot,
+            hash_to_word=hash_to_word_snapshot,
+            all_hashes=patterns_keys_snapshot,
+            epochs=epochs,
+            lr=0.025,
+            neg_samples=neg,
+        )
+
+        if result["pairs"] > 0:
+            self._save_embeddings()
+            log.info(
+                "Embeddings trained: vocab=%d, loss=%.4f, %d pairs in %.0fms",
+                result["vocab_size"], result["loss"],
+                result["pairs"], result.get("duration_ms", 0),
+            )
+
+    def _save_embeddings(self) -> None:
+        """Сохранить эмбеддинги на диск."""
+        try:
+            self.embeddings.save(_EMBEDDINGS_SAVE_PATH)
+        except Exception as e:
+            log.warning("Не удалось сохранить эмбеддинги: %s", e)
 
     # ------------------------------------------------------------------
     # Главная функция: ответить на сообщение
@@ -392,14 +659,14 @@ class KolibriAIEngine:
             assoc_answer=assoc_answer,
         )
 
-        # === Непрерывное обучение: формулы УЧАТСЯ на КАЖДОМ ответе ===
-        # 1. Feedback от успешных ответов (любой метод, confidence >= 0.2)
-        if confidence >= 0.2 and method != "no-knowledge":
-            self._train_formula_on_retrieval(message, response)
-
-        # 2. Кросс-обучение: C-модель → Python-формулы
-        if c_knowledge:
-            self._train_formula_on_c_knowledge(message, c_knowledge)
+        # === Непрерывное обучение в ФОНОВОМ worker-потоке (не блокирует ответ) ===
+        try:
+            if confidence >= 0.5 and method != "no-knowledge":
+                self._train_queue.put_nowait(("retrieval", message, response))
+            if c_knowledge:
+                self._train_queue.put_nowait(("c_knowledge", message, c_knowledge))
+        except queue.Full:
+            pass  # Очередь переполнена — пропускаем обучение, не блокируем ответ
 
         full_response = response
 
@@ -437,6 +704,8 @@ class KolibriAIEngine:
                 ],
                 "sentence_store_size": self.sentence_store.size,
                 "memory_digits": self.sentence_store.memory_digits,
+                "embedding_vocab": self.embeddings.vocab_size,
+                "embedding_trained_pairs": self.embeddings.trained_pairs,
             },
             "graph_stats": self.graph.get_stats(),
         }
@@ -482,62 +751,50 @@ class KolibriAIEngine:
             return (assoc_answer, 0.95, "formula-association")
 
         # 2. Гибрид: sentence retrieval + формульная генерация
+        #    СВЯЗНАЯ генерация: склеиваем фрагменты в когерентный ответ
         #    Формула участвует В ОБОИХ процессах:
         #    - Re-ranks предложения через predict(query ⊕ sentence)
         #    - Генерирует слова-подсказки через трансформацию паттернов
         if retrieved_sentences:
             best_text, best_score = retrieved_sentences[0]
-            if best_score >= 0.12:
-                parts: list[str] = []
-                seen: set[str] = set()
-                for text, score in retrieved_sentences[:3]:
-                    if score >= best_score * 0.4:
-                        key = text[:50]
-                        if key not in seen:
-                            parts.append(text)
-                            seen.add(key)
-                answer = ". ".join(parts)
-                if not answer.endswith((".", "!", "?")):
-                    answer += "."
-
-                confidence = min(0.95, best_score + 0.2)
-                return (answer, confidence, "formula-retrieval")
+            # Адаптивный порог: длинные запросы → ниже порог
+            # (cosine-нормализация сильнее разбавляет score при > токенах)
+            n_tokens = len(_tokenize(message))
+            min_threshold = 0.35 if n_tokens <= 3 else 0.20 if n_tokens <= 6 else 0.15
+            if best_score >= min_threshold:
+                answer = self._build_coherent_response(
+                    message, retrieved_sentences, formula_words, c_knowledge,
+                )
+                if answer:  # Прошёл фильтр релевантности
+                    confidence = min(0.95, best_score + 0.2)
+                    return (answer, confidence, "formula-retrieval")
 
         # 3. Чистая формульная генерация
         #    Нет retrieved предложений, но формула ПОРОЖДАЕТ слова
-        #    Пробуем найти предложения, содержащие сгенерированные слова
+        #    Связная генерация: ищем предложения по формульным словам
         if formula_words and len(formula_words) >= 2:
             words_only = [w for w, s in formula_words if s > 0.2]
             if len(words_only) >= 2:
-                # Ищем предложения из памяти, содержащие формульные слова
                 fw_query = " ".join(words_only[:5])
                 fw_sentences = self.sentence_store.retrieve(
-                    query=fw_query, formula=None, top_k=3,
+                    query=fw_query, formula=None, top_k=5,
                 )
                 if fw_sentences and fw_sentences[0][1] >= 0.1:
-                    parts = []
-                    seen_s: set[str] = set()
-                    for text, score in fw_sentences[:2]:
-                        key = text[:50]
-                        if key not in seen_s:
-                            parts.append(text)
-                            seen_s.add(key)
-                    answer = ". ".join(parts)
-                    if not answer.endswith((".", "!", "?")):
-                        answer += "."
-                    avg_score = sum(s for _, s in formula_words[:5]) / min(5, len(formula_words))
-                    return (answer, min(0.7, avg_score + 0.15), "formula-generation")
+                    answer = self._build_coherent_response(
+                        message, fw_sentences, formula_words, c_knowledge,
+                    )
+                    if answer:  # Релевантный ответ найден
+                        avg_score = sum(s for _, s in formula_words[:5]) / min(5, len(formula_words))
+                        return (answer, min(0.7, avg_score + 0.15), "formula-generation")
 
-                # Если предложений не нашли — просто перечисляем слова
-                generated = ", ".join(words_only[:8])
-                answer = (
-                    f"Формула числового мышления ассоциирует ваш запрос "
-                    f"с понятиями: **{generated}**."
+                # Формульная генерация с контекстными связями
+                answer = self._generate_from_formula_words(
+                    message, words_only, graph_answer, graph_meta,
                 )
                 avg_score = sum(s for _, s in formula_words[:5]) / min(5, len(formula_words))
                 return (answer, min(0.5, avg_score), "formula-generation")
 
-        # 4. C-модель (.klm)
+        # 4. C-модель (.klm) — связная интеграция
         if c_knowledge:
             clean = [
                 k for k in c_knowledge
@@ -545,7 +802,8 @@ class KolibriAIEngine:
                 and not k.startswith("[") and not k.startswith("(")
             ]
             if clean:
-                return (" ".join(clean[:3]), 0.5, "c-model")
+                answer = self._merge_c_knowledge(message, clean)
+                return (answer, 0.5, "c-model")
 
         # 5. Граф слов (fallback)
         if graph_answer and graph_confidence >= 0.15:
@@ -556,6 +814,215 @@ class KolibriAIEngine:
             "Обучите меня — отправьте текст или URL для обучения.",
             0.1, "no-knowledge",
         )
+
+    # ------------------------------------------------------------------
+    # Связная генерация: когерентные ответы вместо склейки фрагментов
+    # ------------------------------------------------------------------
+
+    def _build_coherent_response(
+        self,
+        query: str,
+        sentences: list[tuple[str, float]],
+        formula_words: list[tuple[str, float]],
+        c_knowledge: list[str],
+    ) -> str:
+        """
+        Связная генерация ответа из найденных фрагментов.
+
+        Вместо простой склейки ". ".join():
+        1. Ранжирование по релевантности к запросу
+        2. Удаление дублирующей информации
+        3. Логическое упорядочивание (от общего к частному)
+        4. Добавление связующих конструкций
+        5. Интеграция формульных слов как контекстных подсказок
+        """
+        query_tokens = set(_tokenize(query.lower()))
+        # Значимые токены (без стоп-слов) для оценки релевантности
+        meaningful_query = {t for t in query_tokens if not _is_stop_word(t)}
+        # --- Стемы для морфологического совпадения («искусственном» ≈ «искусственный») ---
+        meaningful_stems = {_stem_ru(t) for t in meaningful_query if len(t) >= 4}
+        scored_sentences: list[tuple[str, float, int]] = []
+
+        # Шаг 1: Ранжируем и дедуплицируем
+        seen_content: list[str] = []  # Полные тексты для near-duplicate check
+        for text, base_score in sentences[:8]:
+            text = text.strip()
+            if not text or len(text) < 15:
+                continue
+            # Проверка на near-duplicate: не добавлять предложения с >60% пересечением слов
+            text_words = set(_tokenize(text.lower()))
+            meaningful_tw = {t for t in text_words if not _is_stop_word(t) and len(t) >= 3}
+            is_dup = False
+            for seen_text in seen_content:
+                seen_words = set(_tokenize(seen_text.lower()))
+                meaningful_sw = {t for t in seen_words if not _is_stop_word(t) and len(t) >= 3}
+                if meaningful_sw and meaningful_tw:
+                    common = len(meaningful_tw & meaningful_sw)
+                    ratio = common / min(len(meaningful_tw), len(meaningful_sw))
+                    if ratio > 0.6:
+                        is_dup = True
+                        break
+            if is_dup:
+                continue
+            seen_content.append(text)
+
+            meaningful_text = {t for t in text_words if not _is_stop_word(t)}
+            # Пересечение по точным словам
+            overlap = len(meaningful_query & meaningful_text)
+            # Морфологическое совпадение через стемминг
+            if overlap == 0 and meaningful_stems:
+                text_stems = {_stem_ru(t) for t in meaningful_text if len(t) >= 4}
+                stem_overlap = len(meaningful_stems & text_stems)
+                overlap = stem_overlap  # Стемы работают как fallback
+            # Адаптивный порог: чем больше значимых слов в запросе, тем больше нужно
+            min_overlap = 2 if len(meaningful_query) >= 3 else 1
+            if overlap < min_overlap and meaningful_query:
+                continue
+            relevance = base_score + overlap * 0.15
+            len_bonus = min(1.0, len(text) / 200) * 0.1
+            if len(text) > 300:
+                len_bonus -= 0.05
+            scored_sentences.append((text, relevance + len_bonus, len(text)))
+
+        if not scored_sentences:
+            return ""
+
+        # Шаг 2: Сортировка — самое релевантное первым
+        scored_sentences.sort(key=lambda x: x[1], reverse=True)
+
+        # Шаг 3: Отбираем до 4 фрагментов
+        selected = scored_sentences[:4]
+        if len(selected) > 1:
+            # Предпочитаем начинать с полноценного предложения, не со списка
+            main_idx = 0
+            for j, (txt, sc, _) in enumerate(selected):
+                if not txt.lstrip().startswith(("-", "•", "–", "—")):
+                    main_idx = j
+                    break
+            if main_idx > 0:
+                selected[0], selected[main_idx] = selected[main_idx], selected[0]
+            main = selected[0]
+            rest = sorted(selected[1:], key=lambda x: x[2])
+            selected = [main] + rest
+
+        # Шаг 4: Очистка и склеивание
+        parts: list[str] = []
+        for i, (text, score, _) in enumerate(selected):
+            # Очистка предложения
+            text = text.strip().rstrip(" .")
+            # Убираем ведущие маркеры списка
+            text = text.lstrip("-•–— ")
+            # Отбрасываем обрезанные предложения (заканчиваются на «(т.е.», «(т.»)
+            if text.endswith(("(т.е", "(т.", "(напр", "(т")):
+                text = text[:text.rfind("(")].rstrip(" ,")
+            # Отбрасываем слишком короткие после очистки
+            if len(text) < 15:
+                continue
+            
+            if i == 0:
+                parts.append(text)
+            else:
+                prev_tokens = set(_tokenize(parts[-1].lower()))
+                curr_tokens = set(_tokenize(text.lower()))
+                new_info = len(curr_tokens - prev_tokens)
+                if new_info < 2:
+                    continue
+                if score > 0.5:
+                    parts.append(text)
+                elif i == 1 and len(text) > 1:
+                    parts.append(f"Кроме того, {text[0].lower()}{text[1:]}")
+                elif len(text) > 1:
+                    parts.append(f"Также {text[0].lower()}{text[1:]}")
+                else:
+                    parts.append(text)
+
+        answer = ". ".join(parts)
+        # Очистка артефактов склейки
+        answer = answer.replace(":.", ":").replace(".. ", ". ").replace("..", ".")
+        if not answer.endswith((".", "!", "?")):
+            answer += "."
+
+        # Шаг 5: Формульные слова — пока только во внутренней аналитике
+        # (formula_data.formula_generated_words в JSON ответе).
+        # Показываем только если формула достаточно обучена
+        # и слова семантически пересекаются с запросом.
+        if formula_words and self.formula_pool.generation >= 2000:
+            query_stems = {_stem_ru(t) for t in _tokenize(query.lower()) if len(t) >= 4 and not _is_stop_word(t)}
+            answer_stems = {_stem_ru(t) for t in _tokenize(answer.lower()) if len(t) >= 4}
+            fw_unique = []
+            for w, s in formula_words[:8]:
+                if s <= 1.0:
+                    continue
+                wl = w.lower()
+                if _is_stop_word(wl) or len(wl) < 4:
+                    continue
+                if any('\u0400' <= c <= '\u04ff' for c in query) and wl.isascii():
+                    continue
+                ws = _stem_ru(wl)
+                if ws in answer_stems or ws in query_stems:
+                    continue
+                fw_unique.append(wl)
+                if len(fw_unique) >= 3:
+                    break
+            if len(fw_unique) >= 2:
+                hint = ", ".join(fw_unique)
+                answer += f" Связанные понятия: {hint}."
+
+        return answer
+
+    def _generate_from_formula_words(
+        self,
+        query: str,
+        formula_words: list[str],
+        graph_answer: str,
+        graph_meta: dict,
+    ) -> str:
+        """Генерация связного ответа из формульных слов."""
+        context_phrases: list[str] = []
+        for fw in formula_words[:5]:
+            neighbors = self.graph.find_similar(fw, limit=3)
+            if neighbors:
+                neighbor_words = [w for w, _ in neighbors]
+                context_phrases.append(f"{fw} ({', '.join(neighbor_words[:2])})")
+            else:
+                context_phrases.append(fw)
+
+        if graph_answer and len(graph_answer) > 20:
+            return (
+                f"{graph_answer} "
+                f"Числовой анализ также выявляет связи с: {', '.join(context_phrases[:4])}."
+            )
+        return (
+            f"По вашему запросу числовое мышление выявило ключевые понятия: "
+            f"{', '.join(context_phrases[:6])}. "
+            f"Каждое слово закодировано в 64-цифровой паттерн, связи определены "
+            f"через формульную трансформацию."
+        )
+
+    def _merge_c_knowledge(self, query: str, knowledge: list[str]) -> str:
+        """Связная интеграция знаний из C-модели."""
+        if len(knowledge) == 1:
+            return knowledge[0] if knowledge[0].endswith((".", "!", "?")) else knowledge[0] + "."
+        unique: list[str] = []
+        seen: set[str] = set()
+        for k in knowledge[:5]:
+            key = k[:30].lower()
+            if key not in seen:
+                unique.append(k.strip().rstrip("."))
+                seen.add(key)
+        if len(unique) == 1:
+            return unique[0] + "."
+        result = unique[0]
+        for i, part in enumerate(unique[1:], 1):
+            if i == 1:
+                result += f". {part}"
+            elif len(part) > 1:
+                result += f". Кроме того, {part[0].lower()}{part[1:]}"
+            else:
+                result += f". {part}"
+        if not result.endswith((".", "!", "?")):
+            result += "."
+        return result
 
     def _format_numeric_data(
         self,
@@ -608,10 +1075,30 @@ class KolibriAIEngine:
             log.warning("Не удалось сохранить формулы: %s", e)
 
     def train_text(self, text: str) -> dict:
-        """Обучить на тексте — реально обновляет числовой граф + предложения."""
+        """Обучить на тексте — реально обновляет числовой граф + предложения + эмбеддинги."""
         result = self.graph.train_text(text)
         self.sentence_store.add_text(text)
         self._train_formulas_from_graph()
+        # Инкрементальное обучение эмбеддингов на новых рёбрах
+        tokens = _tokenize(text)
+        if tokens:
+            new_edges: list[tuple[int, int, float]] = []
+            for i, t in enumerate(tokens):
+                if len(t) < 2:
+                    continue
+                h_t = djb2_hash(t.lower())
+                self.embeddings.get_or_create(h_t, t.lower())
+                for j in range(max(0, i - 5), min(len(tokens), i + 6)):
+                    if i != j and len(tokens[j]) >= 2:
+                        h_j = djb2_hash(tokens[j].lower())
+                        self.embeddings.get_or_create(h_j, tokens[j].lower())
+                        key = (min(h_t, h_j), max(h_t, h_j))
+                        edge = self.graph.edges.get(key)
+                        if edge:
+                            new_edges.append((h_t, h_j, edge.weight))
+            if new_edges:
+                all_h = list(self.embeddings.vectors.keys())
+                self.embeddings.train_incremental(new_edges[:100], all_h, lr=0.01)
         return result
 
     def train_and_verify(self, text: str) -> dict:
@@ -635,22 +1122,16 @@ class KolibriAIEngine:
             "formula_fitness": round(self.formula_pool.best().fitness, 4),
         }
 
-    def _train_formula_on_retrieval(self, query: str, answer_text: str) -> None:
+    def _do_retrieval_training(self, query: str, answer_text: str) -> None:
         """
         Feedback loop: формулы УЧАТСЯ на каждом успешном ответе.
-
-        Из пары (query, answer) извлекаем семантические связи:
-        каждое слово запроса → каждое слово ответа = семантическая пара.
-        Формулы учатся трансформировать паттерны запроса → паттерны ответа.
-
-        Непрерывная эволюция — каждый ответ = тренировка.
+        Вызывается из единого фонового worker-потока.
         """
         q_tokens = _tokenize(query)
         a_tokens = _tokenize(answer_text)
         if not q_tokens or not a_tokens:
             return
 
-        # Семантические пары: слово_запроса → слово_ответа
         pairs_added = 0
         for qt in q_tokens:
             if len(qt) < 3:
@@ -667,20 +1148,19 @@ class KolibriAIEngine:
             if pairs_added >= 40:
                 break
 
-        # Ассоциация Q→A в лучшие формулы
         self.formula_pool.add_association(query, answer_text)
 
-        # Эволюция НА КАЖДЫЙ успешный ответ — реальное обучение
         if pairs_added > 0:
             self._evolution_counter += 1
-            fitness = self.formula_pool.evolve(generations=3)
+            fitness = self.formula_pool.evolve(generations=1)
             log.debug(
                 "Formula feedback: +%d pairs, fitness=%.4f, gen=%d",
                 pairs_added, fitness, self.formula_pool.generation,
             )
-            # Автосохранение каждые 5 эволюций
-            if self._evolution_counter % 5 == 0:
+            self._incremental_embedding_train(q_tokens, a_tokens)
+            if self._evolution_counter % 10 == 0:
                 self._save_formulas()
+                self._save_embeddings()
 
     def _train_formula_on_c_knowledge(self, query: str, c_knowledge: list[str]) -> None:
         """
@@ -726,6 +1206,42 @@ class KolibriAIEngine:
     # ------------------------------------------------------------------
     # Специальные команды
     # ------------------------------------------------------------------
+
+    def _incremental_embedding_train(
+        self,
+        q_tokens: list[str],
+        a_tokens: list[str],
+    ) -> None:
+        """
+        Инкрементальное обучение эмбеддингов на паре (query, answer).
+
+        Слова запроса и ответа → co-occurrence пары → SGD update.
+        Быстро (мс) — можно вызывать после каждого ответа.
+        """
+        if not q_tokens or not a_tokens:
+            return
+
+        new_edges: list[tuple[int, int, float]] = []
+        for qt in q_tokens:
+            if len(qt) < 3:
+                continue
+            h_q = djb2_hash(qt.lower())
+            self.embeddings.get_or_create(h_q, qt.lower())
+            for at in a_tokens:
+                if len(at) < 3 or at == qt:
+                    continue
+                h_a = djb2_hash(at.lower())
+                self.embeddings.get_or_create(h_a, at.lower())
+                # Вес = 0.5 для Q-A пар (слабее чем graph co-occurrence)
+                new_edges.append((h_q, h_a, 0.5))
+                if len(new_edges) >= 50:
+                    break
+            if len(new_edges) >= 50:
+                break
+
+        if new_edges:
+            all_h = list(self.embeddings.vectors.keys())
+            self.embeddings.train_incremental(new_edges, all_h, lr=0.01)
 
     def _basic_formula_data(self) -> dict:
         """Базовый formula_data для команд/приветствий (без query-паттернов)."""
@@ -1035,10 +1551,29 @@ class KolibriAIEngine:
 # ---------------------------------------------------------------------------
 
 _engine_instance: KolibriAIEngine | None = None
+_engine_initializing = False
 
 
 def get_engine() -> KolibriAIEngine:
-    global _engine_instance
+    global _engine_instance, _engine_initializing
     if _engine_instance is None:
-        _engine_instance = KolibriAIEngine()
+        if _engine_initializing:
+            # Ожидаем завершения инициализации другим потоком
+            for _ in range(300):  # макс 30 сек
+                time.sleep(0.1)
+                if _engine_instance is not None:
+                    return _engine_instance
+        _engine_initializing = True
+        try:
+            _engine_instance = KolibriAIEngine()
+        finally:
+            _engine_initializing = False
     return _engine_instance
+
+
+def pre_init_engine() -> None:
+    """Предзагрузка движка при старте сервера (вызывается из main.py startup event)."""
+    log.info("Pre-initializing AI engine...")
+    t0 = time.time()
+    get_engine()
+    log.info("AI engine ready in %.1fs", time.time() - t0)

@@ -91,14 +91,89 @@ static double klm_pattern_sim(const uint8_t a[KLM_PATTERN_SIZE],
     return (double)score / (2.0 * KLM_PATTERN_SIZE);
 }
 
-/* Поиск слова по его хешу (линейный скан — быстрый при uint32 сравнении) */
+/* Поиск слова по его хешу — O(1) через хеш-таблицу вместо линейного скана */
 static const char *klm_hash_to_word(const KlmModel *m, uint32_t hash)
 {
-    for (size_t i = 0; i < m->pattern_capacity; i++) {
-        if (m->patterns[i].occupied && m->patterns[i].hash == hash)
-            return m->patterns[i].word;
+    /* Пробируем от позиции hash & (cap-1). Паттерны расположены по djb2 хешу,
+     * поэтому слово с данным hash скорее всего рядом со slot = hash & (cap-1).
+     * Ограничиваем пробинг 64 попытками — если не нашли, значит нет. */
+    size_t cap = m->pattern_capacity;
+    size_t idx = hash & (cap - 1);
+    for (size_t probe = 0; probe < 64 && probe < cap; probe++) {
+        size_t pos = (idx + probe) & (cap - 1);
+        if (!m->patterns[pos].occupied) return NULL;
+        if (m->patterns[pos].hash == hash)
+            return m->patterns[pos].word;
     }
     return NULL;
+}
+
+/* ============================================================
+ * Индекс смежности — O(1) поиск рёбер по хешу слова
+ * ============================================================ */
+
+static int klm_adj_init(KlmAdjIndex *idx, size_t edge_capacity)
+{
+    memset(idx, 0, sizeof(*idx));
+    /* Бакетов = edge_capacity (степень двойки), записей = 2×edge_capacity */
+    idx->bucket_count = edge_capacity;
+    idx->entry_capacity = edge_capacity * 2;
+    idx->entry_count = 0;
+
+    idx->buckets = malloc(idx->bucket_count * sizeof(size_t));
+    if (!idx->buckets) return -1;
+    for (size_t i = 0; i < idx->bucket_count; i++)
+        idx->buckets[i] = SIZE_MAX;
+
+    idx->entries = malloc(idx->entry_capacity * sizeof(KlmAdjEntry));
+    if (!idx->entries) { free(idx->buckets); return -1; }
+
+    return 0;
+}
+
+void klm_adj_free(KlmAdjIndex *idx)
+{
+    if (!idx) return;
+    free(idx->buckets);
+    free(idx->entries);
+    memset(idx, 0, sizeof(*idx));
+}
+
+/* Добавить ребро в индекс смежности для конкретного word_hash */
+static int klm_adj_insert(KlmAdjIndex *idx, uint32_t word_hash, size_t edge_slot)
+{
+    if (idx->entry_count >= idx->entry_capacity) return -1;
+
+    size_t bucket = word_hash & (idx->bucket_count - 1);
+    size_t eidx = idx->entry_count++;
+    idx->entries[eidx].edge_slot = edge_slot;
+    idx->entries[eidx].next = idx->buckets[bucket];
+    idx->buckets[bucket] = eidx;
+    return 0;
+}
+
+/* Полная перестройка индекса смежности из текущих рёбер */
+int klm_adj_rebuild(KlmTrainerContext *ctx)
+{
+    if (!ctx) return -1;
+
+    KlmModel *m = &ctx->model;
+
+    /* Освобождаем старый индекс */
+    klm_adj_free(&m->adj_index);
+
+    /* Инициализируем новый */
+    if (klm_adj_init(&m->adj_index, m->edge_capacity) != 0)
+        return -1;
+
+    /* Проходим по всем занятым рёбрам, добавляем 2 записи на ребро */
+    for (size_t i = 0; i < m->edge_capacity; i++) {
+        if (!m->edges[i].occupied) continue;
+        klm_adj_insert(&m->adj_index, m->edges[i].source_hash, i);
+        klm_adj_insert(&m->adj_index, m->edges[i].target_hash, i);
+    }
+
+    return 0;
 }
 
 /* Добавление / усиление ребра в графе знаний */
@@ -117,8 +192,16 @@ static int klm_add_edge(KlmTrainerContext *ctx, const char *w1, const char *w2)
     KlmEdge *edges = ctx->model.edges;
     size_t cap = ctx->model.edge_capacity;
 
-    if (ctx->model.edge_count >= (size_t)(cap * KLM_LOAD_FACTOR))
-        return -1; /* нужна дистилляция */
+    if (ctx->model.edge_count >= (size_t)(cap * KLM_LOAD_FACTOR)) {
+        /* Сначала пробуем расширить */
+        if (ctx->model.edge_capacity < KLM_MAX_CAPACITY) {
+            klm_rehash_edges(ctx, ctx->model.edge_capacity * KLM_GROWTH_FACTOR);
+            edges = ctx->model.edges;
+            cap = ctx->model.edge_capacity;
+        } else {
+            return -1; /* нужна дистилляция */
+        }
+    }
 
     size_t slot = klm_find_edge_slot(edges, cap, src, tgt);
     if (slot == SIZE_MAX) return -1;
@@ -127,14 +210,24 @@ static int klm_add_edge(KlmTrainerContext *ctx, const char *w1, const char *w2)
         edges[slot].cooccurrence++;
         /* Сигмоидальный рост веса: быстро вначале, плато на 1.0 */
         edges[slot].weight = 1.0f - 1.0f / (1.0f + (float)edges[slot].cooccurrence);
+        edges[slot].version = ++ctx->model.global_version;
+        edges[slot].dirty = 1;
     } else {
         edges[slot].source_hash = src;
         edges[slot].target_hash = tgt;
         edges[slot].weight = 0.5f;
         edges[slot].cooccurrence = 1;
+        edges[slot].version = ++ctx->model.global_version;
+        edges[slot].dirty = 1;
         edges[slot].occupied = 1;
         ctx->model.edge_count++;
         ctx->stats.edges_created++;
+
+        /* Добавляем в индекс смежности (2 записи: src и tgt) */
+        if (ctx->model.adj_index.buckets) {
+            klm_adj_insert(&ctx->model.adj_index, src, slot);
+            klm_adj_insert(&ctx->model.adj_index, tgt, slot);
+        }
     }
     return 0;
 }
@@ -175,18 +268,30 @@ KlmTrainerContext *klm_trainer_create(const KlmTrainerConfig *config)
 
     ctx->config = config ? *config : klm_default_config();
 
-    /* Аллокация хеш-таблицы паттернов */
-    ctx->model.pattern_capacity = KLM_MAX_PATTERNS;
-    ctx->model.patterns = calloc(KLM_MAX_PATTERNS, sizeof(KlmPatternEntry));
+    /* Аллокация хеш-таблицы паттернов (динамическая, начальный размер) */
+    ctx->model.pattern_capacity = KLM_INITIAL_PATTERNS;
+    ctx->model.patterns = calloc(KLM_INITIAL_PATTERNS, sizeof(KlmPatternEntry));
     if (!ctx->model.patterns) {
         free(ctx);
         return NULL;
     }
 
-    /* Аллокация хеш-таблицы рёбер */
-    ctx->model.edge_capacity = KLM_MAX_EDGES;
-    ctx->model.edges = calloc(KLM_MAX_EDGES, sizeof(KlmEdge));
+    /* Аллокация хеш-таблицы рёбер (динамическая) */
+    ctx->model.edge_capacity = KLM_INITIAL_EDGES;
+    ctx->model.edges = calloc(KLM_INITIAL_EDGES, sizeof(KlmEdge));
     if (!ctx->model.edges) {
+        free(ctx->model.patterns);
+        free(ctx);
+        return NULL;
+    }
+    
+    ctx->model.global_version = 0;
+    ctx->model.last_sync_version = 0;
+    ctx->model.rehash_count = 0;
+
+    /* Инициализация индекса смежности */
+    if (klm_adj_init(&ctx->model.adj_index, KLM_INITIAL_EDGES) != 0) {
+        free(ctx->model.edges);
         free(ctx->model.patterns);
         free(ctx);
         return NULL;
@@ -198,6 +303,7 @@ KlmTrainerContext *klm_trainer_create(const KlmTrainerConfig *config)
 void klm_trainer_free(KlmTrainerContext *ctx)
 {
     if (!ctx) return;
+    klm_adj_free(&ctx->model.adj_index);
     free(ctx->model.patterns);
     free(ctx->model.edges);
     free(ctx);
@@ -224,12 +330,24 @@ int klm_train_text(KlmTrainerContext *ctx, const char *text, size_t len)
     KlmPatternEntry *patterns = ctx->model.patterns;
     size_t cap = ctx->model.pattern_capacity;
 
-    /* Проверка заполнения — автоматическая дистилляция */
+    /* Проверка заполнения — автоматическое расширение или дистилляция */
     if (ctx->model.pattern_count >= (size_t)(cap * KLM_LOAD_FACTOR)) {
-        if (ctx->config.verbose)
-            fprintf(stderr, "[Train] Авто-дистилляция при %zu/%zu паттернов\n",
-                    ctx->model.pattern_count, cap);
-        klm_distill(ctx);
+        /* Сначала пытаемся расширить таблицу */
+        if (ctx->model.pattern_capacity < KLM_MAX_CAPACITY) {
+            if (ctx->config.verbose)
+                fprintf(stderr, "[Train] Авто-расширение паттернов: %zu → %zu\n",
+                        ctx->model.pattern_capacity,
+                        ctx->model.pattern_capacity * KLM_GROWTH_FACTOR);
+            klm_rehash_patterns(ctx, ctx->model.pattern_capacity * KLM_GROWTH_FACTOR);
+            cap = ctx->model.pattern_capacity;
+            patterns = ctx->model.patterns;
+        } else {
+            /* Абсолютный предел — дистилляция */
+            if (ctx->config.verbose)
+                fprintf(stderr, "[Train] Авто-дистилляция при %zu/%zu паттернов\n",
+                        ctx->model.pattern_count, cap);
+            klm_distill(ctx);
+        }
     }
 
     /* --- Фаза 1: Обучение паттернов --- */
@@ -242,6 +360,8 @@ int klm_train_text(KlmTrainerContext *ctx, const char *text, size_t len)
         if (patterns[slot].occupied) {
             /* Существующее слово: обновляем частоту */
             patterns[slot].frequency++;
+            patterns[slot].version = ++ctx->model.global_version;
+            patterns[slot].dirty = 1;
         } else {
             /* Новое слово: генерируем паттерн */
             patterns[slot].hash = klm_hash(tokens[i]);
@@ -280,6 +400,8 @@ int klm_train_text(KlmTrainerContext *ctx, const char *text, size_t len)
 
             patterns[slot].frequency = 1;
             patterns[slot].last_epoch = ctx->model.current_epoch;
+            patterns[slot].version = ++ctx->model.global_version;
+            patterns[slot].dirty = 1;
             patterns[slot].occupied = 1;
             ctx->model.pattern_count++;
             ctx->stats.patterns_learned++;
@@ -570,6 +692,10 @@ size_t klm_distill(KlmTrainerContext *ctx)
                 m->current_epoch, evicted_patterns, m->pattern_count,
                 evicted_edges, m->edge_count, m->avg_pattern_fitness);
 
+    /* Перестройка индекса смежности после дистилляции */
+    if (evicted_edges > 0)
+        klm_adj_rebuild(ctx);
+
     return evicted_patterns + evicted_edges;
 }
 
@@ -699,6 +825,9 @@ int klm_load(KlmTrainerContext *ctx, const char *filepath)
 
     fclose(f);
 
+    /* Перестройка индекса смежности после загрузки */
+    klm_adj_rebuild(ctx);
+
     if (ctx->config.verbose)
         fprintf(stderr,
                 "[Load] %s: %zu паттернов, %zu рёбер, эпоха %u\n",
@@ -801,25 +930,50 @@ size_t klm_get_associations(const KlmTrainerContext *ctx, const char *word,
 
     uint32_t h = klm_hash(word);
 
-    /* Сбор рёбер, связанных с этим словом */
+    /* Сбор рёбер через индекс смежности — O(degree) вместо O(edge_capacity) */
     KlmScoreEntry *cands = malloc(512 * sizeof(KlmScoreEntry));
     if (!cands) return 0;
     size_t nc = 0;
 
-    for (size_t i = 0; i < ctx->model.edge_capacity && nc < 512; i++) {
-        if (!ctx->model.edges[i].occupied) continue;
+    const KlmAdjIndex *adj = &ctx->model.adj_index;
+    if (adj->buckets && adj->bucket_count > 0) {
+        /* Быстрый путь: используем индекс смежности */
+        size_t bucket = h & (adj->bucket_count - 1);
+        size_t eidx = adj->buckets[bucket];
+        while (eidx != SIZE_MAX && nc < 512) {
+            size_t slot = adj->entries[eidx].edge_slot;
+            if (slot < ctx->model.edge_capacity && ctx->model.edges[slot].occupied) {
+                uint32_t other = 0;
+                if (ctx->model.edges[slot].source_hash == h)
+                    other = ctx->model.edges[slot].target_hash;
+                else if (ctx->model.edges[slot].target_hash == h)
+                    other = ctx->model.edges[slot].source_hash;
 
-        uint32_t other = 0;
-        if (ctx->model.edges[i].source_hash == h)
-            other = ctx->model.edges[i].target_hash;
-        else if (ctx->model.edges[i].target_hash == h)
-            other = ctx->model.edges[i].source_hash;
-        else
-            continue;
+                if (other != 0) {
+                    cands[nc].hash = other;
+                    cands[nc].score = ctx->model.edges[slot].weight;
+                    nc++;
+                }
+            }
+            eidx = adj->entries[eidx].next;
+        }
+    } else {
+        /* Фоллбэк: линейный скан (если индекс не построен) */
+        for (size_t i = 0; i < ctx->model.edge_capacity && nc < 512; i++) {
+            if (!ctx->model.edges[i].occupied) continue;
 
-        cands[nc].hash = other;
-        cands[nc].score = ctx->model.edges[i].weight;
-        nc++;
+            uint32_t other = 0;
+            if (ctx->model.edges[i].source_hash == h)
+                other = ctx->model.edges[i].target_hash;
+            else if (ctx->model.edges[i].target_hash == h)
+                other = ctx->model.edges[i].source_hash;
+            else
+                continue;
+
+            cands[nc].hash = other;
+            cands[nc].score = ctx->model.edges[i].weight;
+            nc++;
+        }
     }
 
     qsort(cands, nc, sizeof(KlmScoreEntry), klm_score_cmp_desc);
@@ -877,37 +1031,78 @@ int klm_answer(const KlmTrainerContext *ctx, const char *question,
         if (strlen(tokens[t]) < 3) continue;
         uint32_t h = q_hashes[t];
 
-        for (size_t i = 0; i < ctx->model.edge_capacity; i++) {
-            if (!ctx->model.edges[i].occupied) continue;
+        const KlmAdjIndex *adj = &ctx->model.adj_index;
+        if (adj->buckets && adj->bucket_count > 0) {
+            /* Быстрый путь: O(degree) через индекс смежности */
+            size_t bucket = h & (adj->bucket_count - 1);
+            size_t eidx = adj->buckets[bucket];
+            while (eidx != SIZE_MAX) {
+                size_t slot = adj->entries[eidx].edge_slot;
+                if (slot < ctx->model.edge_capacity && ctx->model.edges[slot].occupied) {
+                    uint32_t other = 0;
+                    if (ctx->model.edges[slot].source_hash == h)
+                        other = ctx->model.edges[slot].target_hash;
+                    else if (ctx->model.edges[slot].target_hash == h)
+                        other = ctx->model.edges[slot].source_hash;
 
-            uint32_t other = 0;
-            if (ctx->model.edges[i].source_hash == h)
-                other = ctx->model.edges[i].target_hash;
-            else if (ctx->model.edges[i].target_hash == h)
-                other = ctx->model.edges[i].source_hash;
-            else
-                continue;
-
-            /* Пропускаем слова вопроса */
-            bool is_q = false;
-            for (size_t q = 0; q < tc; q++) {
-                if (q_hashes[q] == other) { is_q = true; break; }
-            }
-            if (is_q) continue;
-
-            /* Добавляем или усиливаем кандидата */
-            bool found = false;
-            for (size_t c = 0; c < nc; c++) {
-                if (cands[c].hash == other) {
-                    cands[c].score += ctx->model.edges[i].weight;
-                    found = true;
-                    break;
+                    if (other != 0) {
+                        /* Пропускаем слова вопроса */
+                        bool is_q = false;
+                        for (size_t q = 0; q < tc; q++) {
+                            if (q_hashes[q] == other) { is_q = true; break; }
+                        }
+                        if (!is_q) {
+                            /* Добавляем или усиливаем кандидата */
+                            bool found = false;
+                            for (size_t c = 0; c < nc; c++) {
+                                if (cands[c].hash == other) {
+                                    cands[c].score += ctx->model.edges[slot].weight;
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found && nc < max_cands) {
+                                cands[nc].hash = other;
+                                cands[nc].score = ctx->model.edges[slot].weight;
+                                nc++;
+                            }
+                        }
+                    }
                 }
+                eidx = adj->entries[eidx].next;
             }
-            if (!found && nc < max_cands) {
-                cands[nc].hash = other;
-                cands[nc].score = ctx->model.edges[i].weight;
-                nc++;
+        } else {
+            /* Фоллбэк: линейный скан */
+            for (size_t i = 0; i < ctx->model.edge_capacity; i++) {
+                if (!ctx->model.edges[i].occupied) continue;
+
+                uint32_t other = 0;
+                if (ctx->model.edges[i].source_hash == h)
+                    other = ctx->model.edges[i].target_hash;
+                else if (ctx->model.edges[i].target_hash == h)
+                    other = ctx->model.edges[i].source_hash;
+                else
+                    continue;
+
+                bool is_q = false;
+                for (size_t q = 0; q < tc; q++) {
+                    if (q_hashes[q] == other) { is_q = true; break; }
+                }
+                if (is_q) continue;
+
+                bool found = false;
+                for (size_t c = 0; c < nc; c++) {
+                    if (cands[c].hash == other) {
+                        cands[c].score += ctx->model.edges[i].weight;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found && nc < max_cands) {
+                    cands[nc].hash = other;
+                    cands[nc].score = ctx->model.edges[i].weight;
+                    nc++;
+                }
             }
         }
     }
@@ -1008,7 +1203,8 @@ void klm_print_stats(const KlmTrainerContext *ctx)
         "║ Средний fitness:     %10.4f          ║\n"
         "║ Средний вес ребра:   %10.4f          ║\n"
         "║ Размер модели:       %7.2f МБ        ║\n"
-        "║ Лимит модели:        %7.2f МБ        ║\n"
+        "║ Рехеширований:       %10zu          ║\n"
+        "║ Глоб. версия:        %10llu          ║\n"
         "╠══════════════════════════════════════════╣\n"
         "║ Сжатие: %.0f документов → %.1f МБ      ║\n"
         "╚══════════════════════════════════════════╝\n",
@@ -1019,7 +1215,464 @@ void klm_print_stats(const KlmTrainerContext *ctx)
         s->patterns_evicted, s->edges_evicted,
         m->avg_pattern_fitness, m->avg_edge_weight,
         klm_model_size_mb(ctx),
-        (double)KLM_MODEL_SIZE_LIMIT / (1024.0 * 1024.0),
+        m->rehash_count,
+        (unsigned long long)m->global_version,
         (double)m->documents_trained,
         klm_model_size_mb(ctx));
+}
+
+/* ============================================================
+ * API — Динамическое рехеширование (снятие лимитов)
+ * ============================================================ */
+
+static size_t klm_next_pow2(size_t v)
+{
+    v--;
+    v |= v >> 1;
+    v |= v >> 2;
+    v |= v >> 4;
+    v |= v >> 8;
+    v |= v >> 16;
+    v |= v >> 32;
+    v++;
+    return v;
+}
+
+int klm_rehash_patterns(KlmTrainerContext *ctx, size_t new_capacity)
+{
+    if (!ctx) return -1;
+
+    new_capacity = klm_next_pow2(new_capacity);
+    if (new_capacity <= ctx->model.pattern_capacity) return 0;
+    if (new_capacity > KLM_MAX_CAPACITY) new_capacity = KLM_MAX_CAPACITY;
+
+    KlmPatternEntry *old = ctx->model.patterns;
+    size_t old_cap = ctx->model.pattern_capacity;
+
+    KlmPatternEntry *new_table = calloc(new_capacity, sizeof(KlmPatternEntry));
+    if (!new_table) return -1;
+
+    /* Перенос всех занятых слотов */
+    size_t moved = 0;
+    for (size_t i = 0; i < old_cap; i++) {
+        if (!old[i].occupied) continue;
+        size_t slot = klm_find_pattern_slot(new_table, new_capacity, old[i].word);
+        if (slot == SIZE_MAX) {
+            /* Практически невозможно при увеличении capacity */
+            free(new_table);
+            return -1;
+        }
+        new_table[slot] = old[i];
+        moved++;
+    }
+
+    free(old);
+    ctx->model.patterns = new_table;
+    ctx->model.pattern_capacity = new_capacity;
+    ctx->model.pattern_count = moved;
+    ctx->model.rehash_count++;
+
+    return 0;
+}
+
+int klm_rehash_edges(KlmTrainerContext *ctx, size_t new_capacity)
+{
+    if (!ctx) return -1;
+
+    new_capacity = klm_next_pow2(new_capacity);
+    if (new_capacity <= ctx->model.edge_capacity) return 0;
+    if (new_capacity > KLM_MAX_CAPACITY) new_capacity = KLM_MAX_CAPACITY;
+
+    KlmEdge *old = ctx->model.edges;
+    size_t old_cap = ctx->model.edge_capacity;
+
+    KlmEdge *new_table = calloc(new_capacity, sizeof(KlmEdge));
+    if (!new_table) return -1;
+
+    size_t moved = 0;
+    for (size_t i = 0; i < old_cap; i++) {
+        if (!old[i].occupied) continue;
+        size_t slot = klm_find_edge_slot(new_table, new_capacity,
+                                         old[i].source_hash, old[i].target_hash);
+        if (slot == SIZE_MAX) {
+            free(new_table);
+            return -1;
+        }
+        new_table[slot] = old[i];
+        moved++;
+    }
+
+    free(old);
+    ctx->model.edges = new_table;
+    ctx->model.edge_capacity = new_capacity;
+    ctx->model.edge_count = moved;
+    ctx->model.rehash_count++;
+
+    /* Перестройка индекса смежности после рехеширования */
+    klm_adj_rebuild(ctx);
+
+    return 0;
+}
+
+int klm_auto_grow(KlmTrainerContext *ctx)
+{
+    if (!ctx) return 0;
+    int grown = 0;
+
+    if (ctx->model.pattern_count >= (size_t)(ctx->model.pattern_capacity * KLM_LOAD_FACTOR)) {
+        if (ctx->model.pattern_capacity < KLM_MAX_CAPACITY) {
+            if (klm_rehash_patterns(ctx, ctx->model.pattern_capacity * KLM_GROWTH_FACTOR) == 0)
+                grown++;
+        }
+    }
+
+    if (ctx->model.edge_count >= (size_t)(ctx->model.edge_capacity * KLM_LOAD_FACTOR)) {
+        if (ctx->model.edge_capacity < KLM_MAX_CAPACITY) {
+            if (klm_rehash_edges(ctx, ctx->model.edge_capacity * KLM_GROWTH_FACTOR) == 0)
+                grown++;
+        }
+    }
+
+    return grown;
+}
+
+/* ============================================================
+ * API — Дельта-синхронизация
+ * ============================================================ */
+
+KlmDeltaPacket *klm_delta_extract(const KlmTrainerContext *ctx, uint64_t since_version)
+{
+    if (!ctx) return NULL;
+
+    KlmDeltaPacket *delta = calloc(1, sizeof(KlmDeltaPacket));
+    if (!delta) return NULL;
+
+    delta->from_version = since_version;
+    delta->to_version = ctx->model.global_version;
+
+    /* Подсчёт dirty паттернов */
+    size_t pc = 0;
+    for (size_t i = 0; i < ctx->model.pattern_capacity; i++) {
+        if (ctx->model.patterns[i].occupied &&
+            ctx->model.patterns[i].version > since_version)
+            pc++;
+    }
+
+    /* Подсчёт dirty рёбер */
+    size_t ec = 0;
+    for (size_t i = 0; i < ctx->model.edge_capacity; i++) {
+        if (ctx->model.edges[i].occupied &&
+            ctx->model.edges[i].version > since_version)
+            ec++;
+    }
+
+    /* Аллокация */
+    if (pc > 0) {
+        delta->patterns = malloc(pc * sizeof(KlmPatternEntry));
+        if (!delta->patterns) { free(delta); return NULL; }
+    }
+    if (ec > 0) {
+        delta->edges = malloc(ec * sizeof(KlmEdge));
+        if (!delta->edges) { free(delta->patterns); free(delta); return NULL; }
+    }
+
+    /* Копирование */
+    size_t pi = 0, ei = 0;
+    for (size_t i = 0; i < ctx->model.pattern_capacity && pi < pc; i++) {
+        if (ctx->model.patterns[i].occupied &&
+            ctx->model.patterns[i].version > since_version) {
+            delta->patterns[pi++] = ctx->model.patterns[i];
+        }
+    }
+    for (size_t i = 0; i < ctx->model.edge_capacity && ei < ec; i++) {
+        if (ctx->model.edges[i].occupied &&
+            ctx->model.edges[i].version > since_version) {
+            delta->edges[ei++] = ctx->model.edges[i];
+        }
+    }
+
+    delta->pattern_count = pi;
+    delta->edge_count = ei;
+    return delta;
+}
+
+size_t klm_delta_apply(KlmTrainerContext *ctx, const KlmDeltaPacket *delta)
+{
+    if (!ctx || !delta) return 0;
+    size_t applied = 0;
+
+    /* Применяем паттерны: побеждает запись с большей version */
+    for (size_t i = 0; i < delta->pattern_count; i++) {
+        const KlmPatternEntry *incoming = &delta->patterns[i];
+        
+        /* Авто-расширение при необходимости */
+        if (ctx->model.pattern_count >= (size_t)(ctx->model.pattern_capacity * KLM_LOAD_FACTOR)) {
+            klm_rehash_patterns(ctx, ctx->model.pattern_capacity * KLM_GROWTH_FACTOR);
+        }
+
+        size_t slot = klm_find_pattern_slot(
+            ctx->model.patterns, ctx->model.pattern_capacity, incoming->word);
+        if (slot == SIZE_MAX) continue;
+
+        if (ctx->model.patterns[slot].occupied) {
+            /* Конфликт: побеждает бо́льшая version */
+            if (incoming->version > ctx->model.patterns[slot].version) {
+                ctx->model.patterns[slot] = *incoming;
+                ctx->model.patterns[slot].dirty = 0; /* уже синхронизировано */
+                applied++;
+            }
+        } else {
+            ctx->model.patterns[slot] = *incoming;
+            ctx->model.patterns[slot].dirty = 0;
+            ctx->model.pattern_count++;
+            applied++;
+        }
+    }
+
+    /* Применяем рёбра */
+    for (size_t i = 0; i < delta->edge_count; i++) {
+        const KlmEdge *incoming = &delta->edges[i];
+        
+        if (ctx->model.edge_count >= (size_t)(ctx->model.edge_capacity * KLM_LOAD_FACTOR)) {
+            klm_rehash_edges(ctx, ctx->model.edge_capacity * KLM_GROWTH_FACTOR);
+        }
+
+        size_t slot = klm_find_edge_slot(
+            ctx->model.edges, ctx->model.edge_capacity,
+            incoming->source_hash, incoming->target_hash);
+        if (slot == SIZE_MAX) continue;
+
+        if (ctx->model.edges[slot].occupied) {
+            if (incoming->version > ctx->model.edges[slot].version) {
+                ctx->model.edges[slot] = *incoming;
+                ctx->model.edges[slot].dirty = 0;
+                applied++;
+            }
+        } else {
+            ctx->model.edges[slot] = *incoming;
+            ctx->model.edges[slot].dirty = 0;
+            ctx->model.edge_count++;
+            applied++;
+        }
+    }
+
+    /* Обновляем last_sync_version */
+    if (delta->to_version > ctx->model.last_sync_version) {
+        ctx->model.last_sync_version = delta->to_version;
+    }
+
+    return applied;
+}
+
+void klm_delta_mark_synced(KlmTrainerContext *ctx)
+{
+    if (!ctx) return;
+    for (size_t i = 0; i < ctx->model.pattern_capacity; i++) {
+        ctx->model.patterns[i].dirty = 0;
+    }
+    for (size_t i = 0; i < ctx->model.edge_capacity; i++) {
+        ctx->model.edges[i].dirty = 0;
+    }
+    ctx->model.last_sync_version = ctx->model.global_version;
+}
+
+uint8_t *klm_delta_serialize(const KlmDeltaPacket *delta, size_t *out_size)
+{
+    if (!delta || !out_size) return NULL;
+
+    /* Формат: [from_version:8][to_version:8][pattern_count:4][edge_count:4]
+     *         [patterns...][edges...] */
+    size_t header = 8 + 8 + 4 + 4;
+    size_t pat_size = delta->pattern_count * sizeof(KlmPatternEntry);
+    size_t edge_size = delta->edge_count * sizeof(KlmEdge);
+    size_t total = header + pat_size + edge_size;
+
+    uint8_t *buf = malloc(total);
+    if (!buf) return NULL;
+
+    size_t off = 0;
+    memcpy(buf + off, &delta->from_version, 8); off += 8;
+    memcpy(buf + off, &delta->to_version, 8); off += 8;
+    uint32_t pc = (uint32_t)delta->pattern_count;
+    uint32_t ec = (uint32_t)delta->edge_count;
+    memcpy(buf + off, &pc, 4); off += 4;
+    memcpy(buf + off, &ec, 4); off += 4;
+    if (pat_size > 0) {
+        memcpy(buf + off, delta->patterns, pat_size); off += pat_size;
+    }
+    if (edge_size > 0) {
+        memcpy(buf + off, delta->edges, edge_size); off += edge_size;
+    }
+
+    *out_size = total;
+    return buf;
+}
+
+KlmDeltaPacket *klm_delta_deserialize(const uint8_t *data, size_t data_size)
+{
+    if (!data || data_size < 24) return NULL;
+
+    KlmDeltaPacket *delta = calloc(1, sizeof(KlmDeltaPacket));
+    if (!delta) return NULL;
+
+    size_t off = 0;
+    memcpy(&delta->from_version, data + off, 8); off += 8;
+    memcpy(&delta->to_version, data + off, 8); off += 8;
+    uint32_t pc, ec;
+    memcpy(&pc, data + off, 4); off += 4;
+    memcpy(&ec, data + off, 4); off += 4;
+
+    size_t pat_size = (size_t)pc * sizeof(KlmPatternEntry);
+    size_t edge_size = (size_t)ec * sizeof(KlmEdge);
+
+    if (off + pat_size + edge_size > data_size) {
+        free(delta);
+        return NULL;
+    }
+
+    if (pc > 0) {
+        delta->patterns = malloc(pat_size);
+        if (!delta->patterns) { free(delta); return NULL; }
+        memcpy(delta->patterns, data + off, pat_size);
+        off += pat_size;
+    }
+    if (ec > 0) {
+        delta->edges = malloc(edge_size);
+        if (!delta->edges) { free(delta->patterns); free(delta); return NULL; }
+        memcpy(delta->edges, data + off, edge_size);
+    }
+
+    delta->pattern_count = pc;
+    delta->edge_count = ec;
+    return delta;
+}
+
+void klm_delta_free(KlmDeltaPacket *delta)
+{
+    if (!delta) return;
+    free(delta->patterns);
+    free(delta->edges);
+    free(delta);
+}
+
+/* ============================================================
+ * API — Шардирование графа (consistent hashing)
+ * ============================================================ */
+
+static int klm_ring_cmp(const void *a, const void *b)
+{
+    uint32_t va = *(const uint32_t *)a;
+    uint32_t vb = *(const uint32_t *)b;
+    if (va < vb) return -1;
+    if (va > vb) return 1;
+    return 0;
+}
+
+static uint32_t klm_vnode_hash(uint32_t node_id, size_t vnode_idx)
+{
+    /* Генерируем хеш для виртуальной ноды */
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%u:%zu", node_id, vnode_idx);
+    return klm_hash(buf);
+}
+
+int klm_shard_init(KlmShardConfig *cfg, uint32_t node_id,
+                   const uint32_t *node_ids, size_t node_count,
+                   size_t vnodes_per_node)
+{
+    if (!cfg || !node_ids || node_count == 0) return -1;
+
+    memset(cfg, 0, sizeof(*cfg));
+    cfg->node_id = node_id;
+    cfg->vnodes_per_node = vnodes_per_node > 0 ? vnodes_per_node : 128;
+    cfg->node_count = node_count;
+
+    /* Копируем список нод */
+    cfg->node_ids = malloc(node_count * sizeof(uint32_t));
+    if (!cfg->node_ids) return -1;
+    memcpy(cfg->node_ids, node_ids, node_count * sizeof(uint32_t));
+
+    /* Строим хеш-кольцо */
+    cfg->ring_size = node_count * cfg->vnodes_per_node;
+    cfg->ring = malloc(cfg->ring_size * sizeof(uint32_t));
+    cfg->ring_node_ids = malloc(cfg->ring_size * sizeof(uint32_t));
+    if (!cfg->ring || !cfg->ring_node_ids) {
+        klm_shard_free(cfg);
+        return -1;
+    }
+
+    size_t idx = 0;
+    for (size_t n = 0; n < node_count; n++) {
+        for (size_t v = 0; v < cfg->vnodes_per_node; v++) {
+            cfg->ring[idx] = klm_vnode_hash(node_ids[n], v);
+            cfg->ring_node_ids[idx] = node_ids[n];
+            idx++;
+        }
+    }
+
+    /* Сортируем кольцо + соответствие node_ids */
+    /* Используем parallel sort: создаём пары, сортируем, разделяем */
+    typedef struct { uint32_t hash; uint32_t nid; } RingEntry;
+    RingEntry *entries = malloc(cfg->ring_size * sizeof(RingEntry));
+    if (!entries) {
+        klm_shard_free(cfg);
+        return -1;
+    }
+    for (size_t i = 0; i < cfg->ring_size; i++) {
+        entries[i].hash = cfg->ring[i];
+        entries[i].nid = cfg->ring_node_ids[i];
+    }
+    qsort(entries, cfg->ring_size, sizeof(RingEntry),
+          (int (*)(const void *, const void *))klm_ring_cmp);
+    for (size_t i = 0; i < cfg->ring_size; i++) {
+        cfg->ring[i] = entries[i].hash;
+        cfg->ring_node_ids[i] = entries[i].nid;
+    }
+    free(entries);
+
+    return 0;
+}
+
+uint32_t klm_shard_owner(const KlmShardConfig *cfg, uint32_t hash)
+{
+    if (!cfg || cfg->ring_size == 0) return 0;
+
+    /* Бинарный поиск: первая позиция в кольце >= hash */
+    size_t lo = 0, hi = cfg->ring_size;
+    while (lo < hi) {
+        size_t mid = lo + (hi - lo) / 2;
+        if (cfg->ring[mid] < hash)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+
+    /* Wrap-around */
+    if (lo >= cfg->ring_size) lo = 0;
+
+    return cfg->ring_node_ids[lo];
+}
+
+bool klm_shard_is_local(const KlmShardConfig *cfg, uint32_t hash)
+{
+    return klm_shard_owner(cfg, hash) == cfg->node_id;
+}
+
+int klm_shard_rebuild(KlmShardConfig *cfg,
+                      const uint32_t *node_ids, size_t node_count)
+{
+    if (!cfg) return -1;
+    uint32_t saved_id = cfg->node_id;
+    size_t saved_vnodes = cfg->vnodes_per_node;
+    klm_shard_free(cfg);
+    return klm_shard_init(cfg, saved_id, node_ids, node_count, saved_vnodes);
+}
+
+void klm_shard_free(KlmShardConfig *cfg)
+{
+    if (!cfg) return;
+    free(cfg->ring);
+    free(cfg->ring_node_ids);
+    free(cfg->node_ids);
+    memset(cfg, 0, sizeof(*cfg));
 }

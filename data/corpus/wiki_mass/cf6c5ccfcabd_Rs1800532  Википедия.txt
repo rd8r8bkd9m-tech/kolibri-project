@@ -1,0 +1,170 @@
+# Rs1800532 — Википедия
+# URL: https://ru.wikipedia.org/wiki/Special:Random
+
+Rs1800532 — Википедия
+Rs1800532
+Материал из Википедии — свободной энциклопедии
+Текущая версия страницы пока
+не проверялась
+опытными участниками и может значительно отличаться от
+версии, проверенной 12 августа 2013 года
+; проверки требуют
+3 правки
+.
+Перейти к навигации
+Перейти к поиску
+Rs1800532
+Названия
+A218C
+Ген
+TPH1
+Область
+Интрон
+7
+Генетические базы данных
+Ensembl
+SNP (человек)
+dbSNP
+1800532
+Hapmap
+1800532
+SNPedia
+1800532
+HgenetInfoDB
+1800532
+Rs1800532
+(
+A218C
+) —
+однонуклеотидный полиморфизм
+, расположенный в 7 интроне гена
+TPH1
+, кодирующего
+триптофангидроксилазу
+.
+Исследования связывают этот полиморфизм с особенностями характера.
+[
+1
+]
+[
+2
+]
+[
+3
+]
+Ещё один исследуемый
+SNP
+в том же интроне —
+A779C
+.
+Примечания
+[
+править
+|
+править код
+]
+↑
+Shih-Jen Tsai
+,
+Ying-Chieh Wang
+,
+Jen-Yeu Chen
+&
+Chen-Jee Hong
+.
+Allelic variants of the tryptophan hydroxylase (A218C) and serotonin 1B receptor (A-161T) and personality traits
+(англ.)
+//
+Neuropsychobiology
+[англ.]
+: journal. — 2003. —
+Vol. 48
+,
+no. 2
+. —
+P. 68—61
+. —
+doi
+:
+10.1159/000072879
+. —
+PMID
+14504413
+.
+↑
+Ion Anghelescu
+,
+Christoph Klawe
+,
+Christoph Fehr
+,
+Peter Singer
+,
+Alexandra Schleicher
+,
+Hubertus Himmerich
+,
+Christoph Hiemke
+,
+Norbert Dahmen
+&
+Armin Szegedi
+.
+The TPH intron 7 A218C polymorphism and TCI dimension scores in alcohol-dependent patients: hints to nonspecific psychopathology
+(англ.)
+//
+Addictive behaviors
+: journal. — 2005. — July (
+vol. 30
+,
+no. 6
+). —
+P. 1135—1133
+. —
+doi
+:
+10.1016/j.addbeh.2004.11.002
+. —
+PMID
+15925123
+.
+↑
+Akihito Suzuki
+,
+Takashi Fukasawa
+,
+Hiroaki Shiraishi
+,
+Genki Ishii
+,
+Shingo Oshino
+,
+Toshiaki Aoshima
+&
+Koichi Otani
+.
+No association between the TPH A218C polymorphism and personality traits in Japanese healthy subjects
+(англ.)
+//
+Progress in neuro-psychopharmacology & biological psychiatry
+: journal. — 2007. — March (
+vol. 31
+,
+no. 2
+). —
+P. 395—398
+. —
+doi
+:
+10.1016/j.pnpbp.2006.10.003
+. —
+PMID
+17116352
+.
+Источник —
+https://ru.wikipedia.org/w/index.php?title=Rs1800532&oldid=122202151
+Категория
+:
+Однонуклеотидные полиморфизмы
+Навигация
+Поиск

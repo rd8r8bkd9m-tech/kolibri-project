@@ -363,8 +363,13 @@ static void test_model_size_fixed(void)
     }
 
     double size = klm_model_size_mb(ctx);
-    /* Размер модели не должен превышать лимит */
+    /* Размер модели не должен быть бесконечным — проверяем разумность */
+#if KLM_MODEL_SIZE_LIMIT > 0
     assert(size < (double)KLM_MODEL_SIZE_LIMIT / (1024.0 * 1024.0));
+#else
+    /* Лимит снят — проверяем что модель уместилась в разумные рамки */
+    assert(size < 1024.0); /* < 1 ГБ для 500 документов */
+#endif
 
     /* Паттернов не может быть больше capacity */
     assert(ctx->model.pattern_count <= ctx->model.pattern_capacity);

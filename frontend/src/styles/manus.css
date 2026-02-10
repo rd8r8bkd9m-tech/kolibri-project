@@ -1,0 +1,23 @@
+/* ═══════════════════════════════════════════════════════════════
+   Kolibri OS — Manus-style Design System
+   Светлый, чистый, минимальный интерфейс (manus.im)
+   ═══════════════════════════════════════════════════════════════ */
+
+* { box-sizing: border-box; }
+html, body, #root {
+  margin: 0; padding: 0;
+  height: 100%; width: 100%;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-primary); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+
+/* Убираем стандартные цвета body — ThemeContext управляет */
+body {
+  background: var(--bg-primary, #f8f8f7);
+  color: var(--text-primary, #1a1a1a);
+}

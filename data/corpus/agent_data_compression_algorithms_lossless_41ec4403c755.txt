@@ -1,0 +1,30 @@
+# Lossless Data Compression
+# Source: https://cs.stanford.edu/people/eroberts/courses/soco/projects/data-compression/lossless/index.htm
+
+Compression: An Overview
+Lossless compression techniques, as their name implies,
+involve no loss of information. If data have been losslessly compressed, the original data
+can be recovered exactly from the compressed data after a compress/expand cycle. Lossless
+compression is generally used for so-called "discrete" data, such as database
+records, spreadsheets, word-processing files, and even some kinds of image and video
+information.
+Text compression is a significant area for lossless compression. It is very important
+that the reconstruction is identical to the text original, as very small differences can
+result in statements with very different meanings. Consider the sentences "Do
+send money" and "Do
+send money." A similar argument holds for
+computer files and for certain types of data such as bank records.
+Furthermore, if data of any kind are to be processed or "enhanced" later to
+yield more information, it is important that the integrity be preserved. For example,
+suppose we compressed a radiological image in a lossy fashion, and the difference between
+the reconstruction Y and the original
+was visually undetectable. If this image
+was later enhanced, the previously undetectable differences may cause the appearance of
+anomalies that could potentially mislead the radiologist. Because the price for this kind
+of mishap may be a human life, it makes sense to be very careful about using a compression
+scheme that generates a reconstruction that is different from the original.
+In essence, lossless compression algorithms are needed in cases that require
+compression where we want the reconstruction to be identical to the original.
+The types of lossless compression explored in this section
+Shannon-Fano
+back to top

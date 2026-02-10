@@ -1,0 +1,412 @@
+# Boechera — Википедия
+# URL: https://ru.wikipedia.org/wiki/Special:Random
+
+Boechera — Википедия
+Boechera
+Материал из Википедии — свободной энциклопедии
+Перейти к навигации
+Перейти к поиску
+Boechera
+Boechera stricta
+Научная классификация
+Домен:
+Эукариоты
+Царство:
+Растения
+Клада:
+Цветковые растения
+Клада:
+Эвдикоты
+Клада:
+Суперрозиды
+Клада:
+Розиды
+Клада:
+Мальвиды
+Порядок:
+Капустоцветные
+Семейство:
+Капустные
+Род:
+Boechera
+Международное научное название
+Boechera
+Á.Löve
+&
+D.Löve
+Систематика
+в Викивидах
+Изображения
+на Викискладе
+ITIS
+822949
+NCBI
+76872
+EOL
+5154557
+GRIN
+g:13655
+IPNI
+327424-2
+POWO
+327424-2
+WFO
+4000004858
+Boechera
+(лат.)
+— рода
+многолетних
+, реже двулетних
+травянистых растений
+семейства
+Капустные
+(
+Brassicaceae
+)
+[
+1
+]
+[
+2
+]
+.
+Содержание
+1
+Этимология и систематика
+2
+Распространение
+3
+Описание
+4
+Экология
+5
+Виды
+6
+Примечания
+Этимология и систематика
+[
+править
+|
+править код
+]
+Род
+Boechera
+был назван в честь датского ботаника
+Тюге В. Бёкера
+(
+дат.
+Tyge W. Böcher
+; 1909—1983), который был известен своими исследованиями альпийских растений, включая род капустных
+Крупка
+(
+Draba
+) и
+Boechera holboellii
+[
+1
+]
+.
+Согласно недавним молекулярным исследованиям,
+Boechera
+тесно связана с родом
+Резуховидка
+(
+Arabidopsis
+), который также включает широко известное модельное растение
+резуховидка Таля
+(
+Arabidopsis thaliana
+)
+[
+1
+]
+. Ранее представители этого рода включались в род
+Резуха
+(
+Arabis
+), но были выделены из него на основе недавних генетических и цитологических данных
+[
+3
+]
+. В отличие от рода резуха (число хромосом x=8)
+Boechera
+имеет базовое число хромосом x=7. Многие таксоны являются триплоидными.
+Распространение
+[
+править
+|
+править код
+]
+Boechera
+— это преимущественно
+североамериканский
+род, наиболее разнообразный на западе
+США
+, а его ареал также включает
+Гренландию
+и
+Дальний Восток
+России
+. Род мало изучен, и виды внутри него трудно разделить морфологически, хотя известны некоторые чётко различающиеся виды.
+Описание
+[
+править
+|
+править код
+]
+Большинство представителей рода
+Boechera
+— многолетние растения с опушёнными листьями со звёздчатыми
+трихомами
+, узкими изогнутыми
+плодами
+и маленькими белыми или фиолетовыми
+цветками
+в удлинённых
+соцветиях
+-
+кистях
+. Отношения внутри рода неясны, и некоторые восточно-североамериканские виды, включая
+Boechera laevigata
+, могут принадлежать к
+кладе
+, отличной от остальной части рода.
+Интересной особенностью многих видов рода является
+бесполое размножение
+, процесс, известный как
+апогамия
+(апомиксис).
+Микросателлитные
+исследования показали, что некоторые из апомиктических линий являются гибридами между двумя или более половыми родителями
+[
+4
+]
+.
+Экология
+[
+править
+|
+править код
+]
+Виды этого рода являются одним из основных источников пищи для гусениц бабочки
+Pieris oleracea
+[
+5
+]
+.
+Виды
+[
+править
+|
+править код
+]
+В род входит около 110 видов
+[
+1
+]
+:
+Boechera acutina
+Boechera arcuata
+Boechera atrorubens
+Boechera bodiensis
+Boechera breweri
+(
+S.Watson
+)
+Al-Shehbaz
+:
+Boechera breweri subsp. breweri
+Boechera breweri subsp. shastaensis
+Boechera burkii
+Boechera calderi
+Boechera californica
+Boechera canadensis
+Boechera cascadensis
+Boechera cobrensis
+Boechera collinsii
+Boechera consanguinea
+Boechera constancei
+Boechera covillei
+Boechera crandallii
+Boechera cusickii
+Boechera davidsonii
+Boechera dentata
+Boechera depauperata
+Boechera dispar
+Boechera divaricarpa
+Boechera drepanoloba
+Boechera duchesnensis
+Boechera elkoensis
+Boechera evadens
+Boechera falcatoria
+Boechera falcifructa
+Boechera fecunda
+(
+Rollins
+)
+Dorn
+Boechera fendleri
+Boechera fernaldiana
+:
+Boechera fernaldiana subsp. fernaldiana
+Boechera fernaldiana subsp. vivariensis
+Boechera formosa
+Boechera fructicosa
+Boechera glareosa
+Boechera glaucovalvula
+Boechera goodrichii
+Boechera gracilenta
+Boechera gracilipes
+Boechera grahamii
+Boechera gunnisoniana
+Boechera harrisonii
+Boechera hastatula
+Boechera hoffmannii
+Boechera holboellii
+Boechera horizontalis
+Boechera howellii
+Boechera inyoensis
+Boechera johnstonii
+Boechera koehleri
+Boechera laevigata
+Boechera languida
+Boechera lasiocarpa
+Boechera lemmonii
+Boechera lignifera
+Boechera lincolnensis
+Boechera lyallii
+Boechera macounii
+Boechera microphylla
+Boechera missouriensis
+Boechera nevadensis
+Boechera ophira
+Boechera oxylobula
+Boechera paddoensis
+Boechera pallidifolia
+Boechera parishii
+Boechera pauciflora
+Boechera paupercula
+Boechera peirsonii
+Boechera pendulina
+Boechera pendulocarpa
+Boechera perennans
+Boechera perstellata
+Boechera pinetorum
+Boechera pinzliae
+Boechera platysperma
+Boechera polyantha
+Boechera porphyrea
+Boechera pratincola
+Boechera puberula
+Boechera pulchra
+Boechera pusilla
+Boechera pygmaea
+Boechera quebecensis
+Boechera rectissima
+Boechera repanda
+Boechera retrofracta
+Boechera rigidissima
+Boechera rollei
+Boechera rollinsiorum
+Boechera rubicundula
+Boechera saximontana
+Boechera schistacea
+Boechera serotina
+(
+E. S. Steele
+)
+Windham
+&
+Al-Shehbaz
+Boechera serpenticola
+Boechera shevockii
+Boechera shockleyi
+Boechera sparsiflora
+Boechera spatifolia
+Boechera stricta
+Boechera subpinnatifida
+Boechera suffrutescens
+Boechera texana
+Boechera tiehmii
+Boechera tularensis
+Boechera ultra-alsa
+Boechera villosa
+Boechera williamsii
+Boechera xylopoda
+Boechera yorkii
+Примечания
+[
+править
+|
+править код
+]
+↑
+1
+2
+3
+4
+D. Löve, Á. Löve (2010).
+Boechera
+. In Flora of North America Editorial Committee (ed.).
+Flora of North America North of Mexico (FNA)
+. Vol. 7. New York and Oxford — eFloras.org.
+{{
+citation
+}}
+: Википедия:Обслуживание CS1 (отсутствует издатель) (
+ссылка
+)
+↑
+Boechera
+Á.Löve & D.Löve
+.
+Plants of the World Online
+. Royal Botanic Gardens, Kew. Дата обращения: 28 мая 2025.
+↑
+Al-Shehbaz, I.A., 2003.
+Transfer of most North American species of
+Arabis
+to
+Boechera
+(Brassicaceae)
+. Novon 13(4): 381—391.
+↑
+Botany 2010 - Abstract Search
+.
+↑
+Davis, Samantha L.
+Evaluating threats to the rare butterfly, Pieris virginiensis
+(2015). Дата обращения: 16 ноября 2017. Архивировано из
+оригинала
+20 августа 2017 года.
+На
+Викискладе
+есть медиафайлы по теме
+Boechera
+Ссылки на внешние ресурсы
+Таксономия
+EOL
+GBIF
+GRIN
+iNaturalist
+NCBI
+IPNI
+IRMNG
+ITIS TSN
+POWO
+Tropicos
+WFO
+Флора Китая
+Источник —
+https://ru.wikipedia.org/w/index.php?title=Boechera&oldid=150057643
+Категории
+:
+Растения по алфавиту
+Капустные
+Скрытые категории:
+Википедия:Обслуживание CS1 (отсутствует издатель)
+Википедия:Cite web (не указан язык)
+Википедия:Ссылка на Викисклад непосредственно в статье
+Википедия:Ссылки на Викисклад в статье и на Викиданных совпадают
+Навигация
+Поиск

@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 typedef struct {
-    uint8_t digits[1024];
+    uint8_t digits[4000];
     size_t length;
 } KolibriGene;
 
@@ -31,6 +31,23 @@ typedef struct {
 
 #define KOLIBRI_FORMULA_MAX_ASSOCIATIONS 1000
 #define KOLIBRI_POOL_MAX_ASSOCIATIONS 100000
+
+/* Домены знаний — формулы специализируются по областям */
+#define KOLIBRI_DOMAIN_NAME_MAX 64
+
+typedef enum {
+    KOLIBRI_DOMAIN_GENERAL = 0,    /* Общие знания */
+    KOLIBRI_DOMAIN_MEDICINE,       /* Медицина */
+    KOLIBRI_DOMAIN_IT,             /* Информационные технологии */
+    KOLIBRI_DOMAIN_PHYSICS,        /* Физика */
+    KOLIBRI_DOMAIN_MATH,           /* Математика */
+    KOLIBRI_DOMAIN_CHEMISTRY,      /* Химия */
+    KOLIBRI_DOMAIN_BIOLOGY,        /* Биология */
+    KOLIBRI_DOMAIN_HISTORY,        /* История */
+    KOLIBRI_DOMAIN_LAW,            /* Юриспруденция */
+    KOLIBRI_DOMAIN_ECONOMICS,      /* Экономика */
+    KOLIBRI_DOMAIN_CUSTOM = 255    /* Пользовательский домен */
+} KolibriDomainType;
 
 /* ============================================================================
  * Конфигурация эволюционного реактора
@@ -92,11 +109,18 @@ typedef struct {
     double feedback;
     KolibriAssociation associations[KOLIBRI_FORMULA_MAX_ASSOCIATIONS];
     size_t association_count;
+    /* Доменная специализация */
+    KolibriDomainType domain;
+    char domain_name[KOLIBRI_DOMAIN_NAME_MAX];
 } KolibriFormula;
 
+/* Начальный размер пула формул (дальше растёт динамически, без лимита) */
+#define KOLIBRI_FORMULA_INITIAL_CAPACITY 16
+
 typedef struct {
-    KolibriFormula formulas[16];
+    KolibriFormula *formulas;   /* Динамический массив формул (безлимитный) */
     size_t count;
+    size_t capacity;            /* Текущая ёмкость (realloc при нехватке) */
     KolibriRng rng;
     int *inputs;
     int *targets;
@@ -133,6 +157,23 @@ int kf_pool_feedback(KolibriFormulaPool *pool, const KolibriGene *gene, double d
 int kf_formula_lookup_answer(const KolibriFormula *formula, int input,
                              char *buffer, size_t buffer_len);
 int kf_hash_from_text(const char *text);
+
+/* --- Динамическое управление формулами --- */
+
+/** Расширить пул: добавить новые слоты формул */
+int kf_pool_grow(KolibriFormulaPool *pool, size_t new_capacity);
+
+/** Добавить доменную формулу в пул. Пул растёт автоматически. */
+int kf_pool_add_domain_formula(KolibriFormulaPool *pool,
+                               KolibriDomainType domain,
+                               const char *domain_name);
+
+/** Найти лучшую формулу для домена */
+const KolibriFormula *kf_pool_best_for_domain(const KolibriFormulaPool *pool,
+                                              KolibriDomainType domain);
+
+/** Получить количество формул для домена */
+size_t kf_pool_domain_count(const KolibriFormulaPool *pool, KolibriDomainType domain);
 
 /* --- Функции эволюционного реактора --- */
 

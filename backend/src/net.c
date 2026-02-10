@@ -17,7 +17,7 @@
 #include <unistd.h>
 
 #define KOLIBRI_HEADER_SIZE 3U
-#define KOLIBRI_MAX_PAYLOAD 1280U
+#define KOLIBRI_MAX_PAYLOAD 256U
 
 static uint64_t kolibri_htonll(uint64_t value) {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
@@ -111,7 +111,7 @@ size_t kn_message_encode_formula(uint8_t *buffer, size_t buffer_len,
     return 0;
   }
 
-  uint8_t digits[1024];
+  uint8_t digits[32];
   size_t digit_len = kf_formula_digits(formula, digits, sizeof(digits));
   if (digit_len == 0 || digit_len > sizeof(digits)) {
     return 0;
@@ -126,9 +126,7 @@ size_t kn_message_encode_formula(uint8_t *buffer, size_t buffer_len,
   size_t offset = 0;
   memcpy(payload + offset, &be_node, sizeof(be_node));
   offset += sizeof(be_node);
-  uint16_t be_len = htons((uint16_t)digit_len);
-  memcpy(payload + offset, &be_len, sizeof(be_len));
-  offset += sizeof(be_len);
+  payload[offset++] = (uint8_t)digit_len;
   memcpy(payload + offset, digits, digit_len);
   offset += digit_len;
   memcpy(payload + offset, &fitness_bits, sizeof(fitness_bits));
@@ -295,18 +293,15 @@ int kn_message_decode(const uint8_t *buffer, size_t buffer_len,
     break;
   }
   case KOLIBRI_MSG_MIGRATE_RULE: {
-    if (payload_len < sizeof(uint32_t) + 2 + sizeof(uint64_t)) {
+    if (payload_len < sizeof(uint32_t) + 1 + sizeof(uint64_t)) {
       return -1;
     }
     size_t offset = 0;
     uint32_t node_raw;
     memcpy(&node_raw, payload + offset, sizeof(node_raw));
     offset += sizeof(node_raw);
-    uint16_t length_be;
-    memcpy(&length_be, payload + offset, sizeof(length_be));
-    offset += sizeof(length_be);
-    uint16_t length = ntohs(length_be);
-    if (length > 1024U || payload_len < offset + length + sizeof(uint64_t)) {
+    uint8_t length = payload[offset++];
+    if (length > 32U || payload_len < offset + length + sizeof(uint64_t)) {
       return -1;
     }
     memset(out_message->data.formula.digits, 0,

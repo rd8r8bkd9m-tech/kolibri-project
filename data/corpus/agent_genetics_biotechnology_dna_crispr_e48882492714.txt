@@ -1,0 +1,1641 @@
+# CRISPR gene editing - Wikipedia
+# Source: https://en.wikipedia.org/wiki/CRISPR_gene_editing
+
+From Wikipedia, the free encyclopedia
+Gene editing method
+Genome editing
+CRISPR gene editing
+Anti-CRISPR
+CRISPR-Cas10
+CRISPR-Cas13
+CRISPR-BEST
+CRISPR-Disp
+CRISPR-Gold
+Easi-CRISPR
+Cas12a (Cpf1)
+Applications
+Genética dirigida
+Other genome editing methods
+Prime editing
+CRISPR gene editing
+; pronounced like "crisper"; an abbreviation for "clustered regularly interspaced short palindromic repeats") is a
+genetic engineering
+technique in
+molecular biology
+by which the
+of living organisms may be modified. It is based on a simplified version of the bacterial
+antiviral defense system. By delivering the Cas9
+complexed with a synthetic
+(gRNA) into a cell, the cell's genome can be cut at a desired location, allowing existing genes to be removed or new ones added
+The technique is considered highly significant in
+biotechnology
+and medicine as it enables
+genome editing and is considered exceptionally precise, cost-effective, and efficient. It can be used in the creation of new medicines,
+agricultural products
+genetically modified organisms
+, or as a means of controlling
+. It also offers potential in the treatment of inherited
+genetic diseases
+as well as diseases arising from
+somatic mutations
+, such as cancer. However, its use in
+human germline genetic modification
+is highly controversial. The development of this technique earned
+Jennifer Doudna
+Emmanuelle Charpentier
+Nobel Prize in Chemistry
+The third researcher group that shared the
+Kavli Prize
+for the same discovery,
+Virginijus Šikšnys
+, was not awarded the Nobel Prize.
+Working like genetic scissors, the Cas9 nuclease opens both strands of the targeted
+sequence to introduce the modification by one of two methods. Knock-in mutations, facilitated via
+homology-directed repair
+(HDR), are the traditional pathway of targeted genomic editing approaches.
+This allows for the introduction of targeted
+DNA damage and repair
+. HDR employs the use of similar DNA sequences to drive the repair of the break via the incorporation of exogenous DNA to function as the repair template.
+This method relies on the periodic and isolated occurrence of DNA damage at the target site in order for the repair to commence. Knock-out mutations caused by CRISPR-Cas9 result from the repair of the double-stranded break by means of
+non-homologous end joining
+POLQ/polymerase theta
+-mediated end-joining (TMEJ). These end-joining pathways can often result in random deletions or insertions at the repair site, which may disrupt or alter gene functionality. Therefore, genomic engineering with CRISPR-Cas9 enables researchers to generate targeted random gene disruption.
+genome editing
+eukaryotic cells
+has been possible using various methods since the 1980s, the methods employed have proven to be inefficient and impractical for large-scale implementation. With the discovery of CRISPR and specifically the Cas9 nuclease molecule, efficient and highly selective editing became possible. Cas9, derived from the bacterial species
+Streptococcus pyogenes
+has facilitated targeted genomic modification in eukaryotic cells by enabling a reliable method of creating a targeted break at a specific location as designated by the crRNA and tracrRNA guide strands.
+Researchers can insert Cas9 and template RNA with ease in order to
+point mutations
+at specific
+. This has proven invaluable for quick and efficient
+of genomic models and biological processes associated with various genes in a variety of eukaryotes. Newly engineered variants of the Cas9 nuclease that significantly reduce off-target activity have been developed.
+CRISPR-Cas9 genome editing techniques have many potential applications. The use of the CRISPR-Cas9-gRNA complex for genome editing
+'s choice for
+Breakthrough of the Year
+Since 2015, CRISPR has been experimentally investigated on non-viable human
+In 2019, the first humans were born from genome-edited embryos using the CRISPR technique, as a result of the controversial
+He Jiankui affair
+concerns have been raised about the prospect of using CRISPR for
+editing, especially the potential enabling of human
+In 2023, the first drug making use of CRISPR gene editing,
+Exagamglogene autotemcel
+, sold under the brand name "Casgevy", was officially approved for use in the
+United Kingdom
+sickle-cell disease
+beta thalassemia
+On 2 December 2023, the Kingdom of
+became the second country in the world to approve the use of Casgevy to treat
+sickle-cell anemia
+beta thalassemia
+On December 8, 2023, Casgevy received approval for use in the
+United States
+Food and Drug Administration
+Other methods
+In the early 2000s, German researchers began developing
+zinc finger nucleases
+(ZFNs), synthetic proteins whose
+DNA-binding domains
+enable them to create double-stranded breaks in DNA at specific points. ZFNs have a higher precision and the advantage of being smaller than Cas9, but ZFNs are not as commonly used as CRISPR-based methods. In 2010, synthetic nucleases called
+transcription activator-like effector nucleases
+(TALENs) provided an easier way to target a double-stranded break to a specific location on the DNA strand. Both zinc finger nucleases and TALENs require the design and creation of a custom protein for each targeted DNA sequence, which is a much more difficult and time-consuming process than that of designing guide RNAs. CRISPRs are much easier to design because the process requires synthesizing only a short RNA sequence, a procedure that is already widely used for many other molecular biology techniques (e.g., creating
+oligonucleotide
+Whereas methods such as
+RNA interference
+(RNAi) do not fully suppress gene function, CRISPR,
+provide full, irreversible
+gene knockout
+CRISPR can also target several DNA sites simultaneously simply by introducing different gRNAs. In addition, the costs of employing CRISPR are relatively low.
+In 2005, Alexander Bolotin at the French National Institute for Agricultural Research (INRA) discovered a CRISPR locus that contained novel Cas genes, significantly one that encoded a large protein known as Cas9.
+In 2006, Eugene Koonin at the US
+National Center for Biotechnology Information
+, NCBI, proposed an explanation as to how CRISPR cascades as a bacterial immune system.
+In 2007, Philippe Horvath at Danisco France SAS displayed experimentally how CRISPR systems are an adaptive immune system, and integrate new phage DNA into the CRISPR array, which is how they fight off the next wave of attacking phage.
+In 2012, the research team, led by professor
+Jennifer Doudna
+University of California, Berkeley
+) and professor
+Emmanuelle Charpentier
+Umeå University
+), was the first group of individuals to identify, disclose, and file a patent application for the CRISPR-Cas9 system needed to edit DNA.
+They also published their finding that CRISPR-
+could be programmed with RNA to edit genomic DNA, now considered one of the most significant discoveries in the
+history of biology
+citation needed
+Patents and commercialization
+As of November 2013
+, SAGE Labs (part of
+Horizon Discovery
+exclusive rights
+from one of those companies to produce and sell genetically engineered rats and non-exclusive rights for mouse and rabbit models.
+Thermo Fisher Scientific
+had licensed intellectual property from ToolGen to develop CRISPR reagent kits.
+As of December 2014
+patent rights
+to CRISPR were contested. Several companies were formed to develop related drugs and research tools.
+As companies ramped up financing, doubts as to whether CRISPR could be quickly monetized were raised.
+of the Broad Institute of MIT and Harvard and nine others were awarded US patent number 8,697,359
+over the use of CRISPR–Cas9 gene editing in eukaryotes. Although Charpentier and Doudna (referred to as CVC) were credited for the conception of CRISPR, the Broad Institute was the first to achieve a "reduction to practice" according to patent judges Sally Gardner Lane, James T. Moore, and Deborah Katz.
+The first set of patents was awarded to the Broad team in 2015, prompting attorneys for the CVC group to request the first interference proceeding.
+In February 2017, the US Patent Office ruled on a
+patent interference
+case brought by the University of California with respect to patents issued to the
+Broad Institute
+, and found that the Broad patents, with claims covering the application of CRISPR-Cas9 in eukaryotic cells, were distinct from the inventions claimed by the University of California.
+Shortly after, the
+University of California
+filed an appeal of this ruling.
+In 2019, the second interference dispute was opened. This was in response to patent applications made by CVC that required the appeals board to determine the original inventor of the technology. The USPTO ruled in March 2022 against UC, stating that the Broad Institute was first to file. The decision affected many of the licensing agreements for the CRISPR editing technology that was licensed from UC Berkeley. UC stated its intent to appeal the USPTO's ruling.
+Recent events
+In March 2017, the European Patent Office (EPO) announced its intention to allow claims for editing all types of cells to the
+Max-Planck Institute
+in Berlin, the University of California, and the
+University of Vienna
+and in August 2017, the EPO announced its intention to allow CRISPR claims in a patent application that MilliporeSigma had filed.
+As of August 2017
+, the patent situation in Europe was complex, with MilliporeSigma, ToolGen, Vilnius University, and Harvard contending for claims, along with the University of California and Broad.
+In July 2018, the
+gene editing
+for plants was a sub-category of
+and therefore that the CRISPR technique would henceforth be regulated in the
+European Union
+by their rules and regulations for
+In February 2020, a US trial showed safe CRISPR gene editing on three
+In October 2020, researchers Emmanuelle Charpentier and Jennifer Doudna were awarded the Nobel Prize in Chemistry for their work in this field.
+They made history as the first two women to share this award without a male contributor.
+In June 2021, the first, small
+clinical trial
+intravenous
+CRISPR gene editing in humans concluded with promising results.
+In September 2021, the first CRISPR-edited food went on public sale in Japan. Tomatoes
+were genetically modified
+for around five times the normal amount of possibly calming
+CRISPR was first applied in tomatoes in 2014.
+In December 2021, it was reported that the first CRISPR-gene-edited marine animal/
+and second set of CRISPR-edited food has gone on public sale in Japan: two fish of which one species grows to twice the size of natural specimens due to disruption of
+, which controls appetite, and the other grows to 1.2 times the natural average size with the same amount of food due to disabled
+, which inhibits
+muscle growth
+A 2022 study has found that knowing more about CRISPR tomatoes had a strong effect on the participants' preference. "Almost half of the 32 participants from Germany who are scientists demonstrated constant choices, while the majority showed increased willingness to buy CRISPR tomatoes, mostly non-scientists."
+In May 2021, UC Berkeley announced their intent to auction
+non-fungible tokens
+of both the patent for CRISPR gene editing as well as
+cancer immunotherapy
+. However, the university would, in this case, retain ownership of the patents.
+85% of the funds gathered through the sale of the collection named
+The Fourth Pillar
+were to be used to finance research.
+It sold in June 2022 for 22 Ether, which was around
+54,000 at the time.
+In November 2023, the United Kingdom's
+Medicines and Healthcare products Regulatory Agency
+(MHRA) became the first in the world to approve the use of the first drug based on CRISPR gene editing, Casgevy, to treat
+sickle-cell anemia
+beta thalassemia
+. Casgevy, or
+exagamglogene autotemcel
+, directly acts on the genes of the stem cells inside the patient's bones, having them produce healthy red blood cells. This treatment thus avoids the need for regular, costly blood transfusions.
+On 2 December 2023, the Kingdom of Bahrain's
+National Health Regulatory Authority
+(NHRA) became the second in the world to approve the use of Casgevy to treat
+sickle-cell anemia
+beta thalassemia
+In December 2023, the
+approved the first gene therapy in the US to treat patients with Sickle Cell Disease (SCD). The FDA approved two milestone treatments, Casgevy and Lyfgenia, representing the first cell-based gene therapies for the treatment of SCD.
+On 16 February 2025, the Kingdom of Bahrain's announced the successful completion of treatment with Casgevy for the world's first sickle cell disease patient outside of the United States at the Royal Medical Services- Bahrain Oncology Center, located at
+King Hamad University Hospital
+and was congratulated by the World Health Organisation's Director General,
+Tedros Adhanom Ghebreyesus
+for the successful administration of the treatment.
+Genome engineering
+CRISPR-Cas9 genome editing uses a
+CRISPR system. This system includes a
+ribonucleoprotein
+(RNP), consisting of
+, crRNA, and tracrRNA, along with an optional DNA repair template.
+Major components
+Contains the guide RNA that locates the correct segment of host DNA, along with a region that binds to
+(generally in a
+hairpin loop
+form), forming an active complex.
+and forms an active complex.
+Single-guide RNAs are a combined RNA consisting of a
+and at least one
+most commonly
+An enzyme whose active form is able to modify DNA. Many variants exist with different functions (i.e., single-strand nicking, double-strand breaking, DNA binding) due to each enzyme's DNA site recognition function.
+Repair template
+DNA molecule used as a template in the host cell's DNA repair process, allowing insertion of a specific DNA sequence into the host segment broken by Cas9.
+CRISPR-Cas9
+often employs
+that code for the RNP components to
+the target cells, or the RNP is assembled before addition to the cells via nucleofection.
+The main components of this plasmid are displayed in the image and listed in the table. The crRNA is uniquely designed for each application, as this is the sequence that Cas9 uses to identify and directly bind to specific sequences within the host cell's DNA. The crRNA must bind only where editing is desired. The repair template is also uniquely designed for each application, as it must complement to some degree the DNA sequences on either side of the cut and also contain whatever sequence is desired for insertion into the host genome.
+Multiple crRNAs and the tracrRNA can be packaged together to form a single-guide RNA (sgRNA).
+This sgRNA can be included alongside the gene that codes for the Cas9 protein and made into a plasmid in order to be transfected into cells. Many online tools are available to aid in designing effective sgRNA sequences.
+Alternatives to Cas9
+Further information:
+CRISPR § Cas genes and CRISPR subtypes
+Alternative proteins to Cas9 include the following:
+Main use / characteristics
+is smaller and simpler than Cas9; Cas12b i.a. for
+plant genome engineering
+RNA editing
+Creates a single-stranded wide gap
+About twice as compact as the more commonly used Cas9 and Cas12a.
+SuperFi-Cas9
+More accurate without a slow down in speed
+RNA editing
+Chromosome-templated
+Such a method is only applicable to organisms whose matching chromosome has the desired gene/s.
+A Cas9-derived
+which nick rather than cleave target DNA) mediated
+homologous chromosome
+-templated repair method was
+demonstrated
+to be more effective than Cas9 and to cause fewer
+off-target edits
+CRISPR-Cas9 offers a high degree of fidelity and relatively simple construction. It depends on two factors for its specificity: the target sequence and the
+protospacer adjacent motif
+(PAM) sequence. The target sequence is 20 bases long as part of each CRISPR locus in the crRNA array.
+A typical crRNA array has multiple unique target sequences. Cas9 proteins select the correct location on the host's genome by utilizing the sequence to bond with base pairs on the host DNA. The sequence is not part of the Cas9 protein and as a result is customizable and can be independently
+synthesized
+The PAM sequence on the host genome is recognized by Cas9. Cas9 cannot be easily modified to recognize a different PAM sequence. However, this is ultimately not too limiting, as it is typically a very short and nonspecific sequence that occurs frequently at many places throughout the genome (e.g. the SpCas9 PAM sequence is 5'-NGG-3' and in the human genome occurs roughly every 8 to 12 base pairs).
+Once these sequences have been assembled into a plasmid and transfected into cells, the Cas9 protein with the help of the crRNA finds the correct sequence in the host cell's DNA and – depending on the Cas9 variant – creates a single- or double-stranded break at the appropriate location in the DNA.
+Properly spaced single-stranded breaks in the host DNA can trigger
+homology directed repair
+, which is less error-prone than the
+non-homologous end joining
+theta-mediated end joining
+that typically follows a double-stranded break. Providing a DNA repair template allows for the insertion of a specific DNA sequence at an exact location within the genome. The repair template should extend 40 to 90 base pairs beyond the Cas9-induced DNA break.
+The goal is for the cell's native HDR process to utilize the provided repair template and thereby incorporate the new sequence into the genome. Once incorporated, this new sequence is now part of the cell's genetic material and passes into its daughter cells. Combined transient inhibition of NHEJ and TMEJ by a small molecule and siRNAs can increase HDR efficiency to up to 93% and simultaneously prevent off-target editing.
+Transfection
+Delivery of Cas9, sgRNA, and associated complexes into cells can occur via viral and non-viral systems.
+Electroporation
+of DNA, RNA, or ribonucleocomplexes is a common technique, though it can result in harmful effects on the target cells.
+Chemical transfection techniques utilizing
+and peptides have also been used to introduce sgRNAs in complex with Cas9 into cells.
+Nanoparticle
+-based delivery has also been used for transfection.
+Types of cells that are more difficult to transfect (e.g., stem cells, neurons, and hematopoietic cells) require more efficient delivery systems, such as those based on
+adeno-associated virus
+Efficiency of CRISPR-Cas9 has been found to greatly increase when various components of the system including the entire CRISPR/Cas9 structure to Cas9-gRNA complexes delivered in assembled form rather than using transgenics.
+This has found particular value in
+genetically modified crops
+for mass commercialization.
+Since the host's replication machinery is not needed to produce these proteins, the chance of the recognizing sequence of the sgRNA is almost none, decreasing the chance of off-target effects.
+Controlled genome editing
+Further improvements and variants of the CRISPR-Cas9 system have focused on introducing more control into its use. Specifically, the research aimed at improving this system includes improving its specificity, its efficiency, and the granularity of its editing power. Techniques can further be divided and classified by the component of the system they modify. These include using different variants or novel creations of the Cas protein, using an altogether different effector protein, modifying the sgRNA, or using an algorithmic approach to identify existing optimal solutions.
+Specificity is an important aspect to improve the CRISPR-Cas9 system because the off-target effects it generates have serious consequences for the genome of the cell and invokes caution for its use. Minimizing off-target effects is thus maximizing the safety of the system. Novel variations of Cas9 proteins that increase specificity include effector proteins with comparable efficiency and specificity to the original SpCas9 that are able to target the previously untargetable sequences and a variant that has virtually no off-target mutations.
+Research has also been conducted in engineering new Cas9 proteins, including some that partially replace RNA nucleotides in crRNA with DNA and a structure-guided Cas9 mutant generating procedure that all had reduced off-target effects.
+Iteratively truncated sgRNAs and highly stabilized gRNAs have been shown to also decrease off-target effects.
+Computational methods including machine learning have been used to predict the affinity of and create unique sequences for the system to maximize specificity for given targets.
+Several variants of CRISPR-Cas9 allow gene activation or genome editing with an external trigger such as light or small molecules.
+These include photoactivatable CRISPR systems developed by fusing light-responsive protein partners with an activator domain and a dCas9 for gene activation,
+or by fusing similar light-responsive domains with two constructs of split-Cas9,
+or by incorporating caged unnatural amino acids into Cas9,
+or by modifying the guide RNAs with photocleavable complements for genome editing.
+Methods to control genome editing with small molecules include an allosteric Cas9, with no detectable background editing, that will activate binding and cleavage upon the addition of
+4-hydroxytamoxifen
+4-HT responsive
+-linked Cas9,
+or a Cas9 that is 4-HT responsive when fused to four ERT2 domains.
+Intein-inducible split-Cas9 allows
+dimerization
+of Cas9 fragments
+-inducible split-Cas9 system developed by fusing two constructs of split-Cas9 with FRB and
+Other studies have been able to induce transcription of Cas9 with a small molecule,
+doxycycline
+Small molecules can also be used to improve homology directed repair,
+often by inhibiting the non-homologous end joining pathway and/or the theta-mediated end-joining pathway.
+A system with the Cpf1 effector protein was created that is induced by small molecules VE-822 and AZD-7762.
+These systems allow conditional control of CRISPR activity for improved precision, efficiency, and spatiotemporal control. Spatiotemporal control is a form of removing off-target effects—only certain cells or parts of the organism may need to be modified, and thus light or small molecules can be used as a way to conduct this. Efficiency of the CRISPR-Cas9 system is also greatly increased by proper delivery of the DNA instructions for creating the proteins and necessary reagents.
+CRISPR also utilizes single base-pair editing proteins to create specific edits at one or two bases in the target sequence. CRISPR/Cas9 was fused with specific enzymes that initially could only change C to T and G to A mutations and their reverse. This was accomplished eventually without requiring any DNA cleavage.
+With the fusion of another enzyme, the base editing CRISPR-Cas9 system can also edit C to G and its reverse.
+CRISPR screening
+The clustered regularly interspaced short palindromic repeats
+(CRISPR)/Cas9
+system is a gene-editing technology that can induce
+double-strand breaks
+(DSBs) anywhere guide ribonucleic acids (
+) can bind with the
+protospacer adjacent motif
+(PAM) sequence.
+Single-strand nicks can also be induced by Cas9 active-site mutants,
+also known as Cas9 nickases.
+By simply changing the sequence of gRNA, the Cas9-endonuclease can be delivered to a gene of interest and induce DSBs.
+The efficiency of Cas9-endonuclease and the ease by which genes can be targeted led to the development of CRISPR-knockout (KO) libraries both for mouse and human cells, which can cover either specific gene sets of interest or the whole-genome.
+CRISPR screening helps scientists to create a systematic and high-throughput genetic perturbation within live model organisms. This genetic perturbation is necessary for fully understanding gene function and epigenetic regulation.
+The advantage of pooled CRISPR libraries is that more genes can be targeted at once.
+citation needed
+Knock-out libraries are created in a way to achieve equal representation and performance across all expressed gRNAs and carry an antibiotic or fluorescent selection marker that can be used to recover transduced cells.
+There are two
+systems in CRISPR/Cas9 libraries. First, is all in one plasmid, where sgRNA and Cas9 are produced simultaneously in a transfected cell. Second, is a two-vector system: sgRNA and Cas9 plasmids are delivered separately.
+It is important to deliver thousands of unique sgRNAs-containing vectors to a single vessel of cells by viral transduction at low
+multiplicity of infection
+(MOI, typically at 0.1–0.6), it prevents the probability that an individual cell clone will get more than one type of sgRNA otherwise it can lead to incorrect assignment of
+Once a pooled library is prepared it is necessary to carry out a deep sequencing (NGS, next generation sequencing) of PCR-amplified plasmid DNA in order to reveal abundance of sgRNAs. Cells of interest can be consequentially infected by the library and then selected according to the phenotype. There are 2 types of selection: negative and positive. By negative selection dead or slow growing cells are efficiently detected. It can identify survival-essential genes, which can further serve as candidates for molecularly targeted drugs. On the other hand, positive selection gives a collection of growth-advantage acquired populations by random mutagenesis.
+After selection genomic DNA is collected and sequenced by NGS. Depletion or enrichment of sgRNAs is detected and compared to the original sgRNA library, annotated with the target gene that sgRNA corresponds to. Statistical analysis then identifies genes that are significantly likely to be relevant to the phenotype of interest.
+Examples of pooled knock-out libraries, AddGene
+Genes targeted
+gRNAs per gene
+Total gRNAs
+Bassik Mouse CRISPR Knockout Library
+1000000121–1000000130
+Varies (~23,000 in total)
+Mouse Tumor Suppressor Gene CRISPR Knockout Library
+EFS backbone
+TBG backbone
+Brie mouse genome-wide library
+(1 plasmid)
+(2 plasmid)
+Doench and Root
+Bassik Human CRISPR Knockout Library
+101926–101934
+Varies (~20,500 in total)
+Brunello human genome-wide library
+(1 plasmid)
+(2 plasmid)
+Doench and Root
+Mini-human AsCpf1-based Human Genome-wide Knockout Library
+17,032 arrays
+Apart from knock-out there are also knock-down (CRISPRi) and activation (CRISPRa) libraries, which use the ability of proteolytically deactivated Cas9-fusion proteins (dCas9) to bind target DNA, which means that a gene of interest is not cut but is over-expressed or repressed. It made CRISPR/Cas9 system even more interesting in gene editing. Inactive dCas9 protein modulate gene expression by targeting dCas9-repressors or activators toward promoter or transcriptional start sites of target genes. For repressing genes Cas9 can be fused to KRAB effector domain that makes complex with gRNA, whereas CRISPRa utilizes dCas9 fused to different transcriptional activation domains, which are further directed by gRNA to promoter regions to upregulate expression.
+Applications
+Disease models
+Cas9 genomic modification has allowed for the quick and efficient generation of
+models within the field of genetics. Cas9 can be easily introduced into the target cells along with sgRNA via plasmid transfection in order to model the spread of diseases and the cell's response to and defense against infection.
+The ability of Cas9 to be introduced
+allows for the creation of more accurate models of gene function and mutation effects, all while avoiding the off-target mutations typically observed with older methods of genetic engineering.
+citation needed
+The CRISPR and Cas9 revolution in genomic modeling does not extend only to mammals. Traditional genomic models such as
+Drosophila melanogaster
+, one of the first model organisms, have seen further refinement in their resolution with the use of Cas9.
+Cas9 uses cell-specific promoters allowing a controlled use of the Cas9. Cas9 is an accurate method of treating diseases due to the targeting of the Cas9 enzyme only affecting certain cell types. The cells undergoing the Cas9 therapy can also be removed and reintroduced to provide amplified effects of the therapy.
+CRISPR-Cas9 can be used to edit the DNA of organisms
+and to eliminate individual genes or even entire
+chromosomes
+from an organism at any point in its development. Chromosomes that have been successfully deleted
+using CRISPR techniques include the Y chromosome and X chromosome of adult lab mice and human chromosomes 14 and 21, in embryonic stem cell lines and
+mice respectively. This method might be useful for treating genetic disorders caused by abnormal numbers of chromosomes, such as
+Down syndrome
+genome editing using CRISPR-Cas9 has been shown in numerous model organisms, including
+Escherichia coli
+Saccharomyces cerevisiae
+Candida albicans
+, Methanosarcina acetivorans
+Caenorhabditis elegans
+Arabidopsis
+Danio rerio
+house mouse
+mus musculus
+Successes have been achieved in the study of basic biology, in the creation of disease models,
+and in the experimental treatment of disease models.
+Concerns have been raised that
+off-target effects
+(editing of genes besides the ones intended) may confound the results of a CRISPR gene editing experiment (i.e. the observed phenotype change may not be due to modifying the target gene, but some other gene). Modifications to CRISPR have been made to minimize the possibility of off-target effects. Orthogonal CRISPR experiments are often recommended to confirm the results of a gene editing experiment.
+CRISPR simplifies the creation of
+genetically modified organisms
+for research which mimic disease or show what happens when a gene is
+knocked down
+or mutated. CRISPR may be used at the
+level to create organisms in which the targeted gene is changed everywhere (i.e. in all cells/tissues/organs of a multicellular organism), or it may be used in non-germline cells to create local changes that only affect certain cell populations within the organism.
+CRISPR can be utilized to create human cellular models of disease.
+For instance, when applied to human
+pluripotent stem cells
+, CRISPR has been used to introduce targeted mutations in genes relevant to
+polycystic kidney disease
+focal segmental glomerulosclerosis
+These CRISPR-modified pluripotent stem cells were subsequently grown into human kidney
+that exhibited disease-specific phenotypes. Kidney
+from stem cells with PKD mutations formed large, translucent cyst structures from kidney tubules. The cysts were capable of reaching macroscopic dimensions, up to one centimeter in diameter.
+Kidney organoids with mutations in a gene linked to FSGS developed junctional defects between
+, the filtering cells affected in that disease. This was traced to the inability of podocytes to form microvilli between adjacent cells.
+Importantly, these disease phenotypes were absent in control organoids of identical genetic background, but lacking the CRISPR modifications.
+A similar approach was taken to model
+long QT syndrome
+cardiomyocytes
+derived from pluripotent stem cells.
+These CRISPR-generated cellular models, with isogenic controls, provide a new way to study human disease and test drugs.
+CRISPR editing can be used to define the molecular function of non-coding alleles associated with complex diseases.
+These alleles are ubiquitously associated with complex traits, and work by altering gene regulation in relevant cell-types. They are also very difficult to ascribe function too. Genome editing can be used to introduce individual variants into the genome, and then downstream molecular effects can be defined. This approach must be done in appropriate cell-types or cell lines for the variant of interest. Also, this approach can be confounded by off-target effects, low efficiency editing, and non-specific transcriptional effects of gene editing.
+Biomedicine
+CRISPR-Cas technology has been proposed as a treatment for multiple human diseases, especially those with a genetic cause.
+Its ability to modify specific DNA sequences makes it a tool with potential to fix disease-causing mutations. Early research in animal models suggest that therapies based on CRISPR technology have potential to treat a wide range of diseases,
+including cancer,
+beta-thalassemia,
+sickle cell disease
+cystic fibrosis
+Duchenne's muscular dystrophy
+Huntington's disease
+transthyretin amyloidosis
+and heart disease.
+CRISPR has also been used to cure
+in mosquitos, which could eliminate the vector and the disease in humans.
+CRISPR may also have applications in tissue engineering and regenerative medicine, such as by creating human blood vessels that lack expression of
+MHC class II
+proteins, which often cause transplant rejection.
+In addition, clinical trials to cure
+beta thalassemia
+sickle cell disease
+in human patients using CRISPR-Cas9 technology have shown promising results.
+In December 2023, the
+US Food and Drug Administration
+(FDA) approved the first cell-based gene therapies for treating sickle cell disease,
+. Casgevy is the first FDA approved gene therapy to use the CRISPR-Cas9 technology and works by modifying a patient's hematopoietic
+Nevertheless, there remains a few limitations of the technology's use in
+gene therapy
+: the relatively high frequency of
+off-target effect
+, the requirement for a
+PAM sequence
+near the target site,
+mediated apoptosis by CRISPR-induced
+double-strand breaks
+immunogenic toxicity
+due to the delivery system typically by
+CRISPR has also found many applications in developing cell-based immunotherapies.
+The first clinical trial involving CRISPR started in 2016. It involved taking immune cells from people with lung cancer, using CRISPR to edit out the gene which expressed
+Programmed cell death protein 1
+(PD-1), then administering the altered cells back to the same person. 20 other trials were under way or nearly ready, mostly in China, as of 2017
+In 2016, the
+United States Food and Drug Administration
+(FDA) approved a clinical trial in which CRISPR would be used to alter
+extracted from people with different kinds of cancer and then administer those engineered T cells back to the same people.
+In November 2020, in mouse animal models, CRISPR was used effectively to treat
+glioblastoma
+(fast-growing brain tumor) and
+ovarian cancer
+, as those are two cancers with some of the worst best-case prognosis and are typically diagnosed during their later stages. The treatments have resulted in inhibited tumor growth, and increased survival by 80% for metastatic ovarian cancer and tumor cell
+, inhibited tumor growth by 50%, and improved survival by 30% for glioblastoma.
+In October 2021, CRISPR Therapeutics announced results from their ongoing US-based phase 1 trial for an allogeneic T cell therapy. These cells are sourced from healthy donors and are edited to attack cancer cells and avoid being seen as a threat by the recipient's immune system, and then multiplied into huge batches which can be given to large numbers of recipients.
+In December 2022, a 13-year British girl that had been diagnosed with incurable
+T-cell acute lymphoblastic leukemia
+was cured by doctors at
+Great Ormond Street Hospital
+, in the first documented use of
+therapeutic gene editing
+for this purpose, after undergoing six months of an experimental treatment, where previous attempts of other treatments failed. The procedure included reprogramming a healthy T-cell to destroy the cancerous T-cells to first rid her of leukaemia, and then rebuilding her immune system from scratch using healthy immune cells.
+The team used
+BASE editing
+treated a case of
+acute lymphoblastic leukaemia
+in 2015 using
+Type 1 diabetes is an endocrine disorder which results from a lack of pancreatic beta cells to produce insulin, a vital compound in transporting blood sugar to cells for producing energy. Researchers have been trying to transplant healthy beta cells. CRISPR is used to edit the cells in order to reduce the chance the patient's body will reject the transplant.
+citation needed
+On November 17, 2021 CRISPR therapeutics and ViaCyte announced that the Canadian medical agency had approved their request for a clinical trial for VCTX210, a CRISPR-edited stem cell therapy designed to treat type 1 diabetes. This was significant because it was the first ever gene-edited therapy for diabetes that approached clinics. The same companies also developed a novel treatment for type 1 diabetes to produce insulin via a small medical implant that uses millions of pancreatic cells derived from CRISPR gene-edited stem cells.
+In February 2022, a phase 1 trial was conducted in which one patient volunteer received treatment.
+Human immunodeficiency virus
+(HIV) is a virus that attacks the body's immune system. While effective treatments exist which can allow patients to live healthy lives, HIV is retroactive meaning that it embeds an inactive version of itself in the human genome. CRISPR can be used to selectively remove the virus from the genome by designing guide RNA to target the retroactive HIV genome. One issue with this approach is that it requires the removal of the HIV genome from almost all cells, which can be difficult to realistically achieve.
+Initial results in the treatment and cure of HIV have been rather successful, in 2021 9 out of 23 humanized mice treated with a combination of anti-retrovirals and CRISPR/Cas-9 had the virus become undetectable, even after the usual rebound period. None of the two treatments alone had such an effect.
+Clinical trials in humans of a CRISPR–Cas9 based therapy,
+started in 2022.
+In October 2023 an early-stage study on 3 people of EBT-101 reported that the treatment appeared to be safe with no major side effects but no data on its effectiveness was disclosed.
+In March 2024 another CRISPR therapy from researchers of the university of Amsterdam reported the elimination of HIV in cell cultures.
+CRISPR-Cas-based "RNA-guided nucleases" can be used to target
+virulence factors
+, genes encoding
+antibiotic resistance
+, and other medically relevant sequences of interest. This technology thus represents a novel form of antimicrobial therapy and a strategy by which to manipulate bacterial populations.
+Recent studies suggest a correlation between the interfering of the CRISPR-Cas locus and acquisition of antibiotic resistance.
+This system provides protection of bacteria against invading foreign DNA, such as
+transposons
+bacteriophages
+, and plasmids. This system was shown to be a strong selective pressure for the acquisition of antibiotic resistance and virulence factor in bacterial pathogens.
+Therapies based on
+CRISPR–Cas3 gene editing
+technology delivered by engineered bacteriophages could be used to destroy targeted DNA in pathogens.
+Cas3 is more destructive than the better known Cas9.
+Research suggests that CRISPR is an effective way to limit replication of multiple
+herpesviruses
+. It was able to eradicate viral DNA in the case of
+Epstein–Barr virus
+(EBV). Anti-herpesvirus CRISPRs have promising applications such as removing cancer-causing EBV from tumor cells, helping rid donated organs for
+immunocompromised
+patients of viral invaders, or preventing
+outbreaks and recurrent eye infections by blocking
+reactivation. As of August 2016
+, these were awaiting testing.
+CRISPR may revive the concept of
+transplanting
+animal organs into people.
+Retroviruses
+present in animal genomes could harm transplant recipients. In 2015, a team eliminated 62 copies of a particular retroviral DNA sequence from the pig genome in a kidney epithelial cell.
+Researchers recently demonstrated the ability to birth live pig specimens after removing these retroviruses from their genome using CRISPR for the first time.
+Neurological disorders
+CRISPR can be used to suppress gain of function mutations and to repair loss of function mutations in neurological disorders.
+The gene editing tool has become a foothold in vivo application for assimilation of molecular pathways.
+citation needed
+CRISPR is unique to the development of solving neurological diseases for several reasons. For example, CRISPR allows researchers to quickly generate animal and human cell models, allowing them to study how genes function in a nervous system. By introducing mutations that pertain to various diseases within these cells, researchers can study the effects of the changes on nervous system development, function, and behavior.
+They can uncover the molecular mechanisms that contribute to these disorders, which is essential for developing effective treatments. This is particularly useful in modeling and treating complex neurological disorders such as
+Alzheimer's
+Parkinson's
+among others.
+citation needed
+Alzheimer's Disease (AD) is a
+neurodegenerative disease
+categorized by neuron loss and an accumulation of intracellular neurofibrillary tangles and extracellular amyloid plaques in the brain.
+Three pathogenic genes that cause early onset AD in humans have been identified, specifically amyloid precursor protein (APP), presenilin 1 (PSEN1), and presenilin 2 (PSEN2).
+Over 300 mutations have been detected in these genes, resulting in an increase in total β-amyloid (Aβ), Aβ42/40 ratio, and/or Aβ polymerization.
+CRISPR has been used to correct for the
+gene, which is responsible for
+Duchenne muscular dystrophy
+, and for the
+mutation responsible for the epilepsy disorder
+Dravet syndrome
+A challenge of using CRISPR for neurological treatment is transferring its components across the
+blood-brain barrier
+. However, recent advancements in nanoparticle delivery systems and viral vectors have shown promise in overcoming this hurdle
+citation needed
+. Looking to the future, the use of CRISPR in neuroscience is expected to increase as technology evolves.
+The most commonly occurring worldwide eye diseases are
+retinitis pigmentosa
+(RP). These are caused by a missense mutation in the alpha chain that leads to permanent blindness. A challenge to the use of CRISPR 77hh in eye disease is that retinal tissue in the eye is free from body immune response. Researchers' approach for using CRISPR is to bag the gene coding retinal protein and edit the genome.
+Leber congenital amaurosis
+The CRISPR treatment for LCA10 (the most common variant of
+Leber congenital amaurosis
+which is the leading cause of inherited childhood blindness) modifies the patient's defective photoreceptor gene.
+citation needed
+In March 2020, the first patient volunteer in this US-based study, sponsored by
+Editas Medicine
+, was given a low-dose of the treatment to test for safety. In June 2021, enrollment began for a high-dose adult and pediatric cohort of 4 patient volunteers each. Dosing of the new cohorts was expected to be completed by July 2022.
+In November 2022, Editas reported that 20% of the patients treated had significant improvements, but also announced that the resulting target population was too small to support continued independent development.
+Cardiovascular diseases
+CRISPR technology has been shown to work efficiently in the treatment of heart disease. In the case of
+familial hypercholesterolemia
+(FH), cholesterol deposition in the walls of the artery causes blockage of blood flow. This is caused by mutation in low density lipoprotein cholesterol receptors
+which results in excessive release of cholesterol into the blood. This can be treated by deletion of a base pair in exon 4 of the LDLC receptor. This is a
+nonsense mutation
+citation needed
+β-Hemoglobinopathies
+This disease comes under genetic disorders which are caused by mutation occurring in the structure of
+or due to substitution of different amino acids in globin chains. Due to this, the red blood cells (RBC) cause a string of obstacles such as heart failure, hindrance of blood vessels, defects in growth and optical problems.
+To rehabilitate β-hemoglobinopathies, the patient's multipotent cells are transferred in a mice model to study the rate of gene therapy in ex-vivo which results in expression of mRNA and the gene being rectified. Intriguingly RBC half-life was also increased.
+citation needed
+is a loss of the clotting function in blood due to one of the clotting proteins not working properly. A research team created a line of mice that had the same defective clotting protein found in human
+Hemophilia B
+. By using CRISPR-Cas9 the team was able to insert a gene for a working version of the defective protein into the liver cells of these mice. Enough liver cells were repaired to alleviate the symptoms of heamophilia in these mice.
+Agriculture
+Successful CRISPR-Cas9 genome editing was first achieved in plants in August 2013.
+It has since been successfully applied in several key crop species for the purpose of introducing or improving numerous agricultural traits.
+The development of CRISPR technology has been highly influential in the field of plant biotechnology, and has the potential to revolutionize the future of agriculture.
+CRISPR-Cas systems are most commonly introduced into plants by
+Agrobacterium
+-mediated transformation, although
+particle bombardment
+transformation are also used.
+Improvement of crop yields has been achieved in several species through the use of CRISPR-Cas technology. Grain yield in cereal crops is influenced by levels of the plant hormone
+High-yielding rice
+varieties have been produced by using CRISPR-Cas9 to knock out the enzyme
+cytokinin oxidase/dehydrogenase
+(CKX), which degrades cytokinin. Grain yield has also been increased in rice by using CRISPR-Cas9 to knock out an
+amino acid transporter
+CRISPR has been used to develop higher quality crops, including improvements to physical appearance, flavor and aroma, texture, shelf life, and nutritional content.
+tomatoes have been produced by using CRISPR to mutate genes involved in synthesizing pigments. CRISPR has also been used to decrease
+content in wheat, thus improving grain quality.
+In addition, soybeans have been modified using CRISPR to contain more heart-healthy monounsaturated fatty acids, like
+CRISPR technology has also been used to reduce the amount of
+Wheat containing decreased levels of
+, a common allergen and
+intolerance
+, has been developed using CRISPR.
+Researchers are also working to reduce allergens in soybean, peanut, and mustard using CRISPR-Cas9.
+Resistance to disease
+CRISPR has been used to develop plants with improved
+to various diseases.
+Using CRISPR, cucumber, rice, and tobacco plants have been engineered with resistance to
+. Wheat, rice, tomato, grape, and cacao have been modified for resistance to
+fungal diseases
+. Finally, rice, apple, and citrus fruits have been developed with resistance to
+bacterial infection
+Gene therapy
+There are currently about 6000 known genetic disorders, most of which are currently untreatable. The role of CRISPR in gene therapy is to substitute exogenous DNA in place of defective genes.
+Gene therapy has made a huge impact and opened many new possibilities in medical biotechnology.
+citation needed
+Base editing
+There are two types of base editings:
+Cytidine base editor is a novel therapy in which the cytidine (C) changes to thymidine (T).
+citation needed
+Adenine base editor (ABE),
+in this there is a change in base complements from adenine (A) to Guanine (G).
+The mutations were directly installed in cellular DNA so that the donor template is not required. The base editings can only edit point mutations. Moreover, they can only fix up to four-point mutations.
+To address this problem, the CRISPR system introduced a new technique known as
+fusion to increase the scale of genes that can be edited.
+Gene silencing and activating
+Furthermore, the CRISPR Cas9 protein can modulate genes either by activating or silencing based on genes of interest.
+There is a nuclease called dCas9 (endonuclease) used to silence or activate the expression of genes.
+citation needed
+Limitations
+The researchers are facing many challenges in gene editing.
+The major hurdles coming in the clinical applications are ethical issues and the transport system to the target site. As the units of CRISPR system taken from bacteria, when they are transferred to host cells it produces an immune response against them. Physical, chemical, viral vectors are used as vehicles to deliver the complex into the host.
+citation needed
+Due to this many complications are arising such as cell damage that leads to cell death. In the case of viral vectors, the capacity of the virus is small and Cas9 protein is large. So, to overcome these new methods were developed in which smaller strains of Cas9 are taken from bacteria. Finally, a great extent of work is still needed to improve the system.
+citation needed
+As a diagnostic tool
+CRISPR associated nucleases have shown to be useful as a tool for molecular testing due to their ability to specifically target nucleic acid sequences in a high background of non-target sequences. In 2016, the Cas9 nuclease was used to deplete unwanted nucleotide sequences in next-generation sequencing libraries while requiring only 250 picograms of initial RNA input.
+Beginning in 2017, CRISPR associated nucleases were also used for direct diagnostic testing of nucleic acids, down to single molecule sensitivity.
+CRISPR diversity is used as an analysis target to discern
+and diversity in bacteria, such as in
+xanthomonads
+Early detections of
+plant pathogens
+by molecular typing of the pathogen's CRISPRs can be used in agriculture as demonstrated by Shen
+By coupling CRISPR-based diagnostics to additional enzymatic processes, the detection of molecules beyond nucleic acids is possible. One example of a coupled technology is SHERLOCK-based Profiling of IN vitro Transcription (SPRINT). SPRINT can be used to detect a variety of substances, such as metabolites in patient samples or contaminants in environmental samples, with high throughput or with portable point-of-care devices.
+CRISPR-Cas platforms are also being explored for detection
+and inactivation of
+, the virus that causes
+Two different comprehensive diagnostic tests, AIOD-CRISPR and SHERLOCK test have been identified for SARS-CoV-2.
+The SHERLOCK test is based on a fluorescently labelled press reporter RNA which has the ability to identify 10 copies per microliter.
+The AIOD-CRISPR helps with robust and highly sensitive visual detection of the viral nucleic acid.
+Genetic anthropology
+Further information:
+Evolution of the brain § Genetic factors of recent evolution
+CRISPR-Cas9 can be used in investigating and identifying the genetic differences of humans to other apes, especially
+of the brain
+. For example, by reintroducing archaic gene variants into
+brain organoids
+to show an impact on neurogenesis,
+metaphase length of apical progenitors of the developing neocortex,
+or by knockout of a gene in embryonic stem cells to identify a genetic regulator that via early cell shape transition drives
+evolutionary expansion of the human forebrain
+One study described a major impact of an archaic gene variant on
+neurodevelopment
+which may be an artefact of a CRISPR side effect,
+as it could not be replicated in a subsequent study.
+By technique
+Knockdown/activation
+Main article:
+CRISPR interference
+Using "dead" versions of Cas9 (
+) eliminates CRISPR's DNA-cutting ability, while preserving its ability to target desirable sequences. Multiple groups added various regulatory factors to dCas9s, enabling them to turn almost any gene on or off or adjust its level of activity.
+Like RNAi, CRISPR interference (CRISPRi) turns off genes in a reversible fashion by targeting, but not cutting a site. The targeted site is methylated,
+epigenetically
+modifying the gene. This modification inhibits transcription. These precisely placed modifications may then be used to regulate the effects on gene expressions and DNA dynamics after the inhibition of certain genome sequences within DNA. Within the past few years, epigenetic marks in different human cells have been closely researched and certain patterns within the marks have been found to correlate with everything ranging from tumor growth to brain activity.
+Conversely, CRISPR-mediated activation (CRISPRa) promotes gene transcription.
+Cas9 is an effective way of targeting and silencing specific genes at the DNA level.
+In bacteria, the presence of Cas9 alone is enough to block transcription. For mammalian applications, a section of protein is added. Its guide RNA targets regulatory DNA sequences called
+that immediately precede the target gene.
+Cas9 was used to carry synthetic
+transcription factors
+that activated specific human genes. The technique achieved a strong effect by targeting multiple CRISPR constructs to slightly different locations on the gene's promoter.
+RNA editing
+Main article:
+RNA editing
+In 2016, researchers demonstrated that CRISPR from an ordinary mouth bacterium could be used to edit
+. The researchers searched databases containing hundreds of millions of genetic sequences for those that resembled CRISPR genes. They considered the fusobacterium
+Leptotrichia shahii
+. It had a group of genes that resembled CRISPR genes, but with important differences. When the researchers equipped other bacteria with these genes, which they called C2c2, they found that the organisms gained a novel defense.
+C2c2 has later been renamed to Cas13a to fit the standard nomenclature for Cas genes.
+Many viruses encode their genetic information in RNA rather than DNA that they repurpose to make new viruses.
+are such viruses. Bacteria with Cas13 make molecules that can dismember RNA, destroying the virus. Tailoring these genes opened any RNA molecule to editing.
+CRISPR-Cas systems can also be employed for editing of
+long-noncoding RNA
+genes in plants.
+Therapeutic applications
+This section is an excerpt from
+RNA editing § Therapeutic mRNA editing
+Directing edits to correct mutated sequences was first proposed and demonstrated in 1995.
+This initial work used synthetic RNA antisense oligonucleotides complementary to a pre-mature stop codon mutation in a dystrophin sequence to activate A-to-I editing of the stop codon to a read through codon in a model xenopus cell system.
+While this also led to nearby inadvertent A-to-I transitions, A to I (read as G) transitions can correct all three stop codons, but cannot create a stop codon.  Therefore, the changes led >25% correction of the targeted stop codon with read through to a downstream luciferase reporter sequence.  Follow on work by Rosenthal achieved editing of mutated mRNA sequence in mammalian cell culture by directing an oligonucleotide linked to a cytidine deaminase to correct a mutated cystic fibrosis sequence.
+More recently, CRISPR-Cas13 fused to deaminases has been employed to direct mRNA editing.
+In 2022, therapeutic RNA editing for Cas7-11 was reported.
+It enables sufficiently targeted cuts and an early version of it was used for
+editing in 2021.
+Comparison to DNA editing
+This section is an excerpt from
+RNA editing § Comparison to DNA editing
+Unlike DNA editing, which is permanent, the effects of RNA editing − including potential
+off-target mutations
+in RNA − are transient and are not inherited. RNA editing is therefore considered to be less risky. Furthermore, it may only require a guide RNA by using the ADAR protein already found in humans and many other eukaryotes' cells instead of needing to introduce a foreign protein into the body.
+Main article:
+Gene drives may provide a powerful tool to restore balance of ecosystems by eliminating invasive species. Concerns regarding efficacy, unintended consequences in the target species as well as non-target species have been raised particularly in the potential for accidental release from laboratories into the wild. Scientists have proposed several safeguards for ensuring the containment of experimental gene drives including molecular, reproductive, and ecological.
+Many recommend that immunization and reversal drives be developed in tandem with gene drives in order to overwrite their effects if necessary.
+There remains consensus that long-term effects must be studied more thoroughly particularly in the potential for ecological disruption that cannot be corrected with reversal drives.
+genetic depletion
+Unenriched sequencing libraries often have abundant undesired sequences. Cas9 can specifically deplete the undesired sequences with double strand breakage with up to 99% efficiency and without significant
+off-target effects
+as seen with
+restriction enzymes
+. Treatment with Cas9 can deplete abundant rRNA while increasing pathogen sensitivity in RNA-seq libraries.
+Epigenome editing
+This section is an excerpt from
+Epigenome editing
+Epigenome editing
+or epigenome engineering is a type of genetic engineering in which the
+is modified at specific sites using engineered molecules targeted to those sites (as opposed to whole-genome modifications). Whereas gene editing involves changing the actual DNA sequence itself, epigenetic editing involves modifying and presenting DNA sequences to proteins and other DNA binding factors that influence DNA function. By "editing" epigenomic features in this manner, researchers can determine the exact biological role of an epigenetic modification at the site in question.
+The engineered proteins used for epigenome editing are composed of a DNA binding domain that targets specific sequences and an effector domain that modifies epigenomic features. Currently, three major groups of DNA binding proteins have been predominantly used for epigenome editing:
+Zinc finger
+Transcription Activator-Like Effectors (TALEs)
+deficient Cas9 fusions (
+Applications
+This section is an excerpt from
+Epigenome editing § Functional engineering
+Targeted regulation of disease-related genes may enable novel therapies for many diseases, especially in cases where adequate gene therapies are not yet developed or are inappropriate.
+While transgenerational and population level consequences are not fully understood, it may become a major tool for applied
+functional genomics
+personalized medicine
+RNA editing
+, it does not involve genetic changes and their accompanying risks.
+One example of a potential functional use of epigenome editing was described in 2021: repressing
+gene expression
+CRISPR-dCas9
+which showed therapeutic potential in three mouse models of chronic pain.
+In 2022, research assessed its usefulness in reducing
+tau protein
+levels, regulating a protein involved in
+Huntington's disease
+, targeting an inherited form of obesity, and
+Dravet syndrome
+In 2024, a study about diabetic
+wound healing showed that the modification of
+could stimulate the productions of large-scale EVs (
+Extracellular vesicles
+) to reduce
+angiogenesis
+for diabetic foot ulcers, thus reducing death danger.
+CRISPR-directed integrases
+Combination of CRISPR-Cas9 with
+enabled a technique for
+large edits
+without problematic double-stranded breaks, as demonstrated with
+in 2022. The researchers reported it could be used to deliver genes as long as 36,000 DNA
+to several types of human cells and thereby potentially for treating diseases caused by a large number of mutations.
+Prime editing
+Main article:
+Prime editing
+Prime editing
+is a CRISPR refinement to precisely replace, insert, or delete sections of DNA. CRISPR edits are generally inefficient, fairly error-prone, and can lack target specificity, which are significant problems for using the technology in medicine.
+Prime editing cuts a single strand of targeted genomic DNA using a CRISPR nickase, then uses a tethered reverse transcriptase to add a desired sequence onto the cut DNA end that can be incorporated into the genome.
+An associated guide RNA, called a pegRNA, contains both a sequence for determining the targeted genetic sequence and a template for the new DNA sequence to be incorporated into the genome.
+This mechanism for installing genome edits can be both highly efficient and precise, with low rates of unintended sequence incorporation errors like indels. The independent pairing events for the target and template together help prevent off-target edits, which significantly increases targeting flexibility and editing specificity. Prime editing was developed by researchers at the
+Broad Institute of MIT and Harvard
+in Massachusetts.
+Society and culture
+Human germline modification
+As of March 2015, multiple groups had announced ongoing research with the intention of laying the foundations for applying CRISPR to human embryos for
+human germline engineering
+, including labs in the US, China, and the UK, as well as US biotechnology company
+Scientists, including a CRISPR co-discoverer, urged a worldwide moratorium on applying CRISPR to the human germline, especially for clinical use. They said "scientists should avoid even attempting, in lax jurisdictions, germline genome modification for clinical application in humans" until the full implications "are discussed among scientific and governmental organizations".
+These scientists support further low-level research on CRISPR and do not see CRISPR as developed enough for any clinical use in making heritable changes to humans.
+In April 2015, Chinese scientists reported results of an attempt to alter the DNA of non-viable
+human embryos
+using CRISPR to correct a mutation that causes
+beta thalassemia
+, a lethal heritable disorder.
+The study had previously been rejected by both
+in part because of ethical concerns.
+The experiments resulted in successfully changing only some of the intended genes, and had
+off-target effects
+on other genes. The researchers stated that CRISPR is not ready for clinical application in
+reproductive medicine
+In April 2016, Chinese scientists were reported to have made a second unsuccessful attempt to alter the DNA of non-viable human embryos using CRISPR – this time to alter the
+gene to make the embryo resistant to
+In December 2015, an International Summit on Human Gene Editing took place in Washington under the guidance of
+David Baltimore
+. Members of national scientific academies of the US, UK, and China discussed the ethics of germline modification. They agreed to support basic and clinical research under certain legal and ethical guidelines. A specific distinction was made between
+somatic cells
+, where the effects of edits are limited to a single individual, and germline cells, where genome changes can be inherited by descendants. Heritable modifications could have unintended and far-reaching consequences for human evolution, genetically (e.g. gene–environment interactions) and culturally (e.g.
+social Darwinism
+). Altering of
+gametocytes
+and embryos to generate heritable changes in humans was defined to be irresponsible. The group agreed to initiate an international forum to address such concerns and harmonize regulations across countries.
+In February 2017, the
+United States National Academies of Sciences, Engineering, and Medicine
+) Committee on Human Gene Editing published a report reviewing ethical, legal, and scientific concerns of genomic engineering technology. The conclusion of the report stated that heritable
+genome editing
+is impermissible now but could be justified for certain medical conditions; however, they did not justify the usage of
+for enhancement.
+In November 2018,
+announced that he had edited two human embryos to attempt to disable the gene for
+, which codes for a receptor that
+uses to enter cells. He said that twin girls,
+Lulu and Nana
+, had been born a few weeks earlier. He said that the girls still carried functional copies of CCR5 along with disabled CCR5 (
+) and were still vulnerable to HIV. The work was widely condemned as unethical, dangerous, and premature.
+An international group of scientists called for a global moratorium on genetically editing human embryos.
+Policy barriers to genetic engineering
+Policy regulations for the CRISPR-Cas9 system vary around the globe. In February 2016, British scientists were given permission by regulators to genetically modify
+human embryos
+by using CRISPR-Cas9 and related techniques. However, researchers were forbidden from implanting the embryos and the embryos were to be destroyed after seven days.
+The US has an elaborate, interdepartmental regulatory system to evaluate new genetically modified foods and crops. For example, the
+Agriculture Risk Protection Act of 2000
+United States Department of Agriculture
+the authority to oversee the detection, control, eradication, suppression, prevention, or retardation of the spread of plant pests or noxious weeds to protect the agriculture, environment, and economy of the US. The act regulates any
+genetically modified organism
+that utilizes the genome of a predefined "plant pest" or any plant not previously categorized.
+In 2015, Yinong Yang successfully deactivated 16 specific genes in the
+white button mushroom
+to make them non-browning. Since he had not added any foreign-species (
+) DNA to his organism, the mushroom could not be regulated by the USDA under Section 340.2.
+Yang's white button mushroom was the first organism genetically modified with the CRISPR-Cas9 protein system to pass US regulation.
+In 2016, the USDA sponsored a committee to consider future regulatory policy for upcoming genetic modification techniques. With the help of the US
+National Academies of Sciences, Engineering, and Medicine
+, special interests groups met on April 15 to contemplate the possible advancements in genetic engineering within the next five years and any new regulations that might be needed as a result.
+In 2017, the
+Food and Drug Administration
+proposed a rule that would classify genetic engineering modifications to animals as "animal drugs", subjecting them to strict regulation if offered for sale and reducing the ability for individuals and small businesses to make them profitable.
+In China, where social conditions sharply contrast with those of the West, genetic diseases carry a heavy stigma.
+This leaves China with fewer policy barriers to the use of this technology.
+Recognition
+In 2012 and 2013, CRISPR was a runner-up in
+Science Magazine
+Breakthrough of the Year
+award. In 2015, it was the winner of that award.
+CRISPR was named as one of
+MIT Technology Review
+s 10 breakthrough technologies in 2014 and 2016.
+Jennifer Doudna
+Emmanuelle Charpentier
+, along with Rudolph Barrangou,
+Philippe Horvath
+won the Gairdner International award. In 2017, Doudna and Charpentier were awarded the Japan Prize in Tokyo, Japan for their revolutionary invention of CRISPR-Cas9. In 2016, Charpentier, Doudna, and Zhang won the
+in Biopharmaceutical Science.
+In 2020, Charpentier and Doudna were awarded the
+Nobel Prize in Chemistry
+, "for the development of a method for genome editing."
+Biology portal
+Technology portal
+CRISPR/Cas Tools
+The CRISPR Journal
+Zinc finger
+Gene knockout
+Glossary of genetics
+Human Nature
+(2019 documentary film)
+LEAPER gene editing
+Make People Better
+(2022 documentary)
+Surveyor nuclease assay
+Synthetic biology
+Bak RO, Gomez-Ospina N, Porteus MH (August 2018). "Gene Editing on Center Stage".
+Trends in Genetics
+10.1016/j.tig.2018.05.004
+"The Nobel Prize in Chemistry 2020"
+The Nobel Prize
+. Retrieved
+Cohen J (October 7, 2020).
+"CRISPR, the revolutionary genetic "scissors," honored by Chemistry Nobel"
+10.1126/science.abf0540
+Cohen J (2018-06-04).
+"With prestigious prize, an overshadowed CRISPR researcher wins the spotlight"
+Science | AAAS
+. Retrieved
+Owens R (8 October 2020).
+"Nobel prize: who gets left out?"
+The Conversation
+. Retrieved
+13 December
+"Lithuanian scientists not awarded Nobel prize despite discovering same technology"
+. 8 October 2020.
+Šikšnys V (2018-06-16).
+"Imam genų žirkles, iškerpam klaidą, ligos nelieka"
+Laisvės TV / Freedom TV
+.  12:22 minutes in. LaisvėsTV. <...>Tai mes tą savo straipsnį išsiuntėm į redakciją pirmieji, bet laimės ten daug nebuvo. Viena redakcija pasakė, kad mes net recenzentam nesiųsim. Nusiuntėm į kitą redakciją – tai jis (straipsnis) pragulėjo kažkur ant redaktoriaus stalo labai ilgai. Na ir taip galų gale išsiuntėm į trečią žurnalą ir trečias žurnalas po kelių mėnesių jį išspausdino. Bet, aišku, Berklio universiteto mokslininkams sekėsi geriau – jie išsiuntė straipsnį į žurnalą Science – jį priėmė ir išspausdino per 2 savaites. Nors iš tikro jie tą straispnį išsiuntė pora mėnesių vėliau nei mes
+. Retrieved
+<...> Well, we were who had sent the article first, but had not much of luck.
+Zhang JH, Pandey M, Kahler JF, Loshakov A, Harris B, Dagur PK, et al. (November 2014).
+"Improving the specificity and efficacy of CRISPR/CAS9 and gRNA through target specific DNA reporter"
+Journal of Biotechnology
+10.1016/j.jbiotec.2014.08.033
+Vakulskas CA, Dever DP, Rettig GR, Turk R, Jacobi AM, Collingwood MA, et al. (August 2018).
+"A high-fidelity Cas9 mutant delivered as a ribonucleoprotein complex enables efficient gene editing in human hematopoietic stem and progenitor cells"
+Nature Medicine
+10.1038/s41591-018-0137-0
+Ledford H (March 2016).
+"CRISPR: gene editing is just the beginning"
+2016Natur.531..156L
+10.1038/531156a
+Travis J (17 December 2015).
+"Breakthrough of the Year: CRISPR makes the cut"
+Science Magazine
+. American Association for the Advancement of Science.
+Cyranoski D, Reardon S (2015-04-22).
+"Chinese scientists genetically modify human embryos"
+10.1038/nature.2015.17378
+Cyranoski D (May 2019).
+"China set to introduce gene-editing regulation following CRISPR-baby furore"
+10.1038/d41586-019-01580-1
+. Retrieved
+Ledford H (June 2015).
+"CRISPR, the disruptor"
+2015Natur.522...20L
+10.1038/522020a
+"Casgevy: UK approves gene-editing drug for sickle cell"
+. 16 November 2023
+. Retrieved
+16 November
+"MHRA authorises world-first gene therapy that aims to cure sickle-cell disease and transfusion-dependent β-thalassemia"
+. 16 November 2023
+. Retrieved
+16 November
+Bahrain News Agency (2023-12-02).
+"CASGEVY receives Bahrain approval for treatment, marking it the second country in the world"
+. Retrieved
+Telegraph (2024-08-08).
+"Roll out of revolutionary gene-editing therapy is 'an historic moment"
+. Retrieved
+"FDA Approves First Gene Therapies to Treat Patients with Sickle Cell Disease"
+Food and Drug Administration
+. 11 December 2023
+. Retrieved
+11 December
+Young S (11 February 2014).
+"CRISPR and Other Genome Editing Tools Boost Medical Research and Gene Therapy's Reach"
+MIT Technology Review
+. Archived from
+the original
+on 2016-01-12
+. Retrieved
+Heidenreich M, Zhang F (January 2016).
+"Applications of CRISPR-Cas systems in neuroscience"
+Nature Reviews. Neuroscience
+10.1038/nrn.2015.2
+Barrangou R, Doudna JA (September 2016). "Applications of CRISPR technologies in research and beyond".
+Nature Biotechnology
+2016NatBi..34..933B
+10.1038/nbt.3659
+Cox DB, Platt RJ, Zhang F (February 2015).
+"Therapeutic genome editing: prospects and challenges"
+Nature Medicine
+10.1038/nm.3793
+"CRISPR Timeline"
+Broad Institute
+. 2015-09-25
+. Retrieved
+"CRISPR Madness"
+. 2013-11-08.
+Staff (1 April 2015). "News: Products & Services".
+Genetic Engineering & Biotechnology News
+10.1089/gen.35.21.05
+"Who Owns the Biggest Biotech Discovery of the Century? There's a bitter fight over the patents for CRISPR, a breakthrough new form of DNA editing"
+Technology Review
+. Retrieved
+25 February
+"Genetic Rough Draft: Editas and CRISPR"
+The Atlas Business Journal
+. Retrieved
+"CRISPR-Cas systems and methods for altering expression of gene products"
+Google Patents
+Shaffer C (April 2022). "Broad defeats Berkeley CRISPR patent".
+Nature Biotechnology
+10.1038/d41587-022-00004-2
+"CRISPR patents to go on trial"
+Nature Biotechnology
+(2): 121. February 2016.
+10.1038/nbt0216-121a
+Pollack A (15 February 2017).
+"Harvard and M.I.T. Scientists Win Gene-Editing Patent Fight"
+The New York Times
+Akst J (February 15, 2017).
+"Broad Wins CRISPR Patent Interference Case"
+The Scientist Magazine
+Noonan KE (February 16, 2017).
+"PTAB Decides CRISPR Interference in Favor of Broad Institute – Their Reasoning"
+Patent Docs
+Potenza A (April 13, 2017).
+"UC Berkeley challenges decision that CRISPR patents belong to Broad Institute"
+. Retrieved
+22 September
+Buhr S (July 26, 2017).
+"The CRISPR patent battle is back on as UC Berkeley files an appeal"
+. Retrieved
+22 September
+Westman N (March 1, 2022).
+"UC Berkeley loses CRISPR patent case"
+. Retrieved
+Philippidis A (August 7, 2017).
+"MilliporeSigma to Be Granted European Patent for CRISPR Technology"
+Genetic Engineering & Biotechology News
+. Retrieved
+22 September
+Akst J (March 24, 2017).
+"UC Berkeley Receives CRISPR Patent in Europe"
+The Scientist
+. Retrieved
+22 September
+Cohen J (4 August 2017).
+"CRISPR patent battle in Europe takes a 'wild' twist with surprising player"
+10.1126/science.aan7211
+"Top EU court: GMO rules cover plant gene editing technique"
+. Retuers. 25 July 2018.
+AFP (7 February 2020).
+"US Trial Shows 3 Cancer Patients Had Their Genomes Altered Safely by CRISPR"
+ScienceAlert
+. Retrieved
+Chamary JV.
+"These Scientists Deserved A Nobel Prize, But Didn't Discover Crispr"
+. Retrieved
+Fischman J.
+"Nobel Prize in Chemistry Goes to Discovery of 'Genetic Scissors' Called CRISPR/Cas9"
+Scientific American
+. Retrieved
+"Two women share chemistry Nobel in historic win for 'genetic scissors'
+. 2020-10-07
+. Retrieved
+Kaiser J (26 June 2021).
+"CRISPR injected into the blood treats a genetic disease for first time"
+Science | AAAS
+. Retrieved
+Gillmore JD, Gane E, Taubel J, Kao J, Fontana M, Maitland ML, et al. (August 2021).
+"CRISPR-Cas9 In Vivo Gene Editing for Transthyretin Amyloidosis"
+The New England Journal of Medicine
+10.1056/NEJMoa2107454
+Boonstra E, de Kleijn R, Colzato LS, Alkemade A, Forstmann BU, Nieuwenhuis S (6 October 2015).
+"Neurotransmitters as food supplements: the effects of GABA on brain and behavior"
+Frontiers in Psychology
+10.3389/fpsyg.2015.01520
+"Tomato In Japan Is First CRISPR-Edited Food In The World To Go On Sale"
+. Retrieved
+Wang T, Zhang H, Zhu H (15 June 2019).
+"CRISPR technology is revolutionizing the improvement of tomato and other fruit crops"
+Horticulture Research
+2019HorR....6...77W
+10.1038/s41438-019-0159-x
+"Japan embraces CRISPR-edited fish".
+Nature Biotechnology
+(1): 10. January 2022.
+10.1038/s41587-021-01197-8
+"Startup hopes genome-edited pufferfish will be a hit in 2022"
+The Japan Times
+. 5 January 2022. Archived from
+the original
+on 17 January 2022
+. Retrieved
+"Gene-edited sea bream set for sale in Japan"
+thefishsite.com
+Götz L, Svanidze M, Tissier A, Brand A (January 2022).
+"Consumers' Willingness to Buy CRISPR Gene-Edited Tomatoes: Evidence from a Choice Experiment Case Study in Germany"
+Sustainability
+2022Sust...14..971G
+10.3390/su14020971
+10419/249208
+"Are Consumers Willing to Buy CRISPR Tomatoes?"
+Crop Biotech Update
+. Retrieved
+Whitford E (2021-05-28).
+"UC Berkeley Will Auction NFTs for 2 Nobel Prize Patents"
+. Inside Higher Ed
+. Retrieved
+Sestino A, Guido G, Peluso AM (2022).
+Non-Fungible Tokens (NFTs). Examining the Impact on Consumers and Marketing Strategies
+10.1007/978-3-031-07203-1
+978-3-031-07202-4
+Chang K (2021-05-27).
+"You Can Buy a Piece of a Nobel Prize-Winning Discovery"
+New York Times
+. Retrieved
+Trautman LJ (2022).
+"Virtual Art and Non-Fungible Tokens"
+Hofstra Law Review
+(361): 369 f.
+10.2139/ssrn.3814087
+Jones N (2021-06-18).
+"How scientists are embracing NFTs"
+(7864): 482.
+2021Natur.594..481J
+10.1038/d41586-021-01642-3
+Office of the Commissioner (2023-12-08).
+"FDA Approves First Gene Therapies to Treat Patients with Sickle Cell Disease"
+. Retrieved
+Bahrain News Agency (2025-02-16).
+"HRH the Crown Prince and Prime Minister visits the world's first sickle cell disease patient outside of the United States to successfully complete treatment with Casgevy"
+. Retrieved
+Xinhua News Agency (2025-02-17).
+"Bahrain conducts 1st CRISPR-based sickle cell treatment outside U.S."
+. Retrieved
+World Health Organisation's Director General (2025-02-17).
+"Congratulations, #Bahrain, on successfully administering first CRISPR-based sickle cell treatment. Thank you for your continued investment in science to ensure all people in 🇧🇭 have the best possible care and to help the world advance medical treatment"
+. Retrieved
+Ran FA, Hsu PD, Wright J, Agarwala V, Scott DA, Zhang F (November 2013).
+"Genome engineering using the CRISPR-Cas9 system"
+Nature Protocols
+10.1038/nprot.2013.143
+1721.1/102943
+Ly J (2013).
+Discovering Genes Responsible for Kidney Diseases
+(Ph.D.). University of Toronto
+. Retrieved
+26 December
+Mohr SE, Hu Y, Ewen-Campen B, Housden BE, Viswanatha R, Perrimon N (September 2016).
+"CRISPR guide RNA design for research applications"
+The FEBS Journal
+10.1111/febs.13777
+Brazelton VA, Zarecor S, Wright DA, Wang Y, Liu J, Chen K, et al. (2015).
+"A quick guide to CRISPR sgRNA design tools"
+GM Crops & Food
+2015GMCFB...6..266B
+10.1080/21645698.2015.1137690
+"Researchers establish new viable CRISPR-Cas12b system for plant genome engineering"
+. Retrieved
+Ming M, Ren Q, Pan C, He Y, Zhang Y, Liu S, et al. (March 2020). "CRISPR-Cas12b enables efficient plant genome engineering".
+Nature Plants
+2020NatPl...6..202M
+10.1038/s41477-020-0614-6
+Cox DB, Gootenberg JS, Abudayyeh OO, Franklin B, Kellner MJ, Joung J, et al. (November 2017).
+"RNA editing with CRISPR-Cas13"
+2017Sci...358.1019C
+10.1126/science.aaq0180
+"CRISPR-Cas3 innovation holds promise for disease cures, advancing science"
+Cornell Chronicle
+. Retrieved
+Dolan AE, Hou Z, Xiao Y, Gramelspacher MJ, Heo J, Howden SE, et al. (June 2019).
+"Introducing a Spectrum of Long-Range Genomic Deletions in Human Embryonic Stem Cells Using Type I CRISPR-Cas"
+Molecular Cell
+(5): 936–950.e5.
+10.1016/j.molcel.2019.03.014
+Liu Z, Dong H, Cui Y, Cong L, Zhang D (September 2020).
+"Application of different types of CRISPR/Cas-based systems in bacteria"
+Microbial Cell Factories
+10.1186/s12934-020-01431-z
+"Researchers develop an engineered 'mini' CRISPR genome editing system"
+. Retrieved
+Xu X, Chemparathy A, Zeng L, Kempton HR, Shang S, Nakamura M, et al. (October 2021).
+"Engineered miniature CRISPR-Cas system for mammalian genome regulation and editing"
+Molecular Cell
+(20): 4333–4345.e4.
+10.1016/j.molcel.2021.08.008
+Bravo JP, Liu MS, Hibshman GN, Dangerfield TL, Jung K, McCool RS, et al. (March 2022).
+"Structural basis for mismatch surveillance by CRISPR-Cas9"
+2022Natur.603..343B
+10.1038/s41586-022-04470-1
+"Protein tweak makes CRISPR gene editing 4,000 times less error-prone"
+. 2022-03-04
+. Retrieved
+Kato K, Zhou W, Okazaki S, Isayama Y, Nishizawa T, Gootenberg JS, et al. (June 2022).
+"Structure and engineering of the type III-E CRISPR-Cas7-11 effector complex"
+(13): 2324–2337.e16.
+10.1016/j.cell.2022.05.003
+Lay summary:
+Williams S.
+"Neuroscientists expand CRISPR toolkit with new, compact Cas7-11 enzyme"
+Massachusetts Institute of Technology
+. Retrieved
+'Softer' form of CRISPR may edit genes more accurately"
+New Scientist
+. Retrieved
+Roy S, Juste SS, Sneider M, Auradkar A, Klanseck C, Li Z, et al. (July 2022).
+"Cas9/Nickase-induced allelic conversion by homologous chromosome-templated repair in
+somatic cells"
+Science Advances
+(26) eabo0721.
+2022SciA....8O.721R
+10.1126/sciadv.abo0721
+Horvath P, Barrangou R (January 2010). "CRISPR/Cas, the immune system of bacteria and archaea".
+2010Sci...327..167H
+10.1126/science.1179555
+Bialk P, Rivera-Torres N, Strouse B, Kmiec EB (2015-06-08).
+"Regulation of Gene Editing Activity Directed by Single-Stranded Oligonucleotides and CRISPR/Cas9 Systems"
+(6) e0129308.
+2015PLoSO..1029308B
+10.1371/journal.pone.0129308
+Sander JD, Joung JK (April 2014).
+"CRISPR-Cas systems for editing, regulating and targeting genomes"
+Nature Biotechnology
+10.1038/nbt.2842
+Riesenberg S, Kanis P, Macak D, Wollny D, Düsterhöft D, Kowalewski J, et al. (September 2023).
+"Efficient high-precision homology-directed repair-dependent genome editing by HDRobust"
+Nature Methods
+10.1038/s41592-023-01949-1
+Lino CA, Harper JC, Carney JP, Timlin JA (November 2018).
+"Delivering CRISPR: a review of the challenges and approaches"
+Drug Delivery
+10.1080/10717544.2018.1474964
+Li L, Hu S, Chen X (July 2018).
+"Non-viral delivery systems for CRISPR/Cas9-based genome editing: Challenges and opportunities"
+Biomaterials
+10.1016/j.biomaterials.2018.04.031
+Jain PK, Lo JH, Rananaware S, Downing M, Panda A, Tai M, et al. (November 2019).
+"Non-viral delivery of CRISPR/Cas9 complex using CRISPR-GPS nanocomplexes"
+10.1039/C9NR01786K
+Yip BH (May 2020).
+"Recent Advances in CRISPR/Cas9 Delivery Strategies"
+Biomolecules
+10.3390/biom10060839
+Bak RO, Porteus MH (July 2017).
+"CRISPR-Mediated Integration of Large Gene Cassettes Using AAV Donor Vectors"
+Cell Reports
+10.1016/j.celrep.2017.06.064
+Schmidt F, Grimm D (February 2015). "CRISPR genome engineering and viral gene delivery: a case of mutual attraction".
+Biotechnology Journal
+10.1002/biot.201400529
+Waxmonsky N (24 September 2015).
+"CRISPR 101: Mammalian Expression Systems and Delivery Methods"
+. Retrieved
+Mishra T, Bhardwaj V, Ahuja N, Gadgil P, Ramdas P, Shukla S, et al. (June 2022).
+"Improved loss-of-function CRISPR-Cas9 genome editing in human cells concomitant with inhibition of TGF-β signaling"
+Molecular Therapy. Nucleic Acids
+10.1016/j.omtn.2022.03.003
+Adli M (May 2018).
+"The CRISPR tool kit for genome editing and beyond"
+Nature Communications
+2018NatCo...9.1911A
+10.1038/s41467-018-04252-2
+Svitashev S, Schwartz C, Lenderts B, Young JK, Mark Cigan A (November 2016).
+"Genome editing in maize directed by CRISPR-Cas9 ribonucleoprotein complexes"
+Nature Communications
+2016NatCo...713274S
+10.1038/ncomms13274
+Liang Z, Chen K, Li T, Zhang Y, Wang Y, Zhao Q, et al. (January 2017).
+"Efficient DNA-free genome editing of bread wheat using CRISPR/Cas9 ribonucleoprotein complexes"
+Nature Communications
+2017NatCo...814261L
+10.1038/ncomms14261
+Cui Z, Tian R, Huang Z, Jin Z, Li L, Liu J, et al. (March 2022).
+"FrCas9 is a CRISPR/Cas9 system with high editing efficiency and fidelity"
+Nature Communications
+2022NatCo..13.1425C
+10.1038/s41467-022-29089-8
+Kleinstiver BP, Pattanayak V, Prew MS, Tsai SQ, Nguyen NT, Zheng Z, et al. (January 2016).
+"High-fidelity CRISPR-Cas9 nucleases with no detectable genome-wide off-target effects"
+2016Natur.529..490K
+10.1038/nature16526
+Slaymaker IM, Gao L, Zetsche B, Scott DA, Yan WX, Zhang F (January 2016).
+"Rationally engineered Cas9 nucleases with improved specificity"
+2016Sci...351...84S
+10.1126/science.aad5227
+Yin H, Song CQ, Suresh S, Kwan SY, Wu Q, Walsh S, et al. (March 2018).
+"Partial DNA-guided Cas9 enables genome editing with reduced off-target activity"
+Nature Chemical Biology
+10.1038/nchembio.2559
+Riesenberg S, Helmbrecht N, Kanis P, Maricic T, Pääbo S (January 2022).
+"Improved gRNA secondary structures allow editing of target sites resistant to CRISPR-Cas9 cleavage"
+Nature Communications
+2022NatCo..13..489R
+10.1038/s41467-022-28137-7
+Fu Y, Sander JD, Reyon D, Cascio VM, Joung JK (March 2014).
+"Improving CRISPR-Cas nuclease specificity using truncated guide RNAs"
+Nature Biotechnology
+2014NatBi..32..279F
+10.1038/nbt.2808
+Thean DG, Chu HY, Fong JH, Chan BK, Zhou P, Kwok CC, et al. (April 2022).
+"Machine learning-coupled combinatorial mutagenesis enables resource-efficient engineering of CRISPR-Cas9 genome editor activities"
+Nature Communications
+2022NatCo..13.2219T
+10.1038/s41467-022-29874-5
+Cho SW, Kim S, Kim Y, Kweon J, Kim HS, Bae S, et al. (January 2014).
+"Analysis of off-target effects of CRISPR/Cas-derived RNA-guided endonucleases and nickases"
+Genome Research
+10.1101/gr.162339.113
+Oakes BL, Nadler DC, Flamholz A, Fellmann C, Staahl BT, Doudna JA, et al. (June 2016).
+"Profiling of engineering hotspots identifies an allosteric CRISPR-Cas9 switch"
+Nature Biotechnology
+10.1038/nbt.3528
+Nuñez JK, Harrington LB, Doudna JA (March 2016). "Chemical and Biophysical Modulation of Cas9 for Tunable Genome Engineering".
+ACS Chemical Biology
+10.1021/acschembio.5b01019
+Zhou W, Deiters A (April 2016).
+"Conditional Control of CRISPR/Cas9 Function"
+Angewandte Chemie
+2016ACIE...55.5394Z
+10.1002/anie.201511441
+Polstein LR, Gersbach CA (March 2015).
+"A light-inducible CRISPR-Cas9 system for control of endogenous gene activation"
+Nature Chemical Biology
+10.1038/nchembio.1753
+Nihongaki Y, Yamamoto S, Kawano F, Suzuki H, Sato M (February 2015).
+"CRISPR-Cas9-based photoactivatable transcription system"
+Chemistry & Biology
+10.1016/j.chembiol.2014.12.011
+Wright AV, Sternberg SH, Taylor DW, Staahl BT, Bardales JA, Kornfeld JE, et al. (March 2015).
+"Rational design of a split-Cas9 enzyme complex"
+Proceedings of the National Academy of Sciences of the United States of America
+2015PNAS..112.2984W
+10.1073/pnas.1501698112
+Nihongaki Y, Kawano F, Nakajima T, Sato M (July 2015). "Photoactivatable CRISPR-Cas9 for optogenetic genome editing".
+Nature Biotechnology
+10.1038/nbt.3245
+Hemphill J, Borchardt EK, Brown K, Asokan A, Deiters A (May 2015).
+"Optical Control of CRISPR/Cas9 Gene Editing"
+Journal of the American Chemical Society
+2015JAChS.137.5642H
+10.1021/ja512664v
+Jain PK, Ramanan V, Schepers AG, Dalvie NS, Panda A, Fleming HE, et al. (September 2016).
+"Development of Light-Activated CRISPR Using Guide RNAs with Photocleavable Protectors"
+Angewandte Chemie
+2016ACIE...5512440J
+10.1002/anie.201606123
+Davis KM, Pattanayak V, Thompson DB, Zuris JA, Liu DR (May 2015).
+"Small molecule-triggered Cas9 protein with improved genome-editing specificity"
+Nature Chemical Biology
+10.1038/nchembio.1793
+Liu KI, Ramli MN, Woo CW, Wang Y, Zhao T, Zhang X, et al. (November 2016). "A chemical-inducible CRISPR-Cas9 system for rapid control of genome editing".
+Nature Chemical Biology
+10.1038/nchembio.2179
+Truong DJ, Kühner K, Kühn R, Werfel S, Engelhardt S, Wurst W, et al. (July 2015).
+"Development of an intein-mediated split-Cas9 system for gene therapy"
+Nucleic Acids Research
+10.1093/nar/gkv601
+Zetsche B, Volz SE, Zhang F (February 2015).
+"A split-Cas9 architecture for inducible genome editing and transcription modulation"
+Nature Biotechnology
+10.1038/nbt.3149
+González F, Zhu Z, Shi ZD, Lelli K, Verma N, Li QV, et al. (August 2014).
+"An iCRISPR platform for rapid, multiplexable, and inducible genome editing in human pluripotent stem cells"
+Cell Stem Cell
+10.1016/j.stem.2014.05.018
+Dow LE, Fisher J, O'Rourke KP, Muley A, Kastenhuber ER, Livshits G, et al. (April 2015).
+"Inducible in vivo genome editing with CRISPR-Cas9"
+Nature Biotechnology
+10.1038/nbt.3155
+Yu C, Liu Y, Ma T, Liu K, Xu S, Zhang Y, et al. (February 2015).
+"Small molecules enhance CRISPR genome editing in pluripotent stem cells"
+Cell Stem Cell
+10.1016/j.stem.2015.01.003
+Schimmel J, Muñoz-Subirana N, Kool H, van Schendel R, van der Vlies S, Kamp JA, et al. (February 2023).
+"Modulating mutational outcomes and improving precise gene editing at CRISPR-Cas9-induced breaks by chemical inhibition of end-joining pathways"
+Cell Reports
+(2) 112019.
+10.1016/j.celrep.2023.112019
+1887/3753233
+Maruyama T, Dougan SK, Truttmann MC, Bilate AM, Ingram JR, Ploegh HL (May 2015).
+"Increasing the efficiency of precise genome editing with CRISPR-Cas9 by inhibition of nonhomologous end joining"
+Nature Biotechnology
+10.1038/nbt.3190
+Ma X, Chen X, Jin Y, Ge W, Wang W, Kong L, et al. (April 2018).
+"Small molecules promote CRISPR-Cpf1-mediated genome editing in human pluripotent stem cells"
+Nature Communications
+2018NatCo...9.1303M
+10.1038/s41467-018-03760-5
+Nishida K, Arazoe T, Yachie N, Banno S, Kakimoto M, Tabata M, et al. (September 2016). "Targeted nucleotide editing using hybrid prokaryotic and vertebrate adaptive immune systems".
+(6305) aaf8729.
+2016Sci...353f8729N
+10.1126/science.aaf8729
+Komor AC, Kim YB, Packer MS, Zuris JA, Liu DR (May 2016).
+"Programmable editing of a target base in genomic DNA without double-stranded DNA cleavage"
+2016Natur.533..420K
+10.1038/nature17946
+Gaudelli NM, Komor AC, Rees HA, Packer MS, Badran AH, Bryson DI, et al. (November 2017).
+"Programmable base editing of A•T to G•C in genomic DNA without DNA cleavage"
+2017Natur.551..464G
+10.1038/nature24644
+Chen L, Park JE, Paa P, Rajakumar PD, Prekop HT, Chew YT, et al. (March 2021).
+"Programmable C:G to G:C genome editing with CRISPR-Cas9-directed base excision repair proteins"
+Nature Communications
+2021NatCo..12.1384C
+10.1038/s41467-021-21559-9
+Kurata M, Yamamoto K, Moriarity BS, Kitagawa M, Largaespada DA (February 2018). "CRISPR/Cas9 library screening for drug target discovery".
+Journal of Human Genetics
+10.1038/s10038-017-0376-9
+Gasiunas G, Barrangou R, Horvath P, Siksnys V (September 2012).
+"Cas9-crRNA ribonucleoprotein complex mediates specific DNA cleavage for adaptive immunity in bacteria"
+Proceedings of the National Academy of Sciences of the United States of America
+10.1073/pnas.1208507109
+Satomura A, Nishioka R, Mori H, Sato K, Kuroda K, Ueda M (May 2017).
+"Precise genome-wide base editing by the CRISPR Nickase system in yeast"
+Scientific Reports
+2017NatSR...7.2095S
+10.1038/s41598-017-02013-7
+Hiranniramol K, Chen Y, Liu W, Wang X (May 2020).
+"Generalizable sgRNA design for improved CRISPR/Cas9 editing efficiency"
+Bioinformatics
+10.1093/bioinformatics/btaa041
+Agrotis A, Ketteler R (2015-09-24).
+"A new age in functional genomics using CRISPR/Cas9 in arrayed library screening"
+Frontiers in Genetics
+10.3389/fgene.2015.00300
+Yu JS, Yusa K (July 2019). "Genome-wide CRISPR-Cas9 screening in mammalian cells".
+10.1016/j.ymeth.2019.04.015
+Joung J, Konermann S, Gootenberg JS, Abudayyeh OO, Platt RJ, Brigham MD, et al. (April 2017).
+"Genome-scale CRISPR-Cas9 knockout and transcriptional activation screening"
+Nature Protocols
+10.1038/nprot.2017.016
+"Addgene: Pooled Libraries"
+www.addgene.org
+. Retrieved
+McDade JR, Waxmonsky NC, Swanson LE, Fan M (July 2016). "Practical Considerations for Using Pooled Lentiviral CRISPR Libraries".
+Current Protocols in Molecular Biology
+(1): 31.5.1–31.5.13.
+10.1002/cpmb.8
+Cheng AW, Wang H, Yang H, Shi L, Katz Y, Theunissen TW, et al. (October 2013).
+"Multiplexed activation of endogenous genes by CRISPR-on, an RNA-guided transcriptional activator system"
+Cell Research
+10.1038/cr.2013.122
+Gilbert LA, Horlbeck MA, Adamson B, Villalta JE, Chen Y, Whitehead EH, et al. (October 2014).
+"Genome-Scale CRISPR-Mediated Control of Gene Repression and Activation"
+2014Cell..159..647G
+10.1016/j.cell.2014.09.029
+Dow LE (October 2015).
+"Modeling Disease In Vivo With CRISPR/Cas9"
+Trends in Molecular Medicine
+10.1016/j.molmed.2015.07.006
+Doudna J, Mali P (2016).
+CRISPR-Cas: A Laboratory Manual
+. Cold Spring Harbor, New York: Cold Spring Harbor Laboratory Press.
+978-1-62182-130-4
+Zuo E, Huo X, Yao X, Hu X, Sun Y, Yin J, et al. (November 2017).
+"CRISPR/Cas9-mediated targeted chromosome elimination"
+Genome Biology
+10.1186/s13059-017-1354-4
+"CRISPR Used to Eliminate Targeted Chromosomes in New Study"
+. Nov 27, 2017.
+Javed MR, Sadaf M, Ahmed T, Jamil A, Nawaz M, Abbas H, et al. (December 2018). "CRISPR-Cas System: History and Prospects as a Genome Editing Tool in Microorganisms". review.
+Current Microbiology
+10.1007/s00284-018-1547-4
+DiCarlo JE, Norville JE, Mali P, Rios X, Aach J, Church GM (April 2013).
+"Genome engineering in Saccharomyces cerevisiae using CRISPR-Cas systems"
+Nucleic Acids Res
+10.1093/nar/gkt135
+Giersch RM, Finnigan GC (December 2017).
+"Yeast Still a Beast: Diverse Applications of CRISPR/Cas Editing Technology in
+S. cerevisiae
+The Yale Journal of Biology and Medicine
+Dhamad AE, Lessner DJ (October 2020). Atomi H (ed.).
+"A CRISPRi-dCas9 System for Archaea and Its Use To Examine Gene Function during Nitrogen Fixation by Methanosarcina acetivorans"
+Applied and Environmental Microbiology
+(21) e01402-20: e01402–20.
+2020ApEnM..86E1402D
+10.1128/AEM.01402-20
+Raschmanová H, Weninger A, Glieder A, Kovar K, Vogl T (2018).
+"Implementing CRISPR-Cas technologies in conventional and non-conventional yeasts: Current state and future prospects"
+Biotechnology Advances
+10.1016/j.biotechadv.2018.01.006
+11475/31278
+Ma D, Liu F (December 2015).
+"Genome Editing and Its Applications in Model Organisms"
+Genomics, Proteomics & Bioinformatics
+10.1016/j.gpb.2015.12.001
+Khurshid H, Jan SA, Shinwari ZK, Jamal M, Shah SH (2018).
+"An Era of CRISPR/ Cas9 Mediated Plant Genome Editing"
+Current Issues in Molecular Biology
+10.21775/cimb.026.047
+Simone BW, Martínez-Gálvez G, WareJoncas Z, Ekker SC (November 2018).
+"Fishing for understanding: Unlocking the zebrafish gene editor's toolbox"
+10.1016/j.ymeth.2018.07.012
+Singh P, Schimenti JC, Bolcun-Filas E (January 2015).
+"A mouse generalist practical guide to CRISPR applications"
+10.1534/genetics.114.169771
+Soni D, Wang DM, Regmi SC, Mittal M, Vogel SM, Schlüter D, et al. (May 2018).
+"Deubiquitinase function of A20 maintains and repairs endothelial barrier after lung vascular injury"
+Cell Death Discovery
+10.1038/s41420-018-0056-3
+Birling MC, Herault Y, Pavlovic G (August 2017).
+"Modeling human disease in rodents by CRISPR/Cas9 genome editing"
+Mammalian Genome
+10.1007/s00335-017-9703-x
+Gao X, Tao Y, Lamas V, Huang M, Yeh WH, Pan B, et al. (January 2018).
+"Treatment of autosomal dominant hearing loss by in vivo delivery of genome editing agents"
+2018Natur.553..217G
+10.1038/nature25164
+Kadam US, Shelake RM, Chavhan RL, Suprasanna P (October 2018). "Concerns regarding 'off-target' activity of genome editing endonucleases". review.
+Plant Physiology and Biochemistry
+2018PlPB..131...22K
+10.1016/j.plaphy.2018.03.027
+Kimberland ML, Hou W, Alfonso-Pecchio A, Wilson S, Rao Y, Zhang S, et al. (October 2018). "Strategies for controlling CRISPR/Cas9 off-target effects and biological variations in mammalian genome editing experiments". review.
+Journal of Biotechnology
+10.1016/j.jbiotec.2018.08.007
+van Erp PB, Bloomer G, Wilkinson R, Wiedenheft B (June 2015).
+"The history and market impact of CRISPR RNA-guided nucleases"
+Current Opinion in Virology
+10.1016/j.coviro.2015.03.011
+Maggio I, Gonçalves MA (May 2015).
+"Genome editing at the crossroads of delivery, specificity, and fidelity"
+Trends in Biotechnology
+10.1016/j.tibtech.2015.02.011
+Rath D, Amlinger L, Rath A, Lundgren M (October 2015).
+"The CRISPR-Cas immune system: biology, mechanisms and applications"
+10.1016/j.biochi.2015.03.025
+"What Is CRISPR? How Does It Work? Is It Gene Editing?"
+LiveScience.Tech
+. 2018-04-30. Archived from
+the original
+on 2020-02-06
+. Retrieved
+Freedman BS, Brooks CR, Lam AQ, Fu H, Morizane R, Agrawal V, et al. (October 2015).
+"Modelling kidney disease with CRISPR-mutant kidney organoids derived from human pluripotent epiblast spheroids"
+Nature Communications
+2015NatCo...6.8715F
+10.1038/ncomms9715
+Cruz NM, Song X, Czerniecki SM, Gulieva RE, Churchill AJ, Kim YK, et al. (November 2017).
+"Organoid cystogenesis reveals a critical role of microenvironment in human polycystic kidney disease"
+Nature Materials
+2017NatMa..16.1112C
+10.1038/nmat4994
+Kim YK, Refaeli I, Brooks CR, Jing P, Gulieva RE, Hughes MR, et al. (December 2017).
+"Gene-Edited Human Kidney Organoids Reveal Mechanisms of Disease in Podocyte Development"
+10.1002/stem.2707
+Bellin M, Casini S, Davis RP, D'Aniello C, Haas J, Ward-van Oostwaard D, et al. (December 2013).
+"Isogenic human pluripotent stem cell pairs reveal the role of a KCNH2 mutation in long-QT syndrome"
+The EMBO Journal
+10.1038/emboj.2013.240
+Baglaenko Y, Mu Z, Curtis M, Mire HM, Jayanthi V, Al Suqri M, et al. (23 July 2025).
+"Precisely defining disease variant effects in CRISPR-edited single cells"
+2025Natur.646..117B
+10.1038/s41586-025-09313-3
+Cai L, Fisher AL, Huang H, Xie Z (December 2016).
+"CRISPR-mediated genome editing and human diseases"
+Genes & Diseases
+10.1016/j.gendis.2016.07.003
+"Seven Diseases That CRISPR Technology Could Cure"
+Labiotech.eu
+. 2018-06-25
+. Retrieved
+"CRISPR/Cas9 and Cancer"
+Immuno-Oncology News
+. 2018-04-27
+. Retrieved
+Crossley M (February 2021).
+"New CRISPR technology could revolutionise gene therapy, offering new hope to people with genetic diseases"
+The Conversation
+. Retrieved
+Cromer MK, Camarena J, Martin RM, Lesch BJ, Vakulskas CA, Bode NM, et al. (April 2021).
+"Gene replacement of α-globin with β-globin restores hemoglobin balance in β-thalassemia-derived hematopoietic stem and progenitor cells"
+Nature Medicine
+10.1038/s41591-021-01284-y
+Xie F, Ye L, Chang JC, Beyer AI, Wang J, Muench MO, et al. (September 2014).
+"Seamless gene correction of β-thalassemia mutations in patient-specific iPSCs using CRISPR/Cas9 and piggyBac"
+Genome Research
+10.1101/gr.173427.114
+Frangoul H, Altshuler D, Cappellini MD, Chen YS, Domm J, Eustace BK, et al. (January 2021).
+"CRISPR-Cas9 Gene Editing for Sickle Cell Disease and β-Thalassemia"
+The New England Journal of Medicine
+10.1056/NEJMoa2031054
+Dever DP, Bak RO, Reinisch A, Camarena J, Washington G, Nicolas CE, et al. (November 2016).
+"CRISPR/Cas9 β-globin gene targeting in human haematopoietic stem cells"
+2016Natur.539..384D
+10.1038/nature20134
+"CRISPR 'One Shot' Cell Therapy for Hemophilia Developed"
+. 2018-05-02
+. Retrieved
+Marangi M, Pistritto G (2018-04-20).
+"Innovative Therapeutic Strategies for Cystic Fibrosis: Moving Forward to CRISPR Technique"
+Frontiers in Pharmacology
+10.3389/fphar.2018.00396
+Bengtsson NE, Hall JK, Odom GL, Phelps MP, Andrus CR, Hawkins RD, et al. (February 2017).
+"Muscle-specific CRISPR/Cas9 dystrophin gene editing ameliorates pathophysiology in a mouse model for Duchenne muscular dystrophy"
+Nature Communications
+2017NatCo...814454B
+10.1038/ncomms14454
+Eisenstein M (May 2018).
+"CRISPR takes on Huntington's disease"
+2018Natur.557S..42E
+10.1038/d41586-018-05177-y
+Dabrowska M, Juzwa W, Krzyzosiak WJ, Olejniczak M (2018).
+"Precise Excision of the CAG Tract from the Huntingtin Gene by Cas9 Nickases"
+Frontiers in Neuroscience
+10.3389/fnins.2018.00075
+King A (March 2018).
+"A CRISPR edit for heart disease"
+2018Natur.555.....K
+10.1038/d41586-018-02482-4
+Scudellari M (July 2019).
+"Self-destructing mosquitoes and sterilized rodents: the promise of gene drives"
+2019Natur.571..160S
+10.1038/d41586-019-02087-5
+Abrahimi P, Chang WG, Kluger MS, Qyang Y, Tellides G, Saltzman WM, et al. (July 2015).
+"Efficient gene disruption in cultured primary human endothelial cells by CRISPR/Cas9"
+Circulation Research
+10.1161/CIRCRESAHA.117.306290
+"A Year In, 1st Patient To Get Gene Editing For Sickle Cell Disease Is Thriving"
+. Retrieved
+"CRISPR technology to cure sickle cell disease"
+ScienceDaily
+. Retrieved
+Office of the Commissioner (2024-08-09).
+"FDA Approves First Gene Therapies to Treat Patients with Sickle Cell Disease"
+. Retrieved
+Uddin F, Rudin CM, Sen T (August 2020).
+"CRISPR Gene Therapy: Applications, Limitations, and Implications for the Future"
+Frontiers in Oncology
+10.3389/fonc.2020.01387
+Jensen TI, Axelgaard E, Bak RO (June 2019).
+"Therapeutic gene editing in haematological disorders with CRISPR/Cas9"
+British Journal of Haematology
+10.1111/bjh.15851
+Reardon S (2016). "First CRISPR clinical trial gets green light from US panel".
+10.1038/nature.2016.20137
+Rosenblum D, Gutkin A, Kedmi R, Ramishetti S, Veiga N, Jacobi AM, et al. (November 2020).
+"CRISPR-Cas9 genome editing using targeted lipid nanoparticles for cancer therapy"
+Science Advances
+(47) eabc9450.
+2020SciA....6.9450R
+10.1126/sciadv.abc9450
+"CRISPR Clinical Trials: A 2022 Update"
+Innovative Genomics Institute (IGI)
+. 29 March 2022
+. Retrieved
+"Base editing: Revolutionary therapy clears girl's incurable cancer"
+. 11 December 2022
+. Retrieved
+11 December
+'Designer cells' reverse one-year-old's cancer"
+. 2015-11-05
+. Retrieved
+Lee LX (2022-05-12).
+"B.C. researchers launching clinical trial for first genetically engineered stem cell-based therapy for type 1 diabetes"
+. Retrieved
+"CRISPR Therapeutics and ViaCyte, Inc. Announce First Patient Dosed in..."
+. Retrieved
+National Institute on Drug Abuse (2020-02-14).
+"Antiretroviral Therapy Combined With CRISPR Gene Editing Can Eliminate HIV Infection in Mice"
+National Institute on Drug Abuse
+. Archived from
+the original
+on January 27, 2022
+. Retrieved
+"First Clinical Trial of CRISPR-Based HIV Therapy Founded on Breakthrough Research at Lewis Katz School of Medicine | Lewis Katz School of Medicine at Temple University"
+medicine.temple.edu
+. Retrieved
+Excision BioTherapeutics (2022-03-24).
+"A Phase 1/2a, Sequential Cohort, Single Ascending Dose Study of the Safety, Tolerability, Biodistribution, and Pharmacodynamics of EBT 101 in Aviremic HIV-1 Infected Adults on Stable Antiretroviral Therapy"
+"Three people were gene-edited in an effort to cure their HIV. The result is unknown"
+MIT Technology Review
+. Retrieved
+"HIV in cell culture can be completely eliminated using CRISPR-Cas gene editing technology, increasi

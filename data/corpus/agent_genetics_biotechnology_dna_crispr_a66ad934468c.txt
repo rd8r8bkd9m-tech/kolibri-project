@@ -1,0 +1,890 @@
+# Cas9 - Wikipedia
+# Source: https://en.wikipedia.org/wiki/Cas9
+
+From Wikipedia, the free encyclopedia
+Microbial protein found in Streptococcus pyogenes M1 GAS
+This article
+is missing information
+about homologs including other Cas9s, other Class 2 Type II CRISPR systems.
+Please expand the article to include this information. Further details may exist on the
+September 2021
+CRISPR-associated endonuclease Cas9
+S. pyogenes
+Cas9 in complex with sgRNA and its target DNA.
+Identifiers
+Streptococcus pyogenes M1
+Alt. symbols
+RefSeq (mRNA)
+NC_002737.2
+RefSeq (Prot)
+NP_269215.1
+Genomic: 0.85 - 0.86 Mb
+Swiss-model
+Protein family
+Identifiers
+Available protein structures:
+(CRISPR-associated protein 9, formerly Cas5, Csn1, or Csx12) is a
+that in tandem with CRISPR can permanently modify a cell’s genome. It is a key tool of
+genetic engineering
+Emmanuelle Charpentier and Jennifer Doudna won the 2020
+Nobel Prize in Chemistry
+for developing the
+CRISPR genome editing
+Cas9 serves as a genome editing tool, inducing site-directed double-strand breaks in DNA, enabling gene inactivation or insertion via
+non-homologous end joining
+homologous recombination
+Variants like Cas9 nickase (Cas9n), which creates single-strand breaks, or those recognizing different
+sequences, address limitations in CRISPR-Cas9 editing.
+This section is an excerpt from
+CRISPR § History
+The CRISPR/Cas system evolved in nature as a means for bacteria to protect themselves from invading viruses and bacteriophages by inserting pieces of their DNA into the host genome. This allowed the adaptive immune system to respond accordingly on a subsequent infection. It was discovered in
+Streptococcus pyogenes
+and later found across many other species.
+160-kilodalton Native Cas9 requires a guide RNA composed of two disparate RNAs that associate – the CRISPR RNA (crRNA), and the trans-activating crRNA (
+In 2013, Mali, et al., as well as Gilbert, et al., reported that non-cleaving Cas9 variants can control
+transcriptional activators
+at specific DNA sequences.
+Also in 2013, Bikard, et al., reported that dCas9 blocks RNA polymerase at promoters or during elongation, silencing genes.
+In 2014, Esvelt, Smidler, Catteruccia, and Church suggested that Cas9-based
+gene drives
+could edit entire organism populations.
+In 2017, Li, et al., reported that Cas9 targets Hepatitis B viral genome ends, reducing infection.
+Jensen et al., reported that fused to
+remodelers, dCas9 alters chromatin structure.
+O’Geen, et al., reported that dCas9 with FOG1 represses genes by methylating H3K27.
+Lowder, et al., reported that dCas9 represses plant genes like
+when fused to repressor domains.
+In 2018, Lee, et al., reported that engineered Cas9 reduces off-target effects by altering reaction rates.
+In 2019, Chen and Page-McCaw reported that Cas9 suppresses HIV-1 long terminal repeats, mutating the viral genome.
+In 2020, Uddin, Rudin, and Sen reported that Cas9 variants, such as Cas9 nickase, improve genome editing by reducing off-target effects.
+In 2025, Zhou, Diao, Li, and colleagues reported that
+(an RNA-free form of NmeCas9) can stimulate Cas1–Cas2-mediated CRISPR spacer acquisition in a type II-C system when CRISPR RNA levels are low.
+CRISPR-mediated immunity
+CRISPR systems in bacteria and
+act as programmable
+restriction enzymes
+to combat viruses and plasmids.
+CRISPR loci consist of short, palindromic repeats and variable spacers (24–48 nucleotides) that store sequences from foreign DNA.
+, including universal cas1 and cas2, and type II-specific cas9, encode proteins for immunity. Cas9 uses crRNA and tracrRNA to form a complex that targets and cleaves foreign DNA matching the spacer sequence.
+CRISPR systems integrate spacers from viral “protospacers” into the CRISPR locus, requiring a
+(e.g., NGG in
+S. pyogenes
+) for recognition.
+Cas9 ensures functional spacer acquisition.
+However, spacers can be lost via
+homologous recombination
+was reported to stimulate spacer acquisition in type II-C systems and to couple acquisition activity to CRISPR RNA abundance, with low crRNA (e.g., in cells undergoing array neogenesis or natural array contraction) associated with increased acquisition and higher crRNA (expanded arrays) associated with reduced acquisition. The nuclease lobe alone was sufficient to stimulate acquisition, whereas crRNA-dependent regulation required full-length Cas9; This activity is evolutionarily conserved across several type II-C Cas9 orthologues.
+CRISPR processing
+RNA polymerase transcribes the CRISPR locus into pre-crRNA, which specific
+endoribonucleases
+cleave into small crRNAs containing one spacer and a partial repeat.
+Interference
+The crRNA, within a CASCADE complex, pairs with complementary foreign DNA. Cas9 cleaves the DNA if the spacer matches and the PAM is present, halting viral replication.
+Transcription regulation
+Inactive Cas9 (dCas9), lacking endonuclease activity, binds DNA to regulate transcription.
+In eukaryotes, dCas9 targets enhancer sequences to prevent transcription factor assembly.
+Gilbert, Horlbeck, Adamson, Villalta, Chen, Whitehead, Guimaraes, Panning, Ploegh, Bassik, Qi, Kampmann, and Weissman conducted genome-wide dCas9 screens for gene repression.
+O’Connell, Oakes, Sternberg, East-Seletsky, Kaplan, and Doudna reported that Cas9 cleaves mRNA when hybridized with ssDNA containing a PAM complement.
+dCas9 fused to transcription activators, as in CRISPRa, activates genes, as reported by Gilbert et al.
+Structural studies
+Cas9 features a bi-lobed structure with an alpha-helical lobe (REC) and a nuclease lobe (NUC) containing HNH and RuvC domains, connected by a bridge helix.
+The HNH domain cleaves the target DNA strand, while RuvC cleaves the non-target strand.
+The PAM-interacting domain (PI, orange) recognizes the NGG PAM sequence. The sgRNA, replacing the crRNA-tracrRNA complex, forms a T-shaped structure with the target DNA.
+A 2014 study reported that REC1 and bridge helix domains are critical for sgRNA recognition.
+DNA cleavage
+Cas9’s HNH and RuvC domains cleave the target and non-target DNA strands, respectively, requiring a PAM sequence (NGG for
+S. pyogenes
+A 2020 study reported that NAG and NGA PAMs are less efficient.
+A 2016 study reported that cleavage often produces 1-nucleotide 5’ overhangs, favoring templated insertions.
+A 2024 study reported that 85% of on-target cleavages are blunt, while 15% have 1-nucleotide overhangs.
+A 2018 study reported that cleavage efficiency depends on free energy changes in the gRNA-DNA duplex.
+Another 2016 study reported that stable gRNA folding can impair cleavage.
+Challenges in bacterial editing
+A 1995 study reported that bacterial restriction-modification systems cleave foreign DNA, including Cas9-introduced genes, hindering genome editing.
+Applications
+Gene editing
+Cas9 edits genomes in a range of species, including yeast (
+Saccharomyces cerevisiae
+Candida albicans
+Danio rerio
+fruit flies (
+Drosophila melanogaster
+Harpegnathos saltator
+Ooceraea biroi
+mosquitoes (
+Aedes aegypti
+nematodes (
+Caenorhabditis elegans
+Mus musculus domesticus
+and monkeys.
+Cellular defense
+CRISPR/Cas9 can help with bacterial defense against invaders such as
+bacteriophages
+, plasmids, and
+DNA viruses
+. Cas9, guided by
+, acts as an
+endonuclease
+enzyme, targeting and cleaving foreign DNA.
+It unwinds foreign DNA and cleaves matching sites, similar to the
+RNA interference
+mechanism in
+Gene regulation
+Other versions of Cas9 can bind but not cleave DNA. They can be used to control transcriptional
+genes and manage gene activation and repression.
+More technically, Cas9 is a
+endonuclease
+associated with the Clustered Regularly Interspaced Short Palindromic Repeats (
+adaptive immune system
+Streptococcus pyogenes
+S. pyogenes
+utilizes CRISPR to memorize and Cas9 to later interrogate and cleave foreign DNA, such as invading
+bacteriophage
+Cas9 performs this interrogation by unwinding foreign DNA and checking for sites complementary to the 20 nucleotide spacer region of the
+(gRNA). If the DNA substrate is complementary to the guide RNA, Cas9 cleaves the invading DNA. In this sense, the CRISPR-Cas9 mechanism parallels the
+RNA interference
+(RNAi) mechanism in
+Apart from its original function in bacterial immunity, Cas9 has been utilized as a genome engineering tool to induce site-directed double-strand breaks in DNA. These breaks can lead to gene inactivation or the introduction of heterologous genes through
+non-homologous end joining
+homologous recombination
+respectively in
+model organisms
+. Research on cas9 variants has been a promising way of overcoming the limitation of the
+CRISPR-Cas9 genome editing
+. Examples include Cas9 nickase (Cas9n), a variant that induces single-stranded breaks (SSBs) or variants recognizing different
+PAM sequences
+zinc finger nucleases
+transcription activator-like effector nuclease
+(TALEN) proteins, Cas9 is becoming a prominent tool in the field of genome editing.
+Cas9 has gained traction in recent years because it can cleave nearly any sequence complementary to the guide RNA.
+Because the target specificity of Cas9 stems from the guide RNA:DNA complementarity and not modifications to the protein itself (like TALENs and
+zinc fingers
+), engineering Cas9 to target new DNA is straightforward.
+Cas9 targeting has been simplified through the engineering of a chimeric single guide RNA (chiRNA). Scientists have suggested that Cas9-based
+gene drives
+may be capable of editing the genomes of entire populations of organisms.
+In 2015, Cas9 was used to modify the genome of human embryos for the first time.
+endonuclease
+is a four-component system that includes two small molecules: crRNA and trans-activating CRISPR RNA (tracrRNA).
+Jennifer Doudna
+Emmanuelle Charpentier
+re-engineered the Cas9 endonuclease into a more manageable two-component system by fusing the two RNA molecules into a "
+single-guide RNA
+" that, when combined with Cas9, could find and cut the DNA target specified by the guide RNA.
+This contribution was so significant that it was recognized by the
+Nobel Prize in Chemistry
+in 2020. By manipulating the nucleotide sequence of the guide RNA, the artificial Cas9 system could be programmed to target any DNA sequence for separation.
+Another collaboration comprising
+Virginijus Šikšnys
+, Gasiūnas, Barrangou, and Horvath showed that Cas9 from the
+S. thermophilus
+CRISPR system can also be reprogrammed to target a site of their choosing by changing the sequence of its crRNA. These advances fueled efforts to edit genomes with the modified CRISPR-Cas9 system.
+Groups led by
+George Church
+simultaneously published descriptions of genome editing in human cell cultures using CRISPR-Cas9 for the first time.
+It has since been used in a wide range of organisms, including baker's yeast (
+Saccharomyces cerevisiae
+opportunistic pathogen
+Candida albicans
+zebrafish (
+Danio rerio
+fruit flies (
+Drosophila melanogaster
+Harpegnathos saltator
+Ooceraea biroi
+), mosquitoes (
+Aedes aegypti
+), nematodes (
+Caenorhabditis elegans
+Mus musculus domesticus
+and human embryos.
+CRISPR has been modified to make programmable
+transcription factors
+that allow activation or silencing of targeted genes.
+The CRISPR-Cas9 system has been shown to make effective gene edits in Human
+tripronuclear zygotes
+, as first described in a 2015 paper by Chinese scientists P. Liang and Y. Xu. The system made a successful cleavage of mutant Beta-Hemoglobin (
+) in 28 out of 54 embryos. Four out of the 28 embryos were successfully recombined using a donor template. The scientists showed that during DNA recombination of the cleaved strand, the homologous endogenous sequence HBD competes with the exogenous donor template.
+in human embryos is much more complicated and particular than in derived stem cells.
+CRISPR-mediated immunity
+To survive in a variety of challenging, inhospitable habitats that are filled with
+bacteriophages
+, bacteria and archaea have evolved methods to evade and fend off predatory
+. This includes the CRISPR system of adaptive immunity. In practice, CRISPR/Cas systems act as self-programmable restriction enzymes. CRISPR loci are composed of short, palindromic repeats that occur at regular intervals composed of alternate CRISPR repeats and variable CRISPR spacers between 24 and 48 nucleotides long. These CRISPR loci are usually accompanied by adjacent CRISPR-associated (cas) genes. In 2005, it was discovered by three separate groups that the spacer regions were homologous to foreign DNA elements, including plasmids and viruses. These reports provided the first biological evidence that CRISPRs might function as an immune system.
+Cas9 has been used often as a genome-editing tool. Cas9 has been used in recent developments in preventing viruses from manipulating hosts' DNA. Since the CRISPR-Cas9 was developed from
+bacterial genome
+systems, it can be used to target the genetic material in viruses. The use of the enzyme Cas9 can be a solution to many viral infections. Cas9 possesses the ability to target specific viruses by the targeting of specific strands of the viral genetic information. More specifically the Cas9 enzyme targets certain sections of the viral genome that prevents the virus from carrying out its normal function.
+Cas9 has also been used to disrupt the detrimental strand of DNA and RNA that cause diseases and mutated strands of DNA. Cas9 has already showed promise in disrupting the effects of HIV-1. Cas9 has been shown to suppress the expression of the long terminal repeats in HIV-1. When introduced into the HIV-1 genome Cas9 has shown the ability to mutate strands of HIV-1.
+Cas9 has also been used in the treatment of
+Hepatitis B
+through targeting of the ends of certain of long terminal repeats in the Hepatitis B viral genome.
+Cas9 has been used to repair the mutations causing cataracts in mice.
+factual accuracy
+of parts of this article (those related to how many major types)
+may be compromised due to out-of-date information
+Please help update this article to reflect recent events or newly available information.
+September 2021
+CRISPR-Cas systems are divided into three major types (type I, type II, and type III) and twelve subtypes, which are based on their genetic content and structural differences. However, the core defining features of all CRISPR-Cas systems are the cas genes and their proteins: cas1 and cas2 are universal across types and subtypes, while
+, cas9, and cas10 are signature genes for type I, type II, and type III, respectively.
+CRISPR-Cas defense stages
+involves recognition and integration of spacers between two adjacent repeats in the CRISPR locus. The "Protospacer" refers to the sequence on the viral genome that corresponds to the spacer. A short stretch of conserved nucleotides exists proximal to the protospacer, which is called the protospacer adjacent motif (PAM). The PAM is a recognition motif that is used to acquire the DNA fragment.
+In type II, Cas9 recognizes the PAM during adaptation in order to ensure the acquisition of functional spacers.
+Loss of spacers and even groups of several have also been observed by Aranaz et al. 2004 and Pourcel et al. 2007. This probably occurs through homologous recombination of the between-repeat material.
+CRISPR processing/biogenesis
+CRISPR expression includes the
+transcription
+of a primary transcript called a CRISPR RNA (pre-crRNA), which is transcribed from the CRISPR locus by
+RNA polymerase
+endoribonucleases
+then cleave the pre-crRNAs into small CRISPR RNAs (crRNAs).
+Interference/immunity
+Interference involves the crRNAs within a multi-protein complex called CASCADE, which can recognize and specifically base-pair with regions of inserting complementary foreign DNA. The crRNA-foreign
+nucleic acid
+complex is then cleaved, however if there are mismatches between the spacer and the target DNA, or if there are mutations in the PAM, then cleavage will not be initiated. In the latter scenario, the foreign DNA is not targeted for attack by the cell, thus the replication of the virus proceeds and the host is not immune to viral infection. The interference stage can be mechanistically and temporally distinct from CRISPR acquisition and expression, yet for complete function as a defense system, all three phases must be functional.
+Stage 1: CRISPR spacer integration. Protospacers and protospacer-associated motifs (shown in red) are acquired at the "leader" end of a CRISPR array in the host DNA. The CRISPR array is composed of spacer sequences (shown in colored boxes) flanked by repeats (black diamonds). This process requires Cas1 and Cas2 (and Cas9 in type II
+), which are encoded in the cas locus, which are usually located near the CRISPR array.
+Stage 2: CRISPR expression. Pre-crRNA is transcribed starting at the leader region by the host RNA polymerase and then cleaved by Cas proteins into smaller crRNAs containing a single spacer and a partial repeat (shown as hairpin structure with colored spacers).
+CRISPR interference
+. crRNA with a spacer that has strong complementarity to the incoming foreign DNA begins a cleavage event (depicted with scissors), which requires Cas proteins. DNA cleavage interferes with viral replication and provides immunity to the host. The interference stage can be functionally and temporarily distinct from CRISPR acquisition and expression (depicted by white line dividing the cell).
+Transcription deactivation using dCas9
+, also referred to as endonuclease deficient Cas9 can be utilized to edit gene expression when applied to the transcription binding site of the desired section of a gene. The optimal function of dCas9 is attributed to its mode of action. Gene expression is inhibited when nucleotides are no longer added to the RNA chain and therefore terminating elongation of that chain, and as a result affects the transcription process. This process occurs when dCas9 is mass-produced so it is able to affect the most genes at any given time via a sequence specific guide RNA molecule. Since dCas9 appears to down regulate gene expression, this action is amplified even more when it is used in conjunction with repressive chromatin modifier domains.
+The dCas9 protein has other functions outside of the regulation of gene expression. A promoter can be added to the dCas9 protein which allows them to work with each other to become efficient at beginning or stopping transcription at different sequences along a strand of DNA. These two proteins are specific in where they act on a gene. This is prevalent in certain types of prokaryotes when a promoter and dCas9 align themselves together to impede the ability of elongation of polymer of nucleotides coming together to form a transcribed piece of DNA. Without the promoter, the dCas9 protein does not have the same effect by itself or with a gene body.
+When examining the effects of repression of transcription further, H3K27, an amino acid component of a histone, becomes methylated through the interaction of dCas9 and a peptide called FOG1. Essentially, this interaction causes gene repression on the C + N terminal section of the amino acid complex at the specific junction of the gene, and as a result, terminates transcription.
+dCas9 also proves to be efficient when it comes to altering certain proteins that can create diseases. When the dCas9 attaches to a form of RNA called guide-RNA, it prevents the proliferation of repeating codons and DNA sequences that might be harmful to an organism's genome. Essentially, when multiple repeat codons are produced, it elicits a response, or recruits an abundance of dCas9 to combat the overproduction of those codons and results in the shut-down of transcription. dCas9 works synergistically with gRNA and directly affects the DNA polymerase II from continuing transcription.
+Further explanation of how the dCas9 protein works can be found in their utilization of plant genomes by the regulation of gene production in plants to either increase or decrease certain characteristics. The CRISPR-CAS9 system has the ability to either upregulate or downregulate genes. The dCas9 proteins are a component of the CRISPR-CAS9 system and these proteins can repress certain areas of a plant gene. This happens when dCAS9 binds to repressor domains, and in the case of the plants, deactivation of a regulatory gene such as AtCSTF64, does occur.
+Bacteria are another focus of the usage of dCas9 proteins as well. Since eukaryotes have a larger DNA makeup and genome; the much smaller bacteria are easy to manipulate. As a result, eukaryotes use dCas9 to inhibit RNA polymerase from continuing the process of transcription of genetic material.
+Structural and biochemical studies
+Crystal structure
+Cas9 features a bi-lobed architecture with the guide RNA nestled between the alpha-helical lobe (blue) and the nuclease lobe (cyan, orange, and gray). These two lobes are connected through a single bridge helix. There are two nuclease domains located in the multi-domain nuclease lobe, the RuvC (gray) which cleaves the non-target DNA strand, and the HNH nuclease domain (cyan) that cleaves the target strand of DNA. The RuvC domain is encoded by sequentially disparate sites that interact in the tertiary structure to form the RuvC cleavage domain (See right figure).
+A key feature of the target DNA is that it must contain a protospacer adjacent motif (PAM) consisting of the three-nucleotide sequence- NGG. This PAM is recognized by the PAM-interacting domain (PI domain, orange) located near the C-terminal end of Cas9. Cas9 undergoes distinct conformational changes between the apo (
+), guide RNA bound, and guide RNA:DNA bound states.
+Cas9 recognizes the
+architecture inherent in the CRISPR locus, which mediates the maturation of crRNA-tracrRNA
+ribonucleoprotein
+Cas9 in complex with CRISPR RNA (crRNA) and trans-activating crRNA (tracrRNA) further recognizes and degrades the target dsDNA.
+In the co-crystal structure shown here, the crRNA-tracrRNA complex is replaced by a
+single-guide RNA (sgRNA, in red) which has been proved to have the same function as the natural RNA complex.
+The sgRNA base paired with target ssDNA is anchored by Cas9 as a T-shaped architecture. This crystal structure of the DNA-bound Cas9 enzyme reveals distinct conformational changes in the alpha-helical lobe with respect to the nuclease lobe, as well as the location of the HNH domain. The protein consists of a recognition lobe (REC) and a nuclease lobe (NUC). All regions except the HNH form tight interactions with each other and sgRNA-ssDNA complex, while the HNH domain forms few contacts with the rest of the protein. In another conformation of Cas9 complex observed in the crystal, the HNH domain is not visible. These structures suggest the conformational flexibility of HNH domain.
+To date, at least three crystal structures have been studied and published. One representing a conformation of Cas9 in the apo state,
+and two representing Cas9 in the DNA bound state.
+Interactions with sgRNA
+In sgRNA-Cas9 complex, based on the crystal structure, REC1, BH and PI domains have important contacts with backbone or bases in both repeat and spacer region.
+Several Cas9 mutants including REC1 or REC2 domains deletion and residues mutations in BH have been tested. REC1 and BH related mutants show lower or none activity compared with wild type, which indicate these two domains are crucial for the sgRNA recognition at repeat sequence and stabilization of the whole complex. Although the interactions between spacer sequence and Cas9 as well as PI domain and repeat region need further studies, the co-crystal demonstrates clear interface between Cas9 and sgRNA.
+DNA cleavage
+Previous sequence analysis and biochemical studies have posited that Cas9 contains two nuclease domains: an McrA-like HNH nuclease domain and a RuvC-like nuclease domain.
+These HNH and RuvC-like nuclease domains are responsible for cleavage of the complementary/target and non-complementary/non-target DNA strands, respectively.
+Despite low sequence similarity, the sequence similar to RNase H has a RuvC fold (one member of RNase H family) and the HNH region folds as T4 Endo VII (one member of HNH endonuclease family).
+citation needed
+S. pyogenes
+Cas9 requires magnesium (Mg
+for the RNA-mediated DNA cleavage; however, Cas9 has been shown to exhibit varying levels of activity in the presence of other
+metal ions.
+For instance, Cas9 in the presence of manganese (Mn
+) has been shown to be capable of RNA-independent DNA cleavage.
+of DNA cleavage by Cas9 have been of great interest to the scientific community, as this data provides insight into the intricacies of the reaction. While the cleavage of DNA by RNA-bound Cas9 has been shown to be relatively rapid (
+), the release of the cleavage products is very slow (
+≈ 43–91 h), essentially rendering Cas9 a single-
+Additional studies regarding the kinetics of Cas9 have shown
+Cas9 to be effective in reducing
+effects by modifying the rate of the reaction.
+The cleavage efficiency of Cas9 depends on numerous factors. A key requirement is the presence of a valid PAM at the non-target strand 3 nucleotides downstream from the cleavage site.
+The canonical PAM sequence for
+S. Pyogenes
+Cas9 is NGG, but alternative motifs are tolerated with lower cleavage activity. The most efficient alternative PAM motifs for the wild-type
+S. Pyogenes
+Cas9 are NAG and NGA.
+The sequence composition at the target DNA site complementary to the 20 nucleotide spacer region of the gRNA also affects cleavage efficiency. The most relevant nucleotide composition properties that impact efficiency are those in the PAM-proximal region.
+Free energy changes of nucleic acids are also highly relevant in defining cleavage activity.
+In addition to efficiency, the nucleotide composition of the five nucleotides closest to the PAM in the target sequence also affects the scission profile, influencing whether DNA cleavage is blunt or staggered.
+Guide RNAs that bind to the DNA forming a duplex that falls into a restricted range of binding free energy changes that excludes extremely weak or stable bindings generally perform efficiently.
+Stable guide RNA folding conformations can also impair cleavage.
+DNA cleavage patterns
+The Cas9 nuclease contains two nuclease domains, HNH and RuvC, responsible for cleaving the target strand (TS) and nontarget strand (NTS), respectively. The seminal structural characterization of the nuclease demonstrated that the HNH domain precisely cleaves between the positions 18 and 17 (18|17) of the protospacer, while the RuvC cuts between the same bases and at additional downstream positions.
+Using molecular dynamics simulation, a study reported that cleavage of the NTS between 17|16 of the target sequence was more energetically favored than 18|17, generating 1 nucleotide 5' ssDNA overhangs.
+Notably, the authors demonstrated that the 5' overhangs are filled in, and the product of DNA repair are templated insertions, where the 5' overhang is used as a template by Pol4 for the repair reaction. The association between staggered cleavage and precise templated insertions was supported by additional studies in human cells.
+Recently, a high-throughput investigation of Cas9 scission profile revealed that ~85% of on-target cleavage is blunt, whereas ~15% had a 1 nucleotide 5' overhang.
+Off-targets had a higher staggered cleavage rate compared to on-target sites, with approximately 1/3 of off-targets displaying 5' overhangs from 1 to 3 nucleotides. The scission profile analysis revealed that sequence patterns in the target sequence favor the formation of blunt or staggered DNA cuts, and staggered cleavage favored the formation of predictable indels.
+Problems bacteria pose to Cas9 editing
+Most archaea and bacteria stubbornly refuse to allow a Cas9 to edit their genome. This is because they can attach foreign DNA, that does not affect them, into their genome. Another way that these cells defy Cas9 is by process of restriction modification (RM) system. When a bacteriophage enters a bacteria or archaea cell it is targeted by the RM system. The RM system then cuts the bacteriophages DNA into separate pieces by restriction enzymes and uses endonucleases to further destroy the strands of DNA. This poses a problem to Cas9 editing because the RM system also targets the foreign genes added by the Cas9 process.
+Applications of Cas9 to transcription tuning
+Interference of transcription by dCas9
+Due to the unique ability of Cas9 to bind to essentially any complement sequence in any
+, researchers wanted to use this enzyme to repress
+transcription
+of various genomic
+. To accomplish this, the two crucial catalytic residues of the RuvC and HNH domain can be mutated to
+abolishing all endonuclease activity of Cas9. The resulting protein coined 'dead' Cas9 or 'dCas9' for short, can still tightly bind to dsDNA. This
+catalytically
+inactive Cas9 variant has been used for both mechanistic studies into Cas9 DNA interrogative binding and as a general programmable DNA binding RNA-Protein complex.
+The interaction of dCas9 with target dsDNA is so tight that high
+protein denaturant can not fully dissociate the dCas9 RNA-protein complex from dsDNA target.
+dCas9 has been targeted with engineered single guide RNAs to transcription initiation sites of any loci where dCas9 can compete with RNA polymerase at promoters to halt transcription.
+Also, dCas9 can be targeted to the coding region of loci such that inhibition of RNA Polymerase occurs during the elongation phase of transcription.
+In Eukaryotes, silencing of gene expression can be extended by targeting dCas9 to enhancer sequences, where dCas9 can block assembly of transcription factors leading to silencing of specific gene expression.
+Moreover, the guide RNAs provided to dCas9 can be designed to include specific mismatches to its complementary cognate sequence that will quantitatively weaken the interaction of dCas9 for its programmed cognate sequence allowing a researcher to tune the extent of gene silencing applied to a gene of interest.
+This technology is similar in principle to
+such that gene expression is being modulated at the RNA level. However, the dCas9 approach has gained much traction as there exist less off-target effects and in general larger and more reproducible silencing effects through the use of dCas9 compared to RNAi screens.
+Furthermore, because the dCas9 approach to gene silencing can be quantitatively controlled, a researcher can now precisely control the extent to which a gene of interest is repressed allowing more questions about gene regulation and gene
+stoichiometry
+to be answered.
+Beyond direct binding of dCas9 to transcriptionally sensitive positions of loci, dCas9 can be fused to a variety of modulatory protein domains to carry out a myriad of functions. Recently, dCas9 has been fused to
+remodeling proteins (HDACs/HATs) to reorganize the chromatin structure around various loci.
+This is important in targeting various eukaryotic genes of interest as heterochromatin structures hinder Cas9 binding. Furthermore, because Cas9 can react to
+heterochromatin
+, it is theorized that this enzyme can be further applied to studying the chromatin structure of various loci.
+Additionally, dCas9 has been employed in genome wide screens of gene repression. By employing large libraries of guide RNAs capable of targeting thousands of genes, genome wide genetic screens using dCas9 have been conducted.
+Another method for silencing transcription with Cas9 is to directly cleave mRNA products with the catalytically active Cas9 enzyme.
+This approach is made possible by hybridizing ssDNA with a PAM complement sequence to ssRNA allowing for a dsDNA-RNA PAM site for Cas9 binding. This technology makes available the ability to isolate endogenous RNA transcripts in cells without the need to induce chemical modifications to RNA or RNA tagging methods.
+Transcription activation by dCas9 fusion proteins
+In contrast to silencing genes, dCas9 can also be used to activate genes when fused to transcription activating factors.
+These factors include subunits of bacterial RNA Polymerase II and traditional transcription factors in eukaryotes. Recently, genome-wide screens of transcription activation have also been accomplished using dCas9 fusions named 'CRISPRa' for activation.
+Biology portal
+Technology portal
+DCas9 activation system
+CRISPR gene editing
+Genome editing
+Zinc finger nuclease
+Transcription activator-like effector nuclease
+Nishimasu H, Ran FA, Hsu PD, Konermann S, Shehata SI, Dohmae N, et al. (February 2014).
+"Crystal structure of Cas9 in complex with guide RNA and target DNA"
+10.1016/j.cell.2014.02.001
+"The Nobel Prize in Chemistry 2020"
+NobelPrize.org
+. Retrieved
+Uddin F, Rudin CM, Sen T (August 2020).
+"CRISPR Gene Therapy: Applications, Limitations, and Implications for the Future"
+Frontiers in Oncology
+10.3389/fonc.2020.01387
+Mali P, Esvelt KM, Church GM (October 2013).
+"Cas9 as a versatile tool for engineering biology"
+Nature Methods
+10.1038/nmeth.2649
+Deltcheva E, Chylinski K, Sharma CM, Gonzales K, Chao Y, Pirzada ZA, et al. (March 2011).
+"CRISPR RNA maturation by trans-encoded small RNA and host factor RNase III"
+2011Natur.471..602D
+10.1038/nature09886
+Mali P, Aach J, Stranges PB, Esvelt KM, Moosburner M, Kosuri S, et al. (September 2013).
+"CAS9 transcriptional activators for target specificity screening and paired nickases for cooperative genome engineering"
+Nature Biotechnology
+10.1038/nbt.2675
+Gilbert LA, Larson MH, Morsut L, Liu Z, Brar GA, Torres SE, et al. (July 2013).
+"CRISPR-mediated modular RNA-guided regulation of transcription in eukaryotes"
+10.1016/j.cell.2013.06.044
+Bikard D, Jiang W, Samai P, Hochschild A, Zhang F, Marraffini LA (August 2013).
+"Programmable repression and activation of bacterial gene expression using an engineered CRISPR-Cas system"
+Nucleic Acids Research
+10.1093/nar/gkt520
+Esvelt KM, Smidler AL, Catteruccia F, Church GM (July 2014).
+"Concerning RNA-guided gene drives for the alteration of wild populations"
+10.7554/eLife.03401
+Li H, Sheng C, Wang S, Yang L, Liang Y, Huang Y, et al. (2017-03-22).
+"Removal of Integrated Hepatitis B Virus DNA Using CRISPR-Cas9"
+Frontiers in Cellular and Infection Microbiology
+10.3389/fcimb.2017.00091
+Jensen ED, Ferreira R, Jakočiūnas T, Arsovska D, Zhang J, Ding L, et al. (March 2017).
+"Transcriptional reprogramming in yeast using dCas9 and combinatorial gRNA strategies"
+Microbial Cell Factories
+10.1186/s12934-017-0664-2
+O'Geen H, Ren C, Nicolet CM, Perez AA, Halmai J, Le VM, et al. (September 2017).
+"dCas9-based epigenome editing suggests acquisition of histone methylation is not sufficient for target gene repression"
+Nucleic Acids Research
+10.1093/nar/gkx578
+Lowder LG, Paul JW, Qi Y (2017). "Multiplexed Transcriptional Activation or Repression in Plants Using CRISPR-dCas9-Based Systems".
+Plant Gene Regulatory Networks
+. Methods in Molecular Biology. Vol. 1629. pp.
+10.1007/978-1-4939-7125-1_12
+978-1-4939-7124-4
+Lee JK, Jeong E, Lee J, Jung M, Shin E, Kim YH, et al. (August 2018).
+"Directed evolution of CRISPR-Cas9 to increase its specificity"
+Nature Communications
+2018NatCo...9.3048L
+10.1038/s41467-018-05477-x
+Chen W, Page-McCaw PS (March 2019). "CRISPR/Cas9 gene editing".
+AccessScience
+. McGraw-Hill Education.
+10.1036/1097-8542.168060
+Uddin F, Rudin CM, Sen T (August 2020).
+"CRISPR Gene Therapy: Applications, Limitations, and Implications for the Future"
+Frontiers in Oncology
+10.3389/fonc.2020.01387
+Zhou X, Diao R, Li X, et al. (3 September 2025).
+"Cas9 senses CRISPR RNA abundance to regulate CRISPR spacer acquisition"
+10.1038/s41586-025-09577-9
+Horvath P, Barrangou R (January 2010). "CRISPR/Cas, the immune system of bacteria and archaea".
+2010Sci...327..167H
+10.1126/science.1179555
+Deveau H, Garneau JE, Moineau S (2010-10-13). "CRISPR/Cas system and its role in phage-bacteria interactions".
+Annual Review of Microbiology
+10.1146/annurev.micro.112408.134123
+Garneau JE, Dupuis MÈ, Villion M, Romero DA, Barrangou R, Boyaval P, et al. (November 2010). "The CRISPR/Cas bacterial immune system cleaves bacteriophage and plasmid DNA".
+2010Natur.468...67G
+10.1.1.451.9645
+10.1038/nature09523
+Heler R, Samai P, Modell JW, Weiner C, Goldberg GW, Bikard D, et al. (March 2015).
+"Cas9 specifies functional viral targets during CRISPR-Cas adaptation"
+2015Natur.519..199H
+10.1038/nature14245
+Deveau H, Garneau JE, Moineau S (2010-10-13). "CRISPR/Cas system and its role in phage-bacteria interactions".
+Annual Review of Microbiology
+10.1146/annurev.micro.112408.134123
+Zhou X, Diao R, Li X, et al. (3 September 2025).
+"Cas9 senses CRISPR RNA abundance to regulate CRISPR spacer acquisition"
+10.1038/s41586-025-09577-9
+Horvath P, Barrangou R (January 2010). "CRISPR/Cas, the immune system of bacteria and archaea".
+2010Sci...327..167H
+10.1126/science.1179555
+Karginov FV, Hannon GJ (January 2010).
+"The CRISPR system: small RNA-guided defense in bacteria and archaea"
+Molecular Cell
+10.1016/j.molcel.2009.12.033
+Sternberg SH, Redding S, Jinek M, Greene EC, Doudna JA (March 2014).
+"DNA interrogation by the CRISPR RNA-guided endonuclease Cas9"
+2014Natur.507...62S
+10.1038/nature13011
+Gilbert LA, Larson MH, Morsut L, Liu Z, Brar GA, Torres SE, et al. (July 2013).
+"CRISPR-mediated modular RNA-guided regulation of transcription in eukaryotes"
+10.1016/j.cell.2013.06.044
+Gilbert LA, Horlbeck MA, Adamson B, Villalta JE, Chen Y, Whitehead EH, et al. (October 2014).
+"Genome-Scale CRISPR-Mediated Control of Gene Repression and Activation"
+10.1016/j.cell.2014.09.029
+O'Connell MR, Oakes BL, Sternberg SH, East-Seletsky A, Kaplan M, Doudna JA (December 2014).
+"Programmable RNA recognition and cleavage by CRISPR/Cas9"
+2014Natur.516..263O
+10.1038/nature13769
+Gilbert LA, Horlbeck MA, Adamson B, Villalta JE, Chen Y, Whitehead EH, et al. (October 2014).
+"Genome-Scale CRISPR-Mediated Control of Gene Repression and Activation"
+10.1016/j.cell.2014.09.029
+Jinek M, Jiang F, Taylor DW, Sternberg SH, Kaya E, Ma E, et al. (March 2014).
+"Structures of Cas9 endonucleases reveal RNA-mediated conformational activation"
+(6176) 1247997.
+10.1126/science.1247997
+Nishimasu H, Ran FA, Hsu PD, Konermann S, Shehata SI, Dohmae N, et al. (February 2014).
+"Crystal structure of Cas9 in complex with guide RNA and target DNA"
+10.1016/j.cell.2014.02.001
+Jinek M, Chylinski K, Fonfara I, Hauer M, Doudna JA, Charpentier E (August 2012).
+"A programmable dual-RNA-guided DNA endonuclease in adaptive bacterial immunity"
+2012Sci...337..816J
+10.1126/science.1225829
+Nishimasu H, Ran FA, Hsu PD, Konermann S, Shehata SI, Dohmae N, et al. (February 2014).
+"Crystal structure of Cas9 in complex with guide RNA and target DNA"
+10.1016/j.cell.2014.02.001
+Kim N, Kim HK, Lee S, Seo JH, Choi JW, Park J, et al. (November 2020). "Prediction of the sequence-specific cleavage activity of Cas9 variants".
+Nature Biotechnology
+10.1038/s41587-020-0537-9
+Zuo Z, Liu J (November 2016).
+"Cas9-catalyzed DNA Cleavage Generates Staggered Ends: Evidence from Molecular Dynamics Simulations"
+Scientific Reports
+(37584) 37584.
+2016NatSR...537584Z
+10.1038/srep37584
+Longo GM, Sayols S, Kotini AG, Heinen S, Möckel MM, Beli P, et al. (May 2024).
+"Linking CRISPR-Cas9 double-strand break profiles to gene editing precision with BreakTag"
+Nature Biotechnology
+10.1038/s41587-024-02238-8
+Alkan F, Wenzel A, Anthon C, Havgaard JH, Gorodkin J (October 2018).
+"CRISPR-Cas9 off-targeting assessment with nucleic acid duplex energy parameters"
+Genome Biology
+10.1186/s13059-018-1534-x
+Thyme SB, Akhmetova L, Montague TG, Valen E, Schier AF (June 2016).
+"Internal guide RNA interactions interfere with Cas9-mediated cleavage"
+Nature Communications
+(11750) 11750.
+2016NatCo...711750T
+10.1038/ncomms11750
+Kusano K, Naito T, Handa N, Kobayashi I (November 1995).
+"Restriction-modification systems as genomic parasites in competition for specific sequences"
+Proceedings of the National Academy of Sciences of the United States of America
+1995PNAS...9211095K
+10.1073/pnas.92.24.11095
+DiCarlo JE, Norville JE, Mali P, Rios X, Aach J, Church GM (April 2013).
+"Genome engineering in
+Saccharomyces cerevisiae
+using CRISPR-Cas systems"
+Nucleic Acids Research
+10.1093/nar/gkt135
+Vyas VK, Barrasa MI, Fink GR (2015).
+Candida albicans
+CRISPR system permits genetic engineering of essential genes and gene families"
+Science Advances
+(3) e1500248.
+2015SciA....1E0248V
+10.1126/sciadv.1500248
+Hwang WY, Fu Y, Reyon D, Maeder ML, Tsai SQ, Sander JD, et al. (March 2013).
+"Efficient genome editing in zebrafish using a CRISPR-Cas system"
+Nature Biotechnology
+10.1038/nbt.2501
+Gratz SJ, Cummings AM, Nguyen JN, Hamm DC, Donohue LK, Harrison MM, et al. (August 2013).
+"Genome engineering of
+with the CRISPR RNA-guided Cas9 nuclease"
+10.1534/genetics.113.152710
+Yan H, Opachaloemphan C, Mancini G, Yang H, Gallitto M, Mlejnek J, et al. (August 2017).
+"An Engineered orco Mutation Produces Aberrant Social Behavior and Defective Neural Development in Ants"
+(4): 736–747.e9.
+10.1016/j.cell.2017.06.051
+Trible W, Olivos-Cisneros L, McKenzie SK, Saragosti J, Chang NC, Matthews BJ, et al. (August 2017).
+"orco Mutagenesis Causes Loss of Antennal Lobe Glomeruli and Impaired Social Behavior in Ants"
+(4): 727–735.e10.
+10.1016/j.cell.2017.07.001
+Kistler KE, Vosshall LB, Matthews BJ (April 2015).
+"Genome engineering with CRISPR-Cas9 in the mosquito Aedes aegypti"
+Cell Reports
+10.1016/j.celrep.2015.03.009
+Friedland AE, Tzur YB, Esvelt KM, Colaiácovo MP, Church GM, Calarco JA (August 2013).
+"Heritable genome editing in C. elegans via a CRISPR-Cas9 system"
+Nature Methods
+10.1038/nmeth.2532
+Jiang W, Zhou H, Bi H, Fromm M, Yang B, Weeks DP (November 2013).
+"Demonstration of CRISPR/Cas9/sgRNA-mediated targeted gene modification in Arabidopsis, tobacco, sorghum and rice"
+Nucleic Acids Research
+(20): e188.
+10.1093/nar/gkt780
+Wang H, Yang H, Shivalila CS, Dawlaty MM, Cheng AW, Zhang F, et al. (May 2013).
+"One-step generation of mice carrying mutations in multiple genes by CRISPR/Cas-mediated genome engineering"
+10.1016/j.cell.2013.04.025
+Guo X, Li XJ (July 2015).
+"Targeted genome editing in primate embryos"
+Cell Research
+10.1038/cr.2015.64
+Mali P, Aach J, Stranges PB, Esvelt KM, Moosburner M, Kosuri S, et al. (September 2013).
+"CAS9 transcriptional activators for target specificity screening and paired nickases for cooperative genome engineering"
+Nature Biotechnology
+10.1038/nbt.2675
+Gilbert LA, Larson MH, Morsut L, Liu Z, Brar GA, Torres SE, et al. (July 2013).
+"CRISPR-mediated modular RNA-guided regulation of transcription in eukaryotes"
+10.1016/j.cell.2013.06.044
+Oh HS, Diaz FM, Zhou C, Carpenter N, Knipe DM (2022-01-01).
+"CRISPR-Cas9 Expressed in Stably Transduced Cell Lines Promotes Recombination and Selects for Herpes Simplex Virus Recombinants"
+Current Research in Virological Science
+10.1016/j.crviro.2022.100023
+Heler R, Samai P, Modell JW, Weiner C, Goldberg GW, Bikard D, et al. (March 2015).
+"Cas9 specifies functional viral targets during CRISPR-Cas adaptation"
+2015Natur.519..199H
+10.1038/nature14245
+Barrangou R, Fremaux C, Deveau H, Richards M, Boyaval P, Moineau S, et al. (March 2007). "CRISPR provides acquired resistance against viruses in prokaryotes".
+2007Sci...315.1709B
+10.1126/science.1138140
+20.500.11794/38902
+Garneau JE, Dupuis MÈ, Villion M, Romero DA, Barrangou R, Boyaval P, et al. (November 2010). "The CRISPR/Cas bacterial immune system cleaves bacteriophage and plasmid DNA".
+2010Natur.468...67G
+10.1.1.451.9645
+10.1038/nature09523
+Uddin F, Rudin CM,
+(August 2020).
+"CRISPR Gene Therapy: Applications, Limitations, and Implications for the Future"
+Frontiers in Oncology
+10.3389/fonc.2020.01387
+Mali P, Esvelt KM, Church GM (October 2013).
+"Cas9 as a versatile tool for engineering biology"
+Nature Methods
+10.1038/nmeth.2649
+Esvelt KM, Smidler AL, Catteruccia F, Church GM (July 2014).
+"Concerning RNA-guided gene drives for the alteration of wild populations"
+10.7554/eLife.03401
+Cyranoski D, Reardon S (22 April 2015). "Chinese scientists genetically modify human embryos".
+10.1038/nature.2015.17378
+Barrangou R
+(November 2015).
+"Diversity of CRISPR-Cas immune systems and molecular machines"
+Genome Biology
+10.1186/s13059-015-0816-9
+Jinek M, Chylinski K, Fonfara I, Hauer M,
+, Charpentier E (August 2012).
+"A programmable dual-RNA-guided DNA endonuclease in adaptive bacterial immunity"
+2012Sci...337..816J
+10.1126/science.1225829
+Mojica FJ, Montoliu L (2016). "On the Origin of CRISPR-Cas Technology: From Prokaryotes to Mammals".
+Trends in Microbiology
+10.1016/j.tim.2016.06.005
+Hsu PD, Lander ES,
+(June 2014).
+"Development and applications of CRISPR-Cas9 for genome engineering"
+10.1016/j.cell.2014.05.010
+Cong L, Ran FA, Cox D, Lin S, Barretto R, Habib N, et al. (February 2013).
+"Multiplex genome engineering using CRISPR/Cas systems"
+2013Sci...339..819C
+10.1126/science.1231143
+Mali P, Yang L, Esvelt KM, Aach J, Guell M, DiCarlo JE, et al. (February 2013).
+"RNA-guided human genome engineering via Cas9"
+2013Sci...339..823M
+10.1126/science.1232033
+DiCarlo JE, Norville JE, Mali P, Rios X, Aach J, Church GM (April 2013).
+"Genome engineering in
+Saccharomyces cerevisiae
+using CRISPR-Cas systems"
+Nucleic Acids Research
+10.1093/nar/gkt135
+Zhang GC, Kong II, Kim H, Liu JJ, Cate JH, Jin YS (December 2014).
+"Construction of a quadruple auxotrophic mutant of an industrial polyploid
+saccharomyces cerevisiae
+strain by using RNA-guided Cas9 nuclease"
+Applied and Environmental Microbiology
+2014ApEnM..80.7694Z
+10.1128/AEM.02310-14
+Liu JJ, Kong II, Zhang GC, Jayakody LN, Kim H, Xia PF, et al. (April 2016).
+"Metabolic Engineering of Probiotic
+Saccharomyces boulardii
+Applied and Environmental Microbiology
+2016ApEnM..82.2280L
+10.1128/AEM.00057-16
+Vyas VK, Barrasa MI, Fink GR (2015).
+Candida albicans
+CRISPR system permits genetic engineering of essential genes and gene families"
+Science Advances
+(3) e1500248.
+2015SciA....1E0248V
+10.1126/sciadv.1500248
+Ng H, Dean N (2017).
+Candida albicans
+by Increased Single Guide RNA Expression"
+(2): e00385–16.
+10.1128/mSphere.00385-16
+Hwang WY, Fu Y, Reyon D, Maeder ML, Tsai SQ, Sander JD, et al. (March 2013).
+"Efficient genome editing in zebrafish using a CRISPR-Cas system"
+Nature Biotechnology
+10.1038/nbt.2501
+Gratz SJ, Cummings AM, Nguyen JN, Hamm DC, Donohue LK, Harrison MM, et al. (August 2013).
+"Genome engineering of
+with the CRISPR RNA-guided Cas9 nuclease"
+10.1534/genetics.113.152710
+Bassett AR, Tibbit C, Ponting CP, Liu JL (July 2013).
+"Highly efficient targeted mutagenesis of
+with the CRISPR/Cas9 system"
+Cell Reports
+10.1016/j.celrep.2013.06.020
+Yan H, Opachaloemphan C, Mancini G, Yang H, Gallitto M, Mlejnek J, et al. (August 2017).
+"An Engineered orco Mutation Produces Aberrant Social Behavior and Defective Neural Development in Ants"
+(4): 736–747.e9.
+10.1016/j.cell.2017.06.051
+Trible W, Olivos-Cisneros L, McKenzie SK, Saragosti J, Chang NC, Matthews BJ, et al. (August 2017).
+"orco Mutagenesis Causes Loss of Antennal Lobe Glomeruli and Impaired Social Behavior in Ants"
+(4): 727–735.e10.
+10.1016/j.cell.2017.07.001
+Kistler KE, Vosshall LB, Matthews BJ (April 2015).
+"Genome engineering with CRISPR-Cas9 in the mosquito Aedes aegypti"
+Cell Reports
+10.1016/j.celrep.2015.03.009
+Friedland AE, Tzur YB, Esvelt KM, Colaiácovo MP, Church GM, Calarco JA (August 2013).
+"Heritable genome editing in C. elegans via a CRISPR-Cas9 system"
+Nature Methods
+10.1038/nmeth.2532
+Jiang W, Zhou H, Bi H, Fromm M, Yang B, Weeks DP (November 2013).
+"Demonstration of CRISPR/Cas9/sgRNA-mediated targeted gene modification in Arabidopsis, tobacco, sorghum and rice"
+Nucleic Acids Research
+(20): e188.
+10.1093/nar/gkt780
+Wang H, Yang H, Shivalila CS, Dawlaty MM, Cheng AW,
+, et al. (May 2013).
+"One-step generation of mice carrying mutations in multiple genes by CRISPR/Cas-mediated genome engineering"
+10.1016/j.cell.2013.04.025
+Soni D, Wang DM, Regmi SC, Mittal M, Vogel SM, Schlüter D, et al. (May 2018).
+"Deubiquitinase function of A20 maintains and repairs endothelial barrier after lung vascular injury"
+Cell Death Discovery
+10.1038/s41420-018-0056-3
+Guo X, Li XJ (July 2015).
+"Targeted genome editing in primate embryos"
+Cell Research
+10.1038/cr.2015.64
+Baltimore D, Berg P, Botchan M, Carroll D, Charo RA, Church G, et al. (April 2015).
+"Biotechnology. A prudent path forward for genomic engineering and germline gene modification"
+2015Sci...348...36B
+10.1126/science.aab1028
+Larson MH, Gilbert LA, Wang X, Lim WA, Weissman JS, Qi LS (November 2013).
+"CRISPR interference (CRISPRi) for sequence-specific control of gene expression"
+Nature Protocols
+10.1038/nprot.2013.132
+Liang P, Xu Y, Zhang X, Ding C, Huang R, Zhang Z, et al. (May 2015).
+"CRISPR/Cas9-mediated gene editing in human tripronuclear zygotes"
+Protein & Cell
+10.1007/s13238-015-0153-5
+Doudna JA, Mali P (2016).
+CRISPR-Cas: a laboratory manual
+. Cold Spring Harbor, New York.
+978-1-62182-130-4
+:  CS1 maint: location missing publisher (
+Chen W, Page-McCaw PS (March 2019). "CRISPR/Cas9 gene editing".
+AccessScience
+. McGraw-Hill Education.
+10.1036/1097-8542.168060
+Ebina H, Misawa N, Kanemura Y, Koyanagi Y (2013-08-26).
+"Harnessing the CRISPR/Cas9 system to disrupt latent HIV-1 provirus"
+Scientific Reports
+2013NatSR...3.2510E
+10.1038/srep02510
+Li H, Sheng C, Wang S, Yang L, Liang Y, Huang Y, et al. (2017-03-22).
+"Removal of Integrated Hepatitis B Virus DNA Using CRISPR-Cas9"
+Frontiers in Cellular and Infection Microbiology
+10.3389/fcimb.2017.00091
+Deveau H, Garneau JE, Moineau S (2010-10-13). "CRISPR/Cas system and its role in phage-bacteria interactions".
+Annual Review of Microbiology
+(1). Annual Reviews:
+10.1146/annurev.micro.112408.134123
+Horvath P, Barrangou R (January 2010). "CRISPR/Cas, the immune system of bacteria and archaea".
+2010Sci...327..167H
+10.1126/science.1179555
+Karginov FV, Hannon GJ (January 2010).
+"The CRISPR system: small RNA-guided defense in bacteria and archaea"
+Molecular Cell
+10.1016/j.molcel.2009.12.033
+Jensen ED, Ferreira R, Jakočiūnas T, Arsovska D, Zhang J, Ding L, et al. (March 2017).
+"Transcriptional reprogramming in yeast using dCas9 and combinatorial gRNA strategies"
+Microbial Cell Factories
+10.1186/s12934-017-0664-2
+Pinto BS, Saxena T, Oliveira R, Méndez-Gómez HR, Cleary JD, Denes LT, et al. (November 2017).
+"Impeding Transcription of Expanded Microsatellite Repeats by Deactivated Cas9"
+Molecular Cell
+(3): 479–490.e5.
+10.1016/j.molcel.2017.09.033
+O'Geen H, Ren C, Nicolet CM, Perez AA, Halmai J, Le VM, et al. (September 2017).
+"dCas9-based epigenome editing suggests acquisition of histone methylation is not sufficient for target gene repression"
+Nucleic Acids Research
+10.1093/nar/gkx578
+Lowder LG, Paul JW, Qi Y (2017). "Multiplexed Transcriptional Activation or Repression in Plants Using CRISPR-dCas9-Based Systems".
+Plant Gene Regulatory Networks
+. Methods in Molecular Biology. Vol. 1629. pp.
+10.1007/978-1-4939-7125-1_12
+978-1-4939-7124-4
+Barrangou R, Horvath P (June 2017). "A decade of discovery: CRISPR functions and applications".
+Nature Microbiology
+10.1038/nmicrobiol.2017.92
+Jinek M, Jiang F, Taylor DW, Sternberg SH, Kaya E, Ma E, et al. (March 2014).
+"Structures of Cas9 endonucleases reveal RNA-mediated conformational activation"
+(6176) 1247997.
+10.1126/science.1247997
+Wiedenheft B, Sternberg SH, Doudna JA (February 2012). "RNA-guided genetic silencing systems in bacteria and archaea".
+2012Natur.482..331W
+10.1038/nature10886
+Ran FA, Hsu PD, Wright J, Agarwala V, Scott DA, Zhang F (November 2013).
+"Genome engineering using the CRISPR-Cas9 system"
+Nature Protocols
+10.1038/nprot.2013.143
+Anders C, Niewoehner O, Duerst A, Jinek M (September 2014).
+"Structural basis of PAM-dependent target DNA recognition by the Cas9 endonuclease"
+2014Natur.513..569A
+10.1038/nature13579
+Makarova KS, Grishin NV, Shabalina SA, Wolf YI, Koonin EV (March 2006).
+"A putative RNA-interference-based immune system in prokaryotes: computational analysis of the predicted enzymatic machinery, functional analogies with eukaryotic RNAi, and hypothetical mechanisms of action"
+Biology Direct
+10.1186/1745-6150-1-7
+Sundaresan R, Parameshwaran HP, Yogesha SD, Keilbarth MW, Rajan R (December 2017).
+"RNA-Independent DNA Cleavage Activities of Cas9 and Cas12a"
+Cell Reports
+10.1016/j.celrep.2017.11.100
+Raper AT, Stephenson AA, Suo Z (February 2018). "Functional Insights Revealed by the Kinetic Mechanism of CRISPR/Cas9".
+Journal of the American Chemical Society
+2018JAChS.140.2971R
+10.1021/jacs.7b13047
+Lee JK, Jeong E, Lee J, Jung M, Shin E, Kim YH, et al. (August 2018).
+"Directed evolution of CRISPR-Cas9 to increase its specificity"
+Nature Communications
+2018NatCo...9.3048L
+10.1038/s41467-018-05477-x
+Singh D, Wang Y, Mallon J, Yang O, Fei J, Poddar A, et al. (April 2018).
+"Mechanisms of improved specificity of engineered Cas9s revealed by single-molecule FRET analysis"
+Nature Structural & Molecular Biology
+10.1038/s41594-018-0051-7
+Kim N, Kim HK, Lee S, Seo JH, Choi JW, Park J, et al. (November 2020). "Prediction of the sequence-specific cleavage activity of Cas9 variants".
+Nature Biotechnology
+10.1038/s41587-020-0537-9
+Corsi GI, Qu K, Alkan F, Pan X, Luo Y, Gorodkin J (May 2022).
+"CRISPR/Cas9 gRNA activity depends on free energy changes and on the target PAM context"
+Nature Communications
+2022NatCo..13.3006C
+10.1038/s41467-022-30515-0
+Xu H, Xiao T, Chen CH, Li W, Meyer CA, Wu Q, et al. (August 2015).
+"Sequence determinants of improved CRISPR sgRNA design"
+Genome Research
+10.1101/gr.191452.115
+Xiang X, Corsi GI, Anthon C, Qu K, Pan X, Liang X, et al. (May 2021).
+"Enhancing CRISPR-Cas9 gRNA efficiency prediction by data integration and deep learning"
+Nature Communications
+2021NatCo..12.3238X
+10.1038/s41467-021-23576-0
+Alkan F, Wenzel A, Anthon C, Havgaard JH, Gorodkin J (October 2018).
+"CRISPR-Cas9 off-targeting assessment with nucleic acid duplex energy parameters"
+Genome Biology
+10.1186/s13059-018-1534-x
+Longo GM, Sayols S, Kotini AG, Heinen S, Möckel MM, Beli P, et al. (May 2024).
+"Linking CRISPR-Cas9 double-strand break profiles to gene editing precision with BreakTag"
+Nature Biotechnology
+10.1038/s41587-024-02238-8
+Thyme SB, Akhmetova L, Montague TG, Valen E, Schier AF (June 2016).
+"Internal guide RNA interactions interfere with Cas9-mediated cleavage"
+Nature Communications
+(11750) 11750.
+2016NatCo...711750T
+10.1038/ncomms11750
+Zuo Z, Liu J (November 2016).
+"Cas9-catalyzed DNA Cleavage Generates Staggered Ends: Evidence from Molecular Dynamics Simulations"
+Scientific Reports
+(37584) 37584.
+2016NatSR...537584Z
+10.1038/srep37584
+Shi X, Shou J, Mehryar MM, Li J, Wang L, Zhang M, et al. (October 2019).
+"Cas9 has no exonuclease activity resulting in staggered cleavage with overhangs and predictable di- and tri-nucleotide CRISPR insertions without template donor"
+Cell Discovery
+10.1038/s41421-019-0120-z
+Shou J, Li J, Liu Y, Wu Q (August 2018).
+"Precise and Predictable CRISPR Chromosomal Rearrangements Reveal Principles of Cas9-Mediated Nucleotide Insertion"
+Molecular Cell
+(4): 498–509.e4.
+10.1016/j.molcel.2018.06.021
+Kusano K, Naito T, Handa N, Kobayashi I (November 1995).
+"Restriction-modification systems as genomic parasites in competition for specific sequences"
+Proceedings of the National Academy of Sciences of the United States of America
+1995PNAS...9211095K
+10.1073/pnas.92.24.11095
+Sternberg SH, Redding S, Jinek M, Greene EC, Doudna JA (March 2014).
+"DNA interrogation by the CRISPR RNA-guided endonuclease Cas9"
+2014Natur.507...62S
+10.1038/nature13011
+Bikard D, Jiang W, Samai P, Hochschild A, Zhang F, Marraffini LA (August 2013).
+"Programmable repression and activation of bacterial gene expression using an engineered CRISPR-Cas system"
+Nucleic Acids Research
+10.1093/nar/gkt520
+Heintze J, Luft C, Ketteler R (2013).
+"A CRISPR CASe for high-throughput silencing"
+Frontiers in Genetics
+10.3389/fgene.2013.00193
+Gilbert LA, Horlbeck MA, Adamson B, Villalta JE, Chen Y, Whitehead EH, et al. (October 2014).
+"Genome-Scale CRISPR-Mediated Control of Gene Repression and Activation"
+10.1016/j.cell.2014.09.029
+O'Connell MR, Oakes BL, Sternberg SH, East-Seletsky A, Kaplan M, Doudna JA (December 2014).
+"Programmable RNA recognition and cleavage by CRISPR/Cas9"
+2014Natur.516..263O
+10.1038/nature13769
+Further reading
+Kennedy EM, Cullen BR (May 2015).
+"Bacterial CRISPR/Cas DNA endonucleases: A revolutionary technology that could dramatically impact viral research and treatment"
+10.1016/j.virol.2015.02.024
+Abbott TR, Dhamdhere G, Liu Y, Lin X, Goudy L, Zeng L, et al. (May 2020).
+"Development of CRISPR as an Antiviral Strategy to Combat SARS-CoV-2 and Influenza"
+(4): 865–876.e12.
+10.1016/j.cell.2020.04.020
+Steven Levy (March 18, 2020).
+"Could Crispr Be Humanity's Next Virus Killer?"
+External links
+Overview of all the structural information available in the
+(Streptococcus pyogenes CRISPR-associated endonuclease Cas9/Csn1) at the
+Authority control databases
+International
+United States
+Retrieved from "
+https://en.wikipedia.org/w/index.php?title=Cas9&oldid=1334359608
+Deoxyribonucleases
+Repetitive DNA sequences
+Immune system
+Bacterial proteins
+Genome editing
+Hidden categories:
+CS1 maint: location missing publisher
+Articles with short description
+Short description is different from Wikidata
+Articles to be expanded from September 2021
+Protein articles without symbol
+Protein pages needing a picture
+Articles with excerpts
+Articles with obsolete information from September 2021
+All Wikipedia articles in need of updating
+All articles with unsourced statements
+Articles with unsourced statements from December 2019
+CS1: long volume value

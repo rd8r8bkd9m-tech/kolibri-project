@@ -34,8 +34,8 @@ typedef struct {
         } hello;
         struct {
             uint32_t node_id;
-            uint16_t length;
-            uint8_t digits[1024];
+            uint8_t length;
+            uint8_t digits[32];
             double fitness;
         } formula;
         struct {
@@ -60,8 +60,8 @@ typedef struct {
         } mutation_req;
         struct {
             uint32_t node_id;
-            uint8_t digits[1024];
-            uint16_t length;
+            uint8_t digits[32];
+            uint8_t length;
         } mutation_resp;
         struct {
             uint32_t node_id;

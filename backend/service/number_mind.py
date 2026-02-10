@@ -34,6 +34,17 @@ from typing import Optional
 
 log = logging.getLogger("kolibri.number_mind")
 
+# Lazy import — embeddings загружаются при первом использовании
+_EmbeddingTable = None
+
+def _get_embedding_class():
+    """Ленивый импорт EmbeddingTable (избегаем циклических зависимостей)."""
+    global _EmbeddingTable
+    if _EmbeddingTable is None:
+        from .embeddings import EmbeddingTable as _ET
+        _EmbeddingTable = _ET
+    return _EmbeddingTable
+
 
 # ---------------------------------------------------------------------------
 # Константы (зеркало C: corpus_trainer.h)
@@ -41,8 +52,8 @@ log = logging.getLogger("kolibri.number_mind")
 
 KLM_PATTERN_SIZE = 64       # Цифр в числовом паттерне слова
 KLM_WORD_MAX = 128          # Макс длина слова
-GENE_SIZE = 1024            # Цифр в геноме формулы
-FORMULA_LAYERS = 100        # Слоёв формульной "нейросети"
+GENE_SIZE = 4000            # Цифр в геноме формулы (500 слоёв × 8)
+FORMULA_LAYERS = 500        # Слоёв формульной "нейросети"
 MAX_ASSOCIATIONS = 10000    # Макс ассоциаций Q→A в формуле
 POPULATION_SIZE = 16        # Формул в популяции
 
@@ -166,76 +177,110 @@ class KolibriGene:
     
     def predict(self, x: float) -> float:
         """
-        Пропустить число через 100-слойную формульную сеть.
-        Каждый слой берёт 8 цифр из генома и применяет операцию.
+        Пропустить число через 500-слойную ResNet формульную сеть.
+        50 residual-блоков × 10 слоёв = глубокое преобразование без затухания.
         """
         return self._run_layers(x, FORMULA_LAYERS)
 
     def predict_fast(self, x: float) -> float:
-        """Быстрый вариант: 20 слоёв (для fitness evaluation)."""
-        return self._run_layers(x, 20)
+        """Быстрый вариант: 100 слоёв (10 residual-блоков)."""
+        return self._run_layers(x, 100)
+
+    # --- ResNet-архитектура: Residual Blocks + Layer Normalization ---
+    # Каждые BLOCK_SIZE слоёв = 1 residual block.
+    # output = α·block(x) + (1-α)·x  ← weighted skip-connection
+    # α определяется геномом → эволюция учит какие блоки важны.
+    _BLOCK_SIZE = 10  # Слоёв в одном residual-блоке
 
     def _run_layers(self, x: float, num_layers: int) -> float:
-        """Пропустить число через N слоёв формульной сети."""
+        """
+        ResNet 500-слойная формульная сеть с пропорциональным residual.
+        
+        Ключевое отличие от наивной сети:
+        1. Skip-connection через каждые 10 слоёв → сигнал не затухает
+        2. Масштабирование α ∈ [0.1, 0.5] → блок «добавляет» к входу, не заменяет
+        3. Tanh-нормализация → значения в [-1, +1] перед каждым блоком
+        4. Операции работают в масштабе ±1 → стабильный градиент
+        """
         value = float(x)
+        # Начальная нормализация: приводим вход к [-1, +1]
+        scale = max(abs(value), 1.0)
+        value = value / scale
         
-        for layer in range(num_layers):
-            offset = (layer * 8) % len(self.digits)
-            
-            # Извлечение параметров из цифр
-            op = self.digits[offset] % 12
-            
-            sign_s = -1.0 if self.digits[(offset + 1) % len(self.digits)] > 5 else 1.0
-            slope = sign_s * (
-                self.digits[(offset + 2) % len(self.digits)] * 10 +
-                self.digits[(offset + 3) % len(self.digits)]
-            )
-            
-            sign_b = -1.0 if self.digits[(offset + 4) % len(self.digits)] > 5 else 1.0
-            bias = sign_b * (
-                self.digits[(offset + 5) % len(self.digits)] * 10 +
-                self.digits[(offset + 6) % len(self.digits)]
-            )
-            
-            aux = self.digits[(offset + 7) % len(self.digits)] + 1
-            
-            # 12 операций (зеркало C)
-            try:
-                if op == 0:    # Линейная
-                    value = slope * value + bias
-                elif op == 1:  # Инверсная
-                    value = slope * value - bias
-                elif op == 2:  # Остаточная
-                    value = (slope * value) % (aux * 100 + 1) + bias
-                elif op == 3:  # Квадратичная
-                    value = slope * value * value + bias
-                elif op == 4:  # XOR
-                    value = float(int(value) ^ (aux * 100)) + bias
-                elif op == 5:  # AND
-                    value = float(int(value) & int(slope * 100)) + bias
-                elif op == 6:  # Синус
-                    value = math.sin(value / 256.0) * slope * 10 + bias
-                elif op == 7:  # Насыщение
-                    denom = 1.0 + abs(value)
-                    value = slope * 100.0 * value / denom + bias
-                elif op == 8:  # OR
-                    value = float(int(value) | int(slope)) - aux
-                elif op == 9:  # Гауссова
-                    safe_x = min(abs(value), 1000.0)
-                    value = slope * value * math.exp(-safe_x * safe_x / 1e6) + bias
-                elif op == 10: # Tanh
-                    safe_v = max(-500.0, min(500.0, value / 100.0))
-                    value = math.tanh(safe_v) * slope * 100.0 + bias
-                elif op == 11: # Sigmoid
-                    safe_v = max(-500.0, min(500.0, -value / 100.0))
-                    value = (1.0 / (1.0 + math.exp(safe_v))) * slope * 100.0 + bias
-            except (ValueError, OverflowError, ZeroDivisionError):
-                pass
-            
-            # Клиппинг
-            value = max(-1e9, min(1e9, value))
+        num_blocks = max(1, num_layers // self._BLOCK_SIZE)
         
-        return value
+        for block in range(num_blocks):
+            # --- Skip-connection: запоминаем вход блока ---
+            residual = value
+            
+            # α — сила блока, определяется первой цифрой блока
+            block_start = (block * self._BLOCK_SIZE * 8) % len(self.digits)
+            alpha = 0.1 + self.digits[block_start] * 0.04  # α ∈ [0.1, 0.54]
+            
+            # --- 10 слоёв внутри блока ---
+            for sub in range(self._BLOCK_SIZE):
+                layer = block * self._BLOCK_SIZE + sub
+                if layer >= num_layers:
+                    break
+                offset = (layer * 8) % len(self.digits)
+                
+                op = self.digits[offset] % 12
+                
+                # Параметры: slope ∈ [-2, +2], bias ∈ [-0.5, +0.5]
+                sign_s = -1.0 if self.digits[(offset + 1) % len(self.digits)] > 5 else 1.0
+                slope_raw = (
+                    self.digits[(offset + 2) % len(self.digits)] * 10 +
+                    self.digits[(offset + 3) % len(self.digits)]
+                )
+                slope = sign_s * (0.5 + slope_raw / 66.0)  # slope ∈ [±0.5, ±2.0]
+                
+                sign_b = -1.0 if self.digits[(offset + 4) % len(self.digits)] > 5 else 1.0
+                bias_raw = (
+                    self.digits[(offset + 5) % len(self.digits)] * 10 +
+                    self.digits[(offset + 6) % len(self.digits)]
+                )
+                bias = sign_b * bias_raw / 198.0  # bias ∈ [-0.5, +0.5]
+                
+                aux = self.digits[(offset + 7) % len(self.digits)] + 1
+                
+                # 12 операций — все работают в масштабе ±1
+                try:
+                    if op == 0:    # Линейная
+                        value = slope * value + bias
+                    elif op == 1:  # Инверсная
+                        value = slope * value - bias
+                    elif op == 2:  # Модулярная
+                        value = math.fmod(value * slope, 1.0 + aux * 0.1) + bias
+                    elif op == 3:  # Квадратичная (мягкая x·|x| — сохраняет знак)
+                        value = slope * value * abs(value) / (1.0 + abs(value)) + bias
+                    elif op == 4:  # Периодическая (sin-based hashing)
+                        value = math.sin(value * aux * 1.7) * slope + bias
+                    elif op == 5:  # Ступенчатая (quantize)
+                        value = round(value * aux) / max(aux, 1) * slope + bias
+                    elif op == 6:  # Синус
+                        value = math.sin(value * math.pi * slope) + bias
+                    elif op == 7:  # Насыщение (softsign)
+                        value = value / (1.0 + abs(value)) * slope + bias
+                    elif op == 8:  # Масштабирование
+                        value = value * slope + bias
+                    elif op == 9:  # Гауссова
+                        value = math.exp(-value * value / 2.0) * slope + bias
+                    elif op == 10: # Tanh
+                        value = math.tanh(value * slope) + bias
+                    elif op == 11: # Leaky ReLU
+                        value = (value if value > 0 else 0.1 * value) * slope + bias
+                except (ValueError, OverflowError, ZeroDivisionError):
+                    pass
+                
+                # Мягкий клиппинг: tanh сжимает, но не обрезает
+                if abs(value) > 3.0:
+                    value = math.tanh(value / 3.0) * 3.0
+            
+            # --- Weighted Residual: output = α·block + (1-α)·input ---
+            value = alpha * value + (1.0 - alpha) * residual
+        
+        # Восстанавливаем масштаб
+        return value * scale
     
     def mutate(self, rate: float = 0.02) -> None:
         """Мутация: случайная замена цифр."""
@@ -333,7 +378,7 @@ class FormulaPool:
     Пул из 16 формул, эволюционирующих конкурентно.
 
     Каждая формула содержит:
-    - Геном (1024 цифры) → 100-слойная сеть
+    - Геном (1024 цифры) → 500-слойная ResNet-подобная сеть
     - Ассоциации (Q→A через FNV1a хеши)
     - Fitness (качество СЕМАНТИЧЕСКИХ предсказаний)
 
@@ -341,6 +386,9 @@ class FormulaPool:
     предсказать СОСЕДЕЙ слова в графе знаний.
     Формула, трансформирующая паттерн слова A в паттерн
     близкий к соседу B, получает высокий fitness.
+    
+    Speciation: формулы объединяются в «виды» по геномному
+    расстоянию, чтобы предотвратить преждевременную конвергенцию.
     """
 
     def __init__(self) -> None:
@@ -351,6 +399,10 @@ class FormulaPool:
         # Семантические пары: (паттерн_слова, паттерн_соседа)
         # Формула учится: transform(паттерн_A) ≈ паттерн_B
         self.semantic_pairs: list[tuple[list[int], list[int]]] = []
+        # Speciation: отслеживаем «виды» для NEAT-подобного разнообразия
+        self._species: list[list[int]] = []  # группы индексов формул
+        self._stagnation: dict[int, int] = {}  # species_id → поколений без улучшения
+        self._species_best: dict[int, float] = {}  # species_id → лучший fitness
 
     def add_semantic_pair(self, source_pattern: list[int],
                           target_pattern: list[int]) -> None:
@@ -365,22 +417,23 @@ class FormulaPool:
 
     def evolve(self, generations: int = 10) -> float:
         """
-        Эволюция формул — СЕМАНТИЧЕСКИЙ fitness.
+        Эволюция формул — СЕМАНТИЧЕСКИЙ fitness + NEAT-подобная speciation.
 
         Fitness = насколько хорошо формула трансформирует
         паттерн слова A в паттерн его соседа B из графа знаний.
 
-        Улучшения:
+        Улучшения v2:
         - Мягкая метрика сходства (не только exact match)
-        - Адаптивная мутация (сильнее при стагнации)
-        - Турнирная селекция (давление отбора)
-        - Больше оценочных цифр для точности
+        - Адаптивная мутация (стагнация → агрессивнее, рост → осторожнее)
+        - Турнирная селекция с fitness-sharing (давление + разнообразие)
+        - Стагнация видов: виды, не улучшающие fitness 20 поколений, истребляются
+        - Больше оценочных цифр для точности (24 → 32)
         """
         if not self.semantic_pairs:
             return 0.0
 
         # Берём разнообразную выборку (не только первые)
-        _MAX_EVAL = 60
+        _MAX_EVAL = 80
         if len(self.semantic_pairs) <= _MAX_EVAL:
             eval_sample = self.semantic_pairs
         else:
@@ -399,12 +452,11 @@ class FormulaPool:
             # Оценка fitness каждой формулы
             for formula in self.formulas:
                 total_sim = 0.0
-                _EVAL_DIGITS = 24  # Больше цифр → точнее оценка
+                _EVAL_DIGITS = 32  # Расширили для точности
                 for src_pat, tgt_pat in eval_sample:
                     pred_part: list[int] = []
                     for i in range(_EVAL_DIGITS):
                         digit = src_pat[i] if i < len(src_pat) else 0
-                        # Включаем контекст: соседние цифры влияют на трансформацию
                         ctx = (src_pat[(i + 1) % len(src_pat)] + src_pat[(i - 1) % len(src_pat)]) * 0.05
                         x = (digit + i * 0.15 + ctx) / 12.0
                         raw = formula.gene.predict_fast(x)
@@ -430,18 +482,26 @@ class FormulaPool:
                 diversity = formula.gene.complexity()
                 formula.fitness = avg_sim + diversity * 0.01
 
+            # Fitness sharing: формулы в «плотных» кластерах делят fitness
+            # Это поддерживает разнообразие и предотвращает доминирование одного вида
+            self._apply_fitness_sharing()
+
             self.formulas.sort(key=lambda f: f.fitness, reverse=True)
             best_fitness = self.formulas[0].fitness
 
             # Адаптивная мутация: стагнация → агрессивнее
             improvement = best_fitness - prev_best
-            if improvement < 0.001:
-                mutation_rate = 0.04  # Застряли → сильная мутация
-            else:
-                mutation_rate = 0.015  # Растём → осторожная мутация
+            stagnation_level = 0
+            if improvement < 0.0005:
+                stagnation_level += 1
+            if improvement < 0.0001 and gen_i > 3:
+                stagnation_level += 1
+            
+            mutation_rates = [0.012, 0.03, 0.06]  # normal, mild-stuck, stuck
+            mutation_rate = mutation_rates[min(stagnation_level, 2)]
             prev_best = best_fitness
 
-            # Элитизм + турнирная селекция
+            # Элитизм + турнирная селекция с разнообразием
             elite_count = max(2, POPULATION_SIZE // 3)
             for i in range(elite_count, POPULATION_SIZE):
                 # Турнир из 3 → выбираем лучшего
@@ -451,6 +511,11 @@ class FormulaPool:
                 t3 = self.formulas[random.randint(0, elite_count - 1)]
                 t4 = self.formulas[random.randint(0, elite_count - 1)]
                 p2 = t3 if t3.fitness >= t4.fitness else t4
+                
+                # Предпочитаем кроссовер между далёкими формулами (inter-species)
+                if stagnation_level >= 2 and random.random() < 0.3:
+                    # Случайный аутсайдер → свежая кровь
+                    p2 = self.formulas[random.randint(0, POPULATION_SIZE - 1)]
 
                 child_gene = p1.gene.crossover(p2.gene)
                 child_gene.mutate(rate=mutation_rate)
@@ -460,8 +525,40 @@ class FormulaPool:
                     self.formulas[i].associations = list(p1.associations[-100:])
 
             self.generation += 1
+            # Отпускаем GIL между поколениями — чтобы HTTP-запросы не зависали
+            time.sleep(0)
 
         return best_fitness
+
+    def _apply_fitness_sharing(self) -> None:
+        """
+        Fitness sharing: формулы с похожими геномами делят fitness.
+        
+        Это NEAT-подобный механизм, поддерживающий разнообразие:
+        - Измеряем «расстояние» между геномами (первые 64 цифры)
+        - Формулы в одной «нише» делят fitness на размер ниши
+        - Результат: разные стратегии сосуществуют в популяции
+        """
+        n = len(self.formulas)
+        if n < 3:
+            return
+        
+        sharing_radius = 0.3  # порог «одинаковости»
+        niche_counts = [1.0] * n
+        
+        # Быстрое сравнение по первым 64 цифрам генома
+        for i in range(n):
+            for j in range(i + 1, n):
+                g1 = self.formulas[i].gene.digits[:64]
+                g2 = self.formulas[j].gene.digits[:64]
+                diff = sum(1 for a, b in zip(g1, g2) if a != b) / 64.0
+                if diff < sharing_radius:
+                    sharing = 1.0 - diff / sharing_radius
+                    niche_counts[i] += sharing
+                    niche_counts[j] += sharing
+        
+        for i in range(n):
+            self.formulas[i].fitness /= niche_counts[i]
     
     def best(self) -> Formula:
         """Лучшая формула."""
@@ -648,47 +745,57 @@ class KnowledgeGraph:
         self.documents_trained: int = 0
         self.tokens_processed: int = 0
         self.current_epoch: int = 0
+        # --- Обучаемые эмбеддинги (Фаза 1 AI) ---
+        self.embeddings: object | None = None  # EmbeddingTable, инициализируется движком
+        # --- Fitness tracking: сколько раз паттерн использовался в ответах ---
+        self._answer_hits: dict[int, int] = {}  # hash → использований в answer()
+        self._total_queries: int = 0
+
+        import threading
+        self._lock = threading.RLock()  # Защита от race condition (train vs stats)
     
     def add_word(self, word: str) -> PatternEntry:
         """Добавить слово в граф (или обновить частоту)."""
-        h = djb2_hash(word.lower())
-        if h in self.patterns:
-            self.patterns[h].frequency += 1
-            return self.patterns[h]
-        
-        if len(self.patterns) >= self.max_patterns:
-            self._distill_patterns()
-        
-        entry = PatternEntry(
-            word=word.lower(),
-            pattern=word_to_pattern(word),
-            hash=h,
-            frequency=1,
-            fitness=0.06,
-        )
-        self.patterns[h] = entry
-        self._hash_to_word[h] = word.lower()  # Обратный индекс
-        return entry
+        with self._lock:
+            h = djb2_hash(word.lower())
+            if h in self.patterns:
+                self.patterns[h].frequency += 1
+                return self.patterns[h]
+            
+            if len(self.patterns) >= self.max_patterns:
+                self._distill_patterns()
+            
+            entry = PatternEntry(
+                word=word.lower(),
+                pattern=word_to_pattern(word),
+                hash=h,
+                frequency=1,
+                fitness=0.06,
+            )
+            self.patterns[h] = entry
+            self._hash_to_word[h] = word.lower()  # Обратный индекс
+            return entry
     
     def add_edge(self, word1: str, word2: str) -> None:
         """Добавить или усилить ребро между словами."""
-        h1 = djb2_hash(word1.lower())
-        h2 = djb2_hash(word2.lower())
-        if h1 == h2:
-            return
-        
-        key = (min(h1, h2), max(h1, h2))
-        if key in self.edges:
-            self.edges[key].strengthen()
-        else:
-            if len(self.edges) >= self.max_edges:
-                self._distill_edges()
-            edge = KnowledgeEdge(source_hash=key[0], target_hash=key[1])
-            edge.strengthen()
-            self.edges[key] = edge
-            # Индекс смежности
-            self._adj.setdefault(h1, set()).add(h2)
-            self._adj.setdefault(h2, set()).add(h1)
+        with self._lock:
+            h1 = djb2_hash(word1.lower())
+            h2 = djb2_hash(word2.lower())
+            if h1 == h2:
+                return
+            
+            key = (min(h1, h2), max(h1, h2))
+            if key in self.edges:
+                self.edges[key].strengthen()
+            else:
+                if len(self.edges) >= self.max_edges:
+                    self._distill_edges()
+                edge = KnowledgeEdge(source_hash=key[0], target_hash=key[1])
+                edge.strengthen()
+                self.edges[key] = edge
+                # Индекс смежности
+                self._adj.setdefault(h1, set()).add(h2)
+                self._adj.setdefault(h2, set()).add(h1)
     
     def train_text(self, text: str, context_window: int = 5) -> dict:
         """
@@ -759,17 +866,24 @@ class KnowledgeGraph:
         candidates: dict[int, float] = {}
         
         for t in tokens:
-            if len(t) < 3:
+            if len(t) < 3 or _is_stop_word(t):
                 continue
             h = djb2_hash(t.lower())
+            # Все хеши для поиска: оригинал + стем
+            lookup_hashes = [h]
+            if len(t) >= 4:
+                stemmed = _stem_ru(t)
+                if stemmed != t.lower():
+                    lookup_hashes.append(djb2_hash(stemmed))
             
-            for other in self._adj.get(h, ()):
-                if other in q_hashes:
-                    continue
-                key = (min(h, other), max(h, other))
-                edge = self.edges.get(key)
-                if edge:
-                    candidates[other] = candidates.get(other, 0.0) + edge.weight
+            for lh in lookup_hashes:
+                for other in self._adj.get(lh, ()):
+                    if other in q_hashes:
+                        continue
+                    key = (min(lh, other), max(lh, other))
+                    edge = self.edges.get(key)
+                    if edge:
+                        candidates[other] = candidates.get(other, 0.0) + edge.weight
         
         # Сортировка по score
         sorted_cands = sorted(candidates.items(), key=lambda x: x[1], reverse=True)
@@ -779,9 +893,17 @@ class KnowledgeGraph:
         total_score = 0.0
         for hash_val, score in sorted_cands[:max_words]:
             entry = self.patterns.get(hash_val)
-            if entry:
+            if entry and not _is_stop_word(entry.word):
                 words.append(entry.word)
                 total_score += score
+                # --- Реальная fitness-оценка: трекинг использования в ответах ---
+                self._answer_hits[hash_val] = self._answer_hits.get(hash_val, 0) + 1
+        
+        self._total_queries += 1
+        
+        # --- Обновление fitness паттернов (каждые 50 запросов) ---
+        if self._total_queries > 0 and self._total_queries % 50 == 0:
+            self._update_fitness()
         
         answer_text = ' '.join(words)
         confidence = min(1.0, total_score / (len(tokens) + 1)) if words else 0.0
@@ -801,14 +923,85 @@ class KnowledgeGraph:
         
         return (answer_text, round(confidence, 4), metadata)
     
+    def _update_fitness(self) -> None:
+        """
+        Обновление fitness паттернов на основе реального использования.
+        
+        fitness = α·freq_score + β·hit_score + γ·degree_score
+        - freq_score: нормализованная частота появления в корпусе
+        - hit_score: как часто паттерн попадает в ответы (полезность)
+        - degree_score: количество связей в графе (информативность)
+        """
+        if not self.patterns:
+            return
+        
+        max_freq = max((p.frequency for p in self.patterns.values()), default=1)
+        max_hits = max(self._answer_hits.values(), default=1)
+        max_degree = max((len(self._adj.get(h, ())) for h in self.patterns), default=1)
+        
+        α, β, γ = 0.3, 0.5, 0.2  # hit_score (полезность) — главный фактор
+        
+        with self._lock:
+            for h, entry in self.patterns.items():
+                freq_score = math.log(entry.frequency + 1) / math.log(max_freq + 1)
+                hit_score = math.log(self._answer_hits.get(h, 0) + 1) / math.log(max_hits + 1)
+                degree = len(self._adj.get(h, ()))
+                degree_score = math.log(degree + 1) / math.log(max_degree + 1)
+                
+                entry.fitness = round(α * freq_score + β * hit_score + γ * degree_score, 4)
+    
     def find_similar(self, word: str, limit: int = 10) -> list[tuple[str, float]]:
-        """Найти слова с похожими числовыми паттернами."""
+        """Найти слова с похожими числовыми паттернами (DJB2 + эмбеддинги)."""
+        h = djb2_hash(word.lower())
+        
+        # --- Если есть обученные эмбеддинги — используем их ---
+        if self.embeddings is not None and hasattr(self.embeddings, 'has') and self.embeddings.has(h):
+            emb_results = self.embeddings.find_similar(h, top_k=limit * 2, min_sim=0.15)
+            results: list[tuple[str, float]] = []
+            for _, emb_word, sim in emb_results:
+                if emb_word != word.lower() and not emb_word.startswith('#'):
+                    results.append((emb_word, round(sim, 4)))
+            if results:
+                return results[:limit]
+        
+        # --- Fallback: DJB2 паттерны ---
         target = word_to_pattern(word)
-        results = []
-        for entry in self.patterns.values():
+        results_fb: list[tuple[str, float]] = []
+        with self._lock:
+            patterns_snap = list(self.patterns.values())
+        for entry in patterns_snap:
             sim = pattern_similarity(target, entry.pattern)
             if sim > 0.3 and entry.word != word.lower():
-                results.append((entry.word, round(sim, 4)))
+                results_fb.append((entry.word, round(sim, 4)))
+        results_fb.sort(key=lambda x: x[1], reverse=True)
+        return results_fb[:limit]
+
+    def find_similar_semantic(self, word: str, limit: int = 10) -> list[tuple[str, float, str]]:
+        """
+        Семантический поиск похожих слов через обученные эмбеддинги.
+        
+        Returns: [(word, similarity, method), ...]
+        method = 'embedding' или 'pattern' (если эмбеддинги не готовы)
+        """
+        h = djb2_hash(word.lower())
+        
+        if self.embeddings is not None and hasattr(self.embeddings, 'has') and self.embeddings.has(h):
+            emb_results = self.embeddings.find_similar(h, top_k=limit, min_sim=0.1)
+            return [
+                (w, round(s, 4), 'embedding')
+                for _, w, s in emb_results
+                if w != word.lower() and not w.startswith('#')
+            ]
+        
+        # Fallback to DJB2 patterns
+        target = word_to_pattern(word)
+        results: list[tuple[str, float, str]] = []
+        with self._lock:
+            patterns_snap = list(self.patterns.values())
+        for entry in patterns_snap:
+            sim = pattern_similarity(target, entry.pattern)
+            if sim > 0.3 and entry.word != word.lower():
+                results.append((entry.word, round(sim, 4), 'pattern'))
         results.sort(key=lambda x: x[1], reverse=True)
         return results[:limit]
 
@@ -826,7 +1019,9 @@ class KnowledgeGraph:
         """
         exclude = exclude or set()
         results: list[tuple[str, float]] = []
-        for entry in self.patterns.values():
+        with self._lock:
+            patterns_snap = list(self.patterns.values())
+        for entry in patterns_snap:
             if entry.hash in exclude:
                 continue
             # Фильтрация: пропускаем числа и односимвольные слова
@@ -994,10 +1189,10 @@ class KnowledgeGraph:
         return pattern_similarity(word_to_pattern(w1), word_to_pattern(w2))
     
     def _distill_patterns(self) -> int:
-        """Дистилляция: удалить слабые паттерны."""
+        """Дистилляция: удалить слабые паттерны (вызывается под _lock)."""
         if not self.patterns:
             return 0
-        scores = {h: e.fitness * math.log(e.frequency + 1) for h, e in self.patterns.items()}
+        scores = {h: e.fitness * math.log(e.frequency + 1) for h, e in list(self.patterns.items())}
         mean_score = sum(scores.values()) / len(scores)
         threshold = mean_score * 0.1
         to_remove = [h for h, s in scores.items() if s < threshold]
@@ -1007,39 +1202,43 @@ class KnowledgeGraph:
         return len(to_remove)
     
     def _distill_edges(self) -> int:
-        """Дистилляция рёбер."""
+        """Дистилляция рёбер (вызывается под _lock)."""
         if not self.edges:
             return 0
-        mean_weight = sum(e.weight for e in self.edges.values()) / len(self.edges)
+        edges_snap = list(self.edges.items())
+        mean_weight = sum(e.weight for _, e in edges_snap) / len(edges_snap)
         threshold = mean_weight * 0.1
-        to_remove = [k for k, e in self.edges.items() if e.weight < threshold]
+        to_remove = [k for k, e in edges_snap if e.weight < threshold]
         for k in to_remove[:len(self.edges) // 5]:
-            del self.edges[k]
+            self.edges.pop(k, None)
         # Перестроить индекс смежности
         self._rebuild_adj()
         return len(to_remove)
     
     def _rebuild_adj(self) -> None:
-        """Перестроить индекс смежности из рёбер."""
+        """Перестроить индекс смежности из рёбер (вызывается под _lock)."""
         self._adj.clear()
-        for src, tgt in self.edges:
+        for src, tgt in list(self.edges.keys()):
             self._adj.setdefault(src, set()).add(tgt)
             self._adj.setdefault(tgt, set()).add(src)
     
     def get_stats(self) -> dict:
-        """Статистика графа."""
+        """Статистика графа (thread-safe snapshot)."""
+        with self._lock:
+            patterns_snap = list(self.patterns.values())
+            edges_snap = list(self.edges.values())
         avg_fitness = (
-            sum(e.fitness for e in self.patterns.values()) / len(self.patterns)
-            if self.patterns else 0.0
+            sum(e.fitness for e in patterns_snap) / len(patterns_snap)
+            if patterns_snap else 0.0
         )
         avg_weight = (
-            sum(e.weight for e in self.edges.values()) / len(self.edges)
-            if self.edges else 0.0
+            sum(e.weight for e in edges_snap) / len(edges_snap)
+            if edges_snap else 0.0
         )
         return {
-            "patterns": len(self.patterns),
+            "patterns": len(patterns_snap),
             "max_patterns": self.max_patterns,
-            "edges": len(self.edges),
+            "edges": len(edges_snap),
             "max_edges": self.max_edges,
             "documents_trained": self.documents_trained,
             "tokens_processed": self.tokens_processed,
@@ -1053,6 +1252,9 @@ class KnowledgeGraph:
         Экспорт состояния для синхронизации между нодами.
         Все данные — числа. Слова хранятся через хеши.
         """
+        with self._lock:
+            patterns_snap = list(self.patterns.items())
+            edges_snap = list(self.edges.items())
         return {
             "version": 1,
             "timestamp": time.time(),
@@ -1066,14 +1268,14 @@ class KnowledgeGraph:
                     "frequency": e.frequency,
                     "fitness": e.fitness,
                 }
-                for h, e in self.patterns.items()
+                for h, e in patterns_snap
             },
             "edges": {
                 f"{src}:{tgt}": {
                     "weight": e.weight,
                     "cooccurrence": e.cooccurrence,
                 }
-                for (src, tgt), e in self.edges.items()
+                for (src, tgt), e in edges_snap
             },
         }
     
@@ -1139,6 +1341,70 @@ def _tokenize(text: str) -> list[str]:
     return re.findall(r"[a-zа-яё0-9]+", text.lower())
 
 
+# --- Стоп-слова: фильтруем общеупотребительные слова при retrieval ---
+_STOP_WORDS_RU: frozenset[str] = frozenset({
+    "и", "в", "не", "на", "с", "что", "а", "к", "по", "но", "он", "она",
+    "это", "как", "его", "то", "все", "так", "же", "от", "для", "из", "за",
+    "бы", "был", "или", "ты", "до", "мы", "ее", "при", "уже", "вы", "их",
+    "да", "ли", "ну", "вот", "ещё", "еще", "нет", "тоже", "тут", "там",
+    "быть", "если", "чтобы", "когда", "где", "кто", "чего", "чем", "этот",
+    "этом", "этой", "этих", "этого", "какой", "только", "себя", "свой",
+    "которые", "который", "которая", "которое", "которых", "которого",
+    "может", "нас", "него", "них", "вас", "мне", "тебе", "нам", "вам",
+    "очень", "более", "между", "потому", "после", "также", "будет",
+    "можно", "нужно", "надо", "знаешь", "расскажи", "объясни",
+    "об", "ко", "во", "со", "без", "над", "под", "про", "через",
+    "ему", "ей", "ней", "нём", "том", "тем", "тех", "чём", "кем",
+    "мой", "моя", "моё", "наш", "наша", "ваш", "ваша", "свою",
+    "эта", "эти", "эту", "того", "всех", "всё", "одна", "одно", "один",
+    "были", "была", "было", "есть", "будут", "стал", "стала",
+})
+
+_STOP_WORDS_EN: frozenset[str] = frozenset({
+    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "will", "would", "could",
+    "should", "may", "might", "shall", "can", "to", "of", "in", "for",
+    "on", "with", "at", "by", "from", "as", "into", "about", "it", "its",
+    "or", "and", "but", "not", "no", "if", "so", "that", "this", "what",
+    "which", "who", "how", "when", "where", "why", "all", "some", "any",
+    "you", "your", "they", "them", "their", "he", "she", "we", "me", "my",
+})
+
+STOP_WORDS: frozenset[str] = _STOP_WORDS_RU | _STOP_WORDS_EN
+
+
+def _is_stop_word(word: str) -> bool:
+    """Проверка: является ли слово стоп-словом."""
+    return word.lower() in STOP_WORDS or len(word) < 2
+
+
+def _stem_ru(word: str) -> str:
+    """
+    Простой стемминг для русских слов — обрезка типичных окончаний.
+    Позволяет matchить «искусственном» → «искусственн» ≈ «искусственный».
+    Не полноценный стеммер, но достаточно для keyword matching.
+    """
+    w = word.lower()
+    # Длинные окончания (прилагательные, причастия)
+    for suffix in (
+        "ейшего", "ейшему", "ейшими", "ейшая", "ейшей", "ейшие",
+        "ующих", "ующие", "ующей", "ующим", "ённый", "енный",
+        "ённого", "ённому", "ённых", "ённом",
+        "ного", "ному", "ными", "нной", "ском", "ской",
+        "него", "нему", "ними",
+        "тель", "ость", "ение", "ание", "ство",
+        "ьного", "ьной", "ьных", "ьным", "ьном",
+        "ого", "ому", "ыми", "ами", "ной", "ном", "ных",
+        "его", "ему", "ими",
+        "ый", "ий", "ой", "ая", "яя", "ое", "ее",
+        "ые", "ие", "ом", "ем", "ах", "ях", "ов", "ев",
+        "ей", "ам", "ям",
+    ):
+        if len(w) > len(suffix) + 3 and w.endswith(suffix):
+            return w[:-len(suffix)]
+    return w
+
+
 # ---------------------------------------------------------------------------
 # Sentence-level storage (для формульно-управляемого retrieval)
 # ---------------------------------------------------------------------------
@@ -1177,12 +1443,22 @@ class SentenceStore:
     - Цифры → текст при извлечении (digits_to_text)
     - Экономия памяти: 1 байт на цифру вместо 1-4 байт на символ
     - Формулы УПРАВЛЯЮТ поиском через числовые fingerprint
+    - BM25 ранжирование → точный retrieval (вместо наивного overlap)
+    - Эмбеддинги: семантический поиск через cosine similarity (Фаза 1)
     """
 
     def __init__(self, max_sentences: int = 50000) -> None:
         self.sentences: list[SentenceEntry] = []
         self.max_sentences = max_sentences
         self._word_index: dict[int, list[int]] = {}
+        # --- BM25 параметры ---
+        self._doc_freq: dict[int, int] = {}      # word_hash → в скольких документах встречается
+        self._doc_lengths: list[int] = []          # длина каждого документа (в уникальных словах)
+        self._avg_dl: float = 0.0                  # средняя длина документа
+        self._bm25_k1: float = 1.2                 # насыщение TF
+        self._bm25_b: float = 0.75                 # нормализация длины
+        # --- Эмбеддинги для семантического retrieval ---
+        self.embeddings: object | None = None  # EmbeddingTable, инициализируется движком
 
     def add_text(self, text: str) -> int:
         """Разбить текст на предложения → закодировать в ЦИФРЫ и сохранить."""
@@ -1214,6 +1490,20 @@ class SentenceStore:
             ))
             for wh in word_hashes:
                 self._word_index.setdefault(wh, []).append(idx)
+                # BM25: обновляем document frequency
+                self._doc_freq[wh] = self._doc_freq.get(wh, 0) + 1
+            # BM25: длина документа и средняя длина
+            self._doc_lengths.append(len(word_hashes))
+            n = len(self.sentences)
+            self._avg_dl = sum(self._doc_lengths) / n if n > 0 else 1.0
+            # --- Стемминг: индексируем по стемам для русской морфологии ---
+            for t in tokens:
+                if len(t) >= 4:
+                    stemmed = _stem_ru(t)
+                    if stemmed != t.lower():
+                        sh = djb2_hash(stemmed)
+                        if sh not in word_hashes:  # Не дублировать
+                            self._word_index.setdefault(sh, []).append(idx)
             added += 1
         return added
 
@@ -1233,32 +1523,72 @@ class SentenceStore:
         Формульно-управляемый retrieval из числового хранилища.
 
         Stage 1: Индекс слов → кандидаты (O(1) per word)
+        Stage 1.5: Семантическое расширение через эмбеддинги (Фаза 1 AI)
         Stage 2: Формула re-ranks → predict(query ⊕ sentence) → score
+        Stage 2.5: Embedding similarity re-ranking (cosine query↔sentence)
         Stage 3: digits_to_text() — восстановление текста ИЗ ЦИФР
         """
         tokens = _tokenize(query)
         q_hashes: set[int] = set()
         for t in tokens:
-            if len(t) >= 2:
+            if len(t) >= 2 and not _is_stop_word(t):
                 q_hashes.add(djb2_hash(t))
+                # --- Стемминг: добавляем хеш стема для русской морфологии ---
+                if len(t) >= 4:
+                    stemmed = _stem_ru(t)
+                    if stemmed != t.lower():
+                        q_hashes.add(djb2_hash(stemmed))
+
+        if not q_hashes:
+            # Если все слова — стоп-слова, используем все токены как fallback
+            for t in tokens:
+                if len(t) >= 2:
+                    q_hashes.add(djb2_hash(t))
 
         if not q_hashes:
             return []
 
-        # Stage 1: Кандидаты по пересечению слов
+        # Stage 1: BM25 ранжирование (вместо наивного overlap)
+        # BM25(D,Q) = Σ IDF(qi) · (tf(qi,D) · (k1+1)) / (tf(qi,D) + k1·(1-b+b·|D|/avgdl))
         candidate_scores: dict[int, float] = {}
+        N = len(self.sentences)
+        k1 = self._bm25_k1
+        b = self._bm25_b
+        avgdl = self._avg_dl if self._avg_dl > 0 else 1.0
+
         for qh in q_hashes:
-            for idx in self._word_index.get(qh, []):
-                candidate_scores[idx] = candidate_scores.get(idx, 0.0) + 1.0
+            posting = self._word_index.get(qh, [])
+            if not posting:
+                continue
+            # IDF: log((N - df + 0.5) / (df + 0.5) + 1)
+            df = self._doc_freq.get(qh, 0)
+            idf = math.log((N - df + 0.5) / (df + 0.5) + 1.0)
+
+            for idx in posting:
+                # TF = 1 (бинарное: слово есть или нет в предложении)
+                tf = 1.0
+                dl = self._doc_lengths[idx] if idx < len(self._doc_lengths) else avgdl
+                tf_norm = (tf * (k1 + 1.0)) / (tf + k1 * (1.0 - b + b * dl / avgdl))
+                candidate_scores[idx] = candidate_scores.get(idx, 0.0) + idf * tf_norm
+
+        # Stage 1.5: Семантическое расширение через эмбеддинги
+        # Если есть обученные эмбеддинги — ищем по ПОХОЖИМ словам тоже
+        if self.embeddings is not None and hasattr(self.embeddings, 'find_similar'):
+            expanded_hashes: set[int] = set()
+            for qh in q_hashes:
+                if hasattr(self.embeddings, 'has') and self.embeddings.has(qh):
+                    similar = self.embeddings.find_similar(qh, top_k=5, min_sim=0.4)
+                    for sim_h, _, sim_score in similar:
+                        expanded_hashes.add(sim_h)
+                        # Семантические совпадения с пониженным весом
+                        for idx in self._word_index.get(sim_h, []):
+                            bonus = sim_score * 0.6  # 60% от cosine similarity
+                            candidate_scores[idx] = candidate_scores.get(idx, 0.0) + bonus
 
         if not candidate_scores:
             return []
 
-        # Нормализация: overlap / sqrt(|Q| * |S|)  (cosine-подобная)
-        q_len = len(q_hashes)
-        for idx in candidate_scores:
-            s_len = len(self.sentences[idx].word_hashes)
-            candidate_scores[idx] /= math.sqrt(q_len * s_len + 1)
+        # BM25 уже нормализован по длине документа — дополнительная нормализация не нужна
 
         # Stage 2: Формула re-ranking
         if formula is not None and formula.fitness > 0.1:
@@ -1273,6 +1603,19 @@ class SentenceStore:
                 f_norm = 1.0 / (1.0 + abs(f_raw) / 1000.0)
                 candidate_scores[idx] = (
                     candidate_scores[idx] * base_weight + f_norm * formula_weight
+                )
+
+        # Stage 2.5: Embedding sentence similarity (Фаза 1 AI)
+        if (self.embeddings is not None
+                and hasattr(self.embeddings, 'sentence_similarity')
+                and len(q_hashes) >= 2):
+            emb_weight = 0.35  # 35% от финального score — эмбеддинги
+            base_weight = 1.0 - emb_weight
+            for idx in candidate_scores:
+                s_hashes = self.sentences[idx].word_hashes
+                emb_sim = self.embeddings.sentence_similarity(q_hashes, s_hashes)
+                candidate_scores[idx] = (
+                    candidate_scores[idx] * base_weight + emb_sim * emb_weight
                 )
 
         sorted_cands = sorted(

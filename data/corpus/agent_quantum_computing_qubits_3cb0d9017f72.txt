@@ -1,0 +1,1047 @@
+# Superconducting quantum computing - Wikipedia
+# Source: https://en.wikipedia.org/wiki/Superconducting_quantum_computing
+
+From Wikipedia, the free encyclopedia
+This article
+may be too technical for most readers to understand
+help improve it
+make it understandable to non-experts
+, without removing the technical details.
+October 2025
+Learn how and when to remove this message
+This article may
+to meet Wikipedia's
+quality standards
+. The specific problem is:
+The article is peppered with sentences that don’t follow the flow of the argument.
+Please help
+improve this article
+if you can.
+October 2025
+Learn how and when to remove this message
+Quantum computing implementation
+Superconducting quantum computing
+is a branch of quantum computing and
+solid state
+physics that implements
+superconducting
+electronic circuits
+in a quantum processor. These devices are typically microwave-frequency electronic circuits containing
+Josephson junctions
+, which are fabricated on solid state chips.
+Superconducting circuits are one of many possible physical implementations of qubits, the quantum computer's equivalent of a traditional
+in a classic
+Qubits refer to a two-state quantum mechanical system, and have two logic states, the
+ground state
+excited state
+, often denoted
+{\displaystyle |g\rangle {\text{ and }}|e\rangle }
+(for ground and excited), or
+{\displaystyle |0\rangle {\text{ and }}|1\rangle }
+Superconducting architecture is the dominant method in the industry for developing quantum processing units, or QPUs. Research in superconducting quantum computing is conducted by companies such as
+BBN Technologies
+Alternatives to superconducting qubits include trapped ions, and neutral atoms.
+Ongoing research in superconducting quantum computing includes device-level improvement, developing error correction methods, and demonstrating
+quantum advantage
+by comparing a quantum processor's performance to a classical computer. As of 2025, superconducting quantum processors have exceeded 1,000 qubits, the largest being
+, a 1,121-qubit quantum processor.
+In 2025, Google announced one of the first independently verifiable quantum advantages on hardware using the
+Willow processor
+computation
+models rely on physical implementations consistent with the laws of
+classical mechanics
+Classical descriptions are accurate only for specific systems consisting of a relatively large number of atoms. A more general description of nature is given by
+quantum mechanics
+Quantum computation
+studies quantum phenomena applications beyond the scope of classical approximation, with the purpose of performing
+quantum information
+processing and communication. Various models of quantum computation exist, but the most popular models incorporate concepts of
+quantum gates
+(or gate-based superconducting quantum computing).
+Superconductors are implemented at low temperatures where they have infinite conductivity and zero resistance. Each qubit is built using semiconductor circuits with an
+: a capacitor and an inductor.
+citation needed
+Superconducting capacitors and inductors are used to produce a resonant circuit that dissipates almost no energy, as heat can disrupt quantum information. The superconducting resonant circuits are a class of artificial atoms that can be used as qubits. Theoretical and physical implementations of quantum circuits are widely different. Implementing a quantum circuit had its own set of challenges and must abide by
+DiVincenzo's criteria
+, conditions proposed by theoretical physicist David P DiVincenzo,
+which is set of criteria for the physical implementation of superconducting quantum computing, where the initial five criteria ensure that the quantum computer is in line with the postulates of quantum mechanics and the remaining two pertaining to the relaying of this information over a network.
+citation needed
+The ground and excited states of these atoms can be mapped to the 0 and 1 state as these are discrete and distinct energy values and therefore in line with the postulates of quantum mechanics. In such a construction however an electron can jump to multiple other energy states and not be confined to an excited state; therefore, it is imperative that the system be limited to be affected only by photons with the energy difference required to jump from the ground state to the excited state.
+However, uneven spacing between energy levels is needed to prevent photons with the same energy from causing transitions between neighboring pairs of states. Josephson junctions are superconducting elements with a nonlinear inductance, which is important for qubit implementation.
+The use of this nonlinear element in the resonant superconducting circuit produces uneven spacing between the energy levels.
+citation needed
+A qubit is a generalization of a
+(a system with two possible
+) capable of occupying a
+quantum superposition
+of both states. A quantum gate, on the other hand, is a generalization of a
+describing the
+transformation
+of one or more qubits once a gate is applied given their initial state. Physical implementation of qubits and gates is challenging for the same reason that quantum phenomena are difficult to observe given the minute scale on which they occur. One approach to achieving quantum computers is by implementing
+superconductors
+whereby quantum effects are
+macroscopically
+observable, though at the price of extremely low operation
+temperatures
+Superconductors
+Unlike typical conductors, superconductors possess a
+critical temperature
+at which resistivity is zero and conductivity is drastically increased. In superconductors, the basic charge carriers are pairs of
+Cooper pairs
+), rather than single
+as found in typical conductors.
+Cooper pairs are loosely bound and have an energy state lower than that of
+Fermi energy
+. Electrons forming Cooper pairs possess equal and opposite momentum and spin so that the total
+of the Cooper pair is an
+spin. Hence, Cooper pairs are
+. Two such superconductors which have been used in superconducting qubit models are
+, both d-band superconductors.
+Bose–Einstein condensates
+Once cooled to nearly
+absolute zero
+, a collection of bosons collapse to their lowest energy quantum state (the
+ground state
+) to form a state of matter known as a
+Bose–Einstein condensate
+. Unlike fermions, bosons may occupy the same quantum energy level (or
+quantum state
+) and do not obey the
+Pauli exclusion principle
+. Classically, Bose-Einstein Condensate can be conceptualized as multiple particles occupying the same position in space and having equal
+. Because interactive forces between bosons are minimized, Bose-Einstein Condensates effectively act as a superconductor. Thus, superconductors are implemented in quantum computing because they possess both near infinite
+conductivity
+and near zero
+. The advantages of a superconductor over a typical conductor, then, are twofold in that superconductors can, in theory, transmit signals nearly instantly and run infinitely with no energy loss. The prospect of actualizing superconducting quantum computers becomes all the more promising considering
+'s recent development of the
+Cold Atom Lab
+in outer space where Bose-Einstein Condensates are more readily achieved and sustained (without rapid dissipation) for longer periods of time without the constraints of
+Electrical circuits
+At each point of a superconducting electronic circuit (a network of
+electrical elements
+), the condensate
+wave function
+flow is well-defined by some
+probability amplitude
+. In typical conductor electrical circuits, this same description is true for individual
+charge carriers
+except that the various wave functions are averaged in macroscopic analysis, making it impossible to observe quantum effects. The condensate
+wave function
+becomes useful in allowing design and measurement of macroscopic quantum effects. Similar to the discrete atomic
+energy levels
+, only discrete numbers of
+magnetic flux quanta
+can penetrate a superconducting loop. In both cases,
+quantization
+results from complex
+. Differing from microscopic implementations of quantum computers (such as
+), parameters of superconducting circuits are designed by setting (classical) values to the electrical elements composing them such as by adjusting
+capacitance
+citation needed
+To obtain a quantum mechanical description of an electrical circuit, a few steps are required. First, all electrical elements must be described by the condensate wave function amplitude and phase rather than by closely related macroscopic
+descriptions used for classical circuits. For instance, the square of the wave function amplitude at any arbitrary point in space corresponds to the probability of finding a charge carrier there. Therefore, the squared amplitude corresponds to a classical charge distribution. The second requirement to obtain a quantum mechanical description of an electrical circuit is that generalized
+Kirchhoff's circuit laws
+are applied at every node of the circuit network to obtain the system's
+equations of motion
+. Finally, these equations of motion must be reformulated to
+Lagrangian mechanics
+such that a
+quantum Hamiltonian
+is derived describing the total energy of the system.
+citation needed
+Manufacturing
+Superconducting quantum computing devices are typically designed in the
+radio-frequency spectrum
+, cooled in
+dilution refrigerators
+and addressed with conventional electronic instruments, e.g.
+frequency synthesizers
+spectrum analyzers
+. Typical dimensions fall on the range of micrometers, with sub-micrometer resolution, allowing for the convenient design of a
+Hamiltonian
+system with well-established
+integrated circuit
+technology. Manufacturing superconducting qubits follows a process involving
+lithography
+, depositing of metal,
+, and controlled
+Manufacturers continue to improve the lifetime of superconducting qubits and have made significant improvements since the early 2000s.
+Josephson junctions
+Main article:
+Josephson junction
+One distinguishable attribute of superconducting quantum circuits is the use of
+Josephson junctions
+. Josephson junctions are an
+electrical element
+which does not exist in
+normal conductors
+is a weak connection between two leads of wire (in this case a superconductive wire) on either side of a thin layer of
+material only a few
+thick, usually implemented using a
+shadow evaporation
+technique. The resulting Josephson junction device exhibits the
+Josephson Effect
+whereby the junction produces a
+supercurrent
+. An image of a single Josephson junction is shown at right. The condensate wave function on the two sides of the junction are weakly correlated, meaning that they are allowed to have different superconducting phases. This distinction of
+nonlinearity
+contrasts continuous superconducting wire for which the wave function across the junction must be
+. Current flow through the junction occurs by
+quantum tunneling
+, seeming to instantly "tunnel" from one side of the junction to the other. This tunneling phenomenon is unique to quantum systems. Thus, quantum tunneling is used to create nonlinear inductance, essential for qubit design as it allows a design of
+anharmonic oscillators
+for which energy levels are discretized (or
+) with nonuniform spacing between energy levels, denoted
+{\displaystyle \Delta E}
+In contrast, the
+quantum harmonic oscillator
+be used as a qubit as there is no way to address only two of its states, given that the spacing between every energy level and the next is exactly the same.
+Qubit archetypes
+The three primary superconducting qubit archetypes are the
+qubit. Many hybridizations of these archetypes exist including the fluxonium,
+and quantronium.
+The choice of qubit archetype impacts the qubit's transition frequency,
+anharmonicity
+(or nonlinearity), and susceptibility to noise.
+For any qubit implementation, the logical
+quantum states
+{\displaystyle \{|0\rangle ,|1\rangle \}}
+to different states of the physical system (typically to discrete
+energy levels
+quantum superpositions
+). Each of the three archetypes possess a distinct range of Josephson energy to charging energy ratio. Josephson energy refers to the energy stored in Josephson junctions when current passes through, and charging energy is the energy required for one Cooper pair to charge the junction's total capacitance.
+Josephson energy can be written as
+{\displaystyle U_{j}=-{\frac {I_{0}\Phi _{0}}{2\pi }}\cos \delta }
+{\displaystyle I_{0}}
+is the critical current parameter of the Josephson junction,
+{\displaystyle \textstyle \Phi _{0}={\frac {h}{2e}}}
+is (superconducting)
+flux quantum
+{\displaystyle \delta }
+phase difference
+across the junction.
+Notice that the term
+{\displaystyle cos\delta }
+indicates nonlinearity of the Josephson junction.
+Charge energy is written as
+{\displaystyle E_{C}={\frac {e^{2}}{2C}}}
+{\displaystyle C}
+is the junction's capacitance and
+{\displaystyle e}
+is electron charge.
+Of the three archetypes, phase qubits allow the most of Cooper pairs to tunnel through the junction, followed by flux qubits, and charge qubits allow the fewest.
+Phase qubit
+Main article:
+Phase qubit
+The phase qubit possesses a Josephson to charge energy ratio on the order of magnitude
+{\displaystyle 10^{6}}
+. For phase qubits, energy levels correspond to different quantum charge oscillation
+across a Josephson junction, where charge and
+are analogous to momentum and position respectively as analogous to a
+quantum harmonic oscillator
+. Note that in this context phase is the complex argument of the superconducting wave function (also known as the superconducting
+order parameter
+), not the phase between the different states of the qubit.
+Main article:
+The flux qubit (also known as a persistent-current qubit) possesses a Josephson to charging energy ratio on the order of magnitude
+{\displaystyle 10}
+. For flux qubits, the energy levels correspond to different
+numbers of magnetic flux quanta trapped in a superconducting ring.
+Fluxonium qubits are a specific type of flux qubit whose Josephson junction is shunted by a linear inductor of
+{\displaystyle E_{J}\gg E_{L}}
+{\displaystyle E_{L}=(\hbar /2e)^{2}/L}
+In practice, the linear inductor is usually implemented by a Josephson junction array that is composed of a large number (can be often
+{\displaystyle N>100}
+) of large-sized Josephson junctions connected in a series. Under this condition, the Hamiltonian of a fluxonium can be written as:
+{\displaystyle {\hat {H}}=4E_{C}{\hat {n}}^{2}+{\frac {1}{2}}E_{L}({\hat {\phi }}-\phi _{\mathrm {ext} })^{2}-E_{J}\cos {\hat {\phi }}}
+One important property of the fluxonium qubit is the longer
+qubit lifetime
+at the half flux sweet spot, which can exceed 1 millisecond.
+Another crucial advantage of the fluxonium qubit when biased at the sweet spot is its large
+anharmonicity
+. In this context, anharmonicity refers to the unequal spacing of energy levels in a superconducting circuit. Large anharmonicity is beneficial because it allows fast local microwave control and mitigates spectral crowding problems, leading to better scalability.
+Charge qubit
+Main article:
+Charge qubit
+The charge qubit, also known as the
+Cooper pair box
+, possesses a Josephson to charging energy ratio on the order of magnitude
+{\displaystyle <1}
+. For charge qubits, different energy levels correspond to an integer number of
+Cooper pairs
+on a superconducting island (a small superconducting area with a controllable number of charge carriers).
+Indeed, the first experimentally realized qubit was the Cooper pair box, achieved in 1999.
+Transmons are a special type of qubit with a
+capacitor specifically designed to mitigate
+. The transmon qubit model is based on the Cooper pair box
+(illustrated in the table below in row one column one). It was also the first qubit to demonstrate
+quantum supremacy
+The increased ratio of Josephson to charge energy mitigates noise. Two transmons can be coupled using a
+coupling capacitor
+For this 2-qubit system the Hamiltonian is written
+{\displaystyle {\hat {H}}={\frac {\hbar J}{2}}(\sigma _{1}^{x}\sigma _{2}^{x}+\sigma _{1}^{y}\sigma _{2}^{y})}
+{\displaystyle J}
+current density
+{\displaystyle \sigma }
+surface charge density
+The Xmon is similar in design to a transmon in that it originated based on the planar transmon model.
+An Xmon is essentially a tunable transmon. The major difference between transmon and Xmon qubits is the Xmon qubit is grounded with one of its capacitor pads.
+Another variation of the transmon qubit is the Gatemon. Like the Xmon, the Gatemon is a tunable variation of the transmon. The Gatemon is tunable via
+gate voltage
+In 2022, researchers from
+IQM Quantum Computers
+Aalto University
+VTT Technical Research Centre
+of Finland discovered a novel superconducting qubit known as the Unimon.
+A relatively simple qubit, the Unimon consists of a single Josephson junction shunted by a linear inductor (possessing an inductance not depending on current) inside a (superconducting)
+Unimons have increased anharmonicity and display faster operation time resulting in lower susceptibility to noise errors.
+In addition to increased anharmonicity, other advantages of Unimon qubits include decreased susceptibility to flux noise and complete insensitivity to dc charge noise.
+Superconducting Qubit Archetypes
+Charge qubit
+RF-SQUID qubit (prototype of the Flux Qubit)
+Phase qubit
+Hamiltonian
+{\displaystyle H=E_{C}(N-N_{g})^{2}-E_{J}\cos \phi }
+In this case
+{\displaystyle N}
+is the number of
+Cooper pairs
+through the junction,
+{\displaystyle N_{g}=CV_{0}/2e}
+is the charge on the
+in units of Cooper pairs number,
+{\displaystyle E_{C}=(2e)^{2}/2(C_{J}+C)}
+is the charging energy associated with both capacitance
+{\displaystyle C}
+and Josephson junction capacitance
+{\displaystyle C_{J}}
+{\displaystyle H={\frac {q^{2}}{2C_{J}}}+\left({\frac {\Phi _{0}}{2\pi }}\right)^{2}{\frac {\phi ^{2}}{2L}}-E_{J}\cos \left[\phi -\Phi {\frac {2\pi }{\Phi _{0}}}\right]}
+{\displaystyle \phi }
+is only allowed to take values greater than
+{\displaystyle 2\pi }
+and is alternatively defined as the time integral of voltage along inductance
+{\displaystyle L}
+{\displaystyle H={\frac {(2e)^{2}}{2C_{J}}}q^{2}-I_{0}{\frac {\Phi _{0}}{2\pi }}\phi -E_{J}\cos \phi }
+{\displaystyle \Phi _{0}}
+is magnetic flux quantum.
+In the table above, the three superconducting qubit archetypes are reviewed. In the first row, the qubit's electrical circuit diagram is presented. The second row depicts a quantum Hamiltonian derived from the circuit. Generally, the Hamiltonian is the sum of the system's
+energy components (analogous to a particle in a
+potential well
+). For the Hamiltonians denoted,
+{\displaystyle \phi }
+is the superconducting wave function phase difference across the junction,
+{\displaystyle C_{J}}
+is the capacitance associated with the Josephson junction, and
+{\displaystyle q}
+is the charge on the junction capacitance. For each potential depicted, only solid wave functions are used for computation. The qubit potential is indicated by a thick red line, and schematic wave function solutions are depicted by thin lines, lifted to their appropriate energy level for clarity.
+Note that particle mass corresponds to an
+inverse function
+of the circuit capacitance and that the shape of the potential is governed by regular
+and Josephson junctions. Schematic wave solutions in the third row of the table show the complex
+of the phase variable. Specifically, if a qubit's phase is measured while the qubit occupies a particular state, there is a non-zero probability of measuring a specific value
+where the depicted wave function
+. All three rows are essentially different presentations of the same physical system.
+Single qubits
+energy gap between energy levels of a superconducting qubit is designed to be compatible with available electronic equipment, due to the
+terahertz gap
+(lack of equipment in the higher
+frequency band
+superconductor energy gap
+implies a top limit of operation below ~1THz beyond which Cooper pairs break, so energy level separation cannot be too high. On the other hand, energy level separation cannot be too small due to cooling considerations: a temperature of 1 K implies
+energy fluctuations
+of 20 GHz. Temperatures of tens of millikelvins are achieved in
+dilution refrigerators
+and allow qubit operation at a ~5 GHz energy level separation. Qubit energy level separation is frequently adjusted by controlling a dedicated
+bias current
+line, providing a "knob" to fine tune the qubit parameters.
+Single qubit gates
+A single qubit gate is achieved by rotation in the
+Bloch sphere
+. Rotations between different energy levels of a single qubit are induced by
+pulses sent to an
+transmission line
+coupled to the qubit with a
+resonant with the energy separation between levels. Individual qubits may be addressed by a dedicated
+transmission line
+or by a shared one if the other qubits are off
+axis of rotation
+quadrature amplitude modulation
+of microwave pulse, while pulse length determines the
+angle of rotation
+More formally (following the notation of
+) for a driving signal
+{\displaystyle {\mathcal {E}}(t)={\mathcal {E}}^{x}(t)\cos(\omega _{d}t)+{\mathcal {E}}^{y}(t)\sin(\omega _{d}t)}
+of frequency
+{\displaystyle \omega _{d}}
+, a driven qubit Hamiltonian in a
+rotating wave approximation
+{\displaystyle H^{R}/\hbar =(\omega -\omega _{d})|1\rangle \langle 1|+{\frac {{\mathcal {E}}^{x}(t)}{2}}\sigma _{x}+{\frac {{\mathcal {E}}^{y}(t)}{2}}\sigma _{y}}
+{\displaystyle \omega }
+is the qubit resonance and
+{\displaystyle \sigma _{x},\sigma _{y}}
+Pauli matrices
+To implement a rotation about the
+{\displaystyle X}
+axis, one can set
+{\displaystyle {\mathcal {E}}^{y}(t)=0}
+and apply a microwave pulse at frequency
+{\displaystyle \omega _{d}=\omega }
+{\displaystyle t_{g}}
+. The resulting transformation is
+{\displaystyle U_{x}=\exp \left\{-{\frac {i}{\hbar }}\int _{0}^{t_{g}}H^{R}dt\right\}=\exp \left\{-i\int _{0}^{t_{g}}{\mathcal {E}}^{x}(t)dt\cdot \sigma _{x}/2\right\}}
+This is exactly the
+rotation operator
+{\displaystyle R_{X}(\theta )}
+{\displaystyle \theta =\int _{0}^{t_{g}}{\mathcal {E}}^{x}(t)dt}
+{\displaystyle X}
+axis in the Bloch sphere. A rotation about the
+{\displaystyle Y}
+axis can be implemented in a similar way. Showing the two rotation operators is sufficient for satisfying
+universality
+as every single qubit unitary operator
+{\displaystyle U}
+may be presented as
+{\displaystyle U=R_{X}(\theta _{1})R_{Y}(\theta _{2})R_{X}(\theta _{3})}
+(up to a global
+which is physically inconsequential) by a procedure known as the
+{\displaystyle X-Y}
+decomposition.
+{\displaystyle \int _{0}^{t_{g}}{\mathcal {E}}^{x}(t)dt=\pi }
+results in the transformation
+{\displaystyle U_{x}=\exp \left\{-i\int _{0}^{t_{g}}{\mathcal {E}}^{x}(t)dt\cdot \sigma _{x}/2\right\}=e^{-i\pi \sigma _{x}/2}=-i\sigma _{x}}
+up to the global phase
+{\displaystyle -i}
+and is known as the
+Coupling qubits
+The ability to couple qubits is essential for implementing 2-qubit
+. Coupling two qubits can be achieved by connecting both to an intermediate electrical coupling circuit. The circuit may be either a fixed element (such as a capacitor) or be controllable (like the
+). In the first case,
+qubits during the time the gate is switched off is achieved by tuning qubits out of resonance one from another, making the energy gaps between their computational states different.
+This approach is inherently limited to nearest-neighbor coupling since a physical electrical circuit must be laid out between connected qubits. Notably,
+D-Wave Systems
+' nearest-neighbor coupling achieves a highly connected
+of 8 qubits in Chimera graph configuration.
+Quantum algorithms
+typically require coupling between arbitrary qubits. Consequently, multiple
+operations are necessary, limiting the length of quantum computation possible before processor
+decoherence
+Quantum bus
+Another method of coupling two or more qubits is by way of a
+quantum bus
+, by pairing qubits to this intermediate. A quantum bus is often implemented as a
+microwave cavity
+modeled by a quantum harmonic oscillator. Coupled qubits may be brought in and out of resonance with the bus and with each other, eliminating the nearest-neighbor limitation. Formalism describing coupling is
+cavity quantum electrodynamics
+. In cavity quantum electrodynamics, qubits are analogous to atoms interacting with an
+optical photon cavity
+with a difference of GHz (rather than the THz regime of electromagnetic radiation). Resonant excitation exchange among these artificial atoms is potentially useful for direct implementation of multi-qubit gates.
+Following the dark state
+, the Khazali-Mølmer scheme
+performs complex multi-qubit operations in a single step, providing a substantial shortcut to the conventional circuit model.
+Cross resonant gate
+One popular gating mechanism uses two qubits and a bus, each tuned to different energy level separations. Applying microwave excitation to the first qubit, with a frequency resonant with the second qubit, causes a
+{\displaystyle \sigma _{x}}
+rotation of the second qubit. Rotation direction depends on the state of the first qubit, allowing a
+controlled phase gate
+construction.
+Following the notation of,
+the drive Hamiltonian describing the excited system through the first qubit driving line is formally written
+{\displaystyle H_{D}/\hbar =A(t)\cos({\tilde {\omega }}_{2}t)\left(\sigma _{x}\otimes I-{\frac {J}{\Delta _{12}}}\sigma _{z}\otimes \sigma _{x}+m_{12}I\otimes \sigma _{x}\right)}
+{\displaystyle A(t)}
+is the shape of the microwave pulse in time,
+{\displaystyle {\tilde {\omega }}_{2}}
+is resonance frequency of the second qubit,
+{\displaystyle \{I,\sigma _{x},\sigma _{y},\sigma _{z}\}}
+Pauli matrices
+{\displaystyle J}
+is the coupling coefficient between the two qubits via the resonator,
+{\displaystyle \Delta _{12}\equiv \omega _{1}-\omega _{2}}
+is qubit detuning,
+{\displaystyle m_{12}}
+is stray (unwanted) coupling between qubits, and
+{\displaystyle \hbar }
+reduced Planck constant
+{\displaystyle A(t)}
+determines the angle of rotation. Unwanted rotations from the first and third terms of the Hamiltonian can be compensated for with single qubit operations. The remaining component, combined with single qubit rotations, forms a basis for the
+Lie algebra
+Geometric phase gate
+Higher levels (outside of the computational subspace) of a pair of coupled superconducting circuits can be used to induce a geometric phase on one of the computational states of the qubits. This leads to an entangling conditional phase shift of the relevant qubit states. This effect has been implemented by flux-tuning the qubit spectra
+and by using selective microwave driving.
+Off-resonant driving can be used to induce differential ac-Stark shift, allowing the implementation of all-microwave controlled-phase gates.
+Heisenberg interactions
+Heisenberg model
+of interactions, written as
+{\displaystyle {\hat {\mathcal {H}}}_{\mathrm {XXZ} }/\hbar =\sum _{i,j}J_{\mathrm {XY} }({\hat {\sigma }}_{\text{x}}^{i}{\hat {\sigma }}_{\text{x}}^{j}+{\hat {\sigma }}_{\text{y}}^{i}{\hat {\sigma }}_{\text{y}}^{j})+J_{\mathrm {ZZ} }{\hat {\sigma }}_{\text{z}}^{i}{\hat {\sigma }}_{\text{z}}^{j}}
+serves as the basis for analog quantum simulation of spin systems and the primitive for an expressive set of quantum gates, sometimes referred to as
+fermionic simulation
+) gates. In superconducting circuits, this interaction model has been implemented using flux-tunable qubits with flux-tunable coupling,
+allowing the demonstration of quantum supremacy.
+In addition, it can also be realized in fixed-frequency qubits with fixed-coupling using microwave drives.
+The fSim gate family encompasses arbitrary XY and ZZ two-qubit unitaries, including the iSWAP, the CZ, and the SWAP gates (see
+Quantum logic gate
+Qubit readout
+Architecture-specific readout, or
+measurement
+, mechanisms exist. Readout of a phase qubit is explained in the
+qubit archetypes table
+above. A flux qubit state is often read using an adjustable DC-
+magnetometer
+. States may also be measured using an
+electrometer
+A more general readout scheme includes a coupling to a microwave
+, where resonance frequency of the resonator is dispersively shifted by the qubit state.
+Multi-level systems (qudits) can be readout using electron shelving.
+DiVincenzo's criteria
+Main article:
+DiVincenzo's criteria
+DiVincenzo's criteria
+is a list describing the requirements for a physical system to be capable of implementing a logical qubit. DiVincenzo's criteria is satisfied by superconducting quantum computing implementation. Much of the current development effort in superconducting quantum computing aims to achieve interconnect, control, and
+in the 3rd dimension with additional
+lithography
+layers. The list of DiVincenzo's criteria for a physical system to implement a logical qubit is satisfied by the implementation of superconducting qubits. Although DiVincenzo's criteria as originally proposed consists of five criteria required for physically implementing a quantum computer, the more complete list consists of seven criteria as it takes into account communication over a computer network capable of transmitting quantum information between computers, known as the "quantum internet". Therefore, the first five criteria ensure successful quantum computing, while the final two criteria allow for quantum communication.
+A scalable physical system with well characterized qubits.
+"Well characterized" implies that the
+Hamiltonian function
+must be well-defined (i.e. the energy eigenstates of the qubit should be able to be quantified). A "scalable system" indicates that this ability to regulate a qubit should be augmentable for multiple more qubits. However, as more qubits are implemented, it leads to an exponential increase in cost and other physical implementations which pale in comparison to the enhanced speed it may offer.
+As superconducting qubits are fabricated on a chip, the many-qubit system is readily scalable. Qubits are allocated on the 2D surface of the chip. The demand for well characterized qubits is fulfilled with (a) qubit non-linearity (accessing only two of the available energy levels) and (b) accessing a single qubit at a time (rather than the entire many-qubit system) by way of per-qubit dedicated control lines and/or frequency separation, or tuning out, of different qubits.
+Ability to initialize the state of qubits to a simple fiducial state.
+A fiducial state is one that is easily and consistently replicable and is useful in quantum computing as it may be used to guarantee the initial state of qubits. One simple way to initialize a superconducting qubit is to wait long enough for the qubits to relax to the ground state. Controlling qubit potential with tuning knobs allows faster initialization mechanisms.
+Long relevant decoherence times.
+Decoherence of superconducting qubits is affected by multiple factors. Most decoherence is attributed to the quality of the Josephson junction and imperfections in the chip substrate. Due to their mesoscopic scale, superconducting qubits are relatively short lived. Nevertheless, thousands of gate operations have been demonstrated in these many-qubit systems.
+Recent strategies to improve device coherence include purifying the circuit materials and designing qubits with decreased sensitivity to noise sources.
+A "universal" set of quantum gates.
+Superconducting qubits allow arbitrary rotations in the Bloch sphere with pulsed microwave signals, implementing single qubit gates.
+{\displaystyle \sigma _{z}\sigma _{z}}
+{\displaystyle \sigma _{x}\sigma _{x}}
+couplings are shown for most implementations and for complementing the universal gate set.
+This criterion may also be satisfied by coupling two transmons with a coupling capacitor.
+Qubit-specific measurement ability.
+In general, single superconducting qubits are used for control or for measurement.
+Interconvertibility of stationary and flying qubits.
+While stationary qubits are used to store information or perform calculations, flying qubits transmit information macroscopically. Qubits should be capable of converting from being a stationary qubit to being a flying qubit and vice versa.
+Reliable transmission of flying qubits between specified locations.
+The final two criteria have been experimentally proven by research performed by
+university with two superconducting qubits connected by a
+coaxial cable
+Challenges and Developments
+One of the primary challenges of superconducting quantum computing is the extremely low temperatures at which superconductors like Bose
+Einstein Condensates exist. Other basic challenges in superconducting qubit design are shaping the potential well and choosing particle mass such that energy separation between two specific energy levels is unique, differing from all other interlevel energy separation in the system, since these two levels are used as logical states of the qubit.
+Superconducting quantum computing must also mitigate
+quantum noise
+(disruptions of the system caused by its interaction with an environment) as well as
+(information being lost to the surrounding environment). One way to reduce leakage is with
+parity measurements
+Another strategy is to use qubits with large anharmonicity.
+Many current challenges faced by superconducting quantum computing lie in the field of microwave engineering.
+As superconducting quantum computing approaches larger scale devices, researchers face difficulties in
+qubit coherence
+calibration
+software, efficient determination of
+of quantum states across an entire chip, and qubit and gate fidelity.
+Moreover, superconducting quantum computing devices must be reliably reproducible at increasingly large scales such that they are compatible with these improvements.
+Journey of superconducting quantum computing
+Although not the newest development, the focus began to shift onto superconducting qubits in the latter half of the 1990s when quantum tunneling across Josephson junctions became apparent which allowed for the realization that quantum computing could be achieved through these superconducting qubits.
+In 1999, a paper
+was published by Yasunobu Nakamura, which exhibited the initial design of a superconducting qubit which is now known as the "charge qubit". This is the point on which later designs were amended. These initial qubits had their limitations in respect to maintaining long coherence times and destructive measurements. The further amendment to this initial breakthrough lead to the invention of the phase and flux qubit and subsequently resulting in the
+transmon qubit
+which is now widely and primarily used in Superconducting Quantum Computing. The transmon qubit has enhanced original designs and has further cushioned charge noise from the qubit.
+Recent advances in Josephson Junction–based QPUs
+A recent paper by Mohebi and Mohseni provides additional insight into the engineering challenges and innovations necessary for advancing superconducting quantum processing units (QPUs):
+Decoherence and Noise Mitigation:
+The paper emphasizes that decoherence—primarily due to quasiparticle tunneling—is a major obstacle that limits qubit performance. Improved material innovations and optimized control techniques are essential to reduce noise and enhance qubit coherence.
+Fabrication and Reproducibility:
+Achieving consistent and reproducible Josephson junctions is crucial for scaling up superconducting QPUs. The study discusses advanced lithography techniques and control of junction geometry as methods to minimize fluctuations in critical current, thereby enhancing qubit fidelity.
+Balancing Qubit Parameters:
+The authors highlight the trade-offs between achieving large anharmonicity (to suppress charge noise) and maintaining the nonlinearity required for effective qubit operation. Striking the optimal balance between these factors is pivotal for the development of robust, scalable quantum processors.
+Future of superconducting quantum computing
+The sector's leading industry giants, like Google, IBM and Baidu, are using superconducting quantum computing and transmon qubits to make leaps and bounds in the area of quantum computing.
+In August 2022, Baidu released its plans to build a fully integrated top to bottom quantum computer which incorporated superconducting qubits. This computer will be all encompassing with hardware, software and applications fully integrated. Baidu states, that this will be a first in the world of quantum computing and might lead to ground-breaking advancements.
+IBM released the following roadmap in October 2025 publicly incorporating superconducting qubits and the transmon qubit.
+2025: IBM released the Nighthawk quantum processor with 120 qubits on a square lattice with four-degree connectivity.
+2025: IBM plans to release the Loon quantum processor with 120 quibits with six-degree connectivity.
+2028: IBM plans to increases the number of gates supported on Nighthawk from about 5,000 in late 2025 to at least 15,000 by late 2028.
+Google in 2016, implemented 16 qubits to convey a demonstration of the
+Fermi-Hubbard Model
+. In another experiment, Google used 17 qubits to optimize the
+Sherrington-Kirkpatrick model
+. Google produced the Sycamore quantum computer which performed a task in 200 seconds that Google claimed would have taken 10,000 years on a classical computer.
+"What is a qubit? | IBM"
+www.ibm.com
+. 2024-02-28
+. Retrieved
+"PennyLane Documentation"
+docs.pennylane.ai
+. Retrieved
+Castelvecchi, Davide (5 January 2017).
+"Quantum computers ready to leap out of the lab in 2017"
+2017Natur.541....9C
+10.1038/541009a
+"IBM Makes Quantum Computing Available on IBM Cloud"
+www-03.ibm.com
+. 4 May 2016. Archived from
+the original
+on May 4, 2016.
+"Imec enters the race to unleash quantum computing with silicon qubits"
+www.imec-int.com
+. Retrieved
+Ryan, Colm A.; Johnson, Blake R.; Ristè, Diego; Donovan, Brian; Ohki, Thomas A. (2017). "Hardware for dynamic quantum computing".
+Review of Scientific Instruments
+(10) 104703.
+2017RScI...88j4703R
+10.1063/1.5006525
+"Rigetti Launches Quantum Cloud Services, Announces $1Million Challenge"
+. 2018-09-07
+. Retrieved
+"Intel Invests US$50 Million to Advance Quantum Computing | Intel Newsroom"
+Intel Newsroom
+Marin; Ivezic, Marin (2023-12-11).
+"IBM Unveils Condor: 1,121‑Qubit Quantum Processor"
+PostQuantum - Quantum Computing, Quantum Security, PQC
+. Retrieved
+"IBM Quantum System Two: the era of quantum utility is here | IBM Quantum Computing Blog"
+www.ibm.com
+. Retrieved
+"Google's Willow Quantum Chip Crushes 3 Years of Supercomputer Work in 2 Hours: Bitcoin Encryption at Risk?"
+. 2025-10-23
+. Retrieved
+Dayal, Geeta.
+"LEGO Turing Machine Is Simple, Yet Sublime"
+"DiVincenzo's Criteria – Quantum Computing Codex"
+qc-at-davis.github.io
+. Retrieved
+Ballon, Alvaro (22 March 2022).
+"Quantum computing with superconducting qubits — PennyLane"
+Pennylane Demos
+. Retrieved
+"Cooper Pairs"
+Shen, L. Y. L. (1972-02-01).
+"Superconductivity of Tantalum, Niobium and Lanthanum Studied by Electron Tunneling: Problems of Surface Contamination"
+AIP Conference Proceedings
+1972AIPC....4...31S
+10.1063/1.2946195
+Greicius, Tony (2020-06-12).
+"NASA's Cold Atom Lab Takes One Giant Leap for Quantum Science"
+. Retrieved
+Kjaergaard, Morten; Schwartz, Mollie E.; Braumüller, Jochen; Krantz, Philip; Wang, Joel I.-Jan; Gustavsson, Simon; Oliver, William D. (2020-03-10). "Superconducting Qubits: Current State of Play".
+Annual Review of Condensed Matter Physics
+2020ARCMP..11..369K
+10.1146/annurev-conmatphys-031119-050605
+Manucharyan, V. E.; Koch, J.; Glazman, L. I.; Devoret, M. H. (1 October 2009). "Fluxonium: Single Cooper-Pair Circuit Free of Charge Offsets".
+2009Sci...326..113M
+10.1126/science.1175552
+Houck, A. A.; Koch, Jens; Devoret, M. H.; Girvin, S. M.; Schoelkopf, R. J. (11 February 2009). "Life after charge noise: recent results with transmon qubits".
+Quantum Information Processing
+2009QuIP....8..105H
+10.1007/s11128-009-0100-6
+Barends, R.; Kelly, J.; Megrant, A.; Sank, D.; Jeffrey, E.; Chen, Y.; Yin, Y.; Chiaro, B.; Mutus, J.; Neill, C.; O'Malley, P.; Roushan, P.; Wenner, J.; White, T. C.; Cleland, A. N.; Martinis, John M. (22 August 2013). "Coherent Josephson Qubit Suitable for Scalable Quantum Integrated Circuits".
+Physical Review Letters
+(8) 080502.
+2013PhRvL.111h0502B
+10.1103/PhysRevLett.111.080502
+Metcalfe, M.; Boaknin, E.; Manucharyan, V.; Vijay, R.; Siddiqi, I.; Rigetti, C.; Frunzio, L.; Schoelkopf, R. J.; Devoret, M. H. (21 November 2007). "Measuring the decoherence of a quantronium qubit with the cavity bifurcation amplifier".
+Physical Review B
+(17) 174516.
+2007PhRvB..76q4516M
+10.1103/PhysRevB.76.174516
+Krantz, Philip; Kjaergaard, Morten; Yan, Fei; Orlando, Terry P.; Gustavsson, Simon; Oliver, William D. (2021-07-07),
+"A quantum engineer's guide to superconducting qubits"
+Applied Physics Reviews
+(2) 021318,
+10.1063/1.5089550
+, retrieved
+Martinis, John M.; Osborne, Kevin (2004-02-16). "Superconducting Qubits and the Physics of Josephson Junctions".
+cond-mat/0402415
+Hyyppä, Eric; Kundu, Suman; Chan, Chun Fai; Gunyhó, András; Hotari, Juho; Janzso, David; Juliusson, Kristinn; Kiuru, Olavi; Kotilahti, Janne; Landra, Alessandro; Liu, Wei; Marxer, Fabian; Mäkinen, Akseli; Orgiazzi, Jean-Luc; Palma, Mario (2022-11-12).
+"Unimon qubit"
+Nature Communications
+2022NatCo..13.6895H
+10.1038/s41467-022-34614-w
+Cottet, Nathanaël; Xiong, Haonan; Nguyen, Long B.; Lin, Yen-Hsiang; Manucharyan, Vladimir E. (2021-11-04).
+"Electron shelving of a superconducting artificial atom"
+Nature Communications
+2021NatCo..12.6383C
+10.1038/s41467-021-26686-x
+Nguyen, Long B.; Lin, Yen-Hsiang; Somoroff, Aaron; Mencia, Raymond; Grabon, Nicholas; Manucharyan, Vladimir E. (25 November 2019).
+"High-Coherence Fluxonium Qubit"
+Physical Review X
+(4) 041041.
+2019PhRvX...9d1041N
+10.1103/PhysRevX.9.041041
+Science, The National University of; MISIS, Technology.
+"Fluxonium qubits bring the creation of a quantum computer closer"
+. Retrieved
+Nguyen, Long B. (2020).
+Toward the Fluxonium Quantum Processor
+(Ph.D. thesis). University of Maryland, College Park.
+Nguyen, Long B.; Koolstra, Gerwin; Kim, Yosep; Morvan, Alexis; Chistolini, Trevor; Singh, Shraddha; Nesterov, Konstantin N.; Jünger, Christian; Chen, Larry; Pedramrazi, Zahra; Mitchell, Bradley K.; Kreikebaum, John Mark; Puri, Shruti; Santiago, David I.; Siddiqi, Irfan (5 August 2022).
+"Blueprint for a High-Performance Fluxonium Quantum Processor"
+PRX Quantum
+(3) 037001.
+2022PRXQ....3c7001N
+10.1103/PRXQuantum.3.037001
+"Superconducting qubits – on islands, charge qubits and the transmon"
+LeftAsExercise
+. 2019-06-06
+. Retrieved
+Wendin, G. (2017-10-01). "Quantum information processing with superconducting circuits: a review".
+Reports on Progress in Physics
+(10): 106001.
+2017RPPh...80j6001W
+10.1088/1361-6633/aa7e1a
+Gambetta, J. M.;
+Chow, J. M.
+; Steffen, M. (2017).
+"Building logical qubits in a superconducting quantum computing system"
+npj Quantum Information
+2017npjQI...3....2G
+10.1038/s41534-016-0004-0
+Roth, Thomas E.; Ma, Ruichao; Chew, Weng C. (2023). "The Transmon Qubit for Electromagnetics Engineers: An introduction".
+IEEE Antennas and Propagation Magazine
+2023IAPM...65b...8R
+10.1109/MAP.2022.3176593
+Kjaergaard, Morten; Schwartz, Mollie E.; Braumüller, Jochen; Krantz, Philip; Wang, Joel I.-J.; Gustavsson, Simon; Oliver, William D. (2020-03-10).
+"Superconducting Qubits: Current State of Play"
+Annual Review of Condensed Matter Physics
+2020ARCMP..11..369K
+10.1146/annurev-conmatphys-031119-050605
+Shim, Yun-Pil; Tahan, Charles (2016-03-17).
+"Semiconductor-inspired design principles for superconducting quantum computing"
+Nature Communications
+2016NatCo...711059S
+10.1038/ncomms11059
+Wang, Chenlu; Li, Xuegang; Xu, Huikai; Li, Zhiyuan; Wang, Junhua; Yang, Zhen; Mi, Zhenyu; Liang, Xuehui; Su, Tang; Yang, Chuhong; Wang, Guangyue; Wang, Wenyan; Li, Yongchao; Chen, Mo; Li, Chengyao (2022-01-13).
+"Towards practical quantum computers: transmon qubit with a lifetime approaching 0.5 milliseconds"
+npj Quantum Information
+2022npjQI...8....3W
+10.1038/s41534-021-00510-2
+Fig. 1: Unimon qubit and its measurement setup
+Hyyppä, Eric; Kundu, Suman; Chan, Chun Fai; Gunyhó, András; Hotari, Juho; Janzso, David; Juliusson, Kristinn; Kiuru, Olavi; Kotilahti, Janne; Landra, Alessandro; Liu, Wei; Marxer, Fabian; Mäkinen, Akseli; Orgiazzi, Jean-Luc; Palma, Mario; Savytskyi, Mykhailo; Tosto, Francesca; Tuorila, Jani; Vadimov, Vasilii; Li, Tianyi; Ockeloen-Korppi, Caspar; Heinsoo, Johannes; Tan, Kuan Yen; Hassel, Juha; Möttönen, Mikko (12 November 2022).
+"Unimon qubit"
+Nature Communications
+2022NatCo..13.6895H
+10.1038/s41467-022-34614-w
+"Unimon: A new qubit to boost quantum computers from IQM"
+www.meetiqm.com
+. Retrieved
+Buchanan, Mark (2022-12-08).
+"Meet the Unimon, the New Qubit on the Block"
+2022PhyOJ..15..191B
+10.1103/Physics.15.191
+Devoret, M. H.; Wallraff, A.; Martinis, J. M. (6 November 2004). "Superconducting Qubits: A Short Review".
+cond-mat/0411174
+Motzoi, F.; Gambetta, J. M.; Rebentrost, P.; Wilhelm, F. K. (8 September 2009). "Simple Pulses for Elimination of Leakage in Weakly Nonlinear Qubits".
+Physical Review Letters
+(11) 110501.
+2009PhRvL.103k0501M
+10.1103/PhysRevLett.103.110501
+Chuang, Michael A. Nielsen & Isaac L. (2010).
+Quantum computation and quantum information
+(10th anniversary ed.). Cambridge: Cambridge University Press. pp.
+978-1-107-00217-3
+Rigetti, Chad Tyler (2009).
+Quantum gates for superconducting qubits
+2009PhDT........50R
+978-1-109-19887-4
+Khazali, Mohammadsadegh; Mølmer, Klaus (2020-06-11).
+"Fast Multiqubit Gates by Adiabatic Evolution in Interacting Excited-State Manifolds of Rydberg Atoms and Superconducting Circuits"
+Physical Review X
+(2) 021054.
+2020PhRvX..10b1054K
+10.1103/PhysRevX.10.021054
+Chow, Jerry M.; Córcoles, A. D.; Gambetta, Jay M.; Rigetti, Chad; Johnson, B. R.; Smolin, John A.; Rozen, J. R.; Keefe, George A.; Rothwell, Mary B.; Ketchen, Mark B.; Steffen, M. (17 August 2011). "Simple All-Microwave Entangling Gate for Fixed-Frequency Superconducting Qubits".
+Physical Review Letters
+(8) 080502.
+2011PhRvL.107h0502C
+10.1103/PhysRevLett.107.080502
+DiCarlo, L.; Chow, J. M.; Gambetta, J. M.; Bishop, Lev S.; Johnson, B. R.; Schuster, D. I.; Majer, J.; Blais, A.; Frunzio, L.; Girvin, S. M.; Schoelkopf, R. J. (2009-06-28). "Demonstration of two-qubit algorithms with a superconducting quantum processor".
+(7252). Springer Science and Business Media LLC:
+2009Natur.460..240D
+10.1038/nature08121
+Ficheux, Quentin; Nguyen, Long B.; Somoroff, Aaron; Xiong, Haonan; Nesterov, Konstantin N.; Vavilov, Maxim G.; Manucharyan, Vladimir E. (2021-05-03). "Fast Logic with Slow Qubits: Microwave-Activated Controlled-Z Gate on Low-Frequency Fluxoniums".
+Physical Review X
+(2) 021026.
+2021PhRvX..11b1026F
+10.1103/PhysRevX.11.021026
+Xiong, Haonan; Ficheux, Quentin; Somoroff, Aaron; Nguyen, Long B.; Dogan, Ebru; Rosenstock, Dario; Wang, Chen; Nesterov, Konstantin N.; Vavilov, Maxim G.; Manucharyan, Vladimir E. (2022-04-15). "Arbitrary controlled-phase gate on fluxonium qubits using differential ac Stark shifts".
+Physical Review Research
+(2) 023040.
+2022PhRvR...4b3040X
+10.1103/PhysRevResearch.4.023040
+Foxen, B.; Neill, C.; Dunsworth, A.; Roushan, P.; Chiaro, B.; Megrant, A.; Kelly, J.; Chen, Zijun; Satzinger, K.; Barends, R.; Arute, F.; Arya, K.; Babbush, R.; Bacon, D.; Bardin, J. C.; Boixo, S.; Buell, D.; Burkett, B.; Chen, Yu; Collins, R.; Farhi, E.; Fowler, A.; Gidney, C.; Giustina, M.; Graff, R.; Harrigan, M.; Huang, T.; Isakov, S. V.; Jeffrey, E.; Jiang, Z.; Kafri, D.; Kechedzhi, K.; Klimov, P.; Korotkov, A.; Kostritsa, F.; Landhuis, D.; Lucero, E.; McClean, J.; McEwen, M.; Mi, X.; Mohseni, M.; Mutus, J. Y.; Naaman, O.; Neeley, M.; Niu, M.; Petukhov, A.; Quintana, C.; Rubin, N.; Sank, D.; Smelyanskiy, V.; Vainsencher, A.; White, T. C.; Yao, Z.; Yeh, P.; Zalcman, A.; Neven, H.; Martinis, J. M.; Google AI Quantum (2020-09-15). "Demonstrating a Continuous Set of Two-qubit Gates for Near-term Quantum Algorithms".
+Physical Review Letters
+(12) 120504.
+2020PhRvL.125l0504F
+10.1103/PhysRevLett.125.120504
+cite journal
+has generic name (
+Arute, Frank; Arya, Kunal; Babbush, Ryan; Bacon, Dave; Bardin, Joseph C.; Barends, Rami; Biswas, Rupak; Boixo, Sergio; Brandao, Fernando G. S. L.; Buell, David A.; Burkett, Brian; Chen, Yu; Chen, Zijun; Chiaro, Ben; Collins, Roberto; Courtney, William; Dunsworth, Andrew; Farhi, Edward; Foxen, Brooks; Fowler, Austin; Gidney, Craig; Giustina, Marissa; Graff, Rob; Guerin, Keith; Habegger, Steve; Harrigan, Matthew P.; Hartmann, Michael J.; Ho, Alan; Hoffmann, Markus; Huang, Trent; Humble, Travis S.; Isakov, Sergei V.; Jeffrey, Evan; Jiang, Zhang; Kafri, Dvir; Kechedzhi, Kostyantyn; Kelly, Julian; Klimov, Paul V.; Knysh, Sergey; Korotkov, Alexander; Kostritsa, Fedor; Landhuis, David; Lindmark, Mike; Lucero, Erik; Lyakh, Dmitry; Mandrà, Salvatore; McClean, Jarrod R.; McEwen, Matthew; Megrant, Anthony; Mi, Xiao; Michielsen, Kristel; Mohseni, Masoud; Mutus, Josh; Naaman, Ofer; Neeley, Matthew; Neill, Charles; Niu, Murphy Yuezhen; Ostby, Eric; Petukhov, Andre; Platt, John C.; Quintana, Chris; Rieffel, Eleanor G.; Roushan, Pedram; Rubin, Nicholas C.; Sank, Daniel; Satzinger, Kevin J.; Smelyanskiy, Vadim; Sung, Kevin J.; Trevithick, Matthew D.; Vainsencher, Amit; Villalonga, Benjamin; White, Theodore; Yao, Z. Jamie; Yeh, Ping; Zalcman, Adam; Neven, Hartmut; Martinis, John M. (2019-10-23). "Quantum supremacy using a programmable superconducting processor".
+(7779). Springer Science and Business Media LLC:
+2019Natur.574..505A
+10.1038/s41586-019-1666-5
+Nguyen, L.B.; Kim, Y.; Hashim, A.; Goss, N.; Marinelli, B.; Bhandari, B.; Das, D.; Naik, R.K.; Kreikebaum, J.M.; Jordan, A.; Santiago, D.I.; Siddiqi, I. (16 January 2024).
+"Programmable Heisenberg interactions between Floquet qubits"
+Nature Physics
+2024NatPh..20..240N
+10.1038/s41567-023-02326-7
+Gambetta, Jay M.; Chow, Jerry M.; Steffen, Matthias (13 January 2017).
+"Building logical qubits in a superconducting quantum computing system"
+npj Quantum Information
+2017npjQI...3....2G
+10.1038/s41534-016-0004-0
+Blais, Alexandre; Huang, Ren-Shou; Wallraff, Andreas; Girvin, Steven; Schoelkopf, Robert (2004).
+"Cavity quantum electrodynamics for superconducting electrical circuits: An architecture for quantum computation"
+Phys. Rev. A
+(6) 062320.
+cond-mat/0402216
+2004PhRvA..69f2320B
+10.1103/PhysRevA.69.062320
+Cottet, Nathanaël; Xiong, Haonan; Nguyen, Long B.; Lin, Yen-Hsiang; Manucharyan, Vladimir E. (2021-11-04).
+"Electron shelving of a superconducting artificial atom"
+Nature Communications
+(1). Springer Science and Business Media LLC: 6383.
+2021NatCo..12.6383C
+10.1038/s41467-021-26686-x
+DiVincenzo, David (February 1, 2008). "The Physical Implementation of Quantum Computation".
+IBM T.J. Watson Research Center
+quant-ph/0002077
+2000ForPh..48..771D
+10.1002/1521-3978(200009)48:9/11<771::AID-PROP771>3.0.CO;2-E
+Devoret, M. H.; Schoelkopf, R. J. (7 March 2013). "Superconducting Circuits for Quantum Information: An Outlook".
+2013Sci...339.1169D
+10.1126/science.1231930
+Chow, Jerry M.; Gambetta, Jay M.; Córcoles, A. D.; Merkel, Seth T.; Smolin, John A.; Rigetti, Chad; Poletto, S.; Keefe, George A.; Rothwell, Mary B.; Rozen, J. R.; Ketchen, Mark B.; Steffen, M. (9 August 2012). "Universal Quantum Gate Set Approaching Fault-Tolerant Thresholds with Superconducting Qubits".
+Physical Review Letters
+(6) 060501.
+2012PhRvL.109f0501C
+10.1103/PhysRevLett.109.060501
+Niskanen, A. O.; Harrabi, K.; Yoshihara, F.; Nakamura, Y.; Lloyd, S.; Tsai, J. S. (4 May 2007). "Quantum Coherent Tunable Coupling of Superconducting Qubits".
+2007Sci...316..723N
+10.1126/science.1141324
+Morsch, Oliver; Zurich, E. T. H.
+"Quantum transfer at the push of a button"
+. Retrieved
+Qiskit (2022-09-28).
+"How The First Superconducting Qubit Changed Quantum Computing Forever"
+. Retrieved
+Nakamura, Y.; Pashkin, Yu A.; Tsai, J. S. (April 1999). "Coherent control of macroscopic quantum states in a single-Cooper-pair box".
+cond-mat/9904003
+1999Natur.398..786N
+10.1038/19718
+Mohebi, Omid; Alireza Hesam Mohseni (3 April 2025). "An Overview of Josephson Junctions Based QPUs".
+cond-mat.supr-con
+"Baidu Releases Superconducting Quantum Computer and World's First All-Platform Integration Solution, Making Quantum Computing Within Reach"
+www.prnewswire.com
+(Press release)
+. Retrieved
+"IBM Quantum Computing | Hardware and roadmap"
+www.ibm.com
+. Retrieved
+"IBM Quantum Roadmap"
+. October 2025
+. Retrieved
+December 1,
+"Our quantum computing journey"
+Google Quantum AI
+. Retrieved
+Further reading
+Stancil, Daniel D.; Byrd, Gregory T. (2022).
+Principles of Superconducting Quantum Computers
+(1st ed.). Hoboken, New Jersey: John Wiley & Sons.
+978-1-119-75072-7
+. 978-1-119-75074-1 (ebook).
+Salari, Alan (2024).
+Microwave Techniques in Superconducting Quantum Computers
+(Unabridged edition). Boston, Massachusetts: Artech House.
+978-1-63081-987-3
+. 978-1-63081-988-0 (ebook).
+Krylov, Gleb; Jabbari, Tahereh; Friedman, Eby G. (2024).
+Single Flux Quantum Integrated Circuit Design
+(Second Edition). Cham: Springer.
+10.1007/978-3-031-47475-0
+978-3-031-47474-3
+Absar, Rubaya; Elgabra, Hazem; Ma, Dylan; Zhao, Yiju; Wei, Lan (2024). "Cryogenic CMOS for Quantum Computing". In Liu, Weiqiang; Han, Jie; Lombardi, Fabrizio (eds.).
+Design and Applications of Emerging Computer Systems
+(1st ed.). Cham: Springer. pp.
+10.1007/978-3-031-42478-6_22
+978-3-031-42478-6
+Awan, Shakil; Kibble, Bryan P.; Schurr, Jürgen (2011).
+Coaxial Electrical Circuits for Interference-Free Measurements
+. Electrical Measurement Series 13. Stevenage: The Institution of Engineering and Technology (IET).
+10.1049/PBEL013E
+978-1-84919-069-5
+Jordan, Andrew N.; Siddiqi, Irfan A. (2024).
+Quantum Measurement: Theory and Practice
+(1st ed.). Cambridge University Press.
+978-1-009-10006-9
+Zagoskin, Alexandre M. (2011).
+Quantum Engineering: Theory and Design of Quantum Coherent Structures
+. Cambridge University Press.
+978-0-521-11369-4
+Van Duzer, Theodore; Turner, Charles W. (1999).
+Principles of Superconductive Devices and Circuits
+(2nd ed.). Prentice Hall.
+978-0-13-262742-9
+Solymar, Lazlo (1972).
+Superconductive Tunnelling and Applications
+. London, England: Chapman and Hall.
+0-412-10210-2
+External links
+IBM Quantum
+offers access to over 20 quantum computer systems.
+IBM Quantum Experience
+offers free access to writing quantum algorithms and executing them on 5 qubit quantum computers.
+IBM's roadmap for quantum computing
+shows 65 qubit systems available in 2020 and 127 qubits to be available sometime in 2021.
+Quantum information science
+DiVincenzo's criteria
+Quantum computing
+Quantum information
+Quantum programming
+Quantum simulation
+physical vs. logical
+Quantum processors
+cloud-based
+Eastin–Knill
+Gottesman–Knill
+No-broadcasting
+No-communication
+No-deleting
+No-teleportation
+Quantum speed limit
+Solovay–Kitaev
+Schrödinger-HJW
+communication
+Classical capacity
+entanglement-assisted
+quantum capacity
+Entanglement distillation
+Entanglement swapping
+Monogamy of entanglement
+Quantum channel
+quantum network
+State purification
+Quantum teleportation
+quantum energy teleportation
+quantum gate teleportation
+Superdense coding
+Quantum cryptography
+Post-quantum cryptography
+Quantum coin flipping
+Quantum money
+Quantum key distribution
+other protocols
+Quantum secret sharing
+Quantum algorithms
+Algorithmic cooling
+Amplitude amplification
+Bernstein–Vazirani
+Boson sampling
+Deutsch–Jozsa
+Hidden subgroup
+Magic state distillation
+Quantum annealing
+Quantum counting
+Quantum Fourier transform
+Quantum optimization
+Quantum phase estimation
+complexity theory
+processor benchmarks
+Quantum supremacy
+Quantum volume
+QC scaling laws
+Randomized benchmarking
+Relaxation times
+computing models
+Adiabatic quantum computation
+Continuous-variable quantum information
+One-way quantum computer
+cluster state
+Quantum circuit
+quantum logic gate
+Quantum machine learning
+quantum neural network
+Quantum Turing machine
+Topological quantum computer
+Hamiltonian quantum computation
+error correction
+quantum convolutional
+Entanglement-assisted
+implementations
+Quantum optics
+Circuit QED
+Linear optical QC
+KLM protocol
+Ultracold atoms
+Neutral atom QC
+Trapped-ion QC
+Spin qubit QC
+Superconducting
+Charge qubit
+Phase qubit
+programming
+Forest/Rigetti QCS
+many others...
+Quantum information science
+Quantum mechanics topics
+Superconductivity
+Bean's critical state
+Ginzburg–Landau
+Kohn–Luttinger
+Mattis–Bardeen
+Characteristic parameters
+coherence length
+critical field
+London penetration depth
+Silsbee current
+Abrikosov vortices
+Andreev reflection
+Cooper pairs
+flux pinning
+flux pumping
+Josephson effect
+Little–Parks effect
+Meissner effect
+Homes's law
+persistent currents
+proximity effect
+SU(2) color
+supercurrents
+superdiamagnetism
+superstripes
+Classification
+By magnetic response
+ferromagnetic
+By explanation
+conventional
+unconventional
+topological
+By critical temperature
+low temperature
+high temperature
+room temperature
+By composition
+heavy fermion
+oxypnictides
+Technological applications
+electromagnets
+quantum computing
+Rutherford cable
+List of superconductors
+bilayer graphene
+Retrieved from "
+https://en.wikipedia.org/w/index.php?title=Superconducting_quantum_computing&oldid=1334699594
+Quantum information science
+Quantum electronics
+Superconductivity
+Hidden categories:
+CS1 errors: generic name
+Wikipedia articles that are too technical from October 2025
+All articles that are too technical
+Articles needing cleanup from October 2025
+All pages needing cleanup
+Cleanup tagged articles with a reason field from October 2025
+Wikipedia pages needing cleanup from October 2025
+Articles with short description
+Short description matches Wikidata
+All articles with unsourced statements
+Articles with unsourced statements from January 2023

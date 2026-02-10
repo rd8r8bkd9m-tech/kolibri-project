@@ -28,69 +28,91 @@ static int decode_coefficients(const KolibriGene *gene, int *slope, int *bias) {
     return 0;
 }
 
-/* --- Многослойная формула: до 128 слоёв × 8 цифр = 1024 цифры генома --- */
+/* --- ResNet-архитектура: до 500 слоёв с Residual Blocks × 8 цифр генома --- */
+/* Каждые 10 слоёв = 1 residual block: output = block(x) + x              */
+/* Skip-connection гарантирует что сигнал не затухает через 500 слоёв      */
+#define KOLIBRI_BLOCK_SIZE 10U
+
 static int formula_predict_multilayer(const KolibriGene *gene, int input) {
     long long x = (long long)input;
     size_t num_layers = gene->length / 8U;
-    if (num_layers > 128U) num_layers = 128U;
-    for (size_t layer = 0; layer < num_layers; ++layer) {
-        size_t base = layer * 8U;
-        int a = (int)(gene->digits[base] * 10 + gene->digits[base + 1]);
-        if (gene->digits[base + 2] % 2U) a = -a;
-        int b = (int)(gene->digits[base + 3] * 10 + gene->digits[base + 4]);
-        if (gene->digits[base + 5] % 2U) b = -b;
-        int op = (int)(gene->digits[base + 6] % 12U);
-        int act = (int)(gene->digits[base + 7] % 4U);
+    if (num_layers > 500U) num_layers = 500U;
+    size_t num_blocks = num_layers / KOLIBRI_BLOCK_SIZE;
+    if (num_blocks == 0U) num_blocks = 1U;
 
-        long long result = x;
-        switch (op) {
-        case 0: result = (long long)a * x + (long long)b; break;
-        case 1: result = (long long)a * x - (long long)b; break;
-        case 2: { /* Модулярная арифметика */
-            long long divisor = (long long)(b > 0 ? b * 100 + 1 : 1);
-            result = (x % divisor) + (long long)a;
-            break;
-        }
-        case 3: result = (x ^ (long long)(a * 1000 + b)); break;
-        case 4: result = (x & 0xFFFFFFL) + (long long)b * 100; break;
-        case 5: result = x + (long long)a - (long long)b; break;
-        case 6: { /* Квадратичная функция */
-            long long ax2 = (long long)a * (x >> 8) * (x >> 8);
-            result = ax2 + (long long)b;
-            break;
-        }
-        case 7: { /* Степенная: x * 2^a mod b */
-            int shift = a & 15;
-            long long divisor = (long long)(b > 0 ? b * 100 + 1 : 1);
-            result = (x << shift) % divisor;
-            break;
-        }
-        case 8: result = (x >> (a & 7)) + (long long)b; break; /* Сдвиг + смещение */
-        case 9: result = ((x + (long long)a) * (long long)b) >> 4; break; /* Масштабирование */
-        case 10: { /* Кусочно-линейная */
-            result = (x > 0) ? ((long long)a * x + (long long)b)
-                              : ((long long)b * x - (long long)a);
-            break;
-        }
-        default: { /* Битовая ротация + XOR */
-            long long rotated = ((x << (a & 7)) | ((x >> (32 - (a & 7))) & 0x7F));
-            result = rotated ^ (long long)(b * 1000);
-            break;
-        }
+    for (size_t block = 0; block < num_blocks; ++block) {
+        /* --- Skip-connection: запоминаем вход блока --- */
+        long long residual = x;
+
+        for (size_t sub = 0; sub < KOLIBRI_BLOCK_SIZE; ++sub) {
+            size_t layer = block * KOLIBRI_BLOCK_SIZE + sub;
+            if (layer >= num_layers) break;
+
+            size_t base = layer * 8U;
+            int a = (int)(gene->digits[base] * 10 + gene->digits[base + 1]);
+            if (gene->digits[base + 2] % 2U) a = -a;
+            int b = (int)(gene->digits[base + 3] * 10 + gene->digits[base + 4]);
+            if (gene->digits[base + 5] % 2U) b = -b;
+            int op = (int)(gene->digits[base + 6] % 12U);
+            int act = (int)(gene->digits[base + 7] % 4U);
+
+            long long result = x;
+            switch (op) {
+            case 0: result = (long long)a * x / 100 + (long long)b; break;
+            case 1: result = (long long)a * x / 100 - (long long)b; break;
+            case 2: { /* Модулярная арифметика */
+                long long divisor = (long long)(b > 0 ? b * 100 + 1 : 1);
+                result = (x % divisor) + (long long)a;
+                break;
+            }
+            case 3: result = (x ^ (long long)(a * 1000 + b)); break;
+            case 4: result = (x & 0xFFFFFFL) + (long long)b * 10; break;
+            case 5: result = x + (long long)a - (long long)b; break;
+            case 6: { /* Квадратичная: мягкая x*|x|/(1+|x|) */
+                long long abs_x = x < 0 ? -x : x;
+                result = (long long)a * x / (100 + abs_x) + (long long)b;
+                break;
+            }
+            case 7: { /* Степенная: x * 2^a mod b */
+                int shift = a & 7;
+                long long divisor = (long long)(b > 0 ? b * 100 + 1 : 1);
+                result = (x << shift) % divisor;
+                break;
+            }
+            case 8: result = (x >> (a & 3)) + (long long)b; break;
+            case 9: result = ((x + (long long)a) * (long long)b) / 100; break;
+            case 10: { /* Кусочно-линейная */
+                result = (x > 0) ? ((long long)a * x / 100 + (long long)b)
+                                  : ((long long)b * x / 100 - (long long)a);
+                break;
+            }
+            default: { /* Битовая ротация + XOR */
+                long long rotated = ((x << (a & 3)) | ((x >> (32 - (a & 3))) & 0xF));
+                result = rotated ^ (long long)(b * 100);
+                break;
+            }
+            }
+
+            /* Активация */
+            switch (act) {
+            case 0: break; /* identity */
+            case 1: result = result < 0 ? -result : result; break; /* abs */
+            case 2: result = result % 10000LL; break; /* mod */
+            case 3: result = result & 0xFFFFLL; break; /* mask */
+            }
+
+            /* Клиппинг внутри слоя: ±10000 */
+            if (result > 10000LL) result = 10000LL;
+            if (result < -10000LL) result = -10000LL;
+            x = result;
         }
 
-        /* Активация */
-        switch (act) {
-        case 0: break; /* identity */
-        case 1: result = result < 0 ? -result : result; break; /* abs */
-        case 2: result = result % 1000000LL; break; /* mod */
-        case 3: result = result & 0xFFFFFFLL; break; /* mask */
-        }
+        /* --- Residual connection: output = block(x) + skip --- */
+        x = x + residual;
 
-        /* Ограничение для стабильности */
-        if (result > 1000000000LL) result = 1000000000LL;
-        if (result < -1000000000LL) result = -1000000000LL;
-        x = result;
+        /* --- Layer Normalization: приводим к ±10000 --- */
+        if (x > 10000LL) x = 10000LL;
+        if (x < -10000LL) x = -10000LL;
     }
     return (int)x;
 }
@@ -266,7 +288,7 @@ int kf_formula_describe(const KolibriFormula *formula, char *buffer, size_t buff
         return -1;
     }
     size_t layers = formula->gene.length / 8U;
-    if (layers > 128U) layers = 128U;
+    if (layers > 500U) layers = 500U;
     int written = snprintf(buffer, buffer_len,
                            "слоёв=%zu k=%d b=%d фитнес=%.6f геном=%zu",
                            layers, slope, bias, formula->fitness,

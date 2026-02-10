@@ -123,6 +123,13 @@ class EngineStatsResponse(BaseModel):
     c_model_epoch: int = 0
     c_model_avg_fitness: float = 0.0
     c_model_avg_weight: float = 0.0
+    # Эмбеддинги (Фаза 1 AI)
+    embedding_vocab_size: int = 0
+    embedding_trained_pairs: int = 0
+    embedding_epochs: int = 0
+    embedding_dim: int = 64
+    embedding_avg_norm: float = 0.0
+    embedding_last_loss: float = 0.0
     # Общее
     active_conversations: int
     sentence_store_size: int = 0
@@ -135,6 +142,41 @@ class ReloadResponse(BaseModel):
     edges: int
     formula_generation: int
     formula_fitness: float = 0.0
+
+
+class EmbeddingSimilarityRequest(BaseModel):
+    word: str = Field(min_length=1, max_length=256)
+    top_k: int = Field(default=10, ge=1, le=100)
+
+
+class EmbeddingSimilarityResponse(BaseModel):
+    word: str
+    method: str  # 'embedding' | 'pattern'
+    similar: list[dict]
+    vocab_size: int
+    trained_pairs: int
+
+
+class EmbeddingTrainResponse(BaseModel):
+    status: str
+    loss: float
+    pairs: int
+    epochs: int
+    vocab_size: int
+    duration_ms: float
+
+
+class EmbeddingCompareRequest(BaseModel):
+    word1: str = Field(min_length=1, max_length=256)
+    word2: str = Field(min_length=1, max_length=256)
+
+
+class EmbeddingCompareResponse(BaseModel):
+    word1: str
+    word2: str
+    embedding_similarity: float
+    pattern_similarity: float
+    method: str  # 'embedding' | 'pattern'
 
 
 # ---------------------------------------------------------------------------
@@ -303,11 +345,12 @@ async def compute_embedding(req: EmbeddingRequest) -> EmbeddingResponse:
 
 @router.get("/stats", response_model=EngineStatsResponse)
 async def engine_stats() -> EngineStatsResponse:
-    """Статистика AI-движка — числовой граф + формулы + C-модель."""
+    """Статистика AI-движка — числовой граф + формулы + эмбеддинги + C-модель."""
     engine = get_engine()
     g = engine.graph.get_stats()
     c = engine._get_model_stats()
     best = engine.formula_pool.best()
+    emb = engine.embeddings.get_stats()
 
     return EngineStatsResponse(
         model_available=engine.c_retriever.available,
@@ -327,6 +370,12 @@ async def engine_stats() -> EngineStatsResponse:
         c_model_epoch=c.get("epoch", 0),
         c_model_avg_fitness=c.get("avg_fitness", 0.0),
         c_model_avg_weight=c.get("avg_weight", 0.0),
+        embedding_vocab_size=emb["vocab_size"],
+        embedding_trained_pairs=emb["trained_pairs"],
+        embedding_epochs=emb["epochs_completed"],
+        embedding_dim=emb["dim"],
+        embedding_avg_norm=emb["avg_vector_norm"],
+        embedding_last_loss=emb["last_loss"],
         active_conversations=len(engine.conversations),
         sentence_store_size=engine.sentence_store.size,
     )
@@ -338,6 +387,95 @@ async def reload_corpus() -> ReloadResponse:
     engine = get_engine()
     info = engine.reload_corpus()
     return ReloadResponse(**info)
+
+
+@router.post("/embeddings/similar", response_model=EmbeddingSimilarityResponse)
+async def embedding_similar(req: EmbeddingSimilarityRequest) -> EmbeddingSimilarityResponse:
+    """
+    Семантический поиск похожих слов через обученные эмбеддинги.
+    
+    В отличие от DJB2 pattern_similarity (случайное совпадение цифр),
+    эмбеддинги дают НАСТОЯЩЕЕ семантическое сходство:
+    "кот" ≈ "кошка" ≈ "котёнок" (cosine > 0.5)
+    """
+    engine = get_engine()
+    word = req.word.lower().strip()
+    results = engine.graph.find_similar_semantic(word, limit=req.top_k)
+    
+    method = results[0][2] if results else 'pattern'
+    
+    return EmbeddingSimilarityResponse(
+        word=word,
+        method=method,
+        similar=[
+            {"word": w, "similarity": round(s, 4), "method": m}
+            for w, s, m in results
+        ],
+        vocab_size=engine.embeddings.vocab_size,
+        trained_pairs=engine.embeddings.trained_pairs,
+    )
+
+
+@router.post("/embeddings/compare", response_model=EmbeddingCompareResponse)
+async def embedding_compare(req: EmbeddingCompareRequest) -> EmbeddingCompareResponse:
+    """
+    Сравнить сходство двух слов: эмбеддинги vs DJB2 паттерны.
+    
+    Показывает разницу: эмбеддинги дают высокий скор
+    для семантически близких слов, DJB2 — случайный.
+    """
+    engine = get_engine()
+    w1 = req.word1.lower().strip()
+    w2 = req.word2.lower().strip()
+    
+    h1 = djb2_hash(w1)
+    h2 = djb2_hash(w2)
+    
+    # DJB2 pattern similarity (baseline)
+    pat_sim = pattern_similarity(word_to_pattern(w1), word_to_pattern(w2))
+    
+    # Embedding cosine similarity (learned)
+    emb_sim = engine.embeddings.cosine_similarity(h1, h2)
+    
+    method = 'embedding' if engine.embeddings.has(h1) and engine.embeddings.has(h2) else 'pattern'
+    
+    return EmbeddingCompareResponse(
+        word1=w1,
+        word2=w2,
+        embedding_similarity=round(emb_sim, 4),
+        pattern_similarity=round(pat_sim, 4),
+        method=method,
+    )
+
+
+@router.post("/embeddings/train", response_model=EmbeddingTrainResponse)
+async def train_embeddings() -> EmbeddingTrainResponse:
+    """
+    Переобучить эмбеддинги на текущем графе знаний.
+    
+    Запускает полный цикл Word2Vec-style обучения:
+    5 эпох, негативный семплинг, learning rate decay.
+    """
+    engine = get_engine()
+    result = engine.embeddings.train_on_graph(
+        edges=engine.graph.edges,
+        hash_to_word=engine.graph._hash_to_word,
+        all_hashes=set(engine.graph.patterns.keys()),
+        epochs=5,
+        lr=0.025,
+        neg_samples=5,
+    )
+    # Сохранить после обучения
+    engine._save_embeddings()
+    
+    return EmbeddingTrainResponse(
+        status="ok",
+        loss=result["loss"],
+        pairs=result["pairs"],
+        epochs=result["epochs"],
+        vocab_size=result["vocab_size"],
+        duration_ms=result.get("duration_ms", 0.0),
+    )
 
 
 @router.delete("/conversations/{conv_id}")

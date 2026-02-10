@@ -1,0 +1,545 @@
+# AW Волка — Википедия
+# URL: https://ru.wikipedia.org/wiki/Special:Random
+
+AW Волка — Википедия
+15
+ч
+27
+м
+48,42
+с
+−49° 30′ 52,05″
+AW Волка
+Материал из Википедии — свободной энциклопедии
+Перейти к навигации
+Перейти к поиску
+AW Волка
+Звезда
+Наблюдательные данные
+(
+Эпоха
+J2000.0
+)
+Прямое восхождение
+15
+ч
+27
+м
+48,42
+с
+[
+1
+]
+Склонение
+−49° 30′ 52,05″
+[
+1
+]
+Расстояние
+849,762 ± 9,6761 пк
+[
+1
+]
+Видимая звёздная величина
+(
+V
+)
+12,63 ± 0,1
+[
+2
+]
+Созвездие
+Волк
+Астрометрия
+Собственное движение
+• прямое восхождение
+−2,602 ± 0,013 mas/год
+[
+1
+]
+• склонение
+−10,54 ± 0,015 mas/год
+[
+1
+]
+Параллакс
+(π)
+1,1768 ± 0,0134 mas
+[
+1
+]
+Спектральные характеристики
+Переменность
+затменная типа W Большой Медведицы
+[
+2
+]
+Коды в каталогах
+GSC 08303-00421
+,
+2MASS J15274841-4930520
+,
+Gaia DR2 5890387774952678272
+,
+AW Lup
+,
+TIC 143297621
+и
+Gaia DR3 5890387774952678272
+Информация в базах данных
+SIMBAD
+V* AW Lup
+Информация в Викиданных
+?
+AW Волка
+(
+лат.
+AW Lupi
+) — одиночная
+переменная звезда
+[
+2
+]
+в созвездии
+Волка
+на расстоянии приблизительно 3014
+световых лет
+(около 924
+парсеков
+) от
+Солнца
+.
+Видимая звёздная величина
+звезды — от +13,2
+m
+до +12
+m
+[
+3
+]
+.
+Характеристики
+[
+править
+|
+править код
+]
+AW Волка
+— жёлтая пульсирующая
+переменная звезда типа RR Лиры
+(RR:)
+[
+3
+]
+[
+4
+]
+[
+5
+]
+[
+6
+]
+спектрального класса
+G. Радиус — около 2,93
+солнечных
+, светимость — около 7,023
+солнечных
+.
+Эффективная температура
+— около 5491
+K
+[
+7
+]
+.
+Примечания
+[
+править
+|
+править код
+]
+↑
+1
+2
+3
+4
+5
+6
+Collaboration G.
+Gaia Early Data Release 3
+(англ.)
+/
+Data Processing and Analysis Consortium
+,
+European Space Agency
+—
+VizieR
+, 2020. — Vol. 1350. — P. I/350.
+↑
+1
+2
+3
+Alfonso-Garzón J.
+,
+Domingo A.
+, Mas-Hesse J. M., Giménez A.
+The first INTEGRAL-OMC catalogue of optically variable sources
+(англ.)
+//
+Astronomy and Astrophysics
+/
+T. Forveille
+—
+EDP Sciences
+, 2012. — Vol. 548. — P. 79–79. — 13 p. — ISSN
+0004-6361
+;
+0365-0138
+;
+1432-0746
+;
+1286-4846
+—
+doi:10.1051/0004-6361/201220095
+—
+arXiv:1210.0821
+↑
+1
+2
+AW Lup
+, database entry, Combined General Catalog of Variable Stars (GCVS5.1, 2017 Ed.), N. N. Samus, O. V. Durlevich, et al.,
+CDS
+ID
+II/250
+Архивная копия
+от 6 августа 2012 на
+Wayback Machine
+Accessed online 2021-03-25.
+↑
+Gavrilchenko T., Klein C. R., Bloom J. S., Richards J. W.
+A mid-infrared study of RR Lyrae stars with the Wide-field Infrared Survey Explorer all-sky data release
+(англ.)
+//
+Monthly Notices of the Royal Astronomical Society
+/
+D. Flower
+—
+OUP
+, 2014. — Vol. 441, Iss. 1. — P. 715–725. — ISSN
+0035-8711
+;
+1365-2966
+—
+doi:10.1093/MNRAS/STU606
+—
+arXiv:1312.4643
+↑
+Maintz G.
+Proper identification of RR Lyrae stars brighter than 12.5 mag
+(англ.)
+//
+Astronomy and Astrophysics
+/
+T. Forveille
+—
+EDP Sciences
+, 2005. — Vol. 442, Iss. 1. — P. 381–384. — ISSN
+0004-6361
+;
+0365-0138
+;
+1432-0746
+;
+1286-4846
+—
+doi:10.1051/0004-6361:20053230
+—
+arXiv:astro-ph/0507602
+↑
+Mennessier M. O., Colome J.
+Identification of RR Lyrae stars in the Tycho-2 catalogue
+(англ.)
+//
+Astronomy and Astrophysics
+/
+T. Forveille
+—
+EDP Sciences
+, 2002. — Vol. 390. — P. 173–178. — ISSN
+0004-6361
+;
+0365-0138
+;
+1432-0746
+;
+1286-4846
+—
+doi:10.1051/0004-6361:20020714
+↑
+Collaboration G.
+Gaia Data Release 2
+(англ.)
+/
+Data Processing and Analysis Consortium
+,
+European Space Agency
+—
+VizieR
+, 2018. — Vol. 1345. — P. I/345.
+Звёзды созвездия
+Волка
+Байер
+α
+β
+γ
+δ
+ε
+ζ
+η
+θ
+ι
+κ¹
+κ²
+λ
+μ
+ν¹
+ν²
+ξ¹
+ξ²
+ο
+π
+ρ
+σ
+τ¹
+τ²
+υ
+φ¹
+φ²
+χ
+ψ¹
+ψ²
+ω
+A
+b
+c
+d
+e
+f
+g
+h
+i
+k
+Флемстид
+1
+2
+3
+4
+5
+Переменные
+R
+S
+T
+U
+V
+W
+X
+Y
+Z
+RR
+RS
+RT
+RU
+RW
+RX
+RY
+SS
+ST
+SU
+SV
+SW
+SX
+SY
+SZ
+TT
+TU
+TV
+TW
+TX
+TY
+TZ
+UU
+UV
+UW
+UX
+UY
+UZ
+VV
+VW
+VX
+VY
+VZ
+WW
+WX
+WZ
+XX
+XY
+XZ
+YY
+YZ
+ZZ
+AA
+AB
+AD
+AE
+AF
+AG
+AH
+AI
+AK
+AL
+AM
+AN
+AO
+AP
+AQ
+AR
+AS
+AT
+AU
+AV
+AW
+AX
+AY
+AZ
+BB
+BC
+BD
+BE
+BF
+BG
+BH
+BK
+BL
+BM
+BN
+BO
+BP
+BQ
+BR
+BS
+BT
+BU
+BV
+BW
+BX
+BY
+BZ
+CC
+CE
+CF
+CG
+CH
+CP
+CW
+DG
+DT
+EE
+EV
+EX
+FF
+FK
+FM
+FS
+FT
+GG
+GH
+GM
+HH
+HL
+HP
+HQ
+HR
+HS
+HT
+HU
+HV
+HW
+HX
+HY
+HZ
+II
+IK
+IL
+IM
+IN
+IO
+IP
+IT
+IU
+IZ
+KK
+KT
+KU
+KY
+LL
+LM
+LN
+LQ
+MM
+MN
+MO
+MY
+NN
+NO
+NY
+NZ
+OO
+OY
+PP
+QQ
+QW
+GQ A
+V335
+V358
+V384
+V407
+V409
+V410
+Планетные
+системы
+GQ Волка
+HD 126525
+HD 134004
+HD 135625
+HD 135760
+HD 140901
+HIP 70849
+HIP 71135
+IM Волка
+Lupus-TR-3
+PSR J1446-4701
+WASP-132
+Ню² Волка
+Другие
+CCDM J15158-3709
+HD 135778
+HD 142527
+Глизе 588
+Список звёзд созвездия Волка
+Источник —
+https://ru.wikipedia.org/w/index.php?title=AW_Волка&oldid=125124448
+Категории
+:
+Волк (созвездие)
+Переменные типа W Большой Медведицы
+Звезды GSC
+Объекты 2MASS
+Звёзды по алфавиту
+Звёзды созвездия Волка
+Скрытые категории:
+Википедия:Статьи с источниками из Викиданных
+Википедия:Статьи без изображений (тип: звезда)
+Википедия:Карточки без параметров
+Навигация
+Поиск

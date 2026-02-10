@@ -33,20 +33,31 @@ extern "C" {
 #define KLM_MAGIC               0x4B4C4D31  /* "KLM1" */
 #define KLM_VERSION             1
 
-/* Размеры хеш-таблиц (степени двойки для быстрого modulo) */
+/* Начальные размеры хеш-таблиц (степени двойки для быстрого modulo) */
+/* ЛИМИТЫ СНЯТЫ: таблицы растут динамически через рехеширование */
+#ifndef KLM_INITIAL_PATTERNS
+#define KLM_INITIAL_PATTERNS    131072      /* Начальный размер: 128K слов */
+#endif
+#ifndef KLM_INITIAL_EDGES
+#define KLM_INITIAL_EDGES       262144      /* Начальный размер: 256K рёбер */
+#endif
+
+/* Обратная совместимость (старый код компилируется) */
 #ifndef KLM_MAX_PATTERNS
-#define KLM_MAX_PATTERNS        131072      /* 128K слов */
+#define KLM_MAX_PATTERNS        KLM_INITIAL_PATTERNS
 #endif
 #ifndef KLM_MAX_EDGES
-#define KLM_MAX_EDGES           262144      /* 256K рёбер графа знаний */
+#define KLM_MAX_EDGES           KLM_INITIAL_EDGES
 #endif
 
 #define KLM_PATTERN_SIZE        64          /* цифр в паттерне */
 #define KLM_WORD_MAX            128         /* макс. длина слова */
-#define KLM_LOAD_FACTOR         0.7         /* порог заполнения для дистилляции */
+#define KLM_LOAD_FACTOR         0.7         /* порог заполнения для рехеширования */
+#define KLM_GROWTH_FACTOR       2           /* множитель роста при рехешировании */
+#define KLM_MAX_CAPACITY        (1ULL << 30) /* абс. максимум: 1 млрд записей */
 
-/* Лимит размера модели на диске (50 МБ) */
-#define KLM_MODEL_SIZE_LIMIT    (50 * 1024 * 1024)
+/* Лимит размера модели на диске снят — ограничивается только RAM */
+#define KLM_MODEL_SIZE_LIMIT    0           /* 0 = без лимита */
 
 /* ============================================================
  * Конфигурация обучения
@@ -74,7 +85,9 @@ typedef struct {
     float    fitness;                       /* качество паттерна [0.0–1.0] */
     uint32_t frequency;                     /* частота встречаемости */
     uint32_t last_epoch;                    /* эпоха последнего обновления */
+    uint64_t version;                       /* версия для дельта-синхронизации */
     uint8_t  occupied;                      /* слот занят? */
+    uint8_t  dirty;                         /* изменён с последней синхронизации? */
 } KlmPatternEntry;
 
 /** Ребро графа знаний */
@@ -83,8 +96,29 @@ typedef struct {
     uint32_t target_hash;       /* хеш слова-цели */
     float    weight;            /* сила связи [0.0–1.0] */
     uint32_t cooccurrence;      /* количество совместных появлений */
+    uint64_t version;           /* версия для дельта-синхронизации */
     uint8_t  occupied;          /* слот занят? */
+    uint8_t  dirty;             /* изменён с последней синхронизации? */
 } KlmEdge;
+
+/* ============================================================
+ * Индекс смежности — O(1) поиск рёбер по хешу слова
+ * ============================================================ */
+
+/** Запись в индексе смежности (pooled linked list) */
+typedef struct {
+    size_t edge_slot;           /* индекс в edges[] */
+    size_t next;                /* следующий в цепочке (SIZE_MAX = конец) */
+} KlmAdjEntry;
+
+/** Индекс смежности: word_hash → цепочка рёбер */
+typedef struct {
+    size_t       *buckets;      /* массив head-индексов (SIZE_MAX = пусто) */
+    KlmAdjEntry  *entries;      /* пул записей */
+    size_t        bucket_count; /* количество бакетов (степень двойки) */
+    size_t        entry_count;  /* использовано записей */
+    size_t        entry_capacity; /* макс. записей (2 × edge_capacity) */
+} KlmAdjIndex;
 
 /** Компактная модель (фиксированный размер) */
 typedef struct {
@@ -104,6 +138,16 @@ typedef struct {
     uint32_t current_epoch;
     double   avg_pattern_fitness;
     double   avg_edge_weight;
+
+    /* Версионирование для дельта-синхронизации */
+    uint64_t global_version;        /* глобальная версия модели */
+    uint64_t last_sync_version;     /* версия на момент последней синхронизации */
+
+    /* Флаги динамического роста */
+    size_t   rehash_count;          /* сколько раз рехешировалась таблица */
+
+    /* Индекс смежности для O(1) поиска рёбер по слову */
+    KlmAdjIndex adj_index;
 } KlmModel;
 
 /* ============================================================
@@ -223,6 +267,124 @@ double klm_model_size_mb(const KlmTrainerContext *ctx);
 
 /** Вывод статистики в stderr */
 void klm_print_stats(const KlmTrainerContext *ctx);
+
+/* ============================================================
+ * API — Индекс смежности
+ * ============================================================ */
+
+/**
+ * Перестроить индекс смежности из текущего графа рёбер.
+ * Вызывается автоматически после рехеширования, дистилляции и загрузки.
+ */
+int klm_adj_rebuild(KlmTrainerContext *ctx);
+
+/** Освободить память индекса смежности */
+void klm_adj_free(KlmAdjIndex *idx);
+
+/* ============================================================
+ * API — Динамическое рехеширование (снятие лимитов)
+ * ============================================================ */
+
+/**
+ * Увеличить ёмкость таблицы паттернов.
+ * @param new_capacity новый размер (должен быть степенью двойки)
+ * @return 0 = OK, -1 = ошибка аллокации
+ */
+int klm_rehash_patterns(KlmTrainerContext *ctx, size_t new_capacity);
+
+/**
+ * Увеличить ёмкость таблицы рёбер.
+ * @param new_capacity новый размер (должен быть степенью двойки)
+ * @return 0 = OK, -1 = ошибка аллокации
+ */
+int klm_rehash_edges(KlmTrainerContext *ctx, size_t new_capacity);
+
+/**
+ * Автоматическое расширение: удваивает ёмкость при load >= 70%.
+ * @return количество расширений (0/1/2)
+ */
+int klm_auto_grow(KlmTrainerContext *ctx);
+
+/* ============================================================
+ * API — Дельта-синхронизация
+ * ============================================================ */
+
+/** Пакет дельта-синхронизации */
+typedef struct {
+    KlmPatternEntry *patterns;  /* изменённые паттерны */
+    size_t pattern_count;
+    KlmEdge         *edges;     /* изменённые рёбра */
+    size_t edge_count;
+    uint64_t from_version;      /* от какой версии дельта */
+    uint64_t to_version;        /* до какой версии */
+} KlmDeltaPacket;
+
+/**
+ * Извлечь дельту: все паттерны и рёбра с version > since_version.
+ * Вызывающий должен освободить результат через klm_delta_free().
+ */
+KlmDeltaPacket *klm_delta_extract(const KlmTrainerContext *ctx, uint64_t since_version);
+
+/**
+ * Применить дельту от другой ноды к текущей модели.
+ * Конфликты решаются по версии: побеждает запись с большей version.
+ * @return количество применённых изменений
+ */
+size_t klm_delta_apply(KlmTrainerContext *ctx, const KlmDeltaPacket *delta);
+
+/**
+ * Пометить все dirty-записи как синхронизированные.
+ */
+void klm_delta_mark_synced(KlmTrainerContext *ctx);
+
+/**
+ * Сериализовать дельта-пакет в буфер.
+ * @param out_size будет записан размер буфера
+ * @return аллоцированный буфер (вызывающий освобождает через free())
+ */
+uint8_t *klm_delta_serialize(const KlmDeltaPacket *delta, size_t *out_size);
+
+/**
+ * Десериализовать дельта-пакет из буфера.
+ * @return аллоцированный пакет (вызывающий освобождает через klm_delta_free())
+ */
+KlmDeltaPacket *klm_delta_deserialize(const uint8_t *data, size_t data_size);
+
+/** Освободить дельта-пакет */
+void klm_delta_free(KlmDeltaPacket *delta);
+
+/* ============================================================
+ * API — Шардирование графа (consistent hashing)
+ * ============================================================ */
+
+/** Конфигурация шардирования */
+typedef struct {
+    uint32_t node_id;               /* ID текущей ноды */
+    uint32_t *ring;                 /* хеш-кольцо (виртуальные ноды) */
+    uint32_t *ring_node_ids;        /* ID нод для каждой позиции в кольце */
+    size_t    ring_size;            /* размер кольца */
+    uint32_t *node_ids;             /* все ID нод в кластере */
+    size_t    node_count;           /* количество нод */
+    size_t    vnodes_per_node;      /* виртуальных нод на физическую (128) */
+} KlmShardConfig;
+
+/** Инициализация шардирования */
+int klm_shard_init(KlmShardConfig *cfg, uint32_t node_id,
+                   const uint32_t *node_ids, size_t node_count,
+                   size_t vnodes_per_node);
+
+/** Определить, какой ноде принадлежит данный хеш */
+uint32_t klm_shard_owner(const KlmShardConfig *cfg, uint32_t hash);
+
+/** Проверить, принадлежит ли хеш текущей ноде */
+bool klm_shard_is_local(const KlmShardConfig *cfg, uint32_t hash);
+
+/** Перестроить кольцо при изменении состава кластера */
+int klm_shard_rebuild(KlmShardConfig *cfg,
+                      const uint32_t *node_ids, size_t node_count);
+
+/** Освободить ресурсы шардирования */
+void klm_shard_free(KlmShardConfig *cfg);
 
 #ifdef __cplusplus
 }

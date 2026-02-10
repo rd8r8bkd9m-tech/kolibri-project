@@ -1,0 +1,396 @@
+# Waabi — Википедия
+# URL: https://ru.wikipedia.org/wiki/Special:Random
+
+Waabi — Википедия
+Waabi
+Материал из Википедии — свободной энциклопедии
+Перейти к навигации
+Перейти к поиску
+Waabi
+Основатели
+Ракель Уртасун
+Расположение
+Торонто
+,
+Канада
+Ключевые фигуры
+Ракель Уртасун (генеральный директор)
+Отрасль
+Искусственный интеллект
+,
+Автономный транспорт
+,
+Грузоперевозки
+Продукция
+Технологии автономных грузоперевозок, ИИ-платформа Waabi World
+Сайт
+waabi.ai
+Waabi
+— канадская компания-
+стартап
+[
+1
+]
+, работающая в сфере
+искусственного интеллекта
+. Специализируется на разработке технологий для
+автономных грузовых перевозок
+[
+2
+]
+.
+История
+[
+править
+|
+править код
+]
+Waabi основана в 2021 году Ракель Уртасун и базируется в
+Торонто
+. Компания фокусируется на создании систем искусственного интеллекта для беспилотных грузовиков, используя для разработки и тестирования платформу симуляции Waabi World
+[
+3
+]
+.
+В июне 2024 года компания привлекла дополнительное финансирование в размере 200 млн долларов
+[
+4
+]
+. В число инвесторов также вошли
+Khosla Ventures
+[англ.]
+,
+Porsche
+,
+Scania
+и
+Ingka
+[
+5
+]
+. Привлечённые инвестиции направлены на ускорение разработки и коммерциализации технологий автономных грузоперевозок.
+В феврале 2025 года Waabi объявила о привлечении 280 млн долларов инвестиций от
+Uber
+,
+Nvidia
+,
+Khosla Ventures
+[англ.]
+и
+Volvo
+[
+6
+]
+.
+Технология
+[
+править
+|
+править код
+]
+Система искусственного интеллекта Waabi, имитирует человеческое мышление, что позволяет ей эффективно обрабатывать разнообразные дорожные ситуации, включая те, с которыми она ранее не сталкивалась. В основе подхода Waabi лежит использование
+генеративного искусственного интеллекта
+. Компания применяет виртуальную среду Waabi World, которая автоматически создаёт цифровые копии реального мира, моделирует работу датчиков и различные стресс-сценарии для обучения ИИ
+[
+7
+]
+. Этот метод, по утверждению компании, позволяет обучать системы быстрее, дешевле и безопаснее, чем традиционные методы, основанные на сборе данных в реальных условиях. В отличие от подхода Waabi, компания
+Tesla
+, например, обучает свою систему
+Full Self-Driving
+[англ.]
+, анализируя миллионы видеозаписей реальных дорожных ситуаций
+[
+8
+]
+[
+9
+]
+.
+Waabi планирует начать коммерческие пилотные проекты с грузовиками Volvo в
+Техасе
+в 2025 году
+[
+10
+]
+. Компания также намерена продемонстрировать готовую к эксплуатации версию своего беспилотного грузовика на дорогах общего пользования к концу 2025 года, а запуск первых полностью автономных коммерческих грузоперевозок Waabi ожидает в 2026 году. В ближайшие планы компании также входит расширение парка тестируемых грузовиков и укрепление сотрудничества с логистическими компаниями
+[
+11
+]
+[
+12
+]
+.
+Примечания
+[
+править
+|
+править код
+]
+↑
+Waabi | Company Overview & News
+(англ.)
+.
+Forbes
+. Дата обращения: 4 марта 2025.
+↑
+Waabi – The next generation of self-driving technology starts here.
+(амер. англ.)
+.
+waabi.ai
+. Дата обращения: 4 марта 2025.
+↑
+Waabi, the rare autonomous vehicle startup with a woman CEO, raises $83.5 million
+.
+The Verge
+. 8 июня 2021
+. Дата обращения: 4 марта 2025
+.
+↑
+Autonomous trucking startup Waabi raises $200 million
+.
+Yahoo Tech
+. Дата обращения: 4 марта 2025
+.
+↑
+Canada's Waabi raises $200 million, plans gen-AI driverless trucks in 2025
+.
+Fortune
+. Дата обращения: 4 марта 2025
+.
+↑
+Uber and Nvidia back my startup, which has raised $280M. Here's how we impressed investors and chose the right ones
+.
+Business Insider
+. Дата обращения: 4 марта 2025
+.
+↑
+Welcome to Waabi World, the "ultimate simulator" for autonomous vehicles
+.
+The Verge
+. 9 февраля 2022
+. Дата обращения: 4 марта 2025
+.
+↑
+За рулем искусственный интеллект: автономные автомобили в 2024 году | РБК Тренды
+.
+РБК Тренды
+. Дата обращения: 4 марта 2025
+.
+↑
+Waabi выделяет 200 миллионов долларов на автономные грузовики с ИИ
+.
+DSMedia.pro
+. Дата обращения: 4 марта 2025
+.
+↑
+Waabi and Volvo team up to build self-driving trucks at scale | TechCrunch
+.
+TechCrunch
+. 4 февраля 2025
+. Дата обращения: 4 марта 2025
+.
+↑
+Стартап Waabi и Volvo объединили усилия для создания беспилотных грузовиков нового поколения
+.
+iXBT.com
+. Дата обращения: 4 марта 2025
+.
+↑
+Waabi Raises $200 Million to Deploy Driverless Trucks by 2025
+.
+Bloomberg.com
+. Дата обращения: 4 марта 2025
+.
+Компании-разработчики ИИ
+Лидеры отрасли
+OpenAI
+Databricks
+Anthropic
+Anduril Industries
+xAI
+Догоняющие стартапы
+Mistral AI
+ElevenLabs
+Waabi
+Pika
+Sana
+Perplexity AI
+Replicate
+Runway
+Платформы и инструменты
+AssemblyAI
+Cohere
+Scale AI
+Hugging Face
+Glean
+LangChain
+Pinecone
+Writer
+Генерация контента
+Character.AI
+Leonardo.AI
+Midjourney
+Photoroom
+Synthesia
+Ideogram
+Медицинские технологии
+Insitro
+Owkin
+Abridge
+Оборонные технологии
+Vannevar Labs
+Исследование и разработка
+Archetype AI
+Mistral AI
+DeepL
+Codeium
+Cerebras Systems
+Tractian
+Kumo AI
+Baseten
+Cleanlab
+Anyscale
+Hebbia
+Figure AI
+Rosebud AI
+Tome
+Искусственный интеллект
+Генеративный ИИ
+Концепции
+Автокодировщик
+Глубокое обучение
+Генеративно-состязательная сеть
+Generative pre-trained transformer
+Большая языковая модель
+Нейронная сеть
+Техника подсказок
+Стохастический попугай
+RAG
+RLHF
+Самоуправляемое обучение
+[укр.]
+Трансформер
+Вариационный автокодировщик
+[укр.]
+Зрительный трансформер
+[укр.]
+Векторное представление слов
+Модели
+Текст
+Alice AI
+BLOOM
+Claude
+Character.ai
+DBRX
+DeepSeek
+Ernie Bot
+Gemini
+GigaChat
+GPT
+1
+[англ.]
+2
+[англ.]
+3
+J
+ChatGPT
+4
+4o
+[англ.]
+4.5
+5
+OpenAI o1
+OpenAI o3
+Grok
+Granite
+Qwen
+LaMDA
+LLaMA
+Microsoft 365 Copilot
+Mistral Large
+PanGu-Σ
+[англ.]
+Perplexity AI
+Программный
+код
+Cursor AI
+GigaCode
+GitHub Copilot
+Granite.Code
+OpenAI Codex
+Replit
+Изображение
+Alice AI
+Aurora
+DALL-E
+Firefly
+Flux
+Ideogram
+Kandinsky
+Midjourney
+Stable Diffusion
+Шедеврум
+GigaChat
+(бот)
+Видео
+Alice AI
+Dream Machine
+[англ.]
+Runway Gen-4.5
+Hailuo AI
+Kling
+[англ.]
+Sora
+Veo
+Шедеврум
+GigaChat
+(бот)
+Речь голоса
+15.ai
+ElevenLabs
+Музыка
+Udio
+Suno
+GigaChat
+(бот)
+Компании
+Alibaba
+Anthropic
+Baichuan
+ElevenLabs
+Google DeepMind
+Hugging Face
+io
+Kuaishou
+[англ.]
+Meta AI
+MiniMax
+Mistral AI
+Moonshot AI
+[англ.]
+OpenAI
+Runway AI
+Sber AI
+Stability AI
+The Stargate Project
+Synthesia
+Thinking Machines Lab
+xAI
+Zhipu AI
+Яндекс
+Категория
+·
+Искусственный интеллект
+Источник —
+https://ru.wikipedia.org/w/index.php?title=Waabi&oldid=147402609
+Категории
+:
+Компании по алфавиту
+Компании, основанные в 2021 году
+Генеративный искусственный интеллект
+Транспортные технологии
+Скрытая категория:
+Википедия:Предприятия без указанных географических координат
+Навигация
+Поиск

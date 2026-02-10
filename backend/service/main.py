@@ -12,7 +12,10 @@ from .os_bridge import router as os_router
 from .crawler import router as crawler_router
 from .agent import router as agent_router
 from .ai_chat import router as ai_router
+from .ai_engine import pre_init_engine
 from .swarm_sync import swarm_router
+from .distributed_crawler import router as dist_crawler_router
+from .delta_sync import router as delta_sync_router
 from .common import Settings, get_settings, InferenceRequest, perform_upstream_call
 
 
@@ -44,6 +47,8 @@ app.include_router(crawler_router)
 app.include_router(agent_router)
 app.include_router(ai_router)
 app.include_router(swarm_router)
+app.include_router(dist_crawler_router)
+app.include_router(delta_sync_router)
 
 
 
@@ -74,3 +79,10 @@ async def infer(
 
 
 app.add_event_handler("shutdown", get_settings.cache_clear)
+
+
+@app.on_event("startup")
+async def startup_event() -> None:
+    """Предзагрузка AI-движка при старте сервера."""
+    import threading
+    threading.Thread(target=pre_init_engine, daemon=True, name="engine-init").start()

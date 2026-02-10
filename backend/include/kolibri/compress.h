@@ -14,7 +14,7 @@ extern "C" {
 #endif
 
 /* Version */
-#define KOLIBRI_ARCHIVER_VERSION_MAJOR 40
+#define KOLIBRI_ARCHIVER_VERSION_MAJOR 50
 #define KOLIBRI_ARCHIVER_VERSION_MINOR 0
 #define KOLIBRI_ARCHIVER_VERSION_PATCH 0
 
@@ -27,7 +27,8 @@ extern "C" {
 #define KOLIBRI_COMPRESS_LZMA    0x20  /* v40: LZMA compression */
 #define KOLIBRI_COMPRESS_ZSTD    0x40  /* v40: Zstandard compression */
 #define KOLIBRI_COMPRESS_ADAPTIVE 0x80 /* v40: Adaptive dictionary */
-#define KOLIBRI_COMPRESS_ALL     0xFF
+#define KOLIBRI_COMPRESS_TOKEN   0x100 /* v52: Token-level text stream */
+#define KOLIBRI_COMPRESS_ALL     0x1FF
 
 /* File type detection */
 typedef enum {

@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define KOLIBRI_FORMULA_CAPACITY (sizeof(((KolibriFormulaPool *)0)->formulas) / sizeof(KolibriFormula))
+#define KOLIBRI_FORMULA_CAPACITY (pool->capacity)
 #define KOLIBRI_DIGIT_MAX 11U
 #define KOLIBRI_ASSOC_TEXT_LIMIT (sizeof(((KolibriAssociation *)0)->question))
 
@@ -278,79 +278,91 @@ static int formula_predict_numeric(const KolibriFormula *formula, int input, int
         return -1;
     }
     
-    int current_val = input;
-    /* Эволюционная Глубина: 100 слоев преобразований (Ultra-Deep Kolibri Network) */
-    for (int layer = 0; layer < 100; layer++) {
-        size_t offset = (size_t)layer * 8;
-        if (offset + 7 >= sizeof(formula->gene.digits)) break;
+    long long x = (long long)input;
+    /* ResNet-архитектура: 50 residual-блоков × 10 слоёв = 500 слоёв */
+    /* Skip-connection в каждом блоке предотвращает затухание сигнала */
+    #define BACKEND_BLOCK_SIZE 10
+    size_t total_layers = formula->gene.length / 8;
+    if (total_layers > 500) total_layers = 500;
+    size_t num_blocks = total_layers / BACKEND_BLOCK_SIZE;
+    if (num_blocks == 0) num_blocks = 1;
 
-        int operation = 0;
-        int slope = 0;
-        int bias = 0;
-        int auxiliary = 0;
-        
-        if (decode_operation(&formula->gene, offset, &operation) != 0 ||
-            decode_signed(&formula->gene, offset + 1, &slope) != 0 ||
-            decode_bias(&formula->gene, offset + 4, &bias) != 0 ||
-            decode_signed(&formula->gene, offset + 7, &auxiliary) != 0) {
-            continue;
+    for (size_t block = 0; block < num_blocks; ++block) {
+        /* --- Skip-connection: запоминаем вход блока --- */
+        long long residual = x;
+
+        for (size_t sub = 0; sub < BACKEND_BLOCK_SIZE; ++sub) {
+            size_t layer = block * BACKEND_BLOCK_SIZE + sub;
+            if (layer >= total_layers) break;
+
+            size_t offset = layer * 8;
+            if (offset + 7 >= sizeof(formula->gene.digits)) break;
+
+            int operation = 0;
+            int slope = 0;
+            int bias = 0;
+            int auxiliary = 0;
+            
+            if (decode_operation(&formula->gene, offset, &operation) != 0 ||
+                decode_signed(&formula->gene, offset + 1, &slope) != 0 ||
+                decode_bias(&formula->gene, offset + 4, &bias) != 0 ||
+                decode_signed(&formula->gene, offset + 7, &auxiliary) != 0) {
+                continue;
+            }
+
+            long long result = 0;
+            switch (operation) {
+            case 0: result = (long long)slope * x / 100 + bias; break;
+            case 1: result = (long long)slope * x / 100 - bias; break;
+            case 2: {
+                long long divisor = auxiliary == 0 ? 1 : (long long)auxiliary;
+                if (divisor < 0) divisor = -divisor;
+                if (divisor == 0) divisor = 1;
+                result = ((long long)slope * x / 100) % divisor + bias;
+                break;
+            }
+            case 3: { /* Мягкая квадратичная: x*|x|/(1+|x|) */
+                long long abs_x = x < 0 ? -x : x;
+                result = (long long)slope * x / (100 + abs_x) + bias;
+                break;
+            }
+            case 4: result = (x ^ auxiliary) + bias; break;
+            case 5: result = (x & slope) + bias; break;
+            case 6: result = (long long)(sin((double)x / 256.0) * (double)slope) + bias; break;
+            case 7: {
+                double denom = 1.0 + fabs((double)x);
+                result = (long long)((double)slope * (double)x / denom) + bias;
+                break;
+            }
+            case 8: result = (x >> ((unsigned)slope & 3)) + bias; break;
+            case 9: result = ((x + (long long)slope) * (long long)bias) / 100; break;
+            case 10: /* Tanh */
+                result = (long long)(tanh((double)x / 100.0) * (double)slope) + bias;
+                break;
+            case 11: { /* Sigmoid */
+                double arg = -(double)x / 100.0;
+                if (arg > 50.0) arg = 50.0;
+                result = (long long)((2.0 / (1.0 + exp(arg)) - 1.0) * (double)slope) + bias;
+                break;
+            }
+            default: result = (x + bias) ^ slope; break;
+            }
+
+            /* Клиппинг внутри слоя: ±10000 */
+            if (result > 10000LL) result = 10000LL;
+            if (result < -10000LL) result = -10000LL;
+            x = result;
         }
 
-        long long result = 0;
-        switch (operation) {
-        case 0: result = (long long)slope * (long long)current_val + bias; break;
-        case 1: result = (long long)slope * (long long)current_val - bias; break;
-        case 2: {
-            long long divisor = auxiliary == 0 ? 1 : (long long)auxiliary;
-            if (divisor < 0) divisor = -divisor;
-            if (divisor == 0) divisor = 1;
-            result = ((long long)slope * (long long)current_val) % divisor;
-            result += bias;
-            break;
-        }
-        case 3: {
-            /* Защита от переполнения при возведении в квадрат */
-            double d_val = (double)current_val;
-            double d_res = (double)slope * d_val * d_val + (double)bias;
-            if (d_res > 1000000000.0) d_res = 1000000000.0;
-            if (d_res < -1000000000.0) d_res = -1000000000.0;
-            result = (long long)d_res;
-            break;
-        }
-        case 4: result = (current_val ^ auxiliary) + bias; break;
-        case 5: result = (current_val & slope) + bias; break;
-        case 6: result = (long long)(sin((double)current_val / 256.0) * (double)slope * 10.0) + bias; break;
-        case 7: {
-            double denom = 1.0 + fabs((double)current_val);
-            result = (long long)((double)slope * 100.0 * (double)current_val / denom) + bias; 
-            break;
-        }
-        case 8: result = (current_val | slope) - auxiliary; break;
-        case 9: {
-            double arg = -(double)current_val * (double)current_val / 1000000.0;
-            if (arg < -50.0) arg = -50.0; /* Защита exp от underflow */
-            result = (long long)((double)slope * (double)current_val * exp(arg)) + bias; 
-            break;
-        }
-        case 10: /* Tanh Activation */
-            result = (long long)(tanh((double)current_val / 100.0) * (double)slope * 100.0) + bias; 
-            break;
-        case 11: { /* Sigmoid-like Logistic */
-            double arg = -(double)current_val / 100.0;
-            if (arg > 50.0) arg = 50.0; /* Защита exp от overflow */
-            result = (long long)((1.0 / (1.0 + exp(arg))) * (double)slope * 100.0) + bias; 
-            break;
-        }
-        default: result = (current_val + bias) ^ slope; break;
-        }
+        /* --- Residual connection: output = block(x) + skip --- */
+        x = x + residual;
 
-        /* Ограничение весов для стабильности 100 слоев */
-        if (result > 1000000000LL) result = 1000000000LL;
-        if (result < -1000000000LL) result = -1000000000LL;
-        current_val = (int)result;
+        /* --- Layer Normalization: ±10000 --- */
+        if (x > 10000LL) x = 10000LL;
+        if (x < -10000LL) x = -10000LL;
     }
 
-    *output = current_val;
+    *output = (int)x;
     return 0;
 }
 
@@ -503,7 +515,15 @@ void kf_pool_init(KolibriFormulaPool *pool, uint64_t seed) {
         return;
     }
     memset(pool, 0, sizeof(*pool));
-    pool->count = KOLIBRI_FORMULA_CAPACITY;
+    
+    /* Динамическая аллокация формул (начинаем с 16, растём безлимитно) */
+    pool->capacity = KOLIBRI_FORMULA_INITIAL_CAPACITY;
+    pool->formulas = (KolibriFormula *)calloc(pool->capacity, sizeof(KolibriFormula));
+    if (!pool->formulas) {
+        pool->capacity = 0;
+        return;
+    }
+    pool->count = pool->capacity;
     k_rng_seed(&pool->rng, seed);
     
     /* Инициализация эволюционного реактора */
@@ -522,6 +542,8 @@ void kf_pool_init(KolibriFormulaPool *pool, uint64_t seed) {
         pool->formulas[i].fitness = 0.0;
         pool->formulas[i].feedback = 0.0;
         pool->formulas[i].association_count = 0;
+        pool->formulas[i].domain = KOLIBRI_DOMAIN_GENERAL;
+        pool->formulas[i].domain_name[0] = '\0';
     }
 }
 
@@ -530,6 +552,7 @@ void kf_pool_free(KolibriFormulaPool *pool) {
     if (pool->inputs) free(pool->inputs);
     if (pool->targets) free(pool->targets);
     if (pool->associations) free(pool->associations);
+    if (pool->formulas) free(pool->formulas);
     memset(pool, 0, sizeof(*pool));
 }
 
@@ -1205,4 +1228,112 @@ int kf_metrics_to_digits(const KolibriEvolutionMetrics *metrics,
     }
     
     return written;
+}
+
+/* ============================================================================
+ * Динамическое управление формулами (безлимитный рост)
+ * ============================================================================ */
+
+int kf_pool_grow(KolibriFormulaPool *pool, size_t new_capacity) {
+    if (!pool || new_capacity <= pool->capacity) {
+        return -1;
+    }
+    
+    KolibriFormula *new_formulas = (KolibriFormula *)realloc(
+        pool->formulas, new_capacity * sizeof(KolibriFormula));
+    if (!new_formulas) {
+        return -1;
+    }
+    
+    /* Инициализируем новые слоты */
+    memset(&new_formulas[pool->capacity], 0,
+           (new_capacity - pool->capacity) * sizeof(KolibriFormula));
+    
+    pool->formulas = new_formulas;
+    
+    /* Рандомизируем новые геномы */
+    for (size_t i = pool->capacity; i < new_capacity; ++i) {
+        gene_randomize(pool, &pool->formulas[i].gene);
+        pool->formulas[i].fitness = 0.0;
+        pool->formulas[i].feedback = 0.0;
+        pool->formulas[i].association_count = 0;
+        pool->formulas[i].domain = KOLIBRI_DOMAIN_GENERAL;
+        pool->formulas[i].domain_name[0] = '\0';
+    }
+    
+    pool->capacity = new_capacity;
+    return 0;
+}
+
+int kf_pool_add_domain_formula(KolibriFormulaPool *pool,
+                               KolibriDomainType domain,
+                               const char *domain_name) {
+    if (!pool) {
+        return -1;
+    }
+    
+    /* Автоматический рост при нехватке места */
+    if (pool->count >= pool->capacity) {
+        size_t new_cap = pool->capacity * 2;
+        if (new_cap == 0) new_cap = KOLIBRI_FORMULA_INITIAL_CAPACITY;
+        if (kf_pool_grow(pool, new_cap) != 0) {
+            return -1;
+        }
+    }
+    
+    /* Инициализируем новую доменную формулу */
+    KolibriFormula *f = &pool->formulas[pool->count];
+    gene_randomize(pool, &f->gene);
+    f->fitness = 0.0;
+    f->feedback = 0.0;
+    f->association_count = 0;
+    f->domain = domain;
+    if (domain_name) {
+        strncpy(f->domain_name, domain_name, KOLIBRI_DOMAIN_NAME_MAX - 1);
+        f->domain_name[KOLIBRI_DOMAIN_NAME_MAX - 1] = '\0';
+    } else {
+        f->domain_name[0] = '\0';
+    }
+    
+    pool->count++;
+    return 0;
+}
+
+const KolibriFormula *kf_pool_best_for_domain(const KolibriFormulaPool *pool,
+                                              KolibriDomainType domain) {
+    if (!pool || pool->count == 0) {
+        return NULL;
+    }
+    
+    const KolibriFormula *best = NULL;
+    double best_fitness = -1.0;
+    
+    for (size_t i = 0; i < pool->count; ++i) {
+        if (pool->formulas[i].domain == domain &&
+            pool->formulas[i].fitness > best_fitness) {
+            best = &pool->formulas[i];
+            best_fitness = pool->formulas[i].fitness;
+        }
+    }
+    
+    /* Fallback: если нет формул для домена, берём лучшую общую */
+    if (!best) {
+        return kf_pool_best(pool);
+    }
+    
+    return best;
+}
+
+size_t kf_pool_domain_count(const KolibriFormulaPool *pool,
+                            KolibriDomainType domain) {
+    if (!pool) {
+        return 0;
+    }
+    size_t count = 0;
+    for (size_t i = 0; i < pool->count; ++i) {
+        if (pool->formulas[i].domain == domain) {
+            count++;
+        }
+    }
+    return count;
 }

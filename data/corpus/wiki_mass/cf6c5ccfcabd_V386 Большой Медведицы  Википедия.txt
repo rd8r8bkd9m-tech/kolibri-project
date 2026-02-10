@@ -1,0 +1,876 @@
+# V386 Большой Медведицы — Википедия
+# URL: https://ru.wikipedia.org/wiki/Special:Random
+
+V386 Большой Медведицы — Википедия
+11
+ч
+04
+м
+29,18
+с
++38° 29′ 20,15″
+V386 Большой Медведицы
+Материал из Википедии — свободной энциклопедии
+Перейти к навигации
+Перейти к поиску
+V386 Большой Медведицы
+Звезда
+Наблюдательные данные
+(
+Эпоха
+J2000.0
+)
+Прямое восхождение
+11
+ч
+04
+м
+29,18
+с
+[
+1
+]
+Склонение
++38° 29′ 20,15″
+[
+1
+]
+Видимая звёздная величина
+(
+V
+)
+15,61
+[
+2
+]
+Созвездие
+Большая Медведица
+Астрометрия
+Лучевая скорость
+(
+R
+v
+)
+−36 км/с
+[
+3
+]
+Собственное движение
+• прямое восхождение
+4,119 ± 0,103 mas/год
+[
+1
+]
+• склонение
+−11,402 ± 0,151 mas/год
+[
+1
+]
+Параллакс
+(π)
+0,6742 ± 0,075 mas
+[
+1
+]
+Спектральные характеристики
+Показатель цвета
+•
+B−V
+0,79
+Переменность
+затменная типа W Большой Медведицы
+[
+4
+]
+[
+2
+]
+Коды в каталогах
+USNO-B1.0 1284-00212125
+,
+2MASS J11042918+3829202
+,
+LINEAR 24056740
+,
+SDSS J110429.18+382920.1
+,
+CRTS J110429.1+382920
+,
+Gaia DR2 764843721626076288
+и
+V386 UMa
+Информация в базах данных
+SIMBAD
+LINEAR 24056740
+Информация в Викиданных
+?
+V386 Большой Медведицы
+(
+лат.
+V386 Ursae Majoris
+) — двойная
+затменная переменная звезда типа W Большой Медведицы
+(EW) в созвездии
+Большой Медведицы
+на расстоянии (вычисленном из значения
+параллакса
+) приблизительно 4838
+световых лет
+(около 1483
+парсеков
+) от
+Солнца
+.
+Видимая звёздная величина
+звезды — от +15,84
+m
+до +15,49
+m
+[
+5
+]
+.
+Орбитальный период
+— около 0,2568 суток (6,1622 часов).
+Примечания
+[
+править
+|
+править код
+]
+↑
+1
+2
+3
+4
+5
+Collaboration G.
+Gaia Data Release 2
+(англ.)
+/
+Data Processing and Analysis Consortium
+,
+European Space Agency
+—
+VizieR
+, 2018. — Vol. 1345. — P. I/345.
+↑
+1
+2
+Drake A. J., Graham M. J.,
+Djorgovski S. G.
+,
+Catelan M.
+, Mahabal A. A., Torrealba G., García-Álvarez D., Donalek C., Prieto J. L., Williams R. et al.
+The Catalina surveys periodic variable star catalog
+(англ.)
+//
+The Astrophysical Journal
+:
+Supplement Series
+—
+AAS
+, 2014. — Vol. 213, Iss. 1. — P. 9. — ISSN
+0067-0049
+;
+1538-4365
+—
+doi:10.1088/0067-0049/213/1/9
+—
+arXiv:1405.4290
+↑
+Ahn C. P.
+,
+Alexandroff R.
+,
+Anderson S. F.
+,
+Prieto C. A.
+, Bailey S.,
+Anderton T.
+, Barnes R.,
+Andrews B. H.
+,
+Aubourg É.
+,
+Balbinot E.
+et al.
+The ninth data release of the Sloan Digital Sky Survey: first spectroscopic data from the SDSS-III baryon oscillation spectroscopic survey
+(англ.)
+//
+The Astrophysical Journal
+:
+Supplement Series
+—
+AAS
+, 2012. — Vol. 203, Iss. 2. — P. 21. — ISSN
+0067-0049
+;
+1538-4365
+—
+doi:10.1088/0067-0049/203/2/21
+—
+arXiv:1207.7137
+↑
+N. N. Samus’, Kazarovets E. V., Durlevich O. V., Kireeva N. N., Pastukhova E. N.
+General catalogue of variable stars: Version GCVS 5.1
+(англ.)
+//
+Astronomy Reports
+/
+D. Bisikalo
+—
+MAIK Nauka/Interperiodica
+,
+Springer Science+Business Media
+, 2017. — Vol. 61, Iss. 1. — P. 80–88. — ISSN
+1063-7729
+;
+1562-6881
+;
+0004-6299
+—
+doi:10.1134/S1063772917010085
+↑
+V386 UMa
+, database entry, Combined General Catalog of Variable Stars (GCVS5.1, 2017 Ed.), N. N. Samus, O. V. Durlevich, et al.,
+CDS
+ID
+II/250
+Архивная копия
+от 1 июля 2015 на
+Wayback Machine
+Accessed online 2020-08-16.
+Звёзды созвездия
+Большой Медведицы
+Байер
+α
+β
+γ
+δ
+ε
+ζ
+η
+θ
+ι
+κ
+λ
+μ
+ν
+ξ
+ο
+π¹
+π²
+ρ
+σ¹
+σ²
+τ
+υ
+φ
+χ
+ψ
+ω
+A
+b
+c
+d
+e
+f
+g
+h
+Флемстид
+1
+2
+3
+4
+5
+6
+8
+9
+11
+12
+13
+14
+15
+16
+17
+18
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+84
+85
+86
+55 Cam
+56 Cam
+57 Cam
+1 CVn
+14 LMi
+15 LMi
+25 LMi
+47 LMi
+37 Lyn
+39 Lyn
+41 Lyn
+44 Lyn
+Переменные
+R
+S
+T
+U
+V
+W
+X
+Y
+Z
+RR
+RS
+RT
+RU
+RV
+RW
+RX
+RY
+RZ
+ST
+SU
+SV
+SW
+SX
+SY
+SZ
+TT
+TU
+TV
+TW
+TX
+TY
+TZ
+UU
+UV
+UW
+UX
+UY
+UZ
+VV
+VW
+VX
+VY
+VZ
+WW
+WX
+WY
+WZ
+XX
+XY
+XZ
+YY
+YZ
+ZZ
+AA
+AB
+AC
+AD
+AE
+AF
+AG
+AH
+AI
+AK
+AL
+AM
+AN
+AO
+AP
+AQ
+AR
+AS
+AT
+AU
+AV
+AW
+AX
+AY
+AZ
+BB
+BC
+BD
+BF
+BG
+BH
+BI
+BK
+BL
+BM
+BN
+BO
+BP
+BQ
+BR
+BS
+BT
+BU
+BV
+BW
+BX
+BY
+BZ
+CC
+CD
+CF
+CG
+CH
+CK
+CL
+CM
+CN
+CO
+CP
+CQ
+CR
+CS
+CT
+CU
+CV
+CW
+CX
+CY
+CZ
+DD
+DE
+DF
+DG
+DH
+DI
+DK
+DL
+DM
+DN
+DO
+DP
+DQ
+DS
+DT
+DU
+DV
+DW
+DX
+DY
+DZ
+EE
+EF
+EG
+EH
+EI
+EK
+EL
+EM
+EN
+EO
+EP
+EQ
+ER
+ES
+ET
+EU
+EV
+EW
+EX
+EY
+EZ
+FF
+FG
+FI
+FK
+FL
+FM
+FN
+FO
+FP
+FQ
+FR
+FS
+FT
+FU
+FV
+FW
+FX
+FY
+FZ
+GG
+GH
+GI
+GK
+GL
+GM
+GN
+GO
+GP
+GQ
+GR
+GS
+GT
+GU
+GV
+GW
+GX
+GY
+GZ
+HH
+HI
+HK
+HL
+HM
+HN
+HO
+HP
+HQ
+HR
+HS
+HT
+HU
+HV
+HW
+HX
+HY
+HZ
+II
+IK
+IL
+IM
+IN
+IO
+IP
+IQ
+IR
+IS
+IT
+IU
+IV
+IW
+IX
+IY
+IZ
+KK
+KL
+KM
+KN
+KO
+KP
+KQ
+KR
+KS
+KT
+KU
+KV
+KW
+KX
+KY
+KZ
+LL
+LM
+LN
+LO
+LP
+LQ
+LR
+LS
+LT
+LU
+LV
+LW
+LX
+LY
+LZ
+MM
+MN
+MO
+MP
+MQ
+MR
+MS
+MT
+MU
+MV
+MW
+MX
+MY
+MZ
+NN
+NO
+NP
+NQ
+NR
+NS
+NT
+NU
+NV
+NW
+NX
+NY
+NZ
+OO
+OP
+OQ
+OS
+OT
+OU
+OV
+OW
+OZ
+PP
+PQ
+PR
+PS
+PT
+PU
+PV
+PW
+PX
+PY
+PZ
+QQ
+QR
+QS
+QT
+QU
+QV
+QW
+QX
+QY
+QZ
+V335
+V336
+V337
+V338
+V339
+V340
+V341
+V342
+V343
+V344
+V345
+V346
+V347
+V348
+V349
+V350
+V351
+V352
+V353
+V354
+V355
+V356
+V357
+V358
+V359
+V360
+V363
+V364
+V365
+V366
+V367
+V368
+V369
+V370
+V371
+V376
+V377
+V385
+V386
+V388
+V391
+V392
+V393
+V395
+V398
+V400
+V401
+V402
+V410
+V411
+V414
+V419
+V420
+V421
+V422
+V423
+V424
+V428
+V431
+V433
+V438
+V440
+V441
+V442
+V443
+V444
+V446
+V449
+V452
+V454
+V455
+V456
+V457
+V458
+V466
+V467
+V472
+V476
+V478
+V480
+V484
+V489
+V492
+V494
+V497
+Планетные
+системы
+41 Рыси
+44 Большой Медведицы
+47 Большой Медведицы
+BD+60 1417
+HAT-P-13
+HAT-P-21
+HAT-P-22
+HAT-P-66
+HD 68988
+HD 77946
+HD 89744
+HD 93148
+HD 95072
+HD 95127
+HD 96127
+HD 96735
+HD 96992
+HD 99283
+HD 99706
+HD 102956
+HD 118203
+HD 233604
+HD 233832
+HIP 57050
+KELT-18
+KPS-1
+TOI-1194
+TOI-1199
+TOI-1235
+TOI-1260
+TOI-1268
+TOI-1273
+TOI-1279
+TOI-1824
+TOI-2068
+TOI-3785
+TOI-3807
+TOI-3894
+Глизе 338
+Глизе 373
+Глизе 378
+Глизе 411
+Глизе 414
+Глизе 439
+Глизе 458
+Глизе 1151
+Глизе 3512
+Глизе 3656
+Домбай
+Катар-8
+Катар-9
+Мерак
+Омикрон Большой Медведицы
+Пи² Большой Медведицы
+Струве 1341
+Внегалактические
+M82 X-2
+Другие
+BE Большой Медведицы
+HD 74389
+HD 91312
+HD 92320
+HD 98618
+HD 111456
+HIP 55555
+HR 5256
+J1124+4535
+US 708
+Грумбридж 1618
+Звезда Людвига
+Список звёзд созвездия Большой Медведицы
+Источник —
+https://ru.wikipedia.org/w/index.php?title=V386_Большой_Медведицы&oldid=131082013
+Категории
+:
+Большая Медведица (созвездие)
+Переменные типа W Большой Медведицы
+Объекты 2MASS
+Слоановский цифровой небесный обзор
+Звёзды по алфавиту
+Звёзды созвездия Большой Медведицы
+Скрытые категории:
+Википедия:Статьи с источниками из Викиданных
+Википедия:Статьи без изображений (тип: звезда)
+Википедия:Карточки без параметров
+Навигация
+Поиск

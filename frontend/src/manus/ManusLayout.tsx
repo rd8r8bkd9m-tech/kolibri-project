@@ -1,8 +1,8 @@
 /**
  * ManusLayout.tsx
  * 
- * Единый layout для всего приложения в стиле Manus.
- * Все вкладки используют этот layout.
+ * Layout в стиле Manus.im — чистый, светлый, минимальный.
+ * Левый сайдбар + основной контент.
  */
 
 import { ReactNode } from 'react';
@@ -27,12 +27,12 @@ interface Tab {
 }
 
 const TABS: Tab[] = [
-  { id: 'chat', label: 'Чат', icon: <MessageSquare size={20} /> },
-  { id: 'crawler', label: 'AI Агент', icon: <Globe size={20} /> },
-  { id: 'tasks', label: 'Задачи', icon: <ListTodo size={20} /> },
-  { id: 'knowledge', label: 'Знания', icon: <Database size={20} /> },
-  { id: 'terminal', label: 'Терминал', icon: <TerminalIcon size={20} /> },
-  { id: 'settings', label: 'Настройки', icon: <Settings size={20} /> },
+  { id: 'chat', label: 'Чат', icon: <MessageSquare size={18} /> },
+  { id: 'crawler', label: 'AI Агент', icon: <Globe size={18} /> },
+  { id: 'tasks', label: 'Задачи', icon: <ListTodo size={18} /> },
+  { id: 'knowledge', label: 'Знания', icon: <Database size={18} /> },
+  { id: 'terminal', label: 'Терминал', icon: <TerminalIcon size={18} /> },
+  { id: 'settings', label: 'Настройки', icon: <Settings size={18} /> },
 ];
 
 interface ManusLayoutProps {
@@ -52,14 +52,13 @@ export const ManusLayout = ({
 }: ManusLayoutProps) => {
   return (
     <div className="manus-layout">
-      {/* Фоновый градиент */}
-      <div className="manus-bg-gradient" />
-      
       {/* Боковая навигация */}
       <nav className={`manus-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
         <div className="manus-sidebar-header">
           <div className="manus-logo">
-            <Zap className="manus-logo-icon" />
+            <div className="manus-logo-icon">
+              <Zap size={16} />
+            </div>
             {!sidebarCollapsed && <span className="manus-logo-text">Kolibri</span>}
           </div>
         </div>
@@ -74,13 +73,12 @@ export const ManusLayout = ({
             >
               <span className="manus-nav-icon">{tab.icon}</span>
               {!sidebarCollapsed && <span className="manus-nav-label">{tab.label}</span>}
-              {activeTab === tab.id && <div className="manus-nav-indicator" />}
             </button>
           ))}
         </div>
 
         <button className="manus-sidebar-toggle" onClick={onToggleSidebar}>
-          {sidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
       </nav>
 
@@ -94,95 +92,92 @@ export const ManusLayout = ({
           display: flex;
           height: 100vh;
           width: 100vw;
-          background: var(--bg-primary, #09090b);
-          color: var(--text-primary, #fafafa);
+          background: var(--bg-primary);
+          color: var(--text-primary);
           font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
           overflow: hidden;
-        }
-
-        .manus-bg-gradient {
-          position: fixed;
-          inset: 0;
-          background: var(--gradient-bg);
-          pointer-events: none;
-          z-index: 0;
         }
 
         .manus-sidebar {
           display: flex;
           flex-direction: column;
-          width: 240px;
-          background: var(--bg-secondary, rgba(24, 24, 27, 0.6));
-          backdrop-filter: blur(20px);
-          border-right: 1px solid var(--border-primary, rgba(255, 255, 255, 0.06));
+          width: 220px;
+          background: var(--bg-secondary);
+          border-right: 1px solid var(--border-primary);
           z-index: 10;
           transition: width 0.2s ease;
           position: relative;
+          flex-shrink: 0;
         }
 
         .manus-sidebar.collapsed {
-          width: 64px;
+          width: 60px;
         }
 
         .manus-sidebar-header {
-          padding: 20px 16px;
-          border-bottom: 1px solid var(--border-primary, rgba(255, 255, 255, 0.06));
+          padding: 18px 16px;
+          border-bottom: 1px solid var(--border-primary);
         }
 
         .manus-logo {
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 10px;
         }
 
         .manus-logo-icon {
           width: 28px;
           height: 28px;
-          color: var(--accent-primary, #818cf8);
+          border-radius: 8px;
+          background: var(--accent-primary);
+          color: var(--bg-primary);
+          display: flex;
+          align-items: center;
+          justify-content: center;
           flex-shrink: 0;
         }
 
         .manus-logo-text {
-          font-size: 18px;
+          font-size: 16px;
           font-weight: 600;
-          background: var(--accent-gradient-text, linear-gradient(135deg, #818cf8, #c084fc));
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
+          color: var(--text-primary);
           white-space: nowrap;
         }
 
         .manus-nav-items {
           flex: 1;
-          padding: 12px 8px;
+          padding: 10px 8px;
           display: flex;
           flex-direction: column;
-          gap: 4px;
+          gap: 2px;
         }
 
         .manus-nav-item {
           display: flex;
           align-items: center;
-          gap: 12px;
-          padding: 12px;
-          border-radius: 10px;
+          gap: 10px;
+          padding: 10px 12px;
+          border-radius: 8px;
           background: transparent;
           border: none;
-          color: var(--text-secondary, #a1a1aa);
+          color: var(--text-secondary);
           cursor: pointer;
           transition: all 0.15s ease;
-          position: relative;
           text-align: left;
           width: 100%;
+          font-size: 13px;
+          font-weight: 400;
         }
 
         .manus-nav-item:hover {
-          background: var(--bg-hover, rgba(255, 255, 255, 0.05));
-          color: var(--text-primary, #fafafa);
+          background: var(--bg-hover);
+          color: var(--text-primary);
         }
 
         .manus-nav-item.active {
-          background: var(--accent-bg, rgba(99, 102, 241, 0.15));
-          color: var(--accent-primary, #818cf8);
+          background: var(--accent-bg);
+          color: var(--accent-primary);
+          font-weight: 500;
         }
 
         .manus-nav-icon {
@@ -190,23 +185,11 @@ export const ManusLayout = ({
           align-items: center;
           justify-content: center;
           flex-shrink: 0;
+          width: 20px;
         }
 
         .manus-nav-label {
-          font-size: 14px;
-          font-weight: 500;
           white-space: nowrap;
-        }
-
-        .manus-nav-indicator {
-          position: absolute;
-          left: 0;
-          top: 50%;
-          transform: translateY(-50%);
-          width: 3px;
-          height: 20px;
-          background: linear-gradient(180deg, var(--accent-primary, #818cf8), var(--accent-secondary, #c084fc));
-          border-radius: 0 3px 3px 0;
         }
 
         .manus-sidebar-toggle {
@@ -217,20 +200,21 @@ export const ManusLayout = ({
           width: 24px;
           height: 24px;
           border-radius: 50%;
-          background: var(--bg-tertiary, #27272a);
-          border: 1px solid var(--border-hover, rgba(255, 255, 255, 0.1));
-          color: var(--text-secondary, #a1a1aa);
+          background: var(--bg-secondary);
+          border: 1px solid var(--border-primary);
+          color: var(--text-muted);
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
           transition: all 0.15s ease;
           z-index: 20;
+          box-shadow: var(--shadow-card);
         }
 
         .manus-sidebar-toggle:hover {
-          background: var(--bg-hover, #3f3f46);
-          color: var(--text-primary, #fafafa);
+          background: var(--bg-hover);
+          color: var(--text-primary);
         }
 
         .manus-content {
@@ -240,6 +224,7 @@ export const ManusLayout = ({
           overflow: hidden;
           z-index: 1;
           position: relative;
+          min-width: 0;
         }
       `}</style>
     </div>

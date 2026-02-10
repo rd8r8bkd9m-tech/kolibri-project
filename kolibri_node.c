@@ -531,7 +531,7 @@ static void node_report_formula(const KolibriNode *node) {
         printf("[Формулы] не удалось построить описание\n");
         return;
     }
-    uint8_t digits[1024];
+    uint8_t digits[4000];
     size_t len = kf_formula_digits(best, digits, sizeof(digits));
     printf("[Формулы] %s\n", description);
     printf("[Формулы] ген (%zu цифр): ", len);

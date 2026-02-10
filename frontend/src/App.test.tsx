@@ -3,104 +3,104 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MockInstance } from "vitest";
 import App from "./App";
-import { MODE_OPTIONS } from "./core/modes";
 
-type AskFunction = (prompt: string, mode?: string) => Promise<string>;
-
-type ResetFunction = () => Promise<void>;
-type SearchFunction = (
-  query: string,
-  options?: { topK?: number; signal?: AbortSignal }
-) => Promise<Array<{ id: string; title: string; content: string; score: number }>>;
-
-const { askMock, resetMock, searchMock } = vi.hoisted(() => ({
-  askMock: vi.fn<Parameters<AskFunction>, ReturnType<AskFunction>>(),
-  resetMock: vi.fn<Parameters<ResetFunction>, ReturnType<ResetFunction>>(),
-  searchMock: vi.fn<Parameters<SearchFunction>, ReturnType<SearchFunction>>(),
-}));
-
-vi.mock("./core/kolibri-bridge", () => ({
-  default: {
-    ready: Promise.resolve(),
-    ask: askMock,
-    reset: resetMock,
-  },
-}));
-
-vi.mock("./core/knowledge", () => ({
-  searchKnowledge: searchMock,
-}));
-
-describe("App contextual retrieval", () => {
+describe("Kolibri Manus UI", () => {
   let consoleErrorSpy: MockInstance<Parameters<typeof console.error>, ReturnType<typeof console.error>>;
+  let fetchSpy: MockInstance;
 
   beforeEach(() => {
-    askMock.mockReset();
-    resetMock.mockReset();
-    searchMock.mockReset();
-    resetMock.mockResolvedValue();
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // jsdom doesn't support scrollIntoView
+    Element.prototype.scrollIntoView = vi.fn();
+    fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ graph_patterns: 0, graph_edges: 0, formula_generation: 0, graph_documents: 0, graph_tokens: 0, graph_avg_fitness: 0, graph_avg_weight: 0, formula_fitness: 0, formula_genome_hex: "", c_model_patterns: 0, c_model_edges: 0, c_model_size_mb: 0, c_model_documents: 0, c_model_epoch: 0, c_model_avg_fitness: 0, c_model_avg_weight: 0, active_conversations: 0, model_available: false }), { status: 200, headers: { "Content-Type": "application/json" } })
+    );
   });
 
   afterEach(() => {
     consoleErrorSpy.mockRestore();
+    fetchSpy.mockRestore();
   });
 
-  it("prepends retrieved context to the prompt and surfaces it in the UI", async () => {
-    searchMock.mockResolvedValue([
-      { id: "1", title: "Документ", content: "Описание Kolibri", score: 0.92 },
-    ]);
-    askMock.mockResolvedValue("Ответ с контекстом");
-
-    await act(async () => {
-      render(<App />);
-    });
-
-    const textarea = screen.getByPlaceholderText("Сообщение для Колибри");
-    const sendButton = screen.getByRole("button", { name: "Отправить" });
-
-    await userEvent.type(textarea, "Что такое Kolibri?");
-    await waitFor(() => expect(sendButton).not.toBeDisabled());
-    await userEvent.click(sendButton);
-
-    await waitFor(() => expect(askMock).toHaveBeenCalled());
-
-    const [prompt, mode] = askMock.mock.calls[0] ?? [];
-    expect(prompt).toContain("Контекст:");
-    expect(prompt).toContain("Описание Kolibri");
-    expect(mode).toBe(MODE_OPTIONS[0]?.value ?? "neutral");
-
-    await waitFor(() => expect(screen.getByText("Ответ с контекстом")).toBeInTheDocument());
-
-    const toggle = screen.getByRole("button", { name: "Показать контекст (1)" });
-    await userEvent.click(toggle);
-    expect(screen.getAllByText("Документ").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Описание Kolibri").length).toBeGreaterThan(0);
+  it("renders sidebar with navigation tabs", async () => {
+    await act(async () => { render(<App />); });
+    expect(screen.getByText("Kolibri")).toBeInTheDocument();
+    expect(screen.getByText("Чат")).toBeInTheDocument();
+    expect(screen.getByText("AI Агент")).toBeInTheDocument();
+    expect(screen.getByText("Задачи")).toBeInTheDocument();
+    expect(screen.getByText("Знания")).toBeInTheDocument();
+    expect(screen.getByText("Терминал")).toBeInTheDocument();
+    expect(screen.getByText("Настройки")).toBeInTheDocument();
   });
 
-  it("falls back gracefully when contextual search fails", async () => {
-    searchMock.mockRejectedValue(new Error("модуль памяти недоступен"));
-    askMock.mockResolvedValue("Ответ без контекста");
+  it("renders chat welcome screen with suggestions", async () => {
+    await act(async () => { render(<App />); });
+    expect(screen.getByText("Числовое Мышление")).toBeInTheDocument();
+  });
 
-    await act(async () => {
-      render(<App />);
+  it("renders chat input with correct placeholder", async () => {
+    await act(async () => { render(<App />); });
+    const textarea = screen.getByPlaceholderText(/паттерн слово/);
+    expect(textarea).toBeInTheDocument();
+  });
+
+  it("allows typing a message", async () => {
+    await act(async () => { render(<App />); });
+    const textarea = screen.getByPlaceholderText(/паттерн слово/);
+    await userEvent.type(textarea, "Привет");
+    expect(textarea).toHaveValue("Привет");
+  });
+
+  it("sends a message and shows user bubble", async () => {
+    const statsData = { graph_patterns: 100, graph_edges: 50, formula_generation: 3, graph_documents: 5, graph_tokens: 1000, graph_avg_fitness: 0.5, graph_avg_weight: 0.3, formula_fitness: 0.8, formula_genome_hex: "abc123", c_model_patterns: 0, c_model_edges: 0, c_model_size_mb: 0, c_model_documents: 0, c_model_epoch: 0, c_model_avg_fitness: 0, c_model_avg_weight: 0, active_conversations: 0, model_available: true, sentence_store_size: 10 };
+    const chatResp = {
+      response: "Тестовый ответ",
+      confidence: 0.85,
+      conversation_id: "test-conv",
+      sources: [],
+      knowledge_hits: 0,
+      method: "greeting",
+      duration_ms: 42,
+      model_available: true,
+    };
+    fetchSpy.mockImplementation(async (url: string | URL | Request) => {
+      const urlStr = typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
+      if (urlStr.includes("/ai/chat")) {
+        return new Response(JSON.stringify(chatResp), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify(statsData), { status: 200, headers: { "Content-Type": "application/json" } });
     });
 
-    const textarea = screen.getByPlaceholderText("Сообщение для Колибри");
-    const sendButton = screen.getByRole("button", { name: "Отправить" });
+    await act(async () => { render(<App />); });
 
-    await userEvent.type(textarea, "Где хранится знание?");
-    await waitFor(() => expect(sendButton).not.toBeDisabled());
-    await userEvent.click(sendButton);
+    // Wait for stats to load with proper data
+    await act(async () => { await new Promise(r => setTimeout(r, 100)); });
 
-    await waitFor(() => expect(askMock).toHaveBeenCalled());
+    const textarea = screen.getByPlaceholderText(/паттерн слово/);
+    await userEvent.type(textarea, "Привет");
 
-    const [prompt] = askMock.mock.calls[0] ?? [];
-    expect(prompt).toBe("Где хранится знание?");
+    // Find the send button (it has a Send icon)
+    const buttons = screen.getAllByRole("button");
+    const sendBtn = buttons.find(b => b.classList.contains("chat-send-btn"));
+    expect(sendBtn).toBeDefined();
+    await userEvent.click(sendBtn!);
 
-    await waitFor(() => expect(screen.getByText("Ответ без контекста")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText("Kolibri AI").length).toBeGreaterThanOrEqual(2));
+    await waitFor(() => expect(screen.getByText("Тестовый ответ")).toBeInTheDocument());
+  });
 
-    expect(screen.getByText(/Контекст недоступен:/)).toHaveTextContent("модуль памяти недоступен");
-    expect(screen.queryByRole("button", { name: /Контекст/ })).not.toBeInTheDocument();
+  it("shows suggestion cards that fill input", async () => {
+    await act(async () => { render(<App />); });
+    const suggestion = screen.getByText("Покажи формулу");
+    await userEvent.click(suggestion);
+    const textarea = screen.getByPlaceholderText(/паттерн слово/) as HTMLTextAreaElement;
+    expect(textarea.value).toBe("Покажи формулу");
+  });
+
+  it("switches tabs via sidebar navigation", async () => {
+    await act(async () => { render(<App />); });
+    const tasksBtn = screen.getByText("Задачи");
+    await userEvent.click(tasksBtn);
+    await waitFor(() => expect(screen.getByText("Задачи", { selector: "h1" })).toBeInTheDocument());
   });
 });

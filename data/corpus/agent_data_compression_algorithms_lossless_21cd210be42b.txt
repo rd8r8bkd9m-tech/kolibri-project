@@ -1,0 +1,434 @@
+# Lossless compression - Wikipedia
+# Source: https://en.wikipedia.org/wiki/Lossless_compression
+
+From Wikipedia, the free encyclopedia
+Data compression approach allowing perfect reconstruction of the original data
+Lossless compression
+is a class of
+data compression
+that allows the original data to be perfectly reconstructed from the compressed data with no loss of
+information
+. Lossless compression is possible because most real-world data exhibits
+statistical redundancy
+By contrast,
+lossy compression
+permits reconstruction only of an approximation of the original
+, though usually with greatly improved
+compression rates
+(and therefore reduced media sizes).
+By operation of the
+pigeonhole principle
+, no lossless compression algorithm can shrink the size of all possible data: Some data will get longer by at least one symbol or bit.
+Compression algorithms are usually effective for human- and machine-readable documents and cannot shrink the size of
+data that contain no
+. Different algorithms exist that are designed either with a specific type of input data in mind or with specific assumptions about what kinds of redundancy the uncompressed data are likely to contain.
+Lossless data compression is used in many applications. For example, it is used in the
+file format and in the
+. It is also often used as a component within lossy data compression technologies (e.g. lossless
+mid/side joint stereo
+preprocessing by
+encoders and other lossy audio encoders).
+Lossless compression is used in cases where it is important that the original and the decompressed data be identical, or where deviations from the original data would be unfavourable. Common examples are executable programs, text documents, and source code. Some image file formats, like
+, use only lossless compression, while others like
+may use either lossless or lossy methods.
+Lossless audio
+formats are most often used for archiving or production purposes, while smaller
+lossy audio
+files are typically used on portable players and in other cases where storage space is limited or exact replication of the audio is unnecessary.
+Most lossless compression programs do two things in sequence: the first step generates a
+statistical model
+for the input data, and the second step uses this model to map input data to bit sequences in such a way that "probable" (i.e. frequently encountered) data will produce shorter output than "improbable" data.
+The primary encoding algorithms used to produce bit sequences are
+Huffman coding
+(also used by the
+deflate algorithm
+arithmetic coding
+. Arithmetic coding achieves compression rates close to the best possible for a particular statistical model, which is given by the
+information entropy
+, whereas Huffman compression is simpler and faster but produces poor results for models that deal with symbol probabilities close to 1.
+There are two primary ways of constructing statistical models: in a
+model, the data is analyzed and a model is constructed, then this model is stored with the compressed data. This approach is simple and modular, but has the disadvantage that the model itself can be expensive to store, and also that it forces using a single model for all data being compressed, and so performs poorly on files that contain heterogeneous data.
+models dynamically update the model as the data is compressed. Both the encoder and decoder begin with a trivial model, yielding poor compression of initial data, but as they learn more about the data, performance improves. Most popular types of compression used in practice now use adaptive coders.
+Lossless compression methods may be categorized according to the type of data they are designed to compress. While, in principle, any general-purpose lossless compression algorithm (
+general-purpose
+meaning that they can accept any bitstring) can be used on any type of data, many are unable to achieve significant compression on data that are not of the form for which they were designed to compress. Many of the lossless compression techniques used for text also work reasonably well for
+indexed-color
+These techniques take advantage of the specific characteristics of images such as the common phenomenon of contiguous 2-D areas of similar tones. Every pixel but the first is replaced by the difference to its left neighbor. This leads to small values having a much higher probability than large values. This is often also applied to sound files, and can compress files that contain mostly low frequencies and low volumes. For images, this step can be repeated by taking the difference to the top pixel, and then in videos, the difference to the pixel in the next frame can be taken.
+citation needed
+The adaptive encoding uses the probabilities from the previous sample in sound encoding, from the left and upper pixel in image encoding, and additionally from the previous frame in video encoding. In the wavelet transformation, the probabilities are also passed through the hierarchy.
+Historical legal issues
+Many of these methods are implemented in open-source and proprietary tools, particularly LZW and its variants. Some algorithms are patented in the
+United States
+and other countries and their legal usage requires licensing by the patent holder. Because of patents on certain kinds of
+compression, and in particular licensing practices by patent holder Unisys that many developers considered abusive, some open source proponents encouraged people to avoid using the
+Graphics Interchange Format
+(GIF) for compressing still image files in favor of
+Portable Network Graphics
+(PNG), which combines the
+deflate algorithm
+with a selection of domain-specific prediction filters. However, the patents on LZW expired on June 20, 2003.
+Many of the lossless compression techniques used for text also work reasonably well for
+indexed images
+, but there are other techniques that do not work for typical text that are useful for some images (particularly simple bitmaps), and other techniques that take advantage of the specific characteristics of images (such as the common phenomenon of contiguous 2-D areas of similar tones, and the fact that color images usually have a preponderance of a limited range of colors out of those representable in the color space).
+As mentioned previously, lossless sound compression is a somewhat specialized area. Lossless sound compression algorithms can take advantage of the repeating patterns shown by the wave-like nature of the
+essentially using
+autoregressive
+models to predict the "next" value and encoding the (possibly small) difference between the expected value and the actual data. If the difference between the predicted and the actual data (called the
+) tends to be small, then certain difference values (like 0, +1, −1 etc. on sample values) become very frequent, which can be exploited by encoding them in few output bits.
+It is sometimes beneficial to compress only the differences between two versions of a file (or, in
+video compression
+, of successive images within a sequence). This is called
+delta encoding
+(from the Greek letter
+, which in mathematics, denotes a difference), but the term is typically only used if both versions are meaningful outside compression and decompression. For example, while the process of compressing the error in the above-mentioned lossless audio compression scheme could be described as delta encoding from the approximated sound wave to the original sound wave, the approximated version of the sound wave is not meaningful in any other context.
+Category:Lossless compression algorithms
+List of lossless compression algorithms
+No lossless compression algorithm can efficiently compress all possible data
+§ Limitations
+for more on this)
+. For this reason, many different algorithms exist that are designed either with a specific type of input data in mind or with specific assumptions about what kinds of redundancy the uncompressed data are likely to contain.
+Some of the most common lossless compression algorithms are listed below.
+General purpose
+– Entropy encoding, used by
+Arithmetic coding
+– Entropy encoding
+Burrows–Wheeler transform
+reversible transform for making textual data more compressible, used by
+Huffman coding
+– Entropy encoding, pairs well with other algorithms
+Lempel-Ziv compression
+(LZ77 and LZ78) – Dictionary-based algorithm that forms the basis for many other algorithms
+– Combines LZ77 compression with Huffman coding, used by
+Lempel–Ziv–Markov chain algorithm
+(LZMA) – Very high compression ratio, used by
+Lempel–Ziv–Storer–Szymanski
+(LZSS) – Used by
+in tandem with Huffman coding
+Lempel–Ziv–Welch
+(LZW) – Used by
+images and Unix's
+Prediction by partial matching
+(PPM) – Optimized for compressing
+Run-length encoding
+(RLE) – Simple scheme that provides good compression of data containing many runs of the same value
+Adaptive Transform Acoustic Coding
+Apple Lossless
+(ALAC – Apple Lossless Audio Codec)
+Audio Lossless Coding
+(also known as MPEG-4 ALS)
+Direct Stream Transfer
+Dolby TrueHD
+DTS-HD Master Audio
+Free Lossless Audio Codec
+Meridian Lossless Packing
+Monkey's Audio
+(Monkey's Audio APE)
+(also known as HD-AAC)
+Original Sound Quality
+(RealAudio Lossless)
+TTA (True Audio Lossless)
+(WavPack lossless)
+Windows Media Audio 9 Lossless
+(WMA Lossless)
+Raster graphics
+Lossless only encoding
+– Portable Network Graphics
+– Graphics Interchange Format
+Lossy and Lossless encoding options
+– AV1 Image File Format
+– Free Lossless Image Format
+– High Efficiency Image File Format, using
+– (RLE compression of
+– compression of B&W images
+– (via Le Gall–Tabatabai 5/3
+reversible integer
+wavelet transform
+Discrete Cosine Transform
+– PiCture eXchange
+– Quite OK Image Format
+– Truevision TGA
+– Tag Image File Format
+3D Graphics
+– Lossless compression of 3D triangle meshes
+list of lossless video codecs
+Cryptography
+Cryptosystems
+often compress data (the "plaintext")
+encryption for added security. When properly implemented, compression greatly increases the
+unicity distance
+by removing patterns that might facilitate
+cryptanalysis
+However, many ordinary lossless compression algorithms produce headers, wrappers, tables, or other predictable output that might instead make cryptanalysis easier. Thus, cryptosystems must utilize compression algorithms whose output does not contain these predictable patterns.
+Genetics and genomics
+Genetics compression algorithms
+(not to be confused with
+genetic algorithms
+) are the latest generation of lossless algorithms that compress data (typically sequences of nucleotides) using both conventional compression algorithms and specific algorithms adapted to genetic data. In 2012, a team of scientists from Johns Hopkins University published the first genetic compression algorithm that does not rely on external genetic databases for compression. HAPZIPPER was tailored for
+data and achieves over 20-fold compression (95% reduction in file size), providing 2- to 4-fold better compression much faster than leading general-purpose compression utilities.
+Genomic sequence compression algorithms, also known as DNA sequence compressors, explore the fact that DNA sequences have characteristic properties, such as inverted repeats. The most successful compressors are XM and GeCo.
+XM is slightly better in compression ratio, though for sequences larger than 100 MB its computational requirements are impractical.
+Executables
+Main article:
+Executable compression
+Self-extracting executables contain a compressed application and a decompressor. When executed, the decompressor transparently decompresses and runs the original application. This is especially often used in
+coding, where competitions are held for demos with strict size limits, as small as 1
+. This type of compression is not strictly limited to binary executables, but can also be applied to scripts, such as
+Lossless compression algorithms and their implementations are routinely tested in head-to-head
+. There are a number of better-known compression benchmarks. Some benchmarks cover only the
+data compression ratio
+, so winners in these benchmarks may be unsuitable for everyday use due to the slow speed of the top performers. Another drawback of some benchmarks is that their data files are known, so some program writers may optimize their programs for best performance on a particular data set. The winners on these benchmarks often come from the class of
+context-mixing
+compression software.
+Matt Mahoney
+, in his February 2010 edition of the free booklet
+Data Compression Explained
+, additionally lists the following:
+Calgary Corpus
+dating back to 1987 is no longer widely used due to its small size.  Matt Mahoney maintained the Calgary Compression Challenge, created and maintained from May 21, 1996, through May 21, 2016, by Leonid A. Broukhis.
+Large Text Compression Benchmark
+and the similar
+Hutter Prize
+both use a trimmed
+Generic Compression Benchmark
+, maintained by Matt Mahoney, tests compression of data generated by random
+Turing machines
+Sami Runsas (the author of NanoZip) maintained Compression Ratings, a benchmark similar to Maximum Compression multiple file test, but with minimum speed requirements. It offered the calculator that allowed the user to weight the importance of speed and compression ratio. The top programs were fairly different due to the speed requirement. In January 2010, the top program was NanoZip followed by
+The Monster of Compression benchmark by Nania Francesco Antonio tested compression on 1Gb of public data with a 40-minute time limit. In December 2009, the top ranked archiver was NanoZip 0.07a and the top ranked single file compressor was
+The Compression Ratings website published a chart summary of the "frontier" in compression ratio and time.
+Limitations
+Lossless data compression algorithms cannot guarantee compression for all input data sets. In other words, for any lossless data compression algorithm, there will be an input data set that does not get smaller when processed by the algorithm, and for any lossless data compression algorithm that makes at least one file smaller, there will be at least one file that it makes larger. This is easily proven with elementary mathematics using a counting argument called the
+pigeonhole principle
+, as follows:
+Assume that each file is represented as a string of bits of some arbitrary length.
+Suppose that there is a compression algorithm that transforms every file into an output file that is no longer than the original file, and that at least one file will be compressed into an output file that is shorter than the original file.
+be the least number such that there is a file
+with length
+bits that compresses to something shorter. Let
+be the length (in bits) of the compressed version of
+file of length
+keeps its size during compression. There are 2
+such files possible. Together with
+, this makes 2
++1 files that all compress into one of the 2
+files of length
+is smaller than 2
++1, so by the pigeonhole principle there must be some file of length
+that is simultaneously the output of the compression function on two different inputs. That file cannot be decompressed reliably (which of the two originals should that yield?), which contradicts the assumption that the algorithm was lossless.
+We must therefore conclude that our original hypothesis (that the compression function makes no file longer) is necessarily untrue.
+Most practical compression algorithms provide an "escape" facility that can turn off the normal coding for files that would become longer by being encoded. In theory, only a single additional bit is required to tell the decoder that the normal coding has been turned off for the entire input; however, most encoding algorithms use at least one full byte (and typically more than one) for this purpose. For example,
+compressed files never need to grow by more than 5 bytes per 65,535 bytes of input.
+In fact, if we consider files of length N, if all files were equally probable, then for any lossless compression that reduces the size of some file, the expected length of a compressed file (averaged over all possible files of length N) must necessarily be
+citation needed
+So if we know nothing about the properties of the data we are compressing, we might as well not compress it at all. A lossless compression algorithm is useful only when we are more likely to compress certain types of files than others; then the algorithm could be designed to compress those types of data better.
+Thus, the main lesson from the argument is not that one risks big losses, but merely that one cannot always win. To choose an algorithm always means implicitly to select a
+of all files that will become usefully shorter. This is the theoretical reason why we need to have different compression algorithms for different kinds of files: there cannot be any algorithm that is good for all kinds of data.
+The "trick" that allows lossless compression algorithms, used on the type of data they were designed for, to consistently compress such files to a shorter form is that the files the algorithms are designed to act on all have some form of easily modeled
+that the algorithm is designed to remove, and thus belong to the subset of files that that algorithm can make shorter, whereas other files would not get compressed or even get bigger. Algorithms are generally quite specifically tuned to a particular type of file: for example, lossless audio compression programs do not work well on text files, and vice versa.
+In particular, files of
+data cannot be consistently compressed by any conceivable lossless data compression algorithm; indeed, this result is used to
+the concept of randomness in
+Kolmogorov complexity
+It is provably impossible to create an algorithm that can losslessly compress any data. While there have been many claims through the years of companies achieving "perfect compression" where an arbitrary number
+of random bits can always be compressed to
+− 1 bits, these kinds of claims can be safely discarded without even looking at any further details regarding the purported compression scheme.  Such an algorithm contradicts fundamental laws of mathematics because, if it existed, it could be applied repeatedly to losslessly reduce any file to length 1.
+On the other hand, it has also been proven that there is no algorithm to determine whether a file is incompressible in the sense of Kolmogorov complexity.
+Hence it is possible that any particular file, even if it appears random, may be significantly compressed, even including the size of the decompressor. An example is the digits of the mathematical constant
+, which appear random but can be generated by a very small program. However, even though it cannot be determined whether a particular file is incompressible, a
+simple theorem about incompressible strings
+shows that over 99% of files of any given length cannot be compressed by more than one byte (including the size of the decompressor).
+Mathematical background
+Abstractly, a
+compression algorithm
+can be viewed as a
+on sequences (normally of octets). Compression is successful if the resulting sequence is shorter than the original sequence (and the instructions for the decompression map). For a compression algorithm to be lossless, the compression map must form an
+from "plain" to "compressed" bit sequences. The pigeonhole principle prohibits a bijection between the collection of sequences of length
+and any subset of the collection of sequences of length
+−1. Therefore, it is not possible to produce a lossless algorithm that reduces the size of every possible input sequence.
+Points of application in real compression theory
+Real compression algorithm designers accept that streams of high information entropy cannot be compressed, and accordingly, include facilities for detecting and handling this condition.  An obvious way of detection is applying a raw compression algorithm and testing if its output is smaller than its input.  Sometimes, detection is made by
+; for example, a compression application may consider files whose names end in ".zip", ".arj" or ".lha" uncompressible without any more sophisticated detection. A common way of handling this situation is quoting input, or uncompressible parts of the input in the output, minimizing the compression overhead.  For example, the
+data format specifies the 'compression method' of 'Stored' for input files that have been copied into the archive verbatim.
+Canterbury corpus
+– Data compression test corpus
+Comparison of file archivers
+Grammar-based code
+– Lossless data compression algorithm
+Information theory
+– Scientific study of digital information
+Kolmogorov complexity
+– Measure of algorithmic complexity
+List of codecs
+Lossless Transform Audio Compression
+Normal number
+– Number with all digits equally frequent
+Reversible computing
+– Model of computation in which all processes are time-reversible
+Universal code (data compression)
+– Type of prefix code
+"Unit 4 Lab 4: Data Representation and Compression"
+BJC.EDC.org
+. Retrieved
+Price, Andy (March 3, 2022).
+"Lossless Streaming – the future of high res audio"
+Audio Media International
+. Retrieved
+October 25,
+Unser, M.; Blu, T. (2003).
+"Mathematical Properties of the JPEG2000 Wavelet Filters"
+IEEE Transactions on Image Processing
+2003ITIP...12.1080U
+10.1109/TIP.2003.812329
+"LZW Patent Information"
+About Unisys
+. Unisys. Archived from
+the original
+on June 2, 2009.
+Sullivan, Gary (December 8–12, 2003).
+"General characteristics and design considerations for temporal subband video coding"
+Video Coding Experts Group
+. Retrieved
+September 13,
+Bovik, Alan C. (2009).
+The Essential Guide to Video Processing
+Academic Press
+9780080922508
+Ahmed, Nasir
+; Mandyam, Giridhar D.; Magotra, Neeraj (April 17, 1995). Rodriguez, Arturo A.; Safranek, Robert J.; Delp, Edward J. (eds.). "DCT-based scheme for lossless image compression".
+Digital Video Compression: Algorithms and Technologies 1995
+. International Society for Optics and Photonics:
+1995SPIE.2419..474M
+10.1117/12.206386
+Komatsu, K.; Sezaki, K. (1998). "Reversible discrete cosine transform".
+Proceedings of the 1998 IEEE International Conference on Acoustics, Speech and Signal Processing, ICASSP '98 (Cat. No.98CH36181)
+. Vol. 3. pp.
+10.1109/ICASSP.1998.681802
+0-7803-4428-6
+Menezes, Alfred J.; van Oorschot, Paul C.; Vanstone, Scott A. (October 16, 1996).
+Handbook of Applied Cryptography
+. CRC Press.
+978-1-4398-2191-6
+Chanda, P.; Elhaik, E.; Bader, J.S. (2012).
+"HapZipper: sharing HapMap populations just got easier"
+Nucleic Acids Res
+(20): e159.
+10.1093/nar/gks709
+Pratas, D.; Pinho, A.J.; Ferreira, P.J.S.G. (2016).
+Efficient compression of genomic sequences
+. Data Compression Conference. Snowbird, Utah.
+Mahoney, Matt (2010).
+"Data Compression Explained"
+. September 1, 2016. Archived from
+the original
+on September 1, 2016.
+Sayood 2002
+Bell, Tim (2015). "Surprising Computer Science".
+Informatics in Schools. Curricula, Competences, and Competitions
+. Lecture Notes in Computer Science. Vol. 9378. pp.
+10.1007/978-3-319-25396-1_1
+978-3-319-25395-4
+See in particular
+Sayood 2002
+Li, Ming; Vitányi, Paul (1993).
+An Introduction to Kolmogorov Complexity and its Applications
+. New York: Springer. p. 102.
+0-387-94053-7
+Theorem 2.6 The function
+{\displaystyle C(x)}
+is not partial recursive.
+Joshi, Mark (2015). "The Pigeonhole Principle".
+Proof Patterns
+10.1007/978-3-319-16250-8_3
+978-3-319-16249-2
+".ZIP File Format Specification"
+PKWARE, Inc.
+chapter V, section J.
+Further reading
+Sayood, Khalid (October 27, 2017).
+Introduction to Data Compression
+. The Morgan Kaufmann Series in Multimedia Information and Systems (5 ed.).
+Morgan Kaufmann
+978-0-12809474-7
+Sayood, Khalid, ed. (December 18, 2002).
+Lossless Compression Handbook (Communications, Networking and Multimedia)
+Academic Press
+978-0-12390754-7
+Phamdo, Nam.
+"Theory of Data Compression"
+Data Compression
+. Archived from
+the original
+on May 8, 2016.
+"Lossless comparison"
+Hydrogenaudio Knowledgebase
+. January 5, 2015
+. Retrieved
+October 25,
+"Image Compression Benchmark"
+from the original on February 10, 2013.
+overview of
+US patent #7,096,360
+February 2, 2017, at the
+Wayback Machine
+, "[a]n "Frequency-Time Based Data Compression Method" supporting the compression, encryption, decompression, and decryption and persistence of many binary digits through frequencies where each frequency represents many bits."
+Data compression
+Adaptive coding
+Asymmetric numeral systems
+Shannon–Fano
+Shannon–Fano–Elias
+Levenshtein
+Byte-pair encoding
+Incremental
+LZ77 + Huffman
+LZ77 + Huffman + ANS
+LZ77 + Huffman + context
+LZSS + Huffman
+LZ77 + Range
+RLE + BWT + MTF + Huffman
+Discrete cosine transform
+Compensation
+Psychoacoustic
+Convolution
+Dynamic range
+Nyquist–Shannon theorem
+Silence compression
+Sound quality
+Speech coding
+Sub-band coding
+Psychoacoustic model
+Chroma subsampling
+Coding tree unit
+Color space
+Compression artifact
+Image resolution
+Quantization
+Standard test image
+Texture compression
+Display resolution
+Frame types
+Video characteristics
+Video quality
+Deblocking filter
+Lapped transform
+Compensation
+Compressed data structures
+Compressed suffix array
+Information theory
+Kolmogorov complexity
+Prefix code
+Quantization
+Rate–distortion
+Smallest grammar problem
+Hutter Prize
+David A. Huffman
+Retrieved from "
+https://en.wikipedia.org/w/index.php?title=Lossless_compression&oldid=1328914752
+Data compression
+Lossless compression algorithms
+Hidden categories:
+Articles with short description
+Short description matches Wikidata
+Use mdy dates from October 2025
+All articles with unsourced statements
+Articles with unsourced statements from October 2025
+Articles with unsourced statements from January 2025
+Webarchive template wayback links

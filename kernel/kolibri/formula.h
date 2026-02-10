@@ -7,7 +7,7 @@
 #include <stdint.h>
 
 typedef struct {
-    uint8_t digits[1024];
+    uint8_t digits[4000];
     size_t length;
 } KolibriGene;
 
