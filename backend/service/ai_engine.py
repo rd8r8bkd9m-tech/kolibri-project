@@ -901,6 +901,17 @@ class KolibriAIEngine:
         graph_answer, graph_confidence, graph_meta = self.graph.answer(
             message, max_words=max_answer_words,
         )
+
+        # --- Multi-hop QA: для вопросов типа "explain" / "compare" ---
+        if search_strategy.get("depth", 1) >= 2 and graph_confidence < 0.6:
+            mh_answer, mh_conf, mh_meta = self.graph.multi_hop_answer(
+                message, max_hops=2, max_words=max_answer_words,
+            )
+            if mh_conf > graph_confidence:
+                graph_answer = mh_answer
+                graph_confidence = mh_conf
+                graph_meta = mh_meta
+
         formula_result = self._formula_predict(message)
         c_knowledge = self.c_retriever.query(message) if self.c_retriever.available else []
         # Числовой запрос к C-модели — ответ в цифрах
@@ -918,6 +929,36 @@ class KolibriAIEngine:
             c_knowledge=c_knowledge,
             assoc_answer=assoc_answer,
         )
+
+        # --- CoT: обновление шагов реальными результатами ---
+        if len(thinking_steps) >= 2:
+            # Шаг RETRIEVE — реальные данные
+            retrieved_count = len(retrieved)
+            graph_hits = graph_meta.get("candidates_total", 0)
+            self._chain_of_thought.update_step(
+                1,
+                f"Найдено: {retrieved_count} предложений (BM25), "
+                f"{graph_hits} кандидатов (граф), "
+                f"C-модель: {'да' if c_knowledge else 'нет'}",
+                min(0.9, 0.3 + retrieved_count * 0.1 + (0.2 if c_knowledge else 0)),
+            )
+        if len(thinking_steps) >= 4:
+            # Шаг SYNTHESIZE — реальные данные
+            self._chain_of_thought.update_step(
+                len(thinking_steps) - 2,
+                f"Метод: {method}, уверенность: {confidence:.2f}",
+                confidence,
+            )
+        if len(thinking_steps) >= 5:
+            # Шаг VERIFY — верификация качества
+            verified = confidence >= 0.5 and method != "no-knowledge"
+            self._chain_of_thought.update_step(
+                len(thinking_steps) - 1,
+                f"{'Ответ верифицирован' if verified else 'Низкая уверенность — возможен fallback'}",
+                0.9 if verified else 0.3,
+            )
+        # Обновляем thinking_text с реальными результатами
+        thinking_text = self._chain_of_thought.format_thinking()
 
         # --- CoT-управляемое обогащение ответа ---
         if search_strategy.get("use_abstract") or search_strategy.get("use_causal"):

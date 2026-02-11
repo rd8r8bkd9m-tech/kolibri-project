@@ -122,6 +122,7 @@ if [[ $CLEAN_MODE -eq 1 ]]; then
     echo -e "${YELLOW}Cleaning build artifacts...${NC}"
     rm -f "$SCRIPT_DIR/kolibri_benchmark_suite"
     rm -f "$SCRIPT_DIR/compare_with_competitors"
+    rm -f "$SCRIPT_DIR/bench_kolibri_vs_world"
     rm -f "$SCRIPT_DIR/kolibri_gpu_benchmark"
     rm -f "$RESULTS_DIR"/*.json
     echo "Done."
@@ -167,6 +168,17 @@ compile_benchmark "Competitor Comparison" \
     "$SCRIPT_DIR/compare_with_competitors.c" \
     "$SCRIPT_DIR/compare_with_competitors"
 
+# World compression benchmark (requires libkolibri_core from CMake build)
+if [[ -f "$PROJECT_ROOT/build/libkolibri_core.so" ]] || [[ -f "$PROJECT_ROOT/build/libkolibri_core.a" ]]; then
+    compile_benchmark "World Compression Benchmark" \
+        "$SCRIPT_DIR/bench_kolibri_vs_world.c" \
+        "$SCRIPT_DIR/bench_kolibri_vs_world" \
+        "-L$PROJECT_ROOT/build -lkolibri_core -lssl -lcrypto -lsqlite3 -lpthread"
+else
+    echo -e "${YELLOW}Skipping${NC} World Compression Benchmark (missing build/libkolibri_core.*)."
+    echo -e "  Build it first: cmake -S . -B build -G Ninja && cmake --build build"
+fi
+
 # GPU benchmark (macOS only)
 if [[ "$OS" == "Darwin" ]] && [[ $GPU_MODE -eq 1 ]]; then
     echo -e "${BLUE}Compiling${NC} GPU Benchmark..."
@@ -211,6 +223,14 @@ echo -e "${BLUE}Running${NC} Competitor Comparison..."
     --json="$RESULTS_DIR/comparison.json"
 
 echo ""
+
+# Run world compression benchmark if available
+if [[ -f "$SCRIPT_DIR/bench_kolibri_vs_world" ]]; then
+    echo -e "${BLUE}Running${NC} World Compression Benchmark..."
+    LD_LIBRARY_PATH="$PROJECT_ROOT/build${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        "$SCRIPT_DIR/bench_kolibri_vs_world" --quiet --json="$RESULTS_DIR/world_results.json" || true
+    echo ""
+fi
 
 # Run GPU benchmark if available
 if [[ $GPU_MODE -eq 1 ]] && [[ -f "$SCRIPT_DIR/kolibri_gpu_benchmark" ]]; then

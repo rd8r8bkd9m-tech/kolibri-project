@@ -32,18 +32,17 @@
 
 /* Magic number for compressed data format */
 #define KOLIBRI_COMPRESS_MAGIC 0x4B4C4252 /* "KLBR" */
-#define KOLIBRI_COMPRESS_VERSION 65  /* v65: APM2 (3-й SSE) + Fractal Memory + KolibriScript */
+#define KOLIBRI_LZCM_MAGIC    0x4D4B      /* "KM" — минимальный LZCM заголовок */
+#define KOLIBRI_LZCM_HDR_SIZE 5           /* v67: magic(2) + original_size(3) */
+#define KOLIBRI_COMPRESS_VERSION 66  /* v66: раздельные O6/O7/O8, Nibble model, 1MB блоки, улучшенный Match */
 
-/* Compression header */
+/* Compression header (v66: compact — 16 bytes) */
 typedef struct {
     uint32_t magic;
-    uint32_t version;
-    uint32_t methods;
+    uint16_t version;
+    uint16_t methods;
     uint32_t original_size;
-    uint32_t compressed_size;
     uint32_t checksum;
-    KolibriFileType file_type;
-    uint8_t reserved[12];
 } KolibriCompressHeader;
 
 struct KolibriCompressor {
@@ -1820,30 +1819,35 @@ static inline int krc_dec_bit(KolibriRC *c, uint32_t prob) {
 #define T0_SIZE  65536u     /* Order-0: 256 byte contexts × 256 bit-tree */
 #define T1_SIZE  65536u     /* 64K */
 #define T2_SIZE  131072u    /* 128K */
-#define T3_SIZE  262144u    /* 256K */
-#define T4_SIZE  262144u
+#define T3_SIZE  524288u    /* v68: 512K — меньше коллизий O3 */
+#define T4_SIZE  1048576u   /* v68: 1M — меньше коллизий O4 */
 #define T5_SIZE  1048576u   /* 1M — v53: больше таблицы = меньше коллизий */
-#define T6_SIZE  1048576u
-#define T7_SIZE  1048576u
-#define T8_SIZE  1048576u   /* v55: Order-8 — глубокий контекст для исходного кода */
+#define T6_SIZE  2097152u   /* v67: 2M — уменьшаем коллизии O6 */
+#define T7_SIZE  2097152u   /* v67: 2M — уменьшаем коллизии O7 */
+#define T8_SIZE  2097152u   /* v67: 2M — Order-8 глубокий контекст */
 #define SSE_Q    33         /* SSE: 33 линейных бина (компактно) */
 #define SSE_SZ   (512u * 8u * SSE_Q)  /* v59: O1 контекст — hist[0]*2+(hist[1]>>7) */
 #define TRUN_SIZE  4096u    /* v55: run-length context (16 run_len × 256 cx) */
 #define APM_SIZE   32768u   /* v59: state-aware APM — (cx*2+is_lz)*33+q2 */
 
-/* v62: объединённые таблицы + SIMD параметры */
-#define T678_SIZE     1048576u  /* v62: merged O6+O7+O8 → одна таблица 1M */
-#define KF62_NUM_PREDS 12       /* v64: 12 предикторов (+match model) */
+/* v66: восстановлены раздельные O6/O7/O8 таблицы (были слиты в v62, теряли точность) */
+#define KF62_NUM_PREDS 15       /* v66: 15 предикторов (O0-O8 раздельно + state/word/sparse/run + match + nibble) */
 #define KF62_PAD       16       /* v62: padding до 16 для SIMD (2 × __m128i) */
 
 /* v65: APM2 (3-й уровень адаптивного квантования вероятностей) */
 #define APM2_SIZE  (512u * 33u)   /* run_context(4 бит) * cx(8) * 33 бина */
-#define KF62_BLOCK_SIZE 65536   /* v62: размер блока для многопоточности */
+#define KF62_BLOCK_SIZE 2097152  /* v68: блок 2MB — больше данных для обучения CM */
 
-/* v64: Match Model — дальний контекст (уровень PAQ8) */
-#define MATCH_HT_BITS  16
+/* v66: Match Model — увеличена таблица (1M вместо 64K), 4-байтный хеш */
+#define MATCH_HT_BITS  21
 #define MATCH_HT_SIZE  (1u << MATCH_HT_BITS)
 #define MATCH_HT_MASK  (MATCH_HT_SIZE - 1)
+
+/* v66: Nibble model — предсказание по верхним 4 битам текущего байта */
+#define TNIBBLE_SIZE   131072u  /* v67: 128K — больше контекстов для nibble */
+
+/* v67: Character Class model — предсказание по типу символов */
+#define TCC_SIZE       16384u   /* 16K: (cc0*4+cc1)*256+cx */
 
 /* --- v54: Логистическое смешивание (stretch/squash) ---
  * stretch(p) = ln(p/(1-p)) — переводит вероятность в logit-пространство
@@ -1907,9 +1911,9 @@ typedef struct {
     int32_t wsum;
 } KF51M;
 
-#define TSTATE_SIZE  262144u /* v56: 256K — для 10-state machine */
-#define TWORD_SIZE   65536u         /* word boundary context */
-#define TSPARSE_SIZE 65536u         /* sparse (gap) context */
+#define TSTATE_SIZE  524288u /* v67: 512K — больше контекстов для state machine */
+#define TWORD_SIZE   262144u        /* v68: 256K word boundary context — меньше коллизий */
+#define TSPARSE_SIZE 262144u        /* v68: 256K sparse skip-gram context */
 
 static uint16_t *kf51_new(size_t n) {
     uint16_t *p = (uint16_t *)malloc(n * sizeof(uint16_t));
@@ -1951,17 +1955,19 @@ static void kf51_destroy(KF51M *m) {
 }
 
 /* =====================================================================
- * v62 MODEL: merged O678 tables, SIMD-aligned int16 weights
- * Память: ~6.9 MB (вместо 11.4 MB) — влезает в L3 кэш
+ * v66 MODEL: раздельные O6/O7/O8, Nibble, улучшенный Match, SIMD
+ * Память: ~15.2 MB — больше контекстов = лучше предсказание
  * ===================================================================== */
 typedef struct {
     uint16_t *t0, *t1, *t2, *t3, *t4, *t5;
-    uint16_t *t678;     /* v62: merged O6+O7+O8 */
+    uint16_t *t6, *t7, *t8;  /* v66: раздельные O6/O7/O8 (были слиты в v62) */
     uint16_t *sse, *apm;
     uint16_t *tstate, *tword, *tsparse, *trun;
+    uint16_t *tnibble;       /* v66: Nibble model — верхний полубайт */
+    uint16_t *tcc;            /* v67: Character Class model */
     /* v64: Match Model — предсказание по длинным совпадениям */
     uint32_t *match_ht;       /* хеш-таблица: 4-byte context → позиция */
-    uint8_t  *match_buf;      /* кольцевой буфер обработанных байт */
+    uint8_t  *match_buf;      /* буфер обработанных байт */
     size_t    match_buf_pos;  /* текущая позиция записи */
     size_t    match_pos;      /* позиция совпадения */
     int       match_len;      /* длина текущего совпадения */
@@ -1978,14 +1984,21 @@ static int kf62_init(KF62M *m) {
     m->t0     = kf51_new(T0_SIZE);   m->t1    = kf51_new(T1_SIZE);
     m->t2     = kf51_new(T2_SIZE);   m->t3    = kf51_new(T3_SIZE);
     m->t4     = kf51_new(T4_SIZE);   m->t5    = kf51_new(T5_SIZE);
-    m->t678   = kf51_new(T678_SIZE);
+    /* v66: раздельные O6/O7/O8 — 3 таблицы вместо одной слитой */
+    m->t6     = kf51_new(T6_SIZE);
+    m->t7     = kf51_new(T7_SIZE);
+    m->t8     = kf51_new(T8_SIZE);
     m->sse    = kf51_new(SSE_SZ);
     m->apm    = kf51_new(APM_SIZE);
     m->tstate = kf51_new(TSTATE_SIZE);
     m->tword  = kf51_new(TWORD_SIZE);
     m->tsparse= kf51_new(TSPARSE_SIZE);
     m->trun   = kf51_new(TRUN_SIZE);
-    /* v64: Match Model */
+    /* v66: Nibble model */
+    m->tnibble= kf51_new(TNIBBLE_SIZE);
+    /* v67: Character Class model */
+    m->tcc    = kf51_new(TCC_SIZE);
+    /* v66: Match Model — увеличенная таблица 1M */
     m->match_ht  = (uint32_t *)calloc(MATCH_HT_SIZE, sizeof(uint32_t));
     m->match_buf = (uint8_t *)calloc(KF62_BLOCK_SIZE + 256, 1);
     m->match_buf_pos = 0;
@@ -1995,27 +2008,39 @@ static int kf62_init(KF62M *m) {
     m->match_byte = 0;
     /* v65: APM2 — 3-я ступень адаптивной цепочки */
     m->apm2 = kf51_new(APM2_SIZE);
+    /* v66: начальные веса для 15 предикторов */
     for (int bp = 0; bp < 8; bp++) {
-        m->w[bp][0]  =  4;   m->w[bp][1]  =  4;   m->w[bp][2]  =  8;
-        m->w[bp][3]  = 16;   m->w[bp][4]  = 32;   m->w[bp][5]  = 48;
-        m->w[bp][6]  = 96;   /* merged O678: ~сумма весов O6+O7+O8 */
-        m->w[bp][7]  = 32;   /* state */
-        m->w[bp][8]  = 12;   /* word */
-        m->w[bp][9]  = 12;   /* sparse */
-        m->w[bp][10] = 16;   /* run */
-        m->w[bp][11] = 24;   /* v64: match model */
-        for (int p = 12; p < KF62_PAD; p++) m->w[bp][p] = 0;
+        m->w[bp][0]  =  2;   /* O0 */
+        m->w[bp][1]  =  4;   /* O1 */
+        m->w[bp][2]  =  8;   /* O2 */
+        m->w[bp][3]  = 16;   /* O3 */
+        m->w[bp][4]  = 32;   /* O4 */
+        m->w[bp][5]  = 48;   /* O5 */
+        m->w[bp][6]  = 64;   /* O6 */
+        m->w[bp][7]  = 80;   /* O7 */
+        m->w[bp][8]  = 96;   /* O8 — сильный, длинный контекст */
+        m->w[bp][9]  = 32;   /* state */
+        m->w[bp][10] = 16;   /* word */
+        m->w[bp][11] = 12;   /* sparse */
+        m->w[bp][12] = 16;   /* run */
+        m->w[bp][13] = 24;   /* match */
+        m->w[bp][14] = 8;    /* nibble */
+        m->w[bp][15] = 12;   /* v67: char class */
     }
     return (m->t0 && m->t1 && m->t2 && m->t3 && m->t4 && m->t5 &&
-            m->t678 && m->sse && m->apm && m->tstate &&
-            m->tword && m->tsparse && m->trun &&
+            m->t6 && m->t7 && m->t8 &&
+            m->sse && m->apm && m->tstate &&
+            m->tword && m->tsparse && m->trun && m->tnibble && m->tcc &&
             m->match_ht && m->match_buf && m->apm2);
 }
 static void kf62_destroy(KF62M *m) {
     free(m->t0);  free(m->t1);  free(m->t2);  free(m->t3);
-    free(m->t4);  free(m->t5);  free(m->t678);
+    free(m->t4);  free(m->t5);
+    free(m->t6);  free(m->t7);  free(m->t8);  /* v66: раздельные O6/O7/O8 */
     free(m->sse); free(m->apm); free(m->tstate);
     free(m->tword); free(m->tsparse); free(m->trun);
+    free(m->tnibble);  /* v66 */
+    free(m->tcc);      /* v67 */
     free(m->match_ht); free(m->match_buf);
     free(m->apm2);
 }
@@ -2040,8 +2065,8 @@ static inline int32_t kf62_mix(const int16_t *w, const int16_t *s) {
 }
 static inline void kf62_update_weights(int16_t *w, const int16_t *s, int32_t err) {
     __m128i err_v = _mm_set1_epi16((int16_t)(err * 2));
-    __m128i min_v = _mm_set1_epi16(-8192);
-    __m128i max_v = _mm_set1_epi16(8192);
+    __m128i min_v = _mm_set1_epi16(-16384);
+    __m128i max_v = _mm_set1_epi16(16384);
     /* Блок 0..7 */
     __m128i s0 = _mm_load_si128((const __m128i*)s);
     __m128i d0 = _mm_mulhi_epi16(err_v, s0);  /* (err*2*s) >> 16 ≈ (err*s) >> 15 */
@@ -2066,8 +2091,8 @@ static inline void kf62_update_weights(int16_t *w, const int16_t *s, int32_t err
     for (int i = 0; i < KF62_NUM_PREDS; i++) {
         int32_t delta = (err * (int32_t)s[i]) >> 15;
         int32_t nw = (int32_t)w[i] + delta;
-        if (nw < -8192) nw = -8192;
-        if (nw > 8192) nw = 8192;
+        if (nw < -16384) nw = -16384;
+        if (nw > 16384) nw = 16384;
         w[i] = (int16_t)nw;
     }
 }
@@ -2128,9 +2153,9 @@ do {                                                                        \
         /* Word model */                                                     \
         uint32_t iw = is_wb ?                                               \
             ((hist[1] * 137u + hist[2]) * 256u + cx) & (TWORD_SIZE - 1)    \
-            : (hist[0] * 256u + cx) & (TWORD_SIZE - 1);                    \
-        /* Sparse: (hist[0]^hist[2]) * 256 + cx */                          \
-        uint32_t isp = ((hist[0] ^ hist[2]) * 256u + cx)                   \
+            : ((hist[0] * 257u + hist[1]) * 256u + cx) & (TWORD_SIZE - 1); \
+        /* Sparse skip-gram: hist[0]*33+hist[2] (направленный) */              \
+        uint32_t isp = ((hist[0] * 33u + hist[2]) * 256u + cx)             \
                         & (TSPARSE_SIZE - 1);                               \
         /* v55: Run context: run_len * 256 + cx */                          \
         uint32_t irun = ((uint32_t)run_len * 256u + cx)                     \
@@ -2201,7 +2226,7 @@ do {                                                                        \
         kf_upd(&mm->tword[iw], bit, 4);                                     \
         kf_upd(&mm->tsparse[isp], bit, 4);                                  \
         kf_upd(&mm->trun[irun], bit, 4);                                    \
-        kf_upd(&mm->sse[si], bit, 3);  /* v57: rate 3 (быстрее адаптация) */\
+        kf_upd(&mm->sse[si], bit, 3);  /* v57: rate 3 (стабильная адаптация) */\
         kf_upd(&mm->apm[api], bit, 4);  /* v57: rate 4 (быстрее) */     \
                                                                             \
         /* v57: обучение весов (>>15) */                                    \
@@ -2210,8 +2235,8 @@ do {                                                                        \
             for (int wi = 0; wi < KF_NUM_PREDS; wi++) {                     \
                 int32_t delta = (err * (int32_t)s[wi]) >> 15;               \
                 mm->w[bp_][wi] += delta;                 /* v60: per-bit */  \
-                if (mm->w[bp_][wi] < -8192) mm->w[bp_][wi] = -8192;         \
-                if (mm->w[bp_][wi] > 8192) mm->w[bp_][wi] = 8192;          \
+                if (mm->w[bp_][wi] < -16384) mm->w[bp_][wi] = -16384;       \
+                if (mm->w[bp_][wi] > 16384) mm->w[bp_][wi] = 16384;        \
             }                                                                \
         }                                                                    \
                                                                             \
@@ -2242,7 +2267,8 @@ do {                                                                        \
 } while(0)
 
 /* =====================================================================
- * v65 PROCESS BYTE: 12 предикторов + Match + APM2, SIMD mixing
+ * v66 PROCESS BYTE: 15 предикторов (O0-O8 раздельно), Match, Nibble,
+ * SIMD mixing, SSE/APM/APM2 chain
  * ===================================================================== */
 #define KF62_PROCESS_BYTE(ENCODE)                                           \
 do {                                                                        \
@@ -2259,35 +2285,39 @@ do {                                                                        \
     int run_len = 0;                                                         \
     while (run_len < 15 && run_len < 7                                       \
            && hist[run_len] == hist[run_len+1]) run_len++;                   \
-    /* v64: Match Model — предсказание по дальним совпадениям */             \
-    int16_t match_str = 0;                                                   \
-    if (mm->match_active) {                                                  \
-        /* Сила предсказания зависит от длины совпадения */                  \
-        int ml = mm->match_len;                                              \
-        int conf = ml < 4 ? 2 : (ml < 8 ? 4 : (ml < 32 ? 6 : 8));         \
-        int mbit = (mm->match_byte >> 7) & 1; /* будем проверять per-bit */ \
-        (void)mbit;                                                          \
-        match_str = kf_stretch(mm->match_byte >= 128 ? (uint32_t)(2048 + conf * 200) : (uint32_t)(2048 - conf * 200)); \
-    }                                                                        \
     uint32_t cx = 1;                                                        \
     for (int b = 7; b >= 0; b--) {                                          \
+        /* v66: раздельные индексы для O0-O8 */                              \
         uint32_t i0 = (hist[0] * 256u + cx) & (T0_SIZE - 1);               \
         uint32_t i1 = (h1 * 256u + cx) & (T1_SIZE - 1);                    \
         uint32_t i2 = (h2 * 256u + cx) & (T2_SIZE - 1);                    \
         uint32_t i3 = (h3 * 256u + cx) & (T3_SIZE - 1);                    \
         uint32_t i4 = (h4 * 256u + cx) & (T4_SIZE - 1);                    \
         uint32_t i5 = (h5 * 256u + cx) & (T5_SIZE - 1);                    \
-        uint32_t i678 = (h8 * 256u + cx) & (T678_SIZE - 1);                \
+        uint32_t i6 = (h6 * 256u + cx) & (T6_SIZE - 1);                    \
+        uint32_t i7 = (h7 * 256u + cx) & (T7_SIZE - 1);                    \
+        uint32_t i8 = (h8 * 256u + cx) & (T8_SIZE - 1);                    \
+        /* State/word/sparse/run контексты */                                \
         uint32_t ist = ((uint32_t)lz_state * 65536u                        \
                         + hist[0] * 256u + cx) & (TSTATE_SIZE - 1);         \
         uint32_t iw = is_wb ?                                               \
             ((hist[1] * 137u + hist[2]) * 256u + cx) & (TWORD_SIZE - 1)    \
-            : (hist[0] * 256u + cx) & (TWORD_SIZE - 1);                    \
-        uint32_t isp = ((hist[0] ^ hist[2]) * 256u + cx)                   \
+            : ((hist[0] * 257u + hist[1]) * 256u + cx) & (TWORD_SIZE - 1); \
+        /* Sparse skip-gram: hist[0]*33+hist[2] (направленный) */              \
+        uint32_t isp = ((hist[0] * 33u + hist[2]) * 256u + cx)             \
                         & (TSPARSE_SIZE - 1);                               \
         uint32_t irun = ((uint32_t)run_len * 256u + cx)                     \
                          & (TRUN_SIZE - 1);                                 \
-        /* v65: 12 stretch-значений, SIMD-aligned */                        \
+        /* v66: Nibble model — верхний полубайт (если уже декодирован) */     \
+        uint32_t inib;                                                       \
+        if (cx >= 16) {                                                      \
+            uint32_t hi_nib = (cx >> 4) & 0xFu;                             \
+            inib = (hi_nib * 256u + (uint32_t)hist[0]) * 16u + (cx & 0xFu);\
+        } else {                                                             \
+            inib = (uint32_t)hist[0] * 256u + cx;                           \
+        }                                                                    \
+        inib &= (TNIBBLE_SIZE - 1);                                         \
+        /* v66: 15 stretch-значений, SIMD-aligned */                        \
         int16_t s_[KF62_PAD] __attribute__((aligned(16)));                  \
         s_[0]  = kf_stretch(mm->t0[i0]);                                    \
         s_[1]  = kf_stretch(mm->t1[i1]);                                    \
@@ -2295,21 +2325,32 @@ do {                                                                        \
         s_[3]  = kf_stretch(mm->t3[i3]);                                    \
         s_[4]  = kf_stretch(mm->t4[i4]);                                    \
         s_[5]  = kf_stretch(mm->t5[i5]);                                    \
-        s_[6]  = kf_stretch(mm->t678[i678]);                                \
-        s_[7]  = kf_stretch(mm->tstate[ist]);                               \
-        s_[8]  = kf_stretch(mm->tword[iw]);                                 \
-        s_[9]  = kf_stretch(mm->tsparse[isp]);                              \
-        s_[10] = kf_stretch(mm->trun[irun]);                                \
-        /* v64: match model — per-bit предсказание */                        \
+        s_[6]  = kf_stretch(mm->t6[i6]);   /* v66: раздельный O6 */         \
+        s_[7]  = kf_stretch(mm->t7[i7]);   /* v66: раздельный O7 */         \
+        s_[8]  = kf_stretch(mm->t8[i8]);   /* v66: раздельный O8 */         \
+        s_[9]  = kf_stretch(mm->tstate[ist]);                               \
+        s_[10] = kf_stretch(mm->tword[iw]);                                 \
+        s_[11] = kf_stretch(mm->tsparse[isp]);                              \
+        s_[12] = kf_stretch(mm->trun[irun]);                                \
+        /* v66: match model — per-bit предсказание */                        \
         if (mm->match_active) {                                              \
             int mbit = (mm->match_byte >> b) & 1;                           \
             int ml = mm->match_len;                                          \
             int conf = ml < 4 ? 180 : (ml < 8 ? 400 : (ml < 32 ? 700 : 900)); \
-            s_[11] = (int16_t)(mbit ? conf : -conf);                        \
+            s_[13] = (int16_t)(mbit ? conf : -conf);                        \
         } else {                                                             \
-            s_[11] = 0;                                                      \
+            s_[13] = 0;                                                      \
         }                                                                    \
-        for(int p_=12; p_<KF62_PAD; p_++) s_[p_]=0;                        \
+        s_[14] = kf_stretch(mm->tnibble[inib]); /* v66: nibble */            \
+        /* v67: Character class predictor — тип символов (letter/upper/digit/other) */ \
+        int cc0_ = (hist[0]>='a'&&hist[0]<='z') ? 0 :                        \
+                   (hist[0]>='A'&&hist[0]<='Z') ? 1 :                        \
+                   (hist[0]>='0'&&hist[0]<='9') ? 2 : 3;                     \
+        int cc1_ = (hist[1]>='a'&&hist[1]<='z') ? 0 :                        \
+                   (hist[1]>='A'&&hist[1]<='Z') ? 1 :                        \
+                   (hist[1]>='0'&&hist[1]<='9') ? 2 : 3;                     \
+        uint32_t icc = ((uint32_t)(cc0_*4+cc1_)*256u+cx) & (TCC_SIZE-1);     \
+        s_[15] = kf_stretch(mm->tcc[icc]); /* v67: char class */              \
         const int bp_ = 7 - b;                                              \
         /* v62: SIMD dot-product mixing */                                   \
         int32_t logit_mix = kf62_mix(mm->w[bp_], s_) >> 8;                  \
@@ -2338,23 +2379,28 @@ do {                                                                        \
         fp = (fp * 7 + a2p) >> 3;                                           \
         if (fp < 1) fp = 1; if (fp > 4095) fp = 4095;                      \
         int bit;                                                             \
-        if (ENCODE) {                                                        \
+        if ((ENCODE) == 2) {                                                 \
+            bit = (byte >> b) & 1;                                           \
+        } else if (ENCODE) {                                                 \
             bit = (byte >> b) & 1;                                           \
             krc_enc_bit(&rc, bit, fp);                                       \
         } else {                                                             \
             bit = krc_dec_bit(&rc, fp);                                      \
             if (bit) byte |= (1u << b);                                      \
         }                                                                    \
-        /* Обучаем 11 таблиц + SSE + APM + APM2 */                            \
-        kf_upd(&mm->t0[i0], bit, 5);    kf_upd(&mm->t1[i1], bit, 5);      \
+        /* v66: обучаем 15 таблиц + SSE + APM + APM2 */                      \
+        kf_upd(&mm->t0[i0], bit, 5);    kf_upd(&mm->t1[i1], bit, 4);      \
         kf_upd(&mm->t2[i2], bit, 4);    kf_upd(&mm->t3[i3], bit, 4);      \
         kf_upd(&mm->t4[i4], bit, 3);    kf_upd(&mm->t5[i5], bit, 3);      \
-        kf_upd(&mm->t678[i678], bit, 3);                                    \
+        kf_upd(&mm->t6[i6], bit, 3);    kf_upd(&mm->t7[i7], bit, 3);      \
+        kf_upd(&mm->t8[i8], bit, 3);                                        \
         kf_upd(&mm->tstate[ist], bit, 3);                                   \
         kf_upd(&mm->tword[iw], bit, 4); kf_upd(&mm->tsparse[isp], bit, 4);\
         kf_upd(&mm->trun[irun], bit, 4);                                    \
-        kf_upd(&mm->sse[si], bit, 3);   kf_upd(&mm->apm[api], bit, 4);    \
-        kf_upd(&mm->apm2[a2i], bit, 4);  /* v65: 3-я ступень */             \
+        kf_upd(&mm->tnibble[inib], bit, 4);  /* v66 */                      \
+        kf_upd(&mm->tcc[icc], bit, 4);          /* v67: char class */        \
+        kf_upd(&mm->sse[si], bit, 2);   kf_upd(&mm->apm[api], bit, 3);    \
+        kf_upd(&mm->apm2[a2i], bit, 2);                                     \
         /* v62: SIMD weight update */                                        \
         {                                                                    \
             int32_t err_ = (bit ? 4096 : 0) - (int32_t)mx;                 \
@@ -2362,7 +2408,7 @@ do {                                                                        \
         }                                                                    \
         cx = (cx << 1) | bit;                                                \
     }                                                                        \
-    /* v64: Match Model — обновление после полного байта */                  \
+    /* v66: Match Model — 4-байтный хеш для лучших совпадений */             \
     {                                                                        \
         size_t mbp = mm->match_buf_pos;                                      \
         mm->match_buf[mbp] = byte;                                           \
@@ -2378,12 +2424,17 @@ do {                                                                        \
             }                                                                \
         }                                                                    \
         if (!mm->match_active && mbp >= 4) {                                 \
-            uint32_t mh = (uint32_t)hist[0]                                  \
-                ^ ((uint32_t)byte * 0x9E3779B1u);                           \
-            mh = (mh ^ (mh >> 16)) & MATCH_HT_MASK;                         \
+            /* v66: 4-байтный контекст для хеша (hist[2],hist[1],hist[0],byte) */\
+            uint32_t mh = ((uint32_t)hist[2] << 24)                         \
+                        | ((uint32_t)hist[1] << 16)                          \
+                        | ((uint32_t)hist[0] << 8)                           \
+                        | (uint32_t)byte;                                    \
+            mh = mh * 0x9E3779B1u;                                          \
+            mh = (mh ^ (mh >> 12)) & MATCH_HT_MASK;                         \
             uint32_t mpos = mm->match_ht[mh];                               \
             if (mpos > 0 && mpos < (uint32_t)mbp                            \
-                && mm->match_buf[mpos] == byte) {                           \
+                && mm->match_buf[mpos] == byte                               \
+                && mpos >= 1 && mm->match_buf[mpos-1] == hist[0]) {          \
                 mm->match_pos = mpos;                                        \
                 mm->match_len = 1;                                           \
                 mm->match_active = 1;                                        \
@@ -2392,9 +2443,12 @@ do {                                                                        \
             }                                                                \
             mm->match_ht[mh] = (uint32_t)mbp;                               \
         } else if (mbp >= 4) {                                               \
-            uint32_t mh = (uint32_t)hist[0]                                  \
-                ^ ((uint32_t)byte * 0x9E3779B1u);                           \
-            mh = (mh ^ (mh >> 16)) & MATCH_HT_MASK;                         \
+            uint32_t mh = ((uint32_t)hist[2] << 24)                         \
+                        | ((uint32_t)hist[1] << 16)                          \
+                        | ((uint32_t)hist[0] << 8)                           \
+                        | (uint32_t)byte;                                    \
+            mh = mh * 0x9E3779B1u;                                          \
+            mh = (mh ^ (mh >> 12)) & MATCH_HT_MASK;                         \
             mm->match_ht[mh] = (uint32_t)mbp;                               \
         }                                                                    \
         mm->match_buf_pos = mbp + 1;                                         \
@@ -2466,6 +2520,699 @@ static size_t decompress_formula_v51(
 
     kf51_destroy(&m);
     return original_size;
+}
+
+/* =====================================================================
+ * v66 LZCM: Unified LZ + Context-Mixing encoder
+ * Литералы кодируются через CM модель (15 предикторов), матчи через
+ * range coder с адаптивными вероятностями.
+ * Формат: последовательность range-coded битов:
+ *   [match_flag] → if 0: [cm_byte(8 bits)] | if 1: [length][distance]
+ * Это архитектура уровня LZMA: LZ parsing + entropy coding.
+ * ===================================================================== */
+
+/* v66: кодирование match length (len-4) как 8 бит с адаптивными пробами */
+typedef struct {
+    uint16_t match_prob[4];     /* v68: P(match) — [lwm*2+is_alpha] */
+    uint16_t len_tree[256];     /* Tree-coded длина для rep (8-bit depth, 255 nodes) */
+    uint16_t len_tree_new[256]; /* v68: Tree-coded длина для new match */
+    uint16_t dist_slot_tree[32];/* Tree-coded dist slot (5-bit, 31 nodes) */
+    uint16_t dist_extra[64];    /* v67: Per-slot context: 8 slots × 8 bit positions */
+    /* v66: Rep-match — LZMA-style повторные дистанции */
+    uint16_t rep_prob[2];       /* v68: P(rep) — [0] длинный, [1] короткий контекст */
+    uint16_t rep0_prob;         /* v68: P(rep0 vs rep1/2/3) */
+    uint16_t rep_bits[2];       /* P(bit) для rep1/2/3 индекса */
+    int rep[4];                 /* последние 4 дистанции */
+    int last_was_match;         /* 0: последний был литерал, 1: матч */
+} LZCMState;
+
+static void lzcm_state_init(LZCMState *s) {
+    s->match_prob[0] = 1024;  /* v68: после литерала, не-буква: P(match) ~25% */
+    s->match_prob[1] = 1024;  /* v68: после литерала, буква: P(match) ~25% */
+    s->match_prob[2] = 2048;  /* после матча, не-буква: P(match) ~50% */
+    s->match_prob[3] = 2048;  /* после матча, буква: P(match) ~50% */
+    for (int i = 0; i < 256; i++) s->len_tree[i] = 2048;
+    for (int i = 0; i < 256; i++) s->len_tree_new[i] = 2048;  /* v68 */
+    for (int i = 0; i < 32; i++)  s->dist_slot_tree[i] = 2048;
+    for (int i = 0; i < 64; i++)  s->dist_extra[i] = 2048;  /* v67: 8 slots × 8 */
+    s->rep_prob[0] = 1024;   /* v68: P(rep) */
+    s->rep_prob[1] = 1024;
+    s->rep0_prob = 3072;    /* v68: P(rep0) ~75% — rep0 самый частый */
+    s->rep_bits[0] = 2048;
+    s->rep_bits[1] = 2048;
+    for (int i = 0; i < 4; i++) s->rep[i] = 0;
+    s->last_was_match = 0;
+}
+
+/* v68: Match context — 4 контекста: lwm*2 + is_letter */
+#define LZCM_MC(lwm, h0) ((lwm) * 2 + (((h0) | 0x20) >= 'a' && ((h0) | 0x20) <= 'z' ? 1 : 0))
+
+/* Tree-coded длина: MSB→LSB, node = 2*node + bit */
+static inline void lzcm_encode_len(KolibriRC *rc, uint16_t *tree, int len_code) {
+    int node = 1;
+    for (int b = 7; b >= 0; b--) {
+        int bit = (len_code >> b) & 1;
+        krc_enc_bit(rc, bit, tree[node]);
+        kf_upd(&tree[node], bit, 4);
+        node = 2 * node + bit;
+    }
+}
+
+static inline int lzcm_decode_len(KolibriRC *rc, uint16_t *tree) {
+    int node = 1;
+    for (int b = 7; b >= 0; b--) {
+        int bit = krc_dec_bit(rc, tree[node]);
+        kf_upd(&tree[node], bit, 4);
+        node = 2 * node + bit;
+    }
+    return node - 256;
+}
+
+/* Tree-coded dist slot: 5 бит MSB→LSB */
+static inline void lzcm_encode_dist(KolibriRC *rc, LZCMState *s, int dist) {
+    int d = dist - 1;
+    int nbits = 0;
+    if (d > 0) { int tmp = d; while (tmp > 0) { tmp >>= 1; nbits++; } }
+    /* Tree-coded nbits (0..20) в 5 битах */
+    int node = 1;
+    for (int b = 4; b >= 0; b--) {
+        int bit = (nbits >> b) & 1;
+        krc_enc_bit(rc, bit, s->dist_slot_tree[node]);
+        kf_upd(&s->dist_slot_tree[node], bit, 4);
+        node = 2 * node + bit;
+    }
+    /* Extra bits с per-slot контекстом (LZMA-style) */
+    int slot_ctx = (nbits > 7) ? 7 : nbits;
+    for (int b = nbits - 2; b >= 0; b--) {
+        int bit = (d >> b) & 1;
+        int bit_pos = nbits - 2 - b;
+        if (bit_pos < 8) {
+            int ctx = slot_ctx * 8 + bit_pos;
+            krc_enc_bit(rc, bit, s->dist_extra[ctx]);
+            kf_upd(&s->dist_extra[ctx], bit, 5);
+        } else {
+            krc_enc_bit(rc, bit, 2048);
+        }
+    }
+}
+
+static inline int lzcm_decode_dist(KolibriRC *rc, LZCMState *s) {
+    int node = 1;
+    for (int b = 4; b >= 0; b--) {
+        int bit = krc_dec_bit(rc, s->dist_slot_tree[node]);
+        kf_upd(&s->dist_slot_tree[node], bit, 4);
+        node = 2 * node + bit;
+    }
+    int nbits = node - 32;
+    if (nbits == 0) return 1;
+    int d = 1;
+    int slot_ctx = (nbits > 7) ? 7 : nbits;
+    for (int b = nbits - 2; b >= 0; b--) {
+        int bit_pos = nbits - 2 - b;
+        int bit;
+        if (bit_pos < 8) {
+            int ctx = slot_ctx * 8 + bit_pos;
+            bit = krc_dec_bit(rc, s->dist_extra[ctx]);
+            kf_upd(&s->dist_extra[ctx], bit, 5);
+        } else {
+            bit = krc_dec_bit(rc, 2048);
+        }
+        d = (d << 1) | bit;
+    }
+    return d + 1;
+}
+
+/* ============================================================================
+ * v66 LZCM — константы и вспомогательные функции
+ * ============================================================================ */
+#define LZCM_HBITS  20
+#define LZCM_HSIZE  (1u << LZCM_HBITS)
+#define LZCM_HMASK  (LZCM_HSIZE - 1u)
+#define LZCM_WBITS  20
+#define LZCM_WSIZE  (1u << LZCM_WBITS)
+#define LZCM_WMASK  (LZCM_WSIZE - 1u)
+#define LZCM_MIN_MATCH 4
+#define LZCM_MAX_MATCH 258
+#define LZCM_MAX_CHAIN 512    /* v67: больше цепочек для лучших матчей */
+#define LZCM_NICE_MATCH 128  /* v67: nice_match увеличен для больших файлов */
+
+/* Поиск лучшего совпадения (rep + хеш-цепочки, без обновления таблиц) */
+static inline int lzcm_find_match(
+    const uint8_t *input, size_t input_size, size_t pos,
+    LZCMState *ls, int32_t *lz_head, int32_t *lz_prev,
+    int *out_dist)
+{
+    int best_len = 0, best_dist = 0;
+
+    /* Rep-match поиск (O(4), очень дёшево) */
+    for (int r = 0; r < 4; r++) {
+        if (ls->rep[r] > 0 && (size_t)ls->rep[r] <= pos) {
+            const uint8_t *a = input + pos;
+            const uint8_t *b = input + pos - ls->rep[r];
+            int max_len = (int)MIN((size_t)LZCM_MAX_MATCH, input_size - pos);
+            int len = 0;
+            /* Быстрое 4-байтное сравнение */
+            if (max_len >= 4) {
+                uint32_t va, vb;
+                memcpy(&va, a, 4); memcpy(&vb, b, 4);
+                if (va == vb) {
+                    len = 4;
+                    while (len + 8 <= max_len) {
+                        uint64_t va8, vb8;
+                        memcpy(&va8, a + len, 8);
+                        memcpy(&vb8, b + len, 8);
+                        if (va8 != vb8) break;
+                        len += 8;
+                    }
+                    while (len < max_len && a[len] == b[len]) len++;
+                } else {
+                    while (len < max_len && a[len] == b[len]) len++;
+                }
+            } else {
+                while (len < max_len && a[len] == b[len]) len++;
+            }
+            /* Rep: min 3 (дешевле кодировать) */
+            if (len >= 3 && len > best_len) {
+                best_len = len;
+                best_dist = ls->rep[r];
+                if (len >= LZCM_NICE_MATCH) { *out_dist = best_dist; return best_len; }
+            }
+        }
+    }
+
+    /* Хеш-цепочки */
+    if (pos + 3 < input_size && best_len < LZCM_NICE_MATCH) {
+        uint32_t h;
+        memcpy(&h, input + pos, 4);
+        h = (h * 0x9E3779B1u) >> (32 - LZCM_HBITS);
+
+        int32_t cur = lz_head[h];
+        int chain = 0;
+        while (cur >= 0 && chain < LZCM_MAX_CHAIN) {
+            size_t candidate = (size_t)cur;
+            if (pos > candidate && (pos - candidate) <= LZCM_WSIZE) {
+                int len = 0;
+                int max_len = (int)MIN((size_t)LZCM_MAX_MATCH, input_size - pos);
+                if (max_len >= 4) {
+                    uint32_t va, vb;
+                    memcpy(&va, input + pos, 4);
+                    memcpy(&vb, input + candidate, 4);
+                    if (va == vb) {
+                        len = 4;
+                        while (len + 8 <= max_len) {
+                            uint64_t va8, vb8;
+                            memcpy(&va8, input + pos + len, 8);
+                            memcpy(&vb8, input + candidate + len, 8);
+                            if (va8 != vb8) break;
+                            len += 8;
+                        }
+                        while (len < max_len && input[pos + len] == input[candidate + len])
+                            len++;
+                    }
+                }
+                if (len >= LZCM_MIN_MATCH && len > best_len) {
+                    best_len = len;
+                    best_dist = (int)(pos - candidate);
+                    if (len >= LZCM_NICE_MATCH) break;
+                }
+            }
+            cur = lz_prev[candidate & LZCM_WMASK];
+            if (cur >= (int32_t)pos) break;
+            chain++;
+        }
+    }
+
+    *out_dist = best_dist;
+    return best_len;
+}
+
+/* Обновление хеш-цепочки для одной позиции */
+static inline void lzcm_update_hash(
+    const uint8_t *input, size_t input_size, size_t pos,
+    int32_t *lz_head, int32_t *lz_prev)
+{
+    if (pos + 3 < input_size) {
+        uint32_t h;
+        memcpy(&h, input + pos, 4);
+        h = (h * 0x9E3779B1u) >> (32 - LZCM_HBITS);
+        lz_prev[pos & LZCM_WMASK] = lz_head[h];
+        lz_head[h] = (int32_t)pos;
+    }
+}
+
+/* --- v66 LZCM блочный компрессор --- */
+static size_t compress_lzcm_v66_block(
+    const uint8_t *input, size_t input_size,
+    uint8_t *output, size_t output_max)
+{
+    if (input_size == 0 || output_max < 16) return 0;
+
+    /* CM модель */
+    KF62M m;
+    if (!kf62_init(&m)) { kf62_destroy(&m); return 0; }
+    KF62M *mm = &m;
+    KolibriRC rc;
+    krc_enc_init(&rc, output, output_max);
+    uint8_t hist[8] = {0};
+    int lz_state = 0;
+
+    int32_t *lz_head = (int32_t *)malloc(LZCM_HSIZE * sizeof(int32_t));
+    int32_t *lz_prev = (int32_t *)malloc(LZCM_WSIZE * sizeof(int32_t));
+    if (!lz_head || !lz_prev) {
+        free(lz_head); free(lz_prev);
+        kf62_destroy(&m); return 0;
+    }
+    for (size_t j = 0; j < LZCM_HSIZE; j++) lz_head[j] = -1;
+    for (size_t j = 0; j < LZCM_WSIZE; j++) lz_prev[j] = -1;
+
+    /* v66: адаптивные вероятности для матчей */
+    LZCMState ls;
+    lzcm_state_init(&ls);
+
+    size_t i = 0;
+    while (i < input_size) {
+        /* Поиск лучшего совпадения (rep + хеш-цепочки) */
+        int best_len = 0, best_dist = 0;
+        best_len = lzcm_find_match(input, input_size, i, &ls,
+                                   lz_head, lz_prev, &best_dist);
+
+        /* Обновляем хеш-цепочку для текущей позиции */
+        lzcm_update_hash(input, input_size, i, lz_head, lz_prev);
+
+        /* Определяем тип матча (rep или новый) */
+        int rep_idx = -1;
+        for (int r = 0; r < 4; r++) {
+            if (ls.rep[r] == best_dist && ls.rep[r] > 0) { rep_idx = r; break; }
+        }
+
+        /* v66: Cost-based rep-match preference — rep кодируется на ~12 бит дешевле.
+         * Если лучший матч — новый, но есть rep-match длиной >= best_len-1,
+         * предпочитаем rep (экономия ~12 бит > 8 бит за 1 байт длины) */
+        if (rep_idx < 0 && best_len >= LZCM_MIN_MATCH) {
+            int best_rep_len = 0, best_rep_idx = -1;
+            for (int r = 0; r < 4; r++) {
+                if (ls.rep[r] > 0 && (size_t)ls.rep[r] <= i) {
+                    const uint8_t *a = input + i;
+                    const uint8_t *b = input + i - ls.rep[r];
+                    int max_len = (int)MIN((size_t)LZCM_MAX_MATCH, input_size - i);
+                    int len = 0;
+                    while (len < max_len && a[len] == b[len]) len++;
+                    if (len >= 3 && len > best_rep_len) {
+                        best_rep_len = len;
+                        best_rep_idx = r;
+                    }
+                }
+            }
+            /* Rep дешевле ~1.5 байт, так что берём rep если потеря <= 1 байт */
+            if (best_rep_idx >= 0 && best_rep_len >= best_len - 1) {
+                best_len = best_rep_len;
+                best_dist = ls.rep[best_rep_idx];
+                rep_idx = best_rep_idx;
+            }
+        }
+
+        int min_match = (rep_idx >= 0) ? 3 : LZCM_MIN_MATCH;
+
+        if (best_len >= min_match) {
+            /* v66: Lazy parsing — проверяем, есть ли лучший матч на i+1 */
+            if (best_len < LZCM_NICE_MATCH && i + 1 < input_size) {
+                int lazy_len = 0, lazy_dist = 0;
+                lazy_len = lzcm_find_match(input, input_size, i + 1, &ls,
+                                           lz_head, lz_prev, &lazy_dist);
+                int lazy_rep = -1;
+                for (int r = 0; r < 4; r++) {
+                    if (ls.rep[r] == lazy_dist && ls.rep[r] > 0)
+                        { lazy_rep = r; break; }
+                }
+                int lazy_min = (lazy_rep >= 0) ? 3 : LZCM_MIN_MATCH;
+
+                /* v68: Для коротких матчей (<8) — более агрессивный lazy */
+                int lazy_thresh = (best_len < 8) ? best_len : best_len + 1;
+                if (lazy_len >= lazy_min && lazy_len > lazy_thresh) {
+                    /* Литерал на позиции i */
+                    krc_enc_bit(&rc, 0, ls.match_prob[LZCM_MC(ls.last_was_match, hist[0])]);
+                    kf_upd(&ls.match_prob[LZCM_MC(ls.last_was_match, hist[0])], 0, 4);
+                    ls.last_was_match = 0;
+                    uint8_t byte = input[i];
+                    KF62_PROCESS_BYTE(1);
+                    lz_state = 0;
+                    i++;
+
+                    /* Обновляем хеш для новой позиции */
+                    lzcm_update_hash(input, input_size, i, lz_head, lz_prev);
+
+                    best_len = lazy_len;
+                    best_dist = lazy_dist;
+                    rep_idx = lazy_rep;
+                    min_match = lazy_min;
+
+                    /* v66: Double lazy — проверяем i+2 тоже */
+                    if (best_len < LZCM_NICE_MATCH && i + 1 < input_size) {
+                        int lazy2_len = 0, lazy2_dist = 0;
+                        lazy2_len = lzcm_find_match(input, input_size, i + 1,
+                                                    &ls, lz_head, lz_prev,
+                                                    &lazy2_dist);
+                        int lazy2_rep = -1;
+                        for (int r = 0; r < 4; r++) {
+                            if (ls.rep[r] == lazy2_dist && ls.rep[r] > 0)
+                                { lazy2_rep = r; break; }
+                        }
+                        int lazy2_min = (lazy2_rep >= 0) ? 3 : LZCM_MIN_MATCH;
+                        int lazy2_thresh = (best_len < 8) ? best_len : best_len + 1;
+                        if (lazy2_len >= lazy2_min && lazy2_len > lazy2_thresh) {
+                            /* Ещё один литерал */
+                            krc_enc_bit(&rc, 0, ls.match_prob[LZCM_MC(ls.last_was_match, hist[0])]);
+                            kf_upd(&ls.match_prob[LZCM_MC(ls.last_was_match, hist[0])], 0, 4);
+                            ls.last_was_match = 0;
+                            byte = input[i];
+                            KF62_PROCESS_BYTE(1);
+                            lz_state = 0;
+                            i++;
+                            lzcm_update_hash(input, input_size, i,
+                                             lz_head, lz_prev);
+                            best_len = lazy2_len;
+                            best_dist = lazy2_dist;
+                            rep_idx = lazy2_rep;
+                            min_match = lazy2_min;
+                        }
+                    }
+                }
+            }
+
+            /* Кодируем матч: match_bit → rep_bit → (rep: idx+len_from3 / new: len_from4+dist) */
+            krc_enc_bit(&rc, 1, ls.match_prob[LZCM_MC(ls.last_was_match, hist[0])]);
+            kf_upd(&ls.match_prob[LZCM_MC(ls.last_was_match, hist[0])], 1, 4);
+
+            if (rep_idx >= 0) {
+                /* v68: Rep-match: rep_bit=1 + is_rep0 + (если нет: 2 бита для rep1/2/3) + длина */
+                krc_enc_bit(&rc, 1, ls.rep_prob[0]);
+                kf_upd(&ls.rep_prob[0], 1, 4);
+                if (rep_idx == 0) {
+                    krc_enc_bit(&rc, 1, ls.rep0_prob);
+                    kf_upd(&ls.rep0_prob, 1, 4);
+                } else {
+                    krc_enc_bit(&rc, 0, ls.rep0_prob);
+                    kf_upd(&ls.rep0_prob, 0, 4);
+                    int ri = rep_idx - 1;  /* 0,1,2 → rep1,rep2,rep3 */
+                    krc_enc_bit(&rc, (ri >> 1) & 1, ls.rep_bits[0]);
+                    kf_upd(&ls.rep_bits[0], (ri >> 1) & 1, 4);
+                    krc_enc_bit(&rc, ri & 1, ls.rep_bits[1]);
+                    kf_upd(&ls.rep_bits[1], ri & 1, 4);
+                }
+                lzcm_encode_len(&rc, ls.len_tree, best_len - 3);
+            } else {
+                /* Новая дистанция: rep_bit=0 + длина от 4 + дистанция */
+                krc_enc_bit(&rc, 0, ls.rep_prob[0]);
+                kf_upd(&ls.rep_prob[0], 0, 4);
+                lzcm_encode_len(&rc, ls.len_tree_new, best_len - LZCM_MIN_MATCH);
+                lzcm_encode_dist(&rc, &ls, best_dist);
+                /* Обновляем rep-массив (сдвиг) */
+                ls.rep[3] = ls.rep[2];
+                ls.rep[2] = ls.rep[1];
+                ls.rep[1] = ls.rep[0];
+                ls.rep[0] = best_dist;
+            }
+
+            /* v67: CM обновление во время матчей */
+            for (int j = 0; j < best_len; j++) {
+                /* Хеш-цепочка для будущих матчей (все позиции, как в deflate) */
+                if (j > 0 && (i + j + 3) < input_size) {
+                    lzcm_update_hash(input, input_size, i + (size_t)j,
+                                     lz_head, lz_prev);
+                }
+                /* v67: Короткие матчи (<=6) обучают CM, длинные — только hist */
+                if (best_len <= 6) {
+                    uint8_t byte = input[i + j];
+                    KF62_PROCESS_BYTE(2);
+                    lz_state = 0;
+                } else {
+                    mm->match_buf[mm->match_buf_pos++] = input[i + j];
+                    memmove(hist + 1, hist, 7);
+                    hist[0] = input[i + j];
+                }
+            }
+            if (best_len > 6) mm->match_active = 0;
+            ls.last_was_match = 1;
+            i += best_len;
+        } else {
+            /* Кодируем литерал через CM модель */
+            krc_enc_bit(&rc, 0, ls.match_prob[LZCM_MC(ls.last_was_match, hist[0])]);
+            kf_upd(&ls.match_prob[LZCM_MC(ls.last_was_match, hist[0])], 0, 4);
+
+            uint8_t byte = input[i];
+            KF62_PROCESS_BYTE(1);
+            lz_state = 0;
+            ls.last_was_match = 0;
+            i++;
+        }
+    }
+
+    krc_enc_flush(&rc);
+    kf62_destroy(&m);
+    free(lz_head);
+    free(lz_prev);
+
+    if (rc.pos >= input_size) return 0;
+    return rc.pos;
+}
+
+/* --- v66 LZCM блочный декомпрессор --- */
+static size_t decompress_lzcm_v66_block(
+    const uint8_t *input, size_t input_size,
+    uint8_t *output, size_t output_max,
+    size_t original_size)
+{
+    if (original_size == 0 || original_size > output_max) return 0;
+
+    KF62M m;
+    if (!kf62_init(&m)) { kf62_destroy(&m); return 0; }
+    KF62M *mm = &m;
+    KolibriRC rc;
+    krc_dec_init(&rc, input, input_size);
+    uint8_t hist[8] = {0};
+    int lz_state = 0;
+
+    LZCMState ls;
+    lzcm_state_init(&ls);
+
+    size_t i = 0;
+    while (i < original_size) {
+        int is_match = krc_dec_bit(&rc, ls.match_prob[LZCM_MC(ls.last_was_match, hist[0])]);
+        kf_upd(&ls.match_prob[LZCM_MC(ls.last_was_match, hist[0])], is_match, 4);
+
+        if (is_match) {
+            /* v66: Новый формат — rep_bit перед длиной */
+            int is_rep = krc_dec_bit(&rc, ls.rep_prob[0]);
+            kf_upd(&ls.rep_prob[0], is_rep, 4);
+
+            int dist, len;
+            if (is_rep) {
+                /* v68: Rep-match: is_rep0 + (если нет: 2 бита) + длина от 3 */
+                int is_rep0 = krc_dec_bit(&rc, ls.rep0_prob);
+                kf_upd(&ls.rep0_prob, is_rep0, 4);
+                int ri;
+                if (is_rep0) {
+                    ri = 0;
+                } else {
+                    int bit0 = krc_dec_bit(&rc, ls.rep_bits[0]);
+                    kf_upd(&ls.rep_bits[0], bit0, 4);
+                    int bit1 = krc_dec_bit(&rc, ls.rep_bits[1]);
+                    kf_upd(&ls.rep_bits[1], bit1, 4);
+                    ri = (bit0 << 1 | bit1) + 1;
+                }
+                dist = ls.rep[ri];
+                len = lzcm_decode_len(&rc, ls.len_tree) + 3;
+            } else {
+                /* Новый матч: длина от 4 + дистанция */
+                len = lzcm_decode_len(&rc, ls.len_tree_new) + LZCM_MIN_MATCH;
+                dist = lzcm_decode_dist(&rc, &ls);
+                ls.rep[3] = ls.rep[2];
+                ls.rep[2] = ls.rep[1];
+                ls.rep[1] = ls.rep[0];
+                ls.rep[0] = dist;
+            }
+
+            if (dist <= 0 || (size_t)dist > i || i + (size_t)len > original_size) {
+                kf62_destroy(&m);
+                return 0;
+            }
+            for (int j = 0; j < len; j++) {
+                output[i + j] = output[i + j - dist];
+                /* v67: Короткие матчи обучают CM, длинные — только hist */
+                if (len <= 6) {
+                    uint8_t byte = output[i + j];
+                    KF62_PROCESS_BYTE(2);
+                    lz_state = 0;
+                } else {
+                    mm->match_buf[mm->match_buf_pos++] = output[i + j];
+                    memmove(hist + 1, hist, 7);
+                    hist[0] = output[i + j];
+                }
+            }
+            if (len > 6) mm->match_active = 0;
+            ls.last_was_match = 1;
+            i += (size_t)len;
+        } else {
+            uint8_t byte = 0;
+            KF62_PROCESS_BYTE(0);
+            output[i] = byte;
+            lz_state = 0;
+            ls.last_was_match = 0;
+            i++;
+        }
+    }
+
+    kf62_destroy(&m);
+    return original_size;
+}
+
+/* --- v66 LZCM блочная обёртка (аналог compress_formula_v62) --- */
+static size_t compress_lzcm_v66(
+    const uint8_t *input, size_t input_size,
+    uint8_t *output, size_t output_max)
+{
+    if (input_size == 0 || output_max < 16) return 0;
+
+    size_t nblocks = (input_size + KF62_BLOCK_SIZE - 1) / KF62_BLOCK_SIZE;
+    if (nblocks > 65535) nblocks = 65535;
+
+    /* v66: Compact single-block format — экономим 5 байт на заголовке */
+    if (nblocks == 1) {
+        /* Однобрачный формат: 1 байт флаг (0x00) + сжатые данные */
+        uint8_t *bbuf = (uint8_t *)malloc(input_size + 256);
+        if (!bbuf) return 0;
+        size_t csize = compress_lzcm_v66_block(input, input_size,
+                                                 bbuf, input_size + 256);
+        if (csize == 0) {
+            /* Несжимаемый блок: флаг + raw данные */
+            if (1 + input_size >= output_max || 1 + input_size >= input_size) {
+                free(bbuf); return 0;
+            }
+            output[0] = 0x01; /* raw single block */
+            memcpy(output + 1, input, input_size);
+            free(bbuf);
+            return 1 + input_size;
+        }
+        if (1 + csize >= output_max || 1 + csize >= input_size) {
+            free(bbuf); return 0;
+        }
+        output[0] = 0x00; /* compressed single block */
+        memcpy(output + 1, bbuf, csize);
+        free(bbuf);
+        return 1 + csize;
+    }
+
+    /* Многоблочный формат: флаг 0x02 + count + sizes + data */
+    size_t hdr_size = 1 + 2 + nblocks * 4;
+    if (hdr_size >= output_max) return 0;
+
+    uint8_t **bbufs = (uint8_t **)calloc(nblocks, sizeof(uint8_t*));
+    size_t *bsizes = (size_t *)calloc(nblocks, sizeof(size_t));
+    size_t *bcsizes = (size_t *)calloc(nblocks, sizeof(size_t));
+    if (!bbufs || !bsizes || !bcsizes) goto lzcm_fail;
+
+    for (size_t bi = 0; bi < nblocks; bi++) {
+        size_t off = bi * KF62_BLOCK_SIZE;
+        bsizes[bi] = MIN((size_t)KF62_BLOCK_SIZE, input_size - off);
+        bbufs[bi] = (uint8_t *)malloc(bsizes[bi] + 256);
+        if (!bbufs[bi]) goto lzcm_fail;
+        bcsizes[bi] = compress_lzcm_v66_block(
+            input + off, bsizes[bi], bbufs[bi], bsizes[bi] + 256);
+    }
+
+    /* Заголовок блоков (многоблочный) */
+    output[0] = 0x02; /* multi-block flag */
+    output[1] = (uint8_t)(nblocks & 0xFF);
+    output[2] = (uint8_t)((nblocks >> 8) & 0xFF);
+    size_t pos = 3;
+    for (size_t bi = 0; bi < nblocks; bi++) {
+        uint32_t cs = (uint32_t)bcsizes[bi];
+        memcpy(output + pos, &cs, 4);
+        pos += 4;
+    }
+
+    for (size_t bi = 0; bi < nblocks; bi++) {
+        if (bcsizes[bi] == 0) {
+            if (pos + bsizes[bi] > output_max) goto lzcm_fail;
+            memcpy(output + pos, input + bi * KF62_BLOCK_SIZE, bsizes[bi]);
+            pos += bsizes[bi];
+        } else {
+            if (pos + bcsizes[bi] > output_max) goto lzcm_fail;
+            memcpy(output + pos, bbufs[bi], bcsizes[bi]);
+            pos += bcsizes[bi];
+        }
+    }
+
+    for (size_t bi = 0; bi < nblocks; bi++) free(bbufs[bi]);
+    free(bbufs); free(bsizes); free(bcsizes);
+
+    if (pos >= input_size) return 0;
+    return pos;
+
+lzcm_fail:
+    if (bbufs) { for (size_t bi = 0; bi < nblocks; bi++) free(bbufs[bi]); }
+    free(bbufs); free(bsizes); free(bcsizes);
+    return 0;
+}
+
+/* --- v66 LZCM декомпрессор (блочная обёртка) --- */
+static size_t decompress_lzcm_v66(
+    const uint8_t *input, size_t input_size,
+    uint8_t *output, size_t output_max,
+    size_t original_size)
+{
+    if (original_size == 0 || input_size < 1) return 0;
+
+    uint8_t flag = input[0];
+
+    /* v66: Compact single-block format */
+    if (flag == 0x00) {
+        /* Compressed single block */
+        return decompress_lzcm_v66_block(
+            input + 1, input_size - 1, output, output_max, original_size);
+    }
+    if (flag == 0x01) {
+        /* Raw single block */
+        if (input_size - 1 < original_size || original_size > output_max) return 0;
+        memcpy(output, input + 1, original_size);
+        return original_size;
+    }
+
+    /* Multi-block format (flag == 0x02) */
+    if (input_size < 3) return 0;
+    uint16_t nblocks = (uint16_t)input[1] | ((uint16_t)input[2] << 8);
+    if (nblocks == 0 || input_size < 3 + (size_t)nblocks * 4) return 0;
+
+    size_t pos = 3;
+    uint32_t *bcsizes = (uint32_t *)malloc(nblocks * sizeof(uint32_t));
+    if (!bcsizes) return 0;
+
+    for (int bi = 0; bi < nblocks; bi++) {
+        memcpy(&bcsizes[bi], input + pos, 4);
+        pos += 4;
+    }
+
+    size_t out_pos = 0;
+    for (int bi = 0; bi < nblocks; bi++) {
+        size_t bsize = MIN((size_t)KF62_BLOCK_SIZE, original_size - out_pos);
+        if (bcsizes[bi] == 0) {
+            if (pos + bsize > input_size || out_pos + bsize > output_max) {
+                free(bcsizes); return 0;
+            }
+            memcpy(output + out_pos, input + pos, bsize);
+            pos += bsize;
+        } else {
+            size_t dec = decompress_lzcm_v66_block(
+                input + pos, bcsizes[bi],
+                output + out_pos, output_max - out_pos, bsize);
+            if (dec != bsize) { free(bcsizes); return 0; }
+            pos += bcsizes[bi];
+        }
+        out_pos += bsize;
+    }
+
+    free(bcsizes);
+    return out_pos;
 }
 
 /* =====================================================================
@@ -2907,22 +3654,74 @@ int kolibri_compress(KolibriCompressor *comp,
         memcpy(compressed_data, input, input_size);
     }
 
+    /* ================================================================
+     * v66: LZCM unified encoder — LZ matching + CM для литералов.
+     * Архитектура уровня LZMA: значительно превосходит раздельный LZ → CM.
+     * v66b: Минимальный 6-байтный заголовок для single-block LZCM.
+     * ================================================================ */
+    if (!turbo && compressed_size > 64) {
+        uint8_t *lzcm_buf = (uint8_t *)malloc(input_size + 1024);
+        if (lzcm_buf) {
+            size_t lzcm_size = compress_lzcm_v66(input, input_size,
+                                                   lzcm_buf, input_size + 1024);
+            if (lzcm_size > 1 && lzcm_buf[0] == 0x00) {
+                /* Single-block compressed LZCM — используем минимальный заголовок */
+                size_t lzcm_total = KOLIBRI_LZCM_HDR_SIZE + (lzcm_size - 1);
+                size_t trad_total = header_size + compressed_size;
+                if (lzcm_total < trad_total && lzcm_total < input_size) {
+                    /* v67: Минимальный формат: [KM magic(2)][original_size(3)][block data] */
+                    uint16_t lzcm_magic = KOLIBRI_LZCM_MAGIC;
+                    memcpy(out_buf, &lzcm_magic, 2);
+                    out_buf[2] = (uint8_t)(input_size & 0xFF);
+                    out_buf[3] = (uint8_t)((input_size >> 8) & 0xFF);
+                    out_buf[4] = (uint8_t)((input_size >> 16) & 0xFF);
+                    memcpy(out_buf + KOLIBRI_LZCM_HDR_SIZE, lzcm_buf + 1, lzcm_size - 1);
+
+                    free(lzcm_buf);
+                    free(lz_buf);
+                    free(temp);
+                    free(token_buf);
+                    token_dict_free(&tdict);
+
+                    *output = out_buf;
+                    *output_size = lzcm_total;
+
+                    if (stats) {
+                        stats->original_size = input_size;
+                        stats->compressed_size = lzcm_total;
+                        stats->compression_ratio = (double)input_size / (double)lzcm_total;
+                        stats->checksum = kolibri_checksum(input, input_size);
+                        stats->file_type = file_type;
+                        stats->methods_used = KOLIBRI_COMPRESS_LZCM;
+                        stats->compression_time_ms = get_time_ms() - start_time;
+                        stats->decompression_time_ms = 0;
+                    }
+                    return 0;
+                }
+            }
+            /* Fallback: LZCM с традиционным заголовком */
+            if (lzcm_size > 0 && lzcm_size < compressed_size) {
+                methods_used = KOLIBRI_COMPRESS_LZCM;
+                memcpy(compressed_data, lzcm_buf, lzcm_size);
+                compressed_size = lzcm_size;
+            }
+            free(lzcm_buf);
+        }
+    }
+
 compress_done:
     free(lz_buf);
     free(temp);
     free(token_buf);
     token_dict_free(&tdict);
 
-    /* Fill header */
+    /* Fill header (v66: compact 16 bytes) */
     KolibriCompressHeader *header = (KolibriCompressHeader *)out_buf;
     header->magic = KOLIBRI_COMPRESS_MAGIC;
-    header->version = KOLIBRI_COMPRESS_VERSION;
-    header->methods = methods_used;
+    header->version = (uint16_t)KOLIBRI_COMPRESS_VERSION;
+    header->methods = (uint16_t)methods_used;
     header->original_size = (uint32_t)input_size;
-    header->compressed_size = (uint32_t)compressed_size;
     header->checksum = kolibri_checksum(input, input_size);
-    header->file_type = file_type;
-    memset(header->reserved, 0, sizeof(header->reserved));
 
     *output = out_buf;
     *output_size = header_size + compressed_size;
@@ -2947,11 +3746,55 @@ int kolibri_decompress(const uint8_t *input,
                        uint8_t **output,
                        size_t *output_size,
                        KolibriCompressStats *stats) {
-    if (!input || !output || !output_size || input_size < sizeof(KolibriCompressHeader)) {
+    if (!input || !output || !output_size || input_size < KOLIBRI_LZCM_HDR_SIZE) {
         return -1;
     }
 
     double start_time = get_time_ms();
+
+    /* === Минимальный LZCM формат (6-байтный заголовок) === */
+    uint16_t first_magic;
+    memcpy(&first_magic, input, 2);
+    if (first_magic == KOLIBRI_LZCM_MAGIC) {
+        /* v67: 3-байтный размер (до 16MB) */
+        uint32_t original_size = (uint32_t)input[2]
+                               | ((uint32_t)input[3] << 8)
+                               | ((uint32_t)input[4] << 16);
+        if (original_size == 0 || original_size > 16 * 1024 * 1024) return -1;
+
+        const uint8_t *lzcm_data = input + KOLIBRI_LZCM_HDR_SIZE;
+        size_t lzcm_data_size = input_size - KOLIBRI_LZCM_HDR_SIZE;
+
+        uint8_t *out_buf = (uint8_t *)malloc(original_size);
+        if (!out_buf) return -1;
+
+        size_t dec_size = decompress_lzcm_v66_block(
+            lzcm_data, lzcm_data_size, out_buf, original_size, original_size);
+        if (dec_size == 0 || dec_size != original_size) {
+            free(out_buf);
+            return -1;
+        }
+
+        *output = out_buf;
+        *output_size = dec_size;
+
+        if (stats) {
+            stats->original_size = original_size;
+            stats->compressed_size = input_size;
+            stats->compression_ratio = (double)original_size / (double)input_size;
+            stats->checksum = kolibri_checksum(out_buf, dec_size);
+            stats->file_type = KOLIBRI_FILE_TEXT;
+            stats->methods_used = KOLIBRI_COMPRESS_LZCM;
+            stats->compression_time_ms = 0;
+            stats->decompression_time_ms = get_time_ms() - start_time;
+        }
+        return 0;
+    }
+
+    /* === Традиционный формат (16-байтный заголовок) === */
+    if (input_size < sizeof(KolibriCompressHeader)) {
+        return -1;
+    }
 
     /* Read and verify header */
     const KolibriCompressHeader *header = (const KolibriCompressHeader *)input;
@@ -2964,7 +3807,7 @@ int kolibri_decompress(const uint8_t *input,
     }
 
     const uint8_t *compressed_data = input + sizeof(KolibriCompressHeader);
-    size_t compressed_size = header->compressed_size;
+    size_t compressed_size = input_size - sizeof(KolibriCompressHeader);
     size_t original_size = header->original_size;
 
     /* Allocate output buffer */
@@ -3049,6 +3892,21 @@ int kolibri_decompress(const uint8_t *input,
         }
         memcpy(temp1, temp2, formula_size);
         current_size = formula_size;
+        current_data = temp1;
+    }
+
+    /* === v66: LZCM unified decoder === */
+    if (header->methods & KOLIBRI_COMPRESS_LZCM) {
+        size_t lzcm_target = original_size;
+        size_t lzcm_size = decompress_lzcm_v66(
+            current_data, current_size, temp2, original_size * 2, lzcm_target);
+        if (lzcm_size == 0 || lzcm_size != lzcm_target) {
+            token_dict_free(&tdict);
+            free(out_buf); free(temp1); free(temp2);
+            return -1;
+        }
+        memcpy(temp1, temp2, lzcm_size);
+        current_size = lzcm_size;
         current_data = temp1;
     }
 
@@ -3164,7 +4022,7 @@ int kolibri_decompress(const uint8_t *input,
         stats->compressed_size = input_size;
         stats->compression_ratio = (double)original_size / (double)input_size;
         stats->checksum = header->checksum;
-        stats->file_type = header->file_type;
+        stats->file_type = KOLIBRI_FILE_TEXT;
         stats->methods_used = header->methods;
         stats->compression_time_ms = 0;
         stats->decompression_time_ms = get_time_ms() - start_time;

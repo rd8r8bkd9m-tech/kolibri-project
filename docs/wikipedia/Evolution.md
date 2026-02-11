@@ -8,7 +8,7 @@
 
 		Материал из Википедии — свободной энциклопедии
 		(перенаправлено с «Эволюционный алгоритм»)
-				Текущая версия страницы пока не проверялась опытными участниками и может значительно отличаться от версии, проверенной 16 июля 2015 года; проверки требуют 11 правок.
+				Текущая версия страницы пока не проверялась опытными участниками и может значительно отличаться от версии, проверенной 16 июля 2015 года; проверки требуют 12 правок.
 
 		Перейти к навигации
 		Перейти к поиску
@@ -35,12 +35,12 @@
 Эволюционные алгоритмы успешно использовались для задач типа функциональной оптимизации и могут легко быть описаны на математическом языке.
 
 Отрасли использования[править | править код]
-Эволюционные алгоритмы используются при комбинаторной оптимизации, в частности при решении классических NP-полных проблем, таких как задача коммивояжера, задача упаковки ранца, разбитие чисел, максимально независимое множество и зарисовка графов.&#91;1&#93;
+Эволюционные алгоритмы используются при комбинаторной оптимизации, в частности при решении классических NP-полных проблем, таких как задача коммивояжера, задача упаковки ранца, разбитие чисел, максимально независимое множество и раскраска графов.&#91;1&#93;
 Возможность использования эволюционных алгоритмов в музыке активно исследуется в Австрии, в первую очередь при попытках моделирования игры на музыкальных инструментах известными людьми разных эпох.&#91;2&#93;
 
 Примечания[править | править код]
 
-↑ Olariu Stephan, Zomaya Albert Y.&#32;Handbook of Bioinspired Algorithms and Applications (Chapman  Hall/Crc Computer  Information Science)&#160;(англ.).&#160;— Chapman  Hall/CRC.&#160;— ISBN 1-58488-475-4.
+↑ Enrique Alba, Carlos Cotta.&#32;Evolutionary Algorithms&#32;&#47;&#47;&#32;Handbook of Bioinspired Algorithms and Applications (Chapman  Hall/Crc Computer  Information Science)&#160;(англ.)&#32;&#47;&#32;(ed) Olariu Stephan, Zomaya Albert Y..&#160;— Chapman  Hall/CRC.&#160;— ISBN 1-58488-475-4.
 
 ↑ Madsen, S. T. and Widmer, G.: Evolutionary Search for Musical Parallelism, Applications of Evolutionary Computing, proceedings of the EvoWorkshops 2005, LNCS 3449 p. 488—497, Lausanne, Switzerland, 30 March&#160;— 1 April 2005. Springer Verlag.&#160;&#32;Дата обращения: 20 марта 2013.&#32;Архивировано 7 апреля 2014 года.
 
@@ -227,43 +227,43 @@ ArXiv:cs.LG
 
 <!-- 
 NewPP limit report
-Parsed by mw‐web.eqiad.main‐687cb475c4‐xrzbw
-Cached time: 20260125091154
+Parsed by mw‐api‐ext.eqiad.main‐6d554cd86f‐pvrcn
+Cached time: 20260211152153
 Cache expiry: 2592000
 Reduced expiry: false
 Complications: [show‐toc]
-CPU time usage: 0.251 seconds
-Real time usage: 0.309 seconds
-Preprocessor visited node count: 3858/1000000
-Revision size: 9726/2097152 bytes
-Post‐expand include size: 67300/2097152 bytes
-Template argument size: 6024/2097152 bytes
+CPU time usage: 0.201 seconds
+Real time usage: 0.254 seconds
+Preprocessor visited node count: 3866/1000000
+Revision size: 9823/2097152 bytes
+Post‐expand include size: 67571/2097152 bytes
+Template argument size: 6108/2097152 bytes
 Highest expansion depth: 14/100
 Expensive parser function count: 1/500
 Unstrip recursion depth: 1/20
-Unstrip post‐expand size: 23692/5000000 bytes
-Lua time usage: 0.070/10.000 seconds
-Lua memory usage: 2935181/52428800 bytes
+Unstrip post‐expand size: 23829/5000000 bytes
+Lua time usage: 0.055/10.000 seconds
+Lua memory usage: 2965860/52428800 bytes
 Number of Wikibase entities loaded: 0/500
 -->
 <!--
 Transclusion expansion time report (%,ms,calls,template)
-100.00%  244.486      1 -total
- 43.92%  107.372      7 Шаблон:Книга
- 39.17%   95.773      1 Шаблон:Примечания
- 21.15%   51.707      1 Шаблон:Перевести
- 18.89%   46.194      1 Шаблон:Mbox
- 16.13%   39.431      1 Шаблон:Статья
- 13.35%   32.645      2 Шаблон:Бсокр
-  7.71%   18.850      2 Шаблон:Навигационная_таблица
-  6.91%   16.886      1 Шаблон:Искусственный_интеллект
-  5.82%   14.224      1 Шаблон:Cite_web
+100.00%  199.128      1 -total
+ 35.87%   71.419      7 Шаблон:Книга
+ 29.82%   59.379      1 Шаблон:Примечания
+ 21.35%   42.523      1 Шаблон:Статья
+ 18.38%   36.595      2 Шаблон:Бсокр
+ 18.13%   36.100      1 Шаблон:Перевести
+ 15.63%   31.128      1 Шаблон:Mbox
+ 12.00%   23.899      2 Шаблон:Навигационная_таблица
+ 10.38%   20.678      1 Шаблон:Искусственный_интеллект
+  7.20%   14.337      1 Шаблон:Cite_web
 -->
 
-<!-- Saved in parser cache with key ruwiki:pcache:1304904:|#|:idhash:canonical and timestamp 20260125091154 and revision id 135363040. Rendering was triggered because: page_view
+<!-- Saved in parser cache with key ruwiki:pcache:1304904:|#|:idhash:canonical and timestamp 20260211152153 and revision id 151428436. Rendering was triggered because: unknown
  -->
 
-Источник — https://ru.wikipedia.org/w/index.php?title=Эволюционные_алгоритмы&amp;oldid=135363040
+Источник — https://ru.wikipedia.org/w/index.php?title=Эволюционные_алгоритмы&amp;oldid=151428436
 		Категория: Эволюционные алгоритмыСкрытые категории: Википедия:Cite web (не указан язык)Страницы, использующие волшебные ссылки ISBNВикипедия:Запросы на перевод с немецкого
 
 	Навигация
@@ -278,11 +278,11 @@ Transclusion expansion time report (%,ms,calls,template)
 			Вы не представились системеОбсуждениеВкладСоздать учётную записьВойти
 
 	<h3
-		id="p-namespaces-label"
+		id="p-associated-pages-label"
 
 		class="vector-menu-heading "
 	>
-		Пространства имён
+		associated-pages
 
 			СтатьяОбсуждение
 
@@ -398,7 +398,7 @@ Transclusion expansion time report (%,ms,calls,template)
 
 		Править ссылки
 
-	 Эта страница в последний раз была отредактирована 5 января 2024 года в 12:40.
+	 Эта страница в последний раз была отредактирована 29 января 2026 года в 11:43.
 	Текст доступен по лицензии Creative Commons «С указанием авторства — С сохранением условий» (CC BY-SA); в отдельных случаях могут действовать дополнительные условия.
 Подробнее см. Условия использования.
 Wikipedia®&#160;— зарегистрированный товарный знак некоммерческой организации «Фонд Викимедиа» (Wikimedia Foundation, Inc.)

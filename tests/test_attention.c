@@ -235,6 +235,94 @@ static void test_different_embeddings(void) {
            (double)sim);
 }
 
+/* --- Тест 10: Конфигурации (medium/large) --- */
+static void test_configs(void) {
+    /* Проверяем подсчёт параметров */
+    KatConfig small = kat_config_small();
+    KatConfig medium = kat_config_medium();
+    KatConfig large = kat_config_large();
+
+    size_t ps = kat_config_count_params(&small);
+    size_t pm = kat_config_count_params(&medium);
+    size_t pl = kat_config_count_params(&large);
+
+    printf("    small=%zu  medium=%zu  large=%zu\n", ps, pm, pl);
+    assert(ps > 100000);       /* ~165K  */
+    assert(pm > 5000000);      /* ~6.5M  */
+    assert(pl > 90000000);     /* ~100M  */
+    assert(pm > ps);
+    assert(pl > pm);
+
+    /* Backward compat: kat_count_params() == small */
+    assert(kat_count_params() == ps);
+
+    /* Создаём medium модель и делаем forward pass */
+    KatModel *model = kat_model_create_ex(&medium, 42);
+    assert(model != NULL);
+    assert(model->param_count == pm);
+
+    KatWorkspace *ws = kat_workspace_create_ex(&medium);
+    assert(ws != NULL);
+
+    uint8_t tokens[] = "Test medium config";
+    int rc = kat_forward(model, ws, tokens, 18);
+    assert(rc == 0);
+
+    /* Проверяем валидное распределение */
+    float sum = 0.0f;
+    for (int i = 0; i < medium.vocab_size; i++) {
+        assert(ws->probs[i] >= 0.0f);
+        sum += ws->probs[i];
+    }
+    assert(fabsf(sum - 1.0f) < 0.01f);
+
+    kat_workspace_destroy(ws);
+    kat_model_destroy(model);
+    printf("  [OK] Config presets (medium forward pass)\n");
+}
+
+/* --- Тест 11: Сериализация (новый формат KAT1) --- */
+static void test_serialization_new(void) {
+    KatConfig medium = kat_config_medium();
+    KatModel *model = kat_model_create_ex(&medium, 42);
+    assert(model != NULL);
+
+    /* Определяем размер */
+    size_t size = kat_serialize(model, NULL, 0);
+    assert(size > 0);
+
+    uint8_t *buf = (uint8_t*)malloc(size);
+    assert(buf != NULL);
+
+    size_t written = kat_serialize(model, buf, size);
+    assert(written == size);
+
+    /* Десериализация в другую модель */
+    KatModel *model2 = kat_model_create_ex(&medium, 1);
+    int rc = kat_deserialize(model2, buf, written);
+    assert(rc == 0);
+    assert(model2->param_count == model->param_count);
+
+    /* Forward pass должен дать идентичные результаты */
+    KatWorkspace *ws1 = kat_workspace_create_ex(&medium);
+    KatWorkspace *ws2 = kat_workspace_create_ex(&medium);
+    uint8_t tokens[] = "Serialize test";
+
+    kat_forward(model, ws1, tokens, 14);
+    kat_forward(model2, ws2, tokens, 14);
+
+    for (int i = 0; i < medium.vocab_size; i++) {
+        assert(fabsf(ws1->probs[i] - ws2->probs[i]) < 1e-5f);
+    }
+
+    free(buf);
+    kat_workspace_destroy(ws1);
+    kat_workspace_destroy(ws2);
+    kat_model_destroy(model);
+    kat_model_destroy(model2);
+    printf("  [OK] Serialization (KAT1 format, medium)\n");
+}
+
 int main(void) {
     printf("=== Kolibri AGI: Attention Module Tests ===\n");
 
@@ -247,7 +335,9 @@ int main(void) {
     test_param_count();
     test_serialization();
     test_different_embeddings();
+    test_configs();
+    test_serialization_new();
 
-    printf("=== All %d attention tests PASSED ===\n", 9);
+    printf("=== All %d attention tests PASSED ===\n", 11);
     return 0;
 }

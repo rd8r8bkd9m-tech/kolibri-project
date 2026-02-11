@@ -251,8 +251,8 @@ static float tick_evolution(KalContext *ctx) {
     if (base_eval < 0.0) base_eval = 100.0;
 
     /* Мутация: SPSA на случайных параметрах LM head */
-    float *params = &model->lm_head[0][0];
-    size_t total = KAT_EMBED_DIM * KAT_VOCAB_SIZE;
+    float *params = model->lm_head;
+    size_t total = (size_t)model->cfg.embed_dim * model->cfg.vocab_size;
 
     /* Сохраняем оригинальные значения */
     #define SPSA_BATCH 32

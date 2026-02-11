@@ -864,6 +864,8 @@ class KnowledgeGraph:
             q_hashes.add(djb2_hash(t.lower()))
         
         # Агрегация кандидатов через индекс смежности (O(1) lookup)
+        # IDF-нормализация: редкие связи весят больше
+        total_patterns = max(len(self.patterns), 1)
         candidates: dict[int, float] = {}
         
         for t in tokens:
@@ -884,7 +886,12 @@ class KnowledgeGraph:
                     key = (min(lh, other), max(lh, other))
                     edge = self.edges.get(key)
                     if edge:
-                        candidates[other] = candidates.get(other, 0.0) + edge.weight
+                        # IDF-нормализация: слова с меньшим кол-вом связей
+                        # (более специфичные) — получают больший вес
+                        import math
+                        degree = len(self._adj.get(other, ()))
+                        idf = math.log((total_patterns + 1) / (degree + 1)) + 1.0
+                        candidates[other] = candidates.get(other, 0.0) + edge.weight * idf
 
         # --- Семантический boost через обученные embeddings ---
         # Если embeddings обучены, добавляем кандидатов по cosine similarity
@@ -941,7 +948,54 @@ class KnowledgeGraph:
         }
         
         return (answer_text, round(confidence, 4), metadata)
-    
+
+    def multi_hop_answer(self, question: str, max_hops: int = 2,
+                         max_words: int = 10) -> tuple[str, float, dict]:
+        """
+        Multi-hop QA: цепочка вывода через граф знаний.
+
+        Hop 1: answer(question) → intermediate_words
+        Hop 2: answer(intermediate_words) → дополнительные кандидаты
+        Объединяем и ранжируем все кандидаты.
+        """
+        # Hop 1: прямой ответ
+        ans1, conf1, meta1 = self.answer(question, max_words=max_words)
+        if max_hops <= 1 or not ans1:
+            return (ans1, conf1, meta1)
+
+        # Hop 2: используем промежуточные слова как новый запрос
+        hop_words = ans1.split()[:5]
+        if len(hop_words) < 2:
+            return (ans1, conf1, meta1)
+
+        hop_query = ' '.join(hop_words)
+        ans2, conf2, meta2 = self.answer(hop_query, max_words=max_words)
+
+        if not ans2 or conf2 < 0.1:
+            return (ans1, conf1, meta1)
+
+        # Объединяем: слова из hop1 + новые слова из hop2
+        seen = set(hop_words)
+        combined = list(hop_words)
+        for w in ans2.split():
+            if w.lower() not in {x.lower() for x in seen}:
+                combined.append(w)
+                seen.add(w)
+            if len(combined) >= max_words:
+                break
+
+        combined_text = ' '.join(combined)
+        combined_conf = min(1.0, conf1 * 0.7 + conf2 * 0.3)
+        meta = {
+            **meta1,
+            "multi_hop": True,
+            "hop_count": 2,
+            "hop1_confidence": conf1,
+            "hop2_confidence": conf2,
+            "hop2_candidates": meta2.get("candidates_total", 0),
+        }
+        return (combined_text, round(combined_conf, 4), meta)
+
     def _update_fitness(self) -> None:
         """
         Обновление fitness паттернов на основе реального использования.

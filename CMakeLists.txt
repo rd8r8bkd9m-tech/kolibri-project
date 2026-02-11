@@ -214,6 +214,7 @@ add_executable(kolibri_archiver apps/kolibri_archiver.c)
 add_executable(kolibri_formula_archiver tools/kolibri_formula_archiver.c)
 add_executable(kolibri_meta_archiver tools/kolibri_meta_archiver.c)
 add_executable(kolibri_mass_trainer apps/kolibri_mass_trainer.c)
+add_executable(kolibri_train_kat apps/kolibri_train_kat.c)
 
 target_link_libraries(kolibri_node PRIVATE kolibri_core)
 target_link_libraries(ks_compiler PRIVATE kolibri_core)
@@ -233,6 +234,7 @@ if(KOLIBRI_ENABLE_GPU)
 endif()
 target_link_libraries(kolibri_meta_archiver PRIVATE kolibri_core)
 target_link_libraries(kolibri_mass_trainer PRIVATE kolibri_core)
+target_link_libraries(kolibri_train_kat PRIVATE kolibri_core)
 
 add_custom_target(verify_digit_masking ALL
     COMMAND $<TARGET_FILE:kolibri_verify_digit_masking>

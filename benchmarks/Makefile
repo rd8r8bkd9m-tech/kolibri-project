@@ -34,6 +34,7 @@ CFLAGS += -I$(INCLUDE_DIR)
 # Source files
 BENCH_SUITE_SRC = kolibri_benchmark_suite.c
 COMPARE_SRC = compare_with_competitors.c
+WORLD_BENCH_SRC = bench_kolibri_vs_world.c
 GPU_BENCH_SRC = kolibri_gpu_benchmark.m
 TEST_CORRECT_SRC = ../tests/test_correctness.c
 TEST_STRESS_SRC = ../tests/test_stress.c
@@ -41,6 +42,7 @@ TEST_STRESS_SRC = ../tests/test_stress.c
 # Output binaries
 BENCH_SUITE = kolibri_benchmark_suite
 COMPARE = compare_with_competitors
+WORLD_BENCH = bench_kolibri_vs_world
 GPU_BENCH = kolibri_gpu_benchmark
 TEST_CORRECT = test_correctness
 TEST_STRESS = test_stress
@@ -54,7 +56,7 @@ all: build benchmark
 
 # Build all binaries
 .PHONY: build
-build: $(BENCH_SUITE) $(COMPARE) $(TEST_CORRECT) $(TEST_STRESS)
+build: $(BENCH_SUITE) $(COMPARE) $(WORLD_BENCH) $(TEST_CORRECT) $(TEST_STRESS)
 ifeq ($(UNAME_S),Darwin)
 	@if [ -f $(GPU_BENCH_SRC) ]; then \
 		echo "Building GPU benchmark..."; \
@@ -74,6 +76,11 @@ $(COMPARE): $(COMPARE_SRC)
 	@echo "Building $(COMPARE)..."
 	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
 
+# Build world compression benchmark (links against core library built by CMake)
+$(WORLD_BENCH): $(WORLD_BENCH_SRC)
+	@echo "Building $(WORLD_BENCH)..."
+	$(CC) $(CFLAGS) $< -o $@ -L../build -lkolibri_core -lssl -lcrypto -lsqlite3 -lpthread -lm
+
 # Build correctness tests
 $(TEST_CORRECT): $(TEST_CORRECT_SRC)
 	@echo "Building $(TEST_CORRECT)..."
@@ -90,27 +97,33 @@ $(RESULTS_DIR):
 
 # Run default benchmark
 .PHONY: benchmark
-benchmark: $(BENCH_SUITE) $(COMPARE) $(RESULTS_DIR)
+benchmark: $(BENCH_SUITE) $(COMPARE) $(WORLD_BENCH) $(RESULTS_DIR)
 	@echo "Running benchmark..."
 	./$(BENCH_SUITE) --json=$(RESULTS_DIR)/cpu_results.json --md=$(RESULTS_DIR)/cpu_results.md
 	@echo ""
 	./$(COMPARE) --json=$(RESULTS_DIR)/comparison.json
+	@echo ""
+	LD_LIBRARY_PATH=../build ./$(WORLD_BENCH) --quiet --json=$(RESULTS_DIR)/world_results.json
 
 # Run quick benchmark
 .PHONY: benchmark-quick
-benchmark-quick: $(BENCH_SUITE) $(COMPARE) $(RESULTS_DIR)
+benchmark-quick: $(BENCH_SUITE) $(COMPARE) $(WORLD_BENCH) $(RESULTS_DIR)
 	@echo "Running quick benchmark..."
 	./$(BENCH_SUITE) --quick --json=$(RESULTS_DIR)/cpu_results.json --md=$(RESULTS_DIR)/cpu_results.md
 	@echo ""
 	./$(COMPARE) --json=$(RESULTS_DIR)/comparison.json
+	@echo ""
+	LD_LIBRARY_PATH=../build ./$(WORLD_BENCH) --quiet --json=$(RESULTS_DIR)/world_results.json
 
 # Run full benchmark (up to 100MB)
 .PHONY: benchmark-full
-benchmark-full: $(BENCH_SUITE) $(COMPARE) $(RESULTS_DIR)
+benchmark-full: $(BENCH_SUITE) $(COMPARE) $(WORLD_BENCH) $(RESULTS_DIR)
 	@echo "Running full benchmark..."
 	./$(BENCH_SUITE) --full --json=$(RESULTS_DIR)/cpu_results.json --md=$(RESULTS_DIR)/cpu_results.md
 	@echo ""
 	./$(COMPARE) --json=$(RESULTS_DIR)/comparison.json
+	@echo ""
+	LD_LIBRARY_PATH=../build ./$(WORLD_BENCH) --quiet --json=$(RESULTS_DIR)/world_results.json
 
 # Run GPU benchmark (macOS only)
 .PHONY: benchmark-gpu
@@ -155,7 +168,7 @@ all-tests: test benchmark stress
 # Clean build artifacts
 .PHONY: clean
 clean:
-	rm -f $(BENCH_SUITE) $(COMPARE) $(GPU_BENCH)
+	rm -f $(BENCH_SUITE) $(COMPARE) $(WORLD_BENCH) $(GPU_BENCH)
 	rm -f $(TEST_CORRECT) $(TEST_STRESS)
 	rm -f $(RESULTS_DIR)/*.json $(RESULTS_DIR)/*.md
 	rm -f *.o

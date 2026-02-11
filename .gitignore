@@ -125,3 +125,8 @@ data/swarm_log.txt
 test_crash.input
 gdb_cmds
 *.qr.png
+
+# Build artifacts
+benchmarks/bench_kolibri_vs_world
+data/kolibri.db-shm
+data/kolibri.db-wal

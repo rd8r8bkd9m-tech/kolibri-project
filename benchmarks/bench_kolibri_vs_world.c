@@ -1,3 +1,4 @@
+/* Copyright (c) 2025 Кочуров Владислав Евгеньевич */
 /*
  * Kolibri OS — Мировой бенчмарк сжатия
  *
@@ -19,9 +20,9 @@
  *   gcc -O3 -o bench_kolibri_vs_world bench_kolibri_vs_world.c \
  *       -I../backend/include -L../build -lkolibri_core \
  *       -lssl -lcrypto -lsqlite3 -lpthread -lm
- *
- * Copyright (c) 2025 Кочуров Владислав Евгеньевич
  */
+
+#define _POSIX_C_SOURCE 200809L
 
 #include "kolibri/compress.h"
 #include "kolibri/predictive_compress.h"
@@ -30,10 +31,80 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <stdint.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <errno.h>
+
+/* ============================================================================
+ * Опции CLI и JSON-отчёт (reproducible benchmark)
+ * ============================================================================ */
+
+typedef struct {
+    const char *json_path;
+    int quiet;
+} BenchOptions;
+
+static void print_usage(const char *argv0) {
+    printf("Usage: %s [--json=<path>] [--quiet]\n", argv0);
+    printf("  --json=<path>  Write machine-readable report (UTF-8 JSON)\n");
+    printf("  --quiet        Suppress pretty table output\n");
+}
+
+static int parse_args(int argc, char **argv, BenchOptions *opt) {
+    memset(opt, 0, sizeof(*opt));
+    for (int i = 1; i < argc; i++) {
+        const char *a = argv[i];
+        if (!strncmp(a, "--json=", 7)) {
+            opt->json_path = a + 7;
+        } else if (!strcmp(a, "--quiet")) {
+            opt->quiet = 1;
+        } else if (!strcmp(a, "--help") || !strcmp(a, "-h")) {
+            print_usage(argv[0]);
+            return 1;
+        } else {
+            fprintf(stderr, "Unknown option: %s\n", a);
+            print_usage(argv[0]);
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static void json_write_escaped(FILE *f, const char *s) {
+    for (const unsigned char *p = (const unsigned char *)s; *p; p++) {
+        unsigned char c = *p;
+        switch (c) {
+            case '"': fputs("\\\"", f); break;
+            case '\\': fputs("\\\\", f); break;
+            case '\n': fputs("\\n", f); break;
+            case '\r': fputs("\\r", f); break;
+            case '\t': fputs("\\t", f); break;
+            default:
+                if (c < 0x20) {
+                    fprintf(f, "\\u%04x", (unsigned)c);
+                } else {
+                    fputc((int)c, f);
+                }
+        }
+    }
+}
+
+static int read_cmd_output(char *dst, size_t cap, const char *cmd) {
+    if (!dst || cap == 0 || !cmd) return -1;
+    dst[0] = 0;
+    FILE *p = popen(cmd, "r");
+    if (!p) return -1;
+    if (!fgets(dst, (int)cap, p)) {
+        pclose(p);
+        return -1;
+    }
+    pclose(p);
+    size_t n = strlen(dst);
+    while (n > 0 && (dst[n - 1] == '\n' || dst[n - 1] == '\r')) dst[--n] = 0;
+    return 0;
+}
 
 /* ============================================================================
  * Утилиты замера времени
@@ -287,6 +358,8 @@ static uint8_t *load_real_file(const char *path, size_t *out_size) {
  * Внешние архиваторы через system()
  * ============================================================================ */
 
+#define MAX_RESULTS 16
+
 typedef struct {
     const char *name;
     double ratio;
@@ -296,6 +369,19 @@ typedef struct {
     size_t original_size;
     size_t compressed_size;
 } BenchResult;
+
+typedef struct {
+    char name[128];
+    size_t size;
+    BenchResult results[MAX_RESULTS];
+    int n;
+    int best_idx;
+} CorpusReport;
+
+typedef struct {
+    CorpusReport corpora[16];
+    int n_corpora;
+} BenchReport;
 
 /* Сжатие через внешнюю утилиту: запись во временный файл → сжатие → чтение размера */
 static BenchResult bench_external(const char *name, const char *compress_cmd,
@@ -381,7 +467,6 @@ static BenchResult bench_external(const char *name, const char *compress_cmd,
 /* ============================================================================
  * Бенчмарк Kolibri (встроенный)
  * ============================================================================ */
-
 static BenchResult bench_kolibri_compress(const uint8_t *data, size_t size) {
     BenchResult r = {0};
     r.name = "Kolibri v65 (CM)";
@@ -523,7 +608,8 @@ static void print_final_footer(void) {
 #define MAX_RESULTS 16
 
 static void bench_corpus(const char *corpus_name, const uint8_t *data, size_t size,
-                         int *total_wins, int *total_tests) {
+                         int *total_wins, int *total_tests,
+                         BenchReport *report, int quiet) {
     BenchResult results[MAX_RESULTS];
     int n = 0;
 
@@ -576,12 +662,23 @@ static void bench_corpus(const char *corpus_name, const uint8_t *data, size_t si
         }
     }
 
-    /* --- Вывод --- */
-    print_corpus_header(corpus_name, size);
-    for (int i = 0; i < n; i++) {
-        print_result(&results[i], i == best_idx);
+    if (report && report->n_corpora < (int)(sizeof(report->corpora) / sizeof(report->corpora[0]))) {
+        CorpusReport *cr = &report->corpora[report->n_corpora++];
+        snprintf(cr->name, sizeof(cr->name), "%s", corpus_name);
+        cr->size = size;
+        cr->n = n;
+        cr->best_idx = best_idx;
+        for (int i = 0; i < n; i++) cr->results[i] = results[i];
     }
-    print_footer();
+
+    /* --- Вывод --- */
+    if (!quiet) {
+        print_corpus_header(corpus_name, size);
+        for (int i = 0; i < n; i++) {
+            print_result(&results[i], i == best_idx);
+        }
+        print_footer();
+    }
 
     (*total_tests)++;
     /* Победа Kolibri, если best_idx == 0 (v65 CM) или 1 (KPC Evo) */
@@ -590,24 +687,74 @@ static void bench_corpus(const char *corpus_name, const uint8_t *data, size_t si
     }
 }
 
+static int write_json_report(const char *path, const BenchReport *report,
+                             int total_wins, int total_tests) {
+    if (!path || !report) return -1;
+    FILE *f = fopen(path, "wb");
+    if (!f) return -1;
+
+    char git_head[128] = "";
+    (void)read_cmd_output(git_head, sizeof(git_head), "git rev-parse HEAD 2>/dev/null");
+
+    double ts_ms = get_time_ms();
+    fprintf(f, "{\n");
+    fprintf(f, "  \"tool\": \"bench_kolibri_vs_world\",\n");
+    fprintf(f, "  \"schema_version\": 1,\n");
+    fprintf(f, "  \"timestamp_ms\": %.3f,\n", ts_ms);
+    fprintf(f, "  \"git_head\": \"");
+    json_write_escaped(f, git_head[0] ? git_head : "");
+    fprintf(f, "\",\n");
+    fprintf(f, "  \"summary\": {\"kolibri_wins\": %d, \"total_corpora\": %d},\n",
+            total_wins, total_tests);
+    fprintf(f, "  \"corpora\": [\n");
+    for (int ci = 0; ci < report->n_corpora; ci++) {
+        const CorpusReport *cr = &report->corpora[ci];
+        fprintf(f, "    {\"name\": \"");
+        json_write_escaped(f, cr->name);
+        fprintf(f, "\", \"size\": %zu, \"winner_index\": %d, \"results\": [",
+                cr->size, cr->best_idx);
+        for (int ri = 0; ri < cr->n; ri++) {
+            const BenchResult *r = &cr->results[ri];
+            if (ri) fprintf(f, ",");
+            fprintf(f, "{\"name\":\"");
+            json_write_escaped(f, r->name);
+            fprintf(f, "\",\"compressed_size\":%zu,\"original_size\":%zu,\"ratio\":%.6f,\"compress_ms\":%.3f,\"decompress_ms\":%.3f,\"roundtrip_ok\":%d,\"error\":%d}",
+                    r->compressed_size, r->original_size, r->ratio,
+                    r->compress_ms, r->decompress_ms, r->roundtrip_ok,
+                    (r->ratio < 0));
+        }
+        fprintf(f, "]}");
+        if (ci + 1 < report->n_corpora) fprintf(f, ",");
+        fprintf(f, "\n");
+    }
+    fprintf(f, "  ]\n");
+    fprintf(f, "}\n");
+
+    fclose(f);
+    return 0;
+}
+
 /* ============================================================================
  * Главная функция
  * ============================================================================ */
 
 int main(int argc, char **argv) {
-    (void)argc; (void)argv;
+    BenchOptions opt;
+    int par = parse_args(argc, argv, &opt);
+    if (par != 0) return (par > 0) ? 0 : 2;
 
-    print_header();
+    if (!opt.quiet) print_header();
 
     int total_wins = 0;
     int total_tests = 0;
+    BenchReport report = {0};
 
     /* --- Корпус 1: Исходный код C --- */
     {
         size_t sz;
         uint8_t *data = gen_c_source(&sz);
         if (data) {
-            bench_corpus("Исходный код C", data, sz, &total_wins, &total_tests);
+            bench_corpus("Исходный код C", data, sz, &total_wins, &total_tests, &report, opt.quiet);
             free(data);
         }
     }
@@ -617,7 +764,7 @@ int main(int argc, char **argv) {
         size_t sz;
         uint8_t *data = gen_russian_text(&sz);
         if (data) {
-            bench_corpus("Русский текст (UTF-8)", data, sz, &total_wins, &total_tests);
+            bench_corpus("Русский текст (UTF-8)", data, sz, &total_wins, &total_tests, &report, opt.quiet);
             free(data);
         }
     }
@@ -627,7 +774,7 @@ int main(int argc, char **argv) {
         size_t sz;
         uint8_t *data = gen_english_text(&sz);
         if (data) {
-            bench_corpus("Английский текст (ASCII)", data, sz, &total_wins, &total_tests);
+            bench_corpus("Английский текст (ASCII)", data, sz, &total_wins, &total_tests, &report, opt.quiet);
             free(data);
         }
     }
@@ -637,7 +784,7 @@ int main(int argc, char **argv) {
         size_t sz;
         uint8_t *data = gen_json_data(&sz);
         if (data) {
-            bench_corpus("JSON данные", data, sz, &total_wins, &total_tests);
+            bench_corpus("JSON данные", data, sz, &total_wins, &total_tests, &report, opt.quiet);
             free(data);
         }
     }
@@ -647,7 +794,7 @@ int main(int argc, char **argv) {
         size_t sz;
         uint8_t *data = gen_binary_low_entropy(&sz);
         if (data) {
-            bench_corpus("Бинарные (низк. энтропия)", data, sz, &total_wins, &total_tests);
+            bench_corpus("Бинарные (низк. энтропия)", data, sz, &total_wins, &total_tests, &report, opt.quiet);
             free(data);
         }
     }
@@ -657,7 +804,7 @@ int main(int argc, char **argv) {
         size_t sz;
         uint8_t *data = gen_random_data(&sz);
         if (data) {
-            bench_corpus("Случайные данные (рандом)", data, sz, &total_wins, &total_tests);
+            bench_corpus("Случайные данные (рандом)", data, sz, &total_wins, &total_tests, &report, opt.quiet);
             free(data);
         }
     }
@@ -692,7 +839,7 @@ int main(int argc, char **argv) {
             if (total_sz > 1000) {
                 char label[128];
                 snprintf(label, sizeof(label), "Реальный код (%zu KB)", total_sz / 1024);
-                bench_corpus(label, combined, total_sz, &total_wins, &total_tests);
+                bench_corpus(label, combined, total_sz, &total_wins, &total_tests, &report, opt.quiet);
             }
             free(combined);
         }
@@ -722,39 +869,47 @@ int main(int argc, char **argv) {
             if (total_sz > 1000) {
                 char label[128];
                 snprintf(label, sizeof(label), "Реальные доки (%zu KB)", total_sz / 1024);
-                bench_corpus(label, combined, total_sz, &total_wins, &total_tests);
+                bench_corpus(label, combined, total_sz, &total_wins, &total_tests, &report, opt.quiet);
             }
             free(combined);
         }
     }
 
-    /* --- Итоговая статистика --- */
-    printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
-    printf("║                              ИТОГОВЫЕ РЕЗУЛЬТАТЫ                                      ║\n");
-    printf("╠══════════════════════════════════════════════════════════════════════════════════════════╣\n");
-    printf("║  Kolibri побед: %d из %d корпусов                                                      ║\n",
-           total_wins, total_tests);
-    
-    if (total_wins == total_tests && total_tests > 0) {
-        printf("║                                                                                      ║\n");
-        printf("║  ★★★ KOLIBRI — ЛУЧШИЙ АРХИВАТОР В МИРЕ! ★★★                                         ║\n");
-    } else if (total_wins > total_tests / 2) {
-        printf("║                                                                                      ║\n");
-        printf("║  ★★ Kolibri превосходит большинство конкурентов ★★                                   ║\n");
-    } else {
-        printf("║                                                                                      ║\n");
-        printf("║  Результаты показывают области для оптимизации.                                      ║\n");
+    if (opt.json_path && opt.json_path[0]) {
+        if (write_json_report(opt.json_path, &report, total_wins, total_tests) != 0) {
+            fprintf(stderr, "Failed to write JSON report to: %s\n", opt.json_path);
+        }
     }
-    printf("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n");
 
-    printf("\n--- Сравниваемые системы ---\n");
-    printf("  gzip   : GNU zip (deflate, LZ77 + Huffman)\n");
-    printf("  bzip2  : Burrows-Wheeler Transform + Huffman\n");
-    printf("  xz     : LZMA2 (Lempel-Ziv-Markov chain)\n");
-    printf("  zstd   : Facebook Zstandard (LZ + FSE)\n");
-    printf("  lz4    : Yann Collet LZ4 (ultra-fast)\n");
-    printf("  Kolibri: Context-Mixing v65 (13 предикторов + SSE/APM цепочка)\n");
-    printf("  KPC    : Эволюционный MLP-предсказатель + арифм. кодирование\n\n");
+    /* --- Итоговая статистика --- */
+    if (!opt.quiet) {
+        printf("╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
+        printf("║                              ИТОГОВЫЕ РЕЗУЛЬТАТЫ                                      ║\n");
+        printf("╠══════════════════════════════════════════════════════════════════════════════════════════╣\n");
+        printf("║  Kolibri побед: %d из %d корпусов                                                      ║\n",
+               total_wins, total_tests);
+        
+        if (total_wins == total_tests && total_tests > 0) {
+            printf("║                                                                                      ║\n");
+            printf("║  ★★★ KOLIBRI — ЛУЧШИЙ АРХИВАТОР В МИРЕ! ★★★                                         ║\n");
+        } else if (total_wins > total_tests / 2) {
+            printf("║                                                                                      ║\n");
+            printf("║  ★★ Kolibri превосходит большинство конкурентов ★★                                   ║\n");
+        } else {
+            printf("║                                                                                      ║\n");
+            printf("║  Результаты показывают области для оптимизации.                                      ║\n");
+        }
+        printf("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n");
+
+        printf("\n--- Сравниваемые системы ---\n");
+        printf("  gzip   : GNU zip (deflate, LZ77 + Huffman)\n");
+        printf("  bzip2  : Burrows-Wheeler Transform + Huffman\n");
+        printf("  xz     : LZMA2 (Lempel-Ziv-Markov chain)\n");
+        printf("  zstd   : Facebook Zstandard (LZ + FSE)\n");
+        printf("  lz4    : Yann Collet LZ4 (ultra-fast)\n");
+        printf("  Kolibri: Context-Mixing v65 (13 предикторов + SSE/APM цепочка)\n");
+        printf("  KPC    : Эволюционный MLP-предсказатель + арифм. кодирование\n\n");
+    }
 
     return (total_wins >= total_tests / 2) ? 0 : 1;
 }

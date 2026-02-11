@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import math
 import time
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from .ai_engine import get_engine
@@ -260,6 +262,74 @@ async def ai_chat(req: ChatRequest) -> ChatResponse:
         formula_data=result.get("formula_data"),
         graph_stats=result.get("graph_stats"),
         cognitive=result.get("cognitive"),
+    )
+
+
+@router.post("/chat/stream")
+async def ai_chat_stream(req: ChatRequest) -> StreamingResponse:
+    """
+    SSE-стриминг AI ответа — слова передаются по мере генерации.
+
+    Формат SSE:
+    - event: thinking — шаги Chain-of-Thought
+    - event: token    — очередное слово/фраза ответа
+    - event: done     — полный результат (JSON)
+    """
+    engine = get_engine()
+
+    async def stream_generator():
+        # Фаза 1: CoT thinking
+        try:
+            thinking_steps = engine._chain_of_thought.analyze_query(req.message)
+            for step in thinking_steps:
+                payload = {
+                    "type": step.step_type.name,
+                    "description": step.description,
+                }
+                yield f"event: thinking\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                await asyncio.sleep(0.01)  # маленькая пауза для SSE
+        except Exception:
+            pass
+
+        # Фаза 2: генерация ответа (в отдельном потоке чтобы не блокировать)
+        try:
+            result = await asyncio.to_thread(
+                engine.chat,
+                message=req.message,
+                conversation_id=req.conversation_id,
+                temperature=req.temperature,
+            )
+        except Exception as e:
+            yield f"event: error\ndata: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+            return
+
+        # Фаза 3: стриминг ответа по словам
+        response_text = result.get("response", "")
+        words = response_text.split()
+        for i, word in enumerate(words):
+            chunk = word + (" " if i < len(words) - 1 else "")
+            yield f"event: token\ndata: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
+            await asyncio.sleep(0.02)  # эмуляция streaming delay
+
+        # Фаза 4: финальный результат
+        done_data = {
+            "confidence": result.get("confidence", 0.0),
+            "method": result.get("method", "unknown"),
+            "duration_ms": result.get("duration_ms", 0.0),
+            "knowledge_hits": result.get("knowledge_hits", 0),
+            "conversation_id": result.get("conversation_id", ""),
+            "cached": result.get("cached", False),
+        }
+        yield f"event: done\ndata: {json.dumps(done_data, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        stream_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 

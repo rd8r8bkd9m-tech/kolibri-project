@@ -28,7 +28,8 @@ extern "C" {
 #define KOLIBRI_COMPRESS_ZSTD    0x40  /* v40: Zstandard compression */
 #define KOLIBRI_COMPRESS_ADAPTIVE 0x80 /* v40: Adaptive dictionary */
 #define KOLIBRI_COMPRESS_TOKEN   0x100 /* v52: Token-level text stream */
-#define KOLIBRI_COMPRESS_ALL     0x1FF
+#define KOLIBRI_COMPRESS_LZCM    0x200 /* v66: Unified LZ+CM (literals через CM) */
+#define KOLIBRI_COMPRESS_ALL     0x3FF
 
 /* File type detection */
 typedef enum {
