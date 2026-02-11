@@ -94,7 +94,7 @@ def test_infer_success(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> N
     def factory(*args: Any, **kwargs: Any) -> _DummyClient:
         return _DummyClient(*args, **kwargs)
 
-    monkeypatch.setattr("backend.service.main.httpx.AsyncClient", factory)
+    monkeypatch.setattr("backend.service.common.httpx.AsyncClient", factory)
 
     response = client.post("/api/v1/infer", json={"prompt": "ping", "mode": "test"})
 

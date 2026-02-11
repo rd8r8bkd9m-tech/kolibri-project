@@ -885,7 +885,25 @@ class KnowledgeGraph:
                     edge = self.edges.get(key)
                     if edge:
                         candidates[other] = candidates.get(other, 0.0) + edge.weight
-        
+
+        # --- Семантический boost через обученные embeddings ---
+        # Если embeddings обучены, добавляем кандидатов по cosine similarity
+        if self.embeddings is not None and self.embeddings.vocab_size > 100:
+            for t in tokens:
+                if len(t) < 3 or _is_stop_word(t):
+                    continue
+                h = djb2_hash(t.lower())
+                if not self.embeddings.has(h):
+                    continue
+                # Добавляем семантически похожие слова (даже если нет прямого ребра)
+                sim_results = self.embeddings.find_similar(h, top_k=8, min_sim=0.3)
+                for sim_hash, sim_word, sim_score in sim_results:
+                    if sim_hash in q_hashes:
+                        continue
+                    # Embedding boost: semantic_weight = similarity * base_multiplier
+                    emb_boost = sim_score * 3.0
+                    candidates[sim_hash] = candidates.get(sim_hash, 0.0) + emb_boost
+
         # Сортировка по score
         sorted_cands = sorted(candidates.items(), key=lambda x: x[1], reverse=True)
         
@@ -1247,6 +1265,327 @@ class KnowledgeGraph:
             "avg_fitness": round(avg_fitness, 4),
             "avg_weight": round(avg_weight, 4),
         }
+
+    # ───────────────────────────────────────────────────────────
+    #  КОГНИТИВНЫЕ ФУНКЦИИ  (абстракция, каузальность, индукция,
+    #                        перенос структуры, самомоделирование)
+    # ───────────────────────────────────────────────────────────
+
+    def reason_abstract(
+        self,
+        query: str,
+        max_words: int = 10,
+        depth: int = 2,
+    ) -> tuple[str, float]:
+        """
+        Абстрактное мышление: N-хоповая навигация по графу.
+
+        Стандартный answer() пробегает 1 хоп (слово → сосед).
+        reason_abstract делает *depth* хопов с затуханием,
+        что позволяет ОБОБЩАТЬ через категориальные хабы.
+
+        Пример: «go» → 1-хоп: «язык» → 2-хоп: «программирования»
+        → система обобщила, что «go» — язык программирования,
+        хотя ПРЯМОЙ связи «go—программирования» в данных нет.
+
+        Args:
+            query:     текст вопроса
+            max_words: сколько слов в ответе
+            depth:     глубина навигации (1=обычный answer, 2+=абстракция)
+
+        Returns:
+            (ответ_текст, confidence)
+        """
+        tokens = _tokenize(query)
+        if not tokens:
+            return "", 0.0
+        q_hashes = {djb2_hash(t) for t in tokens}
+        candidates: dict[int, float] = {}
+
+        # --- Хоп 0: прямые соседи (как answer()) ---
+        frontier: dict[int, float] = {}
+        for t in tokens:
+            if len(t) < 2:
+                continue
+            h = djb2_hash(t)
+            for n in self._adj.get(h, set()):
+                if n in q_hashes:
+                    continue
+                key = (min(h, n), max(h, n))
+                edge = self.edges.get(key)
+                if edge:
+                    frontier[n] = frontier.get(n, 0.0) + edge.weight
+                    candidates[n] = candidates.get(n, 0.0) + edge.weight
+
+        # --- Хопы 1..depth-1: абстракция с затуханием ---
+        decay = 0.5
+        for hop in range(1, depth):
+            nf: dict[int, float] = {}
+            for h1, sc in sorted(frontier.items(), key=lambda x: -x[1])[:30]:
+                for n in self._adj.get(h1, set()):
+                    if n in q_hashes:
+                        continue
+                    key = (min(h1, n), max(h1, n))
+                    edge = self.edges.get(key)
+                    if edge:
+                        c = sc * edge.weight * (decay ** hop)
+                        nf[n] = nf.get(n, 0.0) + c
+                        candidates[n] = candidates.get(n, 0.0) + c
+            frontier = nf
+
+        sorted_c = sorted(candidates.items(), key=lambda x: -x[1])
+        words: list[str] = []
+        total = 0.0
+        for h, s in sorted_c[:max_words]:
+            entry = self.patterns.get(h)
+            if entry and len(entry.word) >= 2:
+                words.append(entry.word)
+                total += s
+        conf = min(1.0, total / (len(words) + 1)) if words else 0.0
+        return ' '.join(words), conf
+
+    def build_causal_index(
+        self,
+        texts: list[str],
+        window: int = 5,
+    ) -> dict[tuple[int, int], float]:
+        """
+        Каузальный индекс: направление связи по порядку слов.
+
+        Если слово A систематически появляется ПЕРЕД B в текстах,
+        то causal(A→B) > 0.5 => A скорее ПРИЧИНА B.
+
+        Args:
+            texts:  обучающие тексты (корпус)
+            window: окно контекста
+
+        Returns:
+            dict[(hash_a, hash_b), direction_score]
+            direction_score ∈ [0,1]: >0.5 = A→B, <0.5 = B→A
+        """
+        fwd: dict[tuple[int, int], int] = {}
+        for text in texts:
+            words = _tokenize(text)
+            for i, w1 in enumerate(words):
+                if len(w1) < 3:
+                    continue
+                h1 = djb2_hash(w1)
+                for j in range(i + 1, min(i + window + 1, len(words))):
+                    w2 = words[j]
+                    if len(w2) < 3:
+                        continue
+                    h2 = djb2_hash(w2)
+                    if h1 != h2:
+                        fwd[(h1, h2)] = fwd.get((h1, h2), 0) + 1
+        causal: dict[tuple[int, int], float] = {}
+        for (h1, h2), f in fwd.items():
+            r = fwd.get((h2, h1), 0)
+            tot = f + r
+            if tot >= 1:
+                causal[(h1, h2)] = f / tot
+        return causal
+
+    def reason_causal(
+        self,
+        causal_idx: dict[tuple[int, int], float],
+        query: str,
+        direction: str = "why",
+        max_chain: int = 3,
+    ) -> list[tuple[str, float]]:
+        """
+        Следование по каузальной цепочке в графе.
+
+        direction="why"  → ищем ПРИЧИНЫ (назад по временному порядку)
+        direction="then" → ищем СЛЕДСТВИЯ (вперёд)
+
+        Args:
+            causal_idx: каузальный индекс (из build_causal_index)
+            query:      текст запроса
+            direction:  "why" | "then"
+            max_chain:  макс. длина цепочки
+
+        Returns:
+            [(слово, score), ...] — каузальная цепочка
+        """
+        tokens = _tokenize(query)
+        if not tokens:
+            return []
+        q_hashes = {djb2_hash(t) for t in tokens}
+        chain: list[tuple[str, float]] = []
+        visited = set(q_hashes)
+        current = q_hashes.copy()
+
+        for _ in range(max_chain):
+            best_h: int | None = None
+            best_sc = 0.0
+            best_w = ""
+            for hc in current:
+                for n in self._adj.get(hc, set()):
+                    if n in visited:
+                        continue
+                    entry = self.patterns.get(n)
+                    if not entry or len(entry.word) < 3:
+                        continue
+                    if direction == "why":
+                        sc = causal_idx.get((n, hc), 0.5)
+                    else:
+                        sc = causal_idx.get((hc, n), 0.5)
+                    key = (min(hc, n), max(hc, n))
+                    edge = self.edges.get(key)
+                    ew = edge.weight if edge else 0.0
+                    combined = sc * ew
+                    if combined > best_sc and sc > 0.55:
+                        best_sc = combined
+                        best_h = n
+                        best_w = entry.word
+            if best_h is None:
+                break
+            chain.append((best_w, best_sc))
+            visited.add(best_h)
+            current = {best_h}
+        return chain
+
+    def induce_rules(
+        self,
+        min_support: int = 3,
+        min_confidence: float = 0.6,
+    ) -> list[tuple[str, str, int, float]]:
+        """
+        Индуктивный вывод: ассоциативные правила из графа.
+
+        Правило: «если слово связано с A, то оно связано и с B».
+        support  = |общих соседей A и B|
+        confidence = support / |соседей A|
+
+        Args:
+            min_support:    минимальное число общих соседей
+            min_confidence: минимальная уверенность правила
+
+        Returns:
+            [(premise, conclusion, support, confidence), ...]
+            отсортированные по убыванию confidence
+        """
+        hubs = [(h, s) for h, s in self._adj.items()
+                if len(s) >= 5 and h in self.patterns
+                and len(self.patterns[h].word) >= 3]
+        hubs.sort(key=lambda x: -len(x[1]))
+        hubs = hubs[:60]
+
+        rules: list[tuple[str, str, int, float]] = []
+        for i, (ha, na) in enumerate(hubs):
+            for j, (hb, nb) in enumerate(hubs):
+                if i >= j:
+                    continue
+                both = na & nb
+                if len(both) < min_support:
+                    continue
+                ca = len(both) / len(na)
+                cb = len(both) / len(nb)
+                wa = self.patterns[ha].word
+                wb = self.patterns[hb].word
+                if ca >= min_confidence:
+                    rules.append((wa, wb, len(both), ca))
+                if cb >= min_confidence:
+                    rules.append((wb, wa, len(both), cb))
+        rules.sort(key=lambda x: (-x[3], -x[2]))
+        return rules
+
+    def transfer_analogy(
+        self,
+        a: str,
+        b: str,
+        c: str,
+        max_results: int = 5,
+    ) -> list[tuple[str, float]]:
+        """
+        Перенос структуры: аналогия A:B :: C:?
+
+        Метод: «структурный профиль» B (его соседи по графу) переносится
+        на контекст C. Ищем D среди соседей C с максимальным Jaccard
+        пересечением с профилем B.
+
+        Пример: Python:язык :: Java:? → «программирования» (Jaccard ≈ 0.1)
+
+        Args:
+            a, b, c: слова аналогии (a:b :: c:?)
+            max_results: сколько кандидатов вернуть
+
+        Returns:
+            [(слово_D, jaccard_score), ...]
+        """
+        ha, hb, hc = djb2_hash(a), djb2_hash(b), djb2_hash(c)
+        nb = self._adj.get(hb, set())
+        nc = self._adj.get(hc, set())
+        if not nc or not nb:
+            return []
+        rel = nb - {ha, hb, hc}
+        if not rel:
+            return []
+        results: list[tuple[str, float]] = []
+        for d in nc:
+            if d in {ha, hb, hc}:
+                continue
+            entry = self.patterns.get(d)
+            if not entry or len(entry.word) < 3:
+                continue
+            nd = self._adj.get(d, set())
+            if not nd:
+                continue
+            overlap = len(nd & rel)
+            if overlap > 0:
+                score = overlap / len(nd | rel)
+                results.append((entry.word, score))
+        results.sort(key=lambda x: -x[1])
+        return results[:max_results]
+
+    def self_model(self, query: str) -> dict:
+        """
+        Самомоделирование: граф предсказывает свою способность ответить.
+
+        Анализ: какая доля слов запроса ПРИСУТСТВУЕТ в графе
+        (есть паттерны + рёбра), а какая — нет.
+
+        Returns:
+            {
+                "predicted_confidence": float (0..1),
+                "known_words": list[str],
+                "unknown_words": list[str],
+                "coverage": float  (% слов запроса, найденных в графе),
+                "edge_density": float  (среднее кол-во рёбер на известное слово),
+            }
+        """
+        tokens = _tokenize(query)
+        if not tokens:
+            return {
+                "predicted_confidence": 0.0,
+                "known_words": [],
+                "unknown_words": [],
+                "coverage": 0.0,
+                "edge_density": 0.0,
+            }
+        significant = [t for t in tokens if len(t) >= 3 and not _is_stop_word(t)]
+        if not significant:
+            significant = [t for t in tokens if len(t) >= 2]
+        known: list[str] = []
+        unknown: list[str] = []
+        total_edges = 0
+        for w in significant:
+            h = djb2_hash(w)
+            if h in self.patterns and h in self._adj:
+                known.append(w)
+                total_edges += len(self._adj[h])
+            else:
+                unknown.append(w)
+        coverage = len(known) / len(significant) if significant else 0.0
+        edge_density = total_edges / len(known) if known else 0.0
+        predicted = coverage * min(1.0, edge_density / 10.0)
+        return {
+            "predicted_confidence": round(predicted, 4),
+            "known_words": known,
+            "unknown_words": unknown,
+            "coverage": round(coverage, 4),
+            "edge_density": round(edge_density, 2),
+        }
     
     def export_state(self) -> dict:
         """
@@ -1307,6 +1646,7 @@ class KnowledgeGraph:
                         frequency=pdata["frequency"],
                         fitness=pdata["fitness"],
                     )
+                    self._hash_to_word[h] = pdata["word"]  # Обратный индекс для слитых паттернов
                     merged_patterns += 1
         
         for key_str, edata in remote.get("edges", {}).items():
@@ -1323,6 +1663,9 @@ class KnowledgeGraph:
                         weight=edata["weight"],
                         cooccurrence=edata["cooccurrence"],
                     )
+                    # Индекс смежности для слитых рёбер — без этого answer() их не видит
+                    self._adj.setdefault(key[0], set()).add(key[1])
+                    self._adj.setdefault(key[1], set()).add(key[0])
                     merged_edges += 1
         
         return {

@@ -8,6 +8,7 @@ ai_chat.py — FastAPI роутер для AI чата Kolibri
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import math
 import time
@@ -53,6 +54,8 @@ class ChatResponse(BaseModel):
     # Числовые метаданные
     formula_data: Optional[dict] = None
     graph_stats: Optional[dict] = None
+    # Когнитивное обогащение
+    cognitive: Optional[dict] = None
 
 
 class EmbeddingRequest(BaseModel):
@@ -236,7 +239,8 @@ async def ai_chat(req: ChatRequest) -> ChatResponse:
     """
     engine = get_engine()
     try:
-        result = engine.chat(
+        result = await asyncio.to_thread(
+            engine.chat,
             message=req.message,
             conversation_id=req.conversation_id,
             temperature=req.temperature,
@@ -255,6 +259,7 @@ async def ai_chat(req: ChatRequest) -> ChatResponse:
         model_available=result.get("model_available", False),
         formula_data=result.get("formula_data"),
         graph_stats=result.get("graph_stats"),
+        cognitive=result.get("cognitive"),
     )
 
 

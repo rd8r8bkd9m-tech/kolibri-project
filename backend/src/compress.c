@@ -3351,6 +3351,11 @@ int kolibri_archive_extract_file(KolibriArchive *archive,
         return -1;
     }
 
+    /* Защита: проверка размера перед аллокацией (макс. 512МБ) */
+    if (entry->data_size == 0 || entry->data_size > (512UL * 1024UL * 1024UL)) {
+        return -1;
+    }
+
     /* Read compressed data */
     uint8_t *compressed = (uint8_t *)malloc(entry->data_size);
     if (!compressed) return -1;

@@ -173,6 +173,68 @@ class ChainOfThought:
             "overall_confidence": self.overall_confidence(),
         }
 
+    def get_search_strategy(self) -> dict:
+        """Вернуть стратегию поиска на основе проанализированного intent.
+        
+        CoT направляет pipeline:
+        - calculate → приоритет формул и числовых операций
+        - compare → ищем оба объекта, строим сравнительный ответ
+        - explain → глубокий поиск, 2-хоповая навигация, каузальные цепочки
+        - list → максимум кандидатов, перечисление
+        - create → генеративный режим, FormulaLM
+        - general → стандартный pipeline
+        """
+        if not self.steps:
+            return {"intent": "general", "max_words": 10, "depth": 1,
+                    "use_causal": False, "use_abstract": False, "prefer_generation": False}
+        
+        # Первый шаг всегда PARSE с intent
+        intent = "general"
+        entities: list[str] = []
+        for step in self.steps:
+            if step.step_type == StepType.PARSE and "intent=" in step.result:
+                intent = step.result.split("intent=")[1].split(",")[0]
+            if step.step_type == StepType.PARSE and "entities=" in step.description:
+                # Извлекаем entities из описания
+                ent_part = step.description.split("entities=")[1] if "entities=" in step.description else "[]"
+                if ent_part.startswith("["):
+                    import ast
+                    try:
+                        entities = ast.literal_eval(ent_part)
+                    except Exception:
+                        pass
+        
+        strategy = {
+            "intent": intent,
+            "entities": entities,
+            "max_words": 10,
+            "depth": 1,
+            "use_causal": False,
+            "use_abstract": False,
+            "prefer_generation": False,
+            "retrieval_top_k": 5,
+        }
+        
+        if intent == "explain":
+            strategy["max_words"] = 20
+            strategy["depth"] = 2
+            strategy["use_causal"] = True
+            strategy["use_abstract"] = True
+            strategy["retrieval_top_k"] = 8
+        elif intent == "compare":
+            strategy["max_words"] = 15
+            strategy["retrieval_top_k"] = 8
+        elif intent == "list":
+            strategy["max_words"] = 25
+            strategy["retrieval_top_k"] = 10
+        elif intent == "create":
+            strategy["prefer_generation"] = True
+            strategy["max_words"] = 15
+        elif intent == "calculate":
+            strategy["max_words"] = 5
+        
+        return strategy
+
     # ---------- Приватные ----------
 
     def _detect_intent(self, query: str) -> str:

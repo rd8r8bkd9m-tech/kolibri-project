@@ -404,8 +404,11 @@ async def terminal_exec(req: TerminalRequest) -> TerminalResponse:
     t0 = time.monotonic()
 
     try:
-        proc = await asyncio.create_subprocess_shell(
-            command,
+        # SECURITY: используем exec вместо shell для предотвращения инъекций
+        import shlex
+        cmd_parts = shlex.split(command)
+        proc = await asyncio.create_subprocess_exec(
+            *cmd_parts,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=cwd,

@@ -282,8 +282,8 @@ static void multi_head_attention_forward(
     KatWorkspace *ws,
     float output[][KAT_EMBED_DIM]
 ) {
-    /* LayerNorm перед attention (Pre-LN) */
-    float normed[KAT_MAX_SEQ][KAT_EMBED_DIM];
+    /* LayerNorm перед attention (Pre-LN) — используем heap-буфер */
+    float (*normed)[KAT_EMBED_DIM] = ws->mha_normed;
     for (size_t t = 0; t < seq_len; t++) {
         layer_norm(input[t], normed[t], mha->ln_gamma, mha->ln_beta,
                    KAT_EMBED_DIM);
@@ -335,8 +335,8 @@ static void feed_forward_forward(
     KatWorkspace *ws,
     float output[][KAT_EMBED_DIM]
 ) {
-    /* LayerNorm перед FFN (Pre-LN) */
-    float normed[KAT_MAX_SEQ][KAT_EMBED_DIM];
+    /* LayerNorm перед FFN (Pre-LN) — используем heap-буфер */
+    float (*normed)[KAT_EMBED_DIM] = ws->ffn_normed;
     for (size_t t = 0; t < seq_len; t++) {
         layer_norm(input[t], normed[t], ffn->ln_gamma, ffn->ln_beta,
                    KAT_EMBED_DIM);
@@ -389,8 +389,8 @@ int kat_forward(const KatModel *model, KatWorkspace *ws,
         memcpy(ws->residual, ws->hidden,
                seq_len * KAT_EMBED_DIM * sizeof(float));
 
-        /* Multi-Head Attention */
-        float attn_output[KAT_MAX_SEQ][KAT_EMBED_DIM];
+        /* Multi-Head Attention — выход в heap-буфер */
+        float (*attn_output)[KAT_EMBED_DIM] = ws->layer_attn_out;
         multi_head_attention_forward(
             &block->attn, ws->hidden, seq_len, ws, attn_output
         );
@@ -406,8 +406,8 @@ int kat_forward(const KatModel *model, KatWorkspace *ws,
         memcpy(ws->residual, ws->hidden,
                seq_len * KAT_EMBED_DIM * sizeof(float));
 
-        /* Feed-Forward Network */
-        float ffn_output[KAT_MAX_SEQ][KAT_EMBED_DIM];
+        /* Feed-Forward Network — выход в heap-буфер */
+        float (*ffn_output)[KAT_EMBED_DIM] = ws->layer_ffn_out;
         feed_forward_forward(
             &block->ffn, ws->hidden, seq_len, ws, ffn_output
         );

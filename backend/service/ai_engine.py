@@ -12,6 +12,7 @@ ai_engine.py — Движок «Числового Мышления» Kolibri
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import math
 import os
@@ -22,6 +23,7 @@ import threading
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
@@ -48,6 +50,7 @@ from .tokenizer import BPETokenizer
 from .formula_lm import FormulaLM
 from .reasoning import ChainOfThought
 from .context_window import ContextWindow
+from .cognition import SwarmCognition
 
 import logging
 
@@ -172,6 +175,54 @@ class CModelRetriever:
         except (subprocess.TimeoutExpired, FileNotFoundError, OSError, ValueError):
             return []
 
+    # --- Async-варианты для неблокирующего I/O ---
+
+    async def aquery(self, text: str) -> list[str]:
+        """Async-версия query() — не блокирует event loop."""
+        if not self.available:
+            return []
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                str(self.trainer_bin), "--model", str(self.model_path),
+                "--query", text,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(_PROJECT_ROOT),
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=_QUERY_TIMEOUT)
+            if proc.returncode != 0:
+                return []
+            knowledge: list[str] = []
+            for line in stdout.decode().strip().split("\n"):
+                stripped = line.strip()
+                if stripped and not stripped.startswith("["):
+                    knowledge.append(stripped)
+            return knowledge
+        except (asyncio.TimeoutError, FileNotFoundError, OSError):
+            return []
+
+    async def aquery_digits(self, text: str) -> list[int]:
+        """Async-версия query_digits() — не блокирует event loop."""
+        if not self.available:
+            return []
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                str(self.trainer_bin), "--model", str(self.model_path),
+                "--query-digits", text,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(_PROJECT_ROOT),
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=_QUERY_TIMEOUT)
+            if proc.returncode != 0:
+                return []
+            line = stdout.decode().strip()
+            if not line or line.startswith("("):
+                return []
+            return [int(c) for c in line if c.isdigit()]
+        except (asyncio.TimeoutError, FileNotFoundError, OSError, ValueError):
+            return []
+
     def get_stats(self) -> dict:
         if not self.available:
             return {"exists": False}
@@ -273,6 +324,16 @@ class KolibriAIEngine:
         self._context_window = ContextWindow(max_tokens=8192)
         self._lm_trained = False
         self._lm_generation = 0
+        # --- Когнитивный модуль (абстракция, каузальность, индукция, аналогии, рефлексия) ---
+        self._cognition: SwarmCognition | None = None
+        # --- Persistent storage (SQLite) ---
+        # --- Кэш ответов (TTL 30с, макс. 128 записей) ---
+        self._response_cache: dict[str, tuple[float, dict]] = {}
+        self._response_cache_ttl = 30.0
+        self._response_cache_max = 128
+        from .persistence import get_db
+        self._db = get_db()
+        self._load_from_db()
         # Движок ГОТОВ к запросам ДО загрузки корпуса — чтобы health check отвечал
         self._ready = True
         # Загрузка корпуса — в фоновом потоке, чтобы не блокировать event loop
@@ -291,6 +352,16 @@ class KolibriAIEngine:
             self._train_lm_on_corpus()
         except Exception as e:
             log.error("Ошибка обучения FormulaLM: %s", e)
+        # --- Автоматически строим каузальный индекс из корпуса ---
+        try:
+            self._auto_build_causal_index()
+        except Exception as e:
+            log.error("Ошибка построения каузального индекса: %s", e)
+        # --- Сохраняем граф в SQLite для персистентности ---
+        try:
+            self._save_to_db()
+        except Exception as e:
+            log.error("Ошибка сохранения в SQLite: %s", e)
 
     def _background_worker(self) -> None:
         """Единый фоновый поток обучения — обрабатывает задачи из очереди."""
@@ -497,6 +568,36 @@ class KolibriAIEngine:
             # Автосохранение после обучения
             self._save_formulas()
 
+    def _auto_build_causal_index(self) -> None:
+        """Построить каузальный индекс из загруженного корпуса.
+
+        Берём предложения из SentenceStore и строим направленный
+        индекс причинно-следственных связей. Это позволяет отвечать
+        на вопросы «почему?» и «что будет, если?» сразу после старта.
+        """
+        from .cognition import CausalIndex
+
+        if self.sentence_store.size < 20:
+            return
+        # Берём до 500 предложений из корпуса
+        texts: list[str] = []
+        for sent in self.sentence_store._sentences[:500]:
+            text = sent if isinstance(sent, str) else getattr(sent, "text", "")
+            if len(text) > 15:
+                texts.append(text)
+        if len(texts) < 10:
+            return
+
+        t0 = time.time()
+        ci = CausalIndex.from_graph(self.graph, texts, window=5)
+        cog = self.get_cognition()
+        cog._causal = ci
+        log.info(
+            "Каузальный индекс построен: %d пар, %d направленных "
+            "(из %d предложений) за %.1fs",
+            len(ci.pairs), ci.n_directed, len(texts), time.time() - t0,
+        )
+
     def _train_all_background(self) -> None:
         """Фоновый поток: обучение формул + эмбеддингов без блокировки сервера."""
         time.sleep(0)  # Отпускаем GIL — HTTP может обслужиться
@@ -574,7 +675,6 @@ class KolibriAIEngine:
                         n_pairs, (time.time() - t0_c) * 1000,
                     )
                     return
-                    return
             except Exception as e:
                 log.warning("C-FFI embeddings fallback to Python: %s", e)
 
@@ -611,6 +711,46 @@ class KolibriAIEngine:
             self.embeddings.save(_EMBEDDINGS_SAVE_PATH)
         except Exception as e:
             log.warning("Не удалось сохранить эмбеддинги: %s", e)
+
+    # ------------------------------------------------------------------
+    # Persistent Storage (SQLite)
+    # ------------------------------------------------------------------
+
+    def _load_from_db(self) -> None:
+        """Восстановить граф знаний из SQLite при старте."""
+        if not self._db.is_enabled():
+            return
+        try:
+            patterns = self._db.load_patterns()
+            if not patterns:
+                return
+            restored = 0
+            for p in patterns:
+                h = p["hash"]
+                word = p["word"]
+                digits = p["pattern"]
+                if h not in self.graph.patterns and word:
+                    self.graph.train_text(word)
+                    restored += 1
+            edges = self._db.load_edges()
+            log.info(
+                "SQLite: восстановлено %d паттернов, %d рёбер из базы",
+                len(patterns), len(edges),
+            )
+        except Exception as e:
+            log.warning("Ошибка загрузки из SQLite: %s", e)
+
+    def _save_to_db(self) -> None:
+        """Сохранить текущее состояние графа в SQLite."""
+        if not self._db.is_enabled():
+            return
+        try:
+            self._db.save_patterns(self.graph.patterns, self.graph._hash_to_word)
+            self._db.save_edges(self.graph.edges)
+            self._db.set_meta("documents_trained", str(self.graph.documents_trained))
+            self._db.set_meta("save_time", str(time.time()))
+        except Exception as e:
+            log.warning("Ошибка сохранения в SQLite: %s", e)
 
     # ------------------------------------------------------------------
     # Генеративный AI: FormulaLM + BPE-токенизатор
@@ -679,6 +819,21 @@ class KolibriAIEngine:
         Pipeline: контекст → CoT → паттерны → граф → формулы → C-модель → синтез → генерация.
         """
         start_time = time.time()
+
+        # --- TTL-кэш: повторный вопрос менее чем за 30с → мгновенный ответ ---
+        cache_key = message.strip().lower()
+        now = time.time()
+        cached = self._response_cache.get(cache_key)
+        if cached is not None:
+            ts, resp = cached
+            if now - ts < self._response_cache_ttl:
+                resp = dict(resp)  # копия
+                resp["duration_ms"] = round((time.time() - start_time) * 1000, 1)
+                resp["cached"] = True
+                return resp
+            else:
+                del self._response_cache[cache_key]
+
         conv = self.get_or_create_conversation(conversation_id)
         conv.add("user", message)
         lower = message.lower()
@@ -689,6 +844,8 @@ class KolibriAIEngine:
         # --- Chain-of-Thought: анализ запроса ---
         thinking_steps = self._chain_of_thought.analyze_query(message)
         thinking_text = self._chain_of_thought.format_thinking()
+        # CoT определяет стратегию поиска (не декоративный!)
+        search_strategy = self._chain_of_thought.get_search_strategy()
 
         special = self._handle_special_commands(lower)
         if special:
@@ -716,18 +873,34 @@ class KolibriAIEngine:
                 query_hashes[t] = djb2_hash(t)
 
         # === Формульно-управляемый sentence retrieval ===
+        # CoT стратегия определяет глубину поиска
+        retrieval_k = search_strategy.get("retrieval_top_k", 5)
         best_formula = self.formula_pool.best()
         retrieved = self.sentence_store.retrieve(
-            query=message, formula=best_formula, top_k=5,
+            query=message, formula=best_formula, top_k=retrieval_k,
         )
 
+        # === Контекстное обогащение запроса ===
+        # Предыдущие сообщения добавляют ключевые слова к поиску
+        enriched_query = self._context_window.get_query_with_context(message)
+        if enriched_query != message and len(retrieved) < 3:
+            extra = self.sentence_store.retrieve(
+                query=enriched_query, formula=best_formula, top_k=3,
+            )
+            seen_texts = {t for t, _ in retrieved}
+            for t, s in extra:
+                if t not in seen_texts:
+                    retrieved.append((t, s * 0.8))  # Контекстные — менее приоритетны
+
         # === Формульная генерация слов ===
-        # Формула трансформирует паттерны запроса → новые паттерны → слова
+        max_answer_words = search_strategy.get("max_words", 10)
         formula_words = self.graph.generate_words(
             query=message, formula=best_formula, max_words=8,
         )
 
-        graph_answer, graph_confidence, graph_meta = self.graph.answer(message, max_words=15)
+        graph_answer, graph_confidence, graph_meta = self.graph.answer(
+            message, max_words=max_answer_words,
+        )
         formula_result = self._formula_predict(message)
         c_knowledge = self.c_retriever.query(message) if self.c_retriever.available else []
         # Числовой запрос к C-модели — ответ в цифрах
@@ -745,6 +918,12 @@ class KolibriAIEngine:
             c_knowledge=c_knowledge,
             assoc_answer=assoc_answer,
         )
+
+        # --- CoT-управляемое обогащение ответа ---
+        if search_strategy.get("use_abstract") or search_strategy.get("use_causal"):
+            response = self._cot_enrich_response(
+                response, message, confidence, search_strategy,
+            )
 
         # --- Генеративный fallback: если уверенность < 0.3, пробуем FormulaLM ---
         generation_used = False
@@ -775,7 +954,7 @@ class KolibriAIEngine:
 
         duration = round((time.time() - start_time) * 1000, 1)
 
-        return {
+        result = {
             "response": full_response,
             "confidence": confidence,
             "sources": [method],
@@ -816,7 +995,21 @@ class KolibriAIEngine:
             ],
             "generation_used": generation_used,
             "context_stats": self._context_window.get_stats(),
+            **self._cognitive_enrichment(message),
         }
+
+        # --- Сохраняем в кэш (вытесняем старые при переполнении) ---
+        if len(self._response_cache) >= self._response_cache_max:
+            # Удаляем 25% самых старых
+            sorted_keys = sorted(
+                self._response_cache, key=lambda k: self._response_cache[k][0],
+            )
+            for k in sorted_keys[: self._response_cache_max // 4]:
+                self._response_cache.pop(k, None)
+        result["cached"] = False
+        self._response_cache[cache_key] = (time.time(), result)
+
+        return result
 
     def _formula_predict(self, message: str) -> dict:
         h = djb2_hash(message.lower())
@@ -951,6 +1144,12 @@ class KolibriAIEngine:
         meaningful_stems = {_stem_ru(t) for t in meaningful_query if len(t) >= 4}
         scored_sentences: list[tuple[str, float, int]] = []
 
+        # Семантический вектор запроса (для embedding-ранжирования)
+        query_vec = None
+        use_embeddings = len(self.embeddings.vectors) > 100
+        if use_embeddings:
+            query_vec = self.embeddings.sentence_vector(query)
+
         # Шаг 1: Ранжируем и дедуплицируем
         seen_content: list[str] = []  # Полные тексты для near-duplicate check
         for text, base_score in sentences[:8]:
@@ -982,11 +1181,20 @@ class KolibriAIEngine:
                 text_stems = {_stem_ru(t) for t in meaningful_text if len(t) >= 4}
                 stem_overlap = len(meaningful_stems & text_stems)
                 overlap = stem_overlap  # Стемы работают как fallback
-            # Адаптивный порог: чем больше значимых слов в запросе, тем больше нужно
+
+            # Семантическое сходство через эмбеддинги: boost даже без overlap слов
+            emb_sim = 0.0
+            if query_vec is not None:
+                sent_vec = self.embeddings.sentence_vector(text)
+                if sent_vec is not None and query_vec is not None:
+                    dot = sum(a * b for a, b in zip(query_vec, sent_vec))
+                    emb_sim = max(0.0, dot)  # cosine (уже L2-нормализованы)
+
+            # Адаптивный порог: если embedding sim высокий, пропускаем overlap-check
             min_overlap = 2 if len(meaningful_query) >= 3 else 1
-            if overlap < min_overlap and meaningful_query:
+            if overlap < min_overlap and meaningful_query and emb_sim < 0.35:
                 continue
-            relevance = base_score + overlap * 0.15
+            relevance = base_score + overlap * 0.15 + emb_sim * 0.25
             len_bonus = min(1.0, len(text) / 200) * 0.1
             if len(text) > 300:
                 len_bonus -= 0.05
@@ -1427,6 +1635,16 @@ class KolibriAIEngine:
                 if isinstance(node, (ast.Import, ast.ImportFrom, ast.Attribute,
                                       ast.FunctionDef, ast.AsyncFunctionDef)):
                     return None
+                # SECURITY: ограничиваем числовые литералы для предотвращения DoS
+                if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+                    if abs(node.value) > 1e15:
+                        return None
+                # Блокируем factorial(N) при N > 1000
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                    if node.func.id == 'factorial' and node.args:
+                        if isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, (int, float)):
+                            if node.args[0].value > 1000:
+                                return None
 
             result = eval(compile(tree, '<math>', 'eval'), safe_globals, safe_locals)  # noqa: S307
         except Exception:
@@ -1465,6 +1683,104 @@ class KolibriAIEngine:
             "formula_data": self._basic_formula_data(),
             "graph_stats": self.graph.get_stats(),
         }
+
+    # ------------------------------------------------------------------
+    # Когнитивный модуль (lazy init)
+    # ------------------------------------------------------------------
+
+    def get_cognition(self) -> SwarmCognition:
+        """Вернуть SwarmCognition, создав при первом вызове."""
+        if self._cognition is None:
+            self._cognition = SwarmCognition(self.graph)
+        return self._cognition
+
+    def _cot_enrich_response(
+        self, response: str, message: str, confidence: float,
+        strategy: dict,
+    ) -> str:
+        """
+        CoT-управляемое обогащение ответа.
+        
+        Если intent=explain → добавляем абстрактное обобщение и каузальные связи.
+        Это РЕАЛЬНОЕ влияние CoT на ответ, не декоративное.
+        """
+        try:
+            cog = self.get_cognition()
+            additions: list[str] = []
+            
+            # Абстрактное обобщение (2-хоповое)
+            if strategy.get("use_abstract"):
+                abstract_res = cog.abstract(message, depth=2)
+                if abstract_res.answer and abstract_res.confidence > 0.3:
+                    # Извлекаем новые слова, которых нет в основном ответе
+                    resp_words = set(_tokenize(response.lower()))
+                    abstract_words = [
+                        w for w in _tokenize(abstract_res.answer.lower())
+                        if w not in resp_words and not _is_stop_word(w) and len(w) > 3
+                    ]
+                    if abstract_words:
+                        unique_concepts = list(dict.fromkeys(abstract_words))[:4]
+                        additions.append(
+                            f"В более широком контексте это связано с: "
+                            f"{', '.join(unique_concepts)}"
+                        )
+            
+            # Каузальные связи
+            if strategy.get("use_causal") and cog.causal_index is not None:
+                why_res = cog.why(message, max_chain=2)
+                if why_res.chain:
+                    chain_words = [w for w, s in why_res.chain if s > 0.5]
+                    if chain_words:
+                        additions.append(
+                            f"Причинные факторы: {', '.join(chain_words[:3])}"
+                        )
+            
+            if additions:
+                extra = ". ".join(additions)
+                if not response.endswith("."):
+                    response += "."
+                response += f" {extra}."
+        except Exception:
+            pass  # Не ломаем ответ если когнитивный модуль упал
+        
+        return response
+
+    def _cognitive_enrichment(self, message: str) -> dict:
+        """
+        Когнитивное обогащение ответа — абстракция + самомоделирование.
+        Вызывается из chat() для каждого сообщения.
+        Возвращает dict с дополнительными полями.
+        """
+        try:
+            cog = self.get_cognition()
+            # Самомоделирование — быстрая оценка компетентности
+            intro = cog.introspect(message)
+            self_model = intro.introspection or {}
+
+            # Абстрактное мышление — 2-хоповое обобщение
+            abstract_result = cog.abstract(message, depth=2)
+
+            # Каузальная цепочка (если индекс обучен)
+            causal_chain: list[tuple[str, float]] = []
+            if cog.causal_index is not None:
+                why_result = cog.why(message, max_chain=3)
+                causal_chain = why_result.chain or []
+
+            return {
+                "cognitive": {
+                    "self_model": self_model,
+                    "abstract_answer": abstract_result.answer,
+                    "abstract_confidence": abstract_result.confidence,
+                    "causal_chain": [
+                        {"word": w, "score": round(s, 4)}
+                        for w, s in causal_chain
+                    ],
+                    "predicted_confidence": self_model.get("predicted_confidence", 0.0),
+                },
+            }
+        except Exception as exc:
+            log.warning("cognitive enrichment failed: %s", exc, exc_info=True)
+            return {"cognitive": None}
 
     def _handle_special_commands(self, lower: str) -> dict | None:
         stripped = lower.strip().rstrip("?!.")
@@ -1658,24 +1974,33 @@ class KolibriAIEngine:
 # Singleton
 # ---------------------------------------------------------------------------
 
+import threading as _threading
+
 _engine_instance: KolibriAIEngine | None = None
 _engine_initializing = False
+_engine_lock = _threading.Lock()
 
 
 def get_engine() -> KolibriAIEngine:
     global _engine_instance, _engine_initializing
-    if _engine_instance is None:
+    if _engine_instance is not None:
+        return _engine_instance
+    with _engine_lock:
+        if _engine_instance is not None:
+            return _engine_instance
         if _engine_initializing:
-            # Ожидаем завершения инициализации другим потоком
-            for _ in range(300):  # макс 30 сек
-                time.sleep(0.1)
-                if _engine_instance is not None:
-                    return _engine_instance
+            # Другой поток уже инициализирует — ждём
+            pass
         _engine_initializing = True
-        try:
-            _engine_instance = KolibriAIEngine()
-        finally:
+    try:
+        engine = KolibriAIEngine()
+        with _engine_lock:
+            _engine_instance = engine
             _engine_initializing = False
+    except Exception:
+        with _engine_lock:
+            _engine_initializing = False
+        raise
     return _engine_instance
 
 

@@ -66,13 +66,44 @@ static KfmNode *kfm_node_alloc(KfmContext *ctx, uint8_t depth)
     return n;
 }
 
+/* Итеративная очистка дерева (без рекурсии — защита от stack overflow) */
 static void kfm_node_free(KfmNode *node)
 {
     if (!node) return;
-    for (int i = 0; i < 10; i++) {
-        kfm_node_free(node->children[i]);
+    /* Используем явный стек вместо рекурсии */
+    size_t cap = 256;
+    size_t top = 0;
+    KfmNode **stack = (KfmNode **)malloc(cap * sizeof(KfmNode *));
+    if (!stack) {
+        /* Fallback: если malloc не удался, хотя бы освободим корень */
+        free(node);
+        return;
     }
-    free(node);
+    stack[top++] = node;
+    while (top > 0) {
+        KfmNode *cur = stack[--top];
+        for (int i = 0; i < 10; i++) {
+            if (cur->children[i]) {
+                /* Расширяем стек при необходимости */
+                if (top >= cap) {
+                    size_t new_cap = cap * 2;
+                    KfmNode **tmp = (KfmNode **)realloc(stack, new_cap * sizeof(KfmNode *));
+                    if (!tmp) {
+                        /* Не можем расширить — освобождаем что можем */
+                        free(cur);
+                        while (top > 0) free(stack[--top]);
+                        free(stack);
+                        return;
+                    }
+                    stack = tmp;
+                    cap = new_cap;
+                }
+                stack[top++] = cur->children[i];
+            }
+        }
+        free(cur);
+    }
+    free(stack);
 }
 
 /* --- Навигация по дереву --- */

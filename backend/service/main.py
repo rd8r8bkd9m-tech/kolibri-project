@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Optional
 
+import os
+
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -17,6 +19,10 @@ from .swarm_sync import swarm_router
 from .distributed_crawler import router as dist_crawler_router
 from .delta_sync import router as delta_sync_router
 from .archiver_service import create_archiver_router
+from .cognition_api import router as cognition_router
+from .auth import router as auth_router
+from .rate_limiter import RateLimitMiddleware
+from .health import router as health_router
 from .common import Settings, get_settings, InferenceRequest, perform_upstream_call
 
 
@@ -31,15 +37,40 @@ class InferenceResponse(BaseModel):
     latency_ms: Optional[float] = Field(default=None, description="End-to-end latency for the upstream call")
 
 
-app = FastAPI(title="Kolibri AI backend", version="0.2.0")
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Lifespan: предзагрузка AI-движка при старте."""
+    import threading
+    threading.Thread(target=pre_init_engine, daemon=True, name="engine-init").start()
+    yield
+    get_settings.cache_clear()
+
+
+app = FastAPI(title="Kolibri AI backend", version="0.2.0", lifespan=lifespan)
+
+# CORS: конфигурируемый список доменов (по умолчанию — только localhost)
+_cors_origins = [
+    o.strip()
+    for o in os.environ.get(
+        "KOLIBRI_CORS_ORIGINS",
+        "http://localhost:3000,http://localhost:5173,http://localhost:8080",
+    ).split(",")
+    if o.strip()
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- Rate-limiter (после CORS, до роутеров) ---
+app.add_middleware(RateLimitMiddleware)
 
 app.include_router(gpu_router)
 app.include_router(factory_router)
@@ -51,8 +82,9 @@ app.include_router(swarm_router)
 app.include_router(dist_crawler_router)
 app.include_router(delta_sync_router)
 app.include_router(create_archiver_router())
-
-
+app.include_router(cognition_router)
+app.include_router(auth_router)
+app.include_router(health_router)
 
 
 @app.get("/api/health", response_model=HealthResponse)
@@ -78,13 +110,3 @@ async def infer(
 
     text, latency_ms, provider = await perform_upstream_call(request, settings)
     return InferenceResponse(response=text, provider=provider, latency_ms=latency_ms)
-
-
-app.add_event_handler("shutdown", get_settings.cache_clear)
-
-
-@app.on_event("startup")
-async def startup_event() -> None:
-    """Предзагрузка AI-движка при старте сервера."""
-    import threading
-    threading.Thread(target=pre_init_engine, daemon=True, name="engine-init").start()

@@ -149,6 +149,11 @@ static char *read_file_contents(const char *path) {
         fclose(file);
         return NULL;
     }
+    /* Защита: макс. 512 МБ и проверка переполнения size+1 */
+    if ((size_t)size > (512UL * 1024UL * 1024UL) || (size_t)size == (size_t)-1) {
+        fclose(file);
+        return NULL;
+    }
     if (fseek(file, 0L, SEEK_SET) != 0) {
         fclose(file);
         return NULL;

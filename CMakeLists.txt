@@ -485,6 +485,10 @@ add_executable(compare_with_competitors benchmarks/compare_with_competitors.c)
 target_include_directories(compare_with_competitors PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/backend/include)
 target_link_libraries(compare_with_competitors PRIVATE m)
 
+add_executable(bench_kolibri_vs_world benchmarks/bench_kolibri_vs_world.c)
+target_include_directories(bench_kolibri_vs_world PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/backend/include)
+target_link_libraries(bench_kolibri_vs_world PRIVATE kolibri_core)
+
 if(KOLIBRI_ENABLE_FUZZ)
   add_executable(kolibri_fuzz_script tests/fuzz_script.c)
   target_link_libraries(kolibri_fuzz_script PRIVATE kolibri_core)

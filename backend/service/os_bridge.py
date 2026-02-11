@@ -140,10 +140,9 @@ async def exec_command(req: CommandRequest):
         real_cmd = ["df", "-h"]
         
     else:
-        # Fallback: Allow safe execution for demo purposes
-        # CAUTION: In production, this is a security risk.
-        # We allow simple commands to prove "realness"
-        real_cmd = ["/bin/bash", "-c", cmd]
+        # SECURITY: Запрещаем произвольные команды.
+        # Разрешены только whitelist-команды выше.
+        return {"output": f"Error: Unknown command '{cmd}'. Allowed: status, kolibri_gen, kolibri_learn, ls, pwd, whoami, uname, df"}
 
     try:
         result = subprocess.run(

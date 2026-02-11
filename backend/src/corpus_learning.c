@@ -427,6 +427,12 @@ int k_corpus_load_patterns(KolibriCorpusContext *ctx,
         return -1;
     }
     
+    /* Защита: ограничиваем кол-во загружаемых паттернов (макс. 16М) */
+    if (count > (16UL * 1024UL * 1024UL)) {
+        fclose(f);
+        return -1;
+    }
+    
     /* Очищаем существующее хранилище */
     k_corpus_free(ctx);
     k_corpus_init(ctx, 0, 0);

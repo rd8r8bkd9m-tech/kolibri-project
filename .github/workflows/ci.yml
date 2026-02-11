@@ -22,13 +22,16 @@ jobs:
       - name: Установка инструментов
         run: |
           python -m pip install --upgrade pip
-          python -m pip install ruff pyright pytest coverage
+          python -m pip install ruff pyright pytest coverage pytest-anyio
+          python -m pip install -r requirements.txt || true
       - name: Ruff
         run: ruff check .
       - name: Pyright
         run: pyright
-      - name: Pytest
-        run: pytest -q
+      - name: Pytest с покрытием
+        run: |
+          coverage run -m pytest tests/ -q --tb=short
+          coverage report --show-missing --fail-under=40
 
   core-build:
     name: CMake, тесты и ISO

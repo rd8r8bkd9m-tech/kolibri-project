@@ -105,6 +105,11 @@ typedef struct {
     float ff_hidden[KAT_MAX_SEQ][KAT_FF_DIM];         /* Скрытый слой FFN        */
     float logits[KAT_VOCAB_SIZE];                      /* Выходные логиты         */
     float probs[KAT_VOCAB_SIZE];                       /* Softmax вероятности     */
+    /* --- Буферы перенесённые со стека в heap --- */
+    float mha_normed[KAT_MAX_SEQ][KAT_EMBED_DIM];     /* LayerNorm перед attention */
+    float ffn_normed[KAT_MAX_SEQ][KAT_EMBED_DIM];     /* LayerNorm перед FFN       */
+    float layer_attn_out[KAT_MAX_SEQ][KAT_EMBED_DIM]; /* Attention output        */
+    float layer_ffn_out[KAT_MAX_SEQ][KAT_EMBED_DIM];  /* FFN output              */
     size_t seq_len;                                     /* Текущая длина           */
 } KatWorkspace;
 
