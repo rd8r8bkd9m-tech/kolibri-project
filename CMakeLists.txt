@@ -69,6 +69,9 @@ add_library(kolibri_core_objects OBJECT
     backend/src/corpus_trainer.c
     backend/src/web_crawler.c
     backend/src/fractal_memory.c
+    backend/src/attention.c
+    backend/src/world_model.c
+    backend/src/auto_learn.c
 )
 
 target_include_directories(kolibri_core_objects
@@ -412,6 +415,21 @@ if(KOLIBRI_ENABLE_TESTS)
     add_executable(test_fractal_memory tests/test_fractal_memory.c)
     target_link_libraries(test_fractal_memory PRIVATE kolibri_core Threads::Threads m)
     add_test(NAME test_fractal_memory COMMAND test_fractal_memory)
+
+    # AGI: ATTENTION - модуль Self-Attention (Transformer)
+    add_executable(test_attention tests/test_attention.c)
+    target_link_libraries(test_attention PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_attention COMMAND test_attention)
+
+    # AGI: WORLD MODEL - предсказательная модель мира
+    add_executable(test_world_model tests/test_world_model.c)
+    target_link_libraries(test_world_model PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_world_model COMMAND test_world_model)
+
+    # AGI: AUTO LEARN - автономный цикл обучения
+    add_executable(test_auto_learn tests/test_auto_learn.c)
+    target_link_libraries(test_auto_learn PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_auto_learn COMMAND test_auto_learn)
 
     configure_file(tests/ks_compiler_roundtrip.cmake
                    ${CMAKE_CURRENT_BINARY_DIR}/ks_compiler_roundtrip.cmake
