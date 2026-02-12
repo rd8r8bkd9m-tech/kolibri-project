@@ -2,9 +2,9 @@
  * kolibri-bridge.ts
  *
  * Высокоуровневый мост между интерфейсом и ядром KolibriScript. Модуль
- * пытается загрузить WebAssembly-модуль `kolibri.wasm`, а при сбоях
- * gracefully деградирует до резервных реализаций (LLM или статическое
- * сообщение). Вся логика построения KolibriScript программ собрана здесь,
+ * загружает WebAssembly-модуль `kolibri.wasm` в строгом режиме.
+ * При ошибках инициализации создаётся fail-fast ошибка без деградации.
+ * Вся логика построения KolibriScript программ собрана здесь,
  * чтобы обеспечить прозрачность и детерминированность поведения фронтенда.
  */
 
@@ -416,24 +416,6 @@ class KolibriScriptBridge implements KolibriBridge {
   }
 }
 
-class KolibriFallbackBridge implements KolibriBridge {
-  readonly ready = Promise.resolve();
-
-  constructor(private readonly reason: string) {}
-
-  async ask(): Promise<string> {
-    return [
-      "KolibriScript недоступен: kolibri.wasm не был загружен.",
-      `Причина: ${this.reason}`,
-      "Запустите scripts/build_wasm.sh или установите переменную KOLIBRI_ALLOW_WASM_STUB=1 для деградированного режима.",
-    ].join("\n");
-  }
-
-  async reset(): Promise<void> {
-    // Нет состояния для сброса.
-  }
-}
-
 class KolibriLLMBridge implements KolibriBridge {
   readonly ready = Promise.resolve();
 
@@ -477,8 +459,7 @@ const createBridge = async (): Promise<KolibriBridge> => {
     await runtime.initialise();
   } catch (error) {
     const reason = await describeWasmFailure(error);
-    console.warn("[kolibri-bridge] Переход в деградированный режим без WebAssembly.", reason);
-    return new KolibriFallbackBridge(reason);
+    throw new Error(`Kolibri WASM init failed: ${reason}`);
   }
 
   const scriptBridge = new KolibriScriptBridge(runtime);
@@ -490,16 +471,31 @@ const createBridge = async (): Promise<KolibriBridge> => {
   return scriptBridge;
 };
 
-const bridgePromise: Promise<KolibriBridge> = createBridge();
+let bridgePromise: Promise<KolibriBridge> | null = null;
+let readyPromise: Promise<void> | null = null;
+
+const getBridgePromise = (): Promise<KolibriBridge> => {
+  if (!bridgePromise) {
+    bridgePromise = createBridge();
+    // Attach handler early to avoid unhandled rejection noise before UI subscribes.
+    void bridgePromise.catch(() => undefined);
+  }
+  return bridgePromise;
+};
 
 const kolibriBridge: KolibriBridge = {
-  ready: bridgePromise.then(() => undefined),
+  get ready(): Promise<void> {
+    if (!readyPromise) {
+      readyPromise = getBridgePromise().then(() => undefined);
+    }
+    return readyPromise;
+  },
   async ask(prompt: string, mode?: string, context: KnowledgeSnippet[] = []): Promise<string> {
-    const bridge = await bridgePromise;
+    const bridge = await getBridgePromise();
     return bridge.ask(prompt, mode, context);
   },
   async reset(): Promise<void> {
-    const bridge = await bridgePromise;
+    const bridge = await getBridgePromise();
     await bridge.reset();
   },
 };

@@ -35,6 +35,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from .search_engine import generate_search_queries, search_topic
+from .project_paths import get_project_root
 
 # Подавляем предупреждения SSL (для verify=False)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -44,7 +45,7 @@ logger = logging.getLogger("kolibri.agent")
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 
 # --- Пути ---
-PROJECT_ROOT = Path("/workspaces/kolibri-project")
+PROJECT_ROOT = get_project_root()
 TRAINER_BIN = PROJECT_ROOT / "build" / "kolibri_mass_trainer"
 MODEL_DIR = PROJECT_ROOT / "data" / "models"
 CORPUS_DIR = PROJECT_ROOT / "data" / "corpus"
@@ -81,6 +82,7 @@ class AgentStartRequest(BaseModel):
         default=["duckduckgo", "wikipedia_en", "wikipedia_ru", "bing"],
     )
     model_name: Optional[str] = None
+    restart_if_running: bool = Field(default=True)
 
 
 class PageInfo(BaseModel):
@@ -220,6 +222,45 @@ def _fetch_page_text(url: str, timeout: int = 20) -> tuple[str, str, int]:
         text = text[:100_000]
 
     return text, title, bytes_dl
+
+
+def _train_python_graph_from_temp_dir(temp_dir: str, topic: str) -> tuple[int, int]:
+    """
+    Синхронная часть обучения Python-графа.
+    Выполняется в executor, чтобы не блокировать event loop FastAPI.
+    """
+    from .ai_engine import get_engine
+
+    engine = get_engine()
+    CORPUS_DIR.mkdir(parents=True, exist_ok=True)
+    topic_slug = re.sub(r"[^\w]+", "_", topic.lower())[:40]
+    texts_trained = 0
+
+    if not os.path.exists(temp_dir):
+        return 0, engine.sentence_store.size
+
+    for fname in sorted(os.listdir(temp_dir)):
+        if not fname.endswith(".txt"):
+            continue
+        src_path = os.path.join(temp_dir, fname)
+        try:
+            with open(src_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            if len(content) < 100:
+                continue
+
+            # Обновляем Python-граф и sentence-store.
+            engine.train_text(content)
+            texts_trained += 1
+
+            # Копируем в постоянный корпус.
+            dest = CORPUS_DIR / f"agent_{topic_slug}_{fname}"
+            if not dest.exists():
+                dest.write_text(content, encoding="utf-8")
+        except Exception as e:
+            logger.warning("Ошибка обучения Python-графа на %s: %s", fname, e)
+
+    return texts_trained, engine.sentence_store.size
 
 
 # ============================================================
@@ -443,42 +484,23 @@ async def _run_agent(
         _agent_state.progress = 92.0
         _add_event("training", "🧬 Обучаю числовой граф знаний (Python)...")
 
-        # Импортируем движок для обучения Python-графа
-        from .ai_engine import get_engine
-        engine = get_engine()
-
-        # Сохраняем тексты в постоянный корпус + обучаем Python-граф
-        CORPUS_DIR.mkdir(parents=True, exist_ok=True)
-        topic_slug = re.sub(r'[^\w]+', '_', topic.lower())[:40]
+        # Выполняем тяжёлое Python-обучение вне event loop,
+        # чтобы API оставался отзывчивым во время тренировки.
         texts_trained = 0
-
-        if temp_dir and os.path.exists(temp_dir):
-            for fname in os.listdir(temp_dir):
-                if not fname.endswith(".txt"):
-                    continue
-                src_path = os.path.join(temp_dir, fname)
-                try:
-                    content = open(src_path, "r", encoding="utf-8").read()
-                    if len(content) < 100:
-                        continue
-
-                    # 1. Обучаем Python-граф и sentence store
-                    engine.train_text(content)
-                    texts_trained += 1
-
-                    # 2. Копируем в постоянный корпус (переживёт перезагрузку)
-                    dest = CORPUS_DIR / f"agent_{topic_slug}_{fname}"
-                    if not dest.exists():
-                        dest.write_text(content, encoding="utf-8")
-
-                except Exception as e:
-                    logger.warning("Ошибка обучения Python-графа на %s: %s", fname, e)
+        sentence_store_size = 0
+        if temp_dir:
+            texts_trained, sentence_store_size = await loop.run_in_executor(
+                None,
+                _train_python_graph_from_temp_dir,
+                temp_dir,
+                topic,
+            )
 
         if texts_trained > 0:
             _add_event(
                 "training",
                 f"✅ Python-граф обучен на {texts_trained} документах "
-                f"({engine.sentence_store.size} предложений в памяти)",
+                f"({sentence_store_size} предложений в памяти)",
             )
 
         # ═══════════════════════════════════════════════
@@ -498,8 +520,9 @@ async def _run_agent(
         )
 
     except asyncio.CancelledError:
-        _agent_state.phase = "error"
-        _add_event("error", "⏹️ Агент остановлен пользователем")
+        _agent_state.phase = "idle"
+        _agent_state.progress = 0.0
+        _add_event("stopped", "⏹️ Агент остановлен пользователем")
     except Exception as e:
         _agent_state.phase = "error"
         _add_event("error", f"💥 Критическая ошибка: {e}")
@@ -522,7 +545,23 @@ async def start_agent(req: AgentStartRequest) -> dict:
     global _agent_state, _agent_task
 
     if _agent_state.running:
-        raise HTTPException(409, "Агент уже работает. Остановите текущую задачу.")
+        if not req.restart_if_running:
+            return {
+                "status": "already_running",
+                "topic": _agent_state.topic,
+                "phase": _agent_state.phase,
+                "progress": _agent_state.progress,
+            }
+
+        # Мягкий перезапуск: останавливаем текущую задачу и запускаем новую.
+        if _agent_task and not _agent_task.done():
+            _agent_state.running = False
+            _agent_state.phase = "stopping"
+            _agent_task.cancel()
+            try:
+                await asyncio.wait_for(_agent_task, timeout=2.0)
+            except Exception:
+                pass
 
     model_name = req.model_name or "kolibri_web.klm"
     model_path = str(MODEL_DIR / model_name)
@@ -562,6 +601,7 @@ async def stop_agent() -> dict:
 
     if _agent_task and not _agent_task.done():
         _agent_state.running = False
+        _agent_state.phase = "stopping"
         _agent_task.cancel()
         return {"status": "stopping"}
 

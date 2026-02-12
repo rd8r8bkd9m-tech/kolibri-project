@@ -429,7 +429,7 @@ export const SettingsTab = () => {
         .theme-selector { display: flex; gap: 8px; flex-shrink: 0; }
         .theme-btn { display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: var(--bg-overlay); border: 2px solid var(--border-primary); border-radius: 10px; color: var(--text-muted); font-size: 13px; cursor: pointer; transition: all 0.2s ease; }
         .theme-btn:hover { background: var(--bg-hover); color: var(--text-secondary); }
-        .theme-btn.active { background: var(--accent-bg); border-color: var(--accent-primary); color: var(--accent-primary); box-shadow: 0 0 0 1px var(--accent-primary); }
+        .theme-btn.active { background: var(--accent-bg); border-color: var(--accent-primary); color: var(--accent-primary); }
 
         .theme-preview { margin-top: 20px; border: 1px solid var(--border-primary); border-radius: 12px; overflow: hidden; }
         .preview-header { padding: 8px 12px; background: var(--bg-tertiary); font-size: 11px; color: var(--text-dimmed); text-transform: uppercase; letter-spacing: 0.5px; }

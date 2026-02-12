@@ -1,7 +1,7 @@
 /**
  * ArchiverTab.tsx
  * 
- * Вкладка "Архиватор" — сжатие/распаковка текста через Kolibri Predictive Compression.
+ * Вкладка "Архиватор" — сжатие/распаковка текста через Calibre Predictive Compression.
  * Отображает статистику, поддержка zlib fallback.
  */
 
@@ -347,7 +347,7 @@ export const ArchiverTab = () => {
           <Archive size={20} />
         </div>
         <div>
-          <h2>Kolibri Архиватор</h2>
+          <h2>Calibre Архиватор</h2>
           <span style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>
             Предиктивное сжатие на основе формул
           </span>
@@ -522,7 +522,7 @@ export const ArchiverTab = () => {
 
       {/* Информация */}
       <div className="archiver-info">
-        <p><strong>Kolibri Predictive Compression (KPC)</strong></p>
+        <p><strong>Calibre Predictive Compression (KPC)</strong></p>
         <p>
           Предиктивное сжатие использует эволюционирующие MLP-формулы для предсказания 
           следующего байта. Арифметическое кодирование конвертирует предсказания в компактный 

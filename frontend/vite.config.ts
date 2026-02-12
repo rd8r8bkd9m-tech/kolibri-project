@@ -17,7 +17,6 @@ function copyKolibriWasm(): Plugin {
   const publicInfoTarget = resolve(frontendDir, "public/kolibri.wasm.txt");
   let copied = false;
   let buildPromise: Promise<void> | null = null;
-  let skippedForServe = false;
 
   const shouldAttemptAutoBuild = (() => {
     const value = process.env.KOLIBRI_SKIP_WASM_AUTOBUILD?.toLowerCase();
@@ -28,18 +27,6 @@ function copyKolibriWasm(): Plugin {
 
     return !["1", "true", "yes", "on"].includes(value);
   })();
-
-  const allowStubWasm = (() => {
-    const value = process.env.KOLIBRI_ALLOW_WASM_STUB?.toLowerCase();
-
-    if (!value) {
-      return false;
-    }
-
-    return ["1", "true", "yes", "on"].includes(value);
-  })();
-
-  let warnedAboutStub = false;
 
   const buildKolibriWasm = () =>
     new Promise<void>((fulfill, reject) => {
@@ -133,21 +120,9 @@ function copyKolibriWasm(): Plugin {
       await access(wasmInfoSource);
       const info = await readFile(wasmInfoSource, "utf-8");
       if (/kolibri\.wasm:\s*заглушка/i.test(info)) {
-        if (!allowStubWasm) {
-          throw new Error(
-            "kolibri.wasm собран как заглушка. Установите Emscripten или Docker и повторите scripts/build_wasm.sh, или запустите сборку с KOLIBRI_ALLOW_WASM_STUB=1 для деградированного режима."
-          );
-        }
-
-        if (!warnedAboutStub) {
-          console.warn(
-            "[copy-kolibri-wasm] Обнаружена заглушка kolibri.wasm. Сборка продолжится, потому что установлен KOLIBRI_ALLOW_WASM_STUB."
-          );
-          console.warn(
-            "[copy-kolibri-wasm] Фронтенд будет работать в деградированном режиме. Установите Emscripten или Docker и пересоберите, чтобы восстановить полноценный функционал."
-          );
-          warnedAboutStub = true;
-        }
+        throw new Error(
+          "kolibri.wasm собран как заглушка. Установите Emscripten или Docker и повторите scripts/build_wasm.sh."
+        );
       }
     } catch (infoError) {
       const messageParts = [
@@ -163,30 +138,11 @@ function copyKolibriWasm(): Plugin {
     }
   };
 
-  const performCopy = async (context: WasiPluginContext) => {
-    if (copied || skippedForServe) {
+  const performCopy = async (_context: WasiPluginContext) => {
+    if (copied) {
       return;
     }
-
-    try {
-      await ensureWasmPresent();
-    } catch (error) {
-      if (context === "serve") {
-        skippedForServe = true;
-        const reason =
-          error instanceof Error && error.message
-            ? error.message
-            : String(error);
-        console.warn(`[copy-kolibri-wasm] kolibri.wasm не будет скопирован: ${reason}`);
-        console.warn(
-          "[copy-kolibri-wasm] Фронтенд запущен в деградированном режиме без WebAssembly. " +
-            "Запустите scripts/build_wasm.sh, чтобы восстановить полноценную функциональность."
-        );
-        return;
-      }
-
-      throw error;
-    }
+    await ensureWasmPresent();
 
     await mkdir(dirname(publicTarget), { recursive: true });
     await copyFile(wasmSource, publicTarget);

@@ -54,7 +54,6 @@ PY
 }
 
 EMCC="${EMCC:-emcc}"
-sozdat_zaglushku=0
 sobranov_docker=0
 
 vychislit_sha256_stroku() {
@@ -105,27 +104,6 @@ EOF
     return 1
 }
 
-sozdat_stub_wasm() {
-    local stub_istochnik="$proekt_koren/scripts/assets/kolibri_stub.wasm"
-    if [[ -f "$stub_istochnik" ]]; then
-        cp "$stub_istochnik" "$vyhod_wasm"
-    else
-        printf '\x00asm\x01\x00\x00\x00' >"$vyhod_wasm"
-    fi
-
-    cat >"$vyhod_dir/kolibri.wasm.txt" <<'EOF_INFO'
-kolibri.wasm: заглушка (WebAssembly ядро недоступно)
-Эта заглушка экспортирует минимальные функции моста, которые всегда
-возвращают ошибку и не выполняют KolibriScript. Она нужна лишь для
-диагностики и предотвращения сбоев интерфейса.
-Установите Emscripten или Docker и повторно запустите scripts/build_wasm.sh,
-чтобы получить полноценный модуль kolibri.wasm.
-EOF_INFO
-    zapisat_sha256 "$vyhod_wasm" "$vyhod_dir/kolibri.wasm.sha256"
-    rm -f "$vremennaja_js" "$vremennaja_map"
-    echo "[ПРЕДУПРЕЖДЕНИЕ] kolibri.wasm заменён заглушкой. Установите Emscripten или Docker для полноценной сборки." >&2
-}
-
 ensure_emcc() {
     if command -v "$EMCC" >/dev/null 2>&1; then
         return 0
@@ -156,16 +134,11 @@ ensure_emcc() {
         return $docker_status
     fi
 
-    sozdat_zaglushku=1
-    return 0
+    echo "[ОШИБКА] emcc не найден и Docker недоступен. Деградационный режим отключён." >&2
+    return 1
 }
 
 ensure_emcc || exit 1
-
-if (( sozdat_zaglushku )); then
-    sozdat_stub_wasm
-    exit 0
-fi
 
 if (( sobranov_docker )) && [[ "${KOLIBRI_WASM_INVOKED_VIA_DOCKER:-0}" != "1" ]] && ! command -v "$EMCC" >/dev/null 2>&1; then
     # Docker fallback уже собрал артефакт, на хосте больше делать нечего.
@@ -181,6 +154,7 @@ istochniki=(
     "$proekt_koren/backend/src/symbol_table.c"
     "$proekt_koren/backend/src/script.c"
     "$proekt_koren/backend/src/wasm_bridge.c"
+    "$proekt_koren/backend/src/wasm_link_stubs.c"
     "$proekt_koren/backend/src/sim.c"
     "$proekt_koren/wasm/kolibri_sim_wasm.c"
 )

@@ -13,6 +13,7 @@ archiver_service.py — Python-обёртка РОДНОГО архиватор�
 from __future__ import annotations
 
 import ctypes
+import ctypes.util
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -38,10 +39,30 @@ KOLIBRI_COMPRESS_ALL      = 0x1FF
 
 _lib: Optional[ctypes.CDLL] = None
 _LIB_NAMES = [
+    "build/libkolibri_compress.dylib",
     "build/libkolibri_compress.so",
+    "build/libkolibri_compress.dll",
+    "libkolibri_compress.dylib",
     "libkolibri_compress.so",
+    "libkolibri_compress.dll",
+    "../build/libkolibri_compress.dylib",
     "../build/libkolibri_compress.so",
+    "../build/libkolibri_compress.dll",
 ]
+
+
+def _load_libc() -> Optional[ctypes.CDLL]:
+    libc_name = ctypes.util.find_library("c")
+    try:
+        libc = ctypes.CDLL(libc_name) if libc_name else ctypes.CDLL(None)
+        libc.free.argtypes = [ctypes.c_void_p]
+        libc.free.restype = None
+        return libc
+    except OSError:
+        return None
+
+
+_LIBC = _load_libc()
 
 
 class KolibriCompressStats(ctypes.Structure):
@@ -206,8 +227,8 @@ class ArchiverService:
         result_bytes = bytes(out_ptr[:sz])
 
         # Освобождаем C-память
-        libc = ctypes.CDLL("libc.so.6")
-        libc.free(out_ptr)
+        if _LIBC is not None:
+            _LIBC.free(ctypes.cast(out_ptr, ctypes.c_void_p))
 
         return CompressResult(
             original_size=len(data),
@@ -224,7 +245,7 @@ class ArchiverService:
         """Сжать текст (UTF-8 -> bytes -> compress)."""
         return self.compress(text.encode("utf-8"))
 
-    # ── Распаковка ────────────────────────────────────────────────────
+        # ── Распаковка ────────────────────────────────────────────────────
 
     def decompress(self, data: bytes) -> CompressResult:
         """Распаковать данные через Kolibri."""
@@ -259,8 +280,8 @@ class ArchiverService:
         sz = out_size.value
         result_bytes = bytes(out_ptr[:sz])
 
-        libc = ctypes.CDLL("libc.so.6")
-        libc.free(out_ptr)
+        if _LIBC is not None:
+            _LIBC.free(ctypes.cast(out_ptr, ctypes.c_void_p))
 
         return CompressResult(
             original_size=sz,
@@ -292,12 +313,18 @@ class ArchiverService:
 
     def get_stats(self) -> dict[str, object]:
         """Информация о состоянии сервиса."""
+        method_name = "kolibri" if self._use_native else "zlib-fallback"
         return {
+            # Новые поля
             "native_available": self._use_native,
             "engine": "kolibri",
             "version": "v50.0",
             "methods": self._methods,
             "methods_description": self._describe_methods(),
+            # Поля для совместимости со старыми UI
+            "method": method_name,
+            "trained": self._use_native,
+            "evolve_rounds": 0,
         }
 
     def _describe_methods(self) -> list[str]:

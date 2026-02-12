@@ -51,6 +51,7 @@ from .formula_lm import FormulaLM
 from .reasoning import ChainOfThought
 from .context_window import ContextWindow
 from .cognition import SwarmCognition
+from .project_paths import get_project_root
 
 import logging
 
@@ -60,7 +61,7 @@ log = logging.getLogger("kolibri.ai")
 # Конфигурация
 # ---------------------------------------------------------------------------
 
-_PROJECT_ROOT = Path("/workspaces/kolibri-project")
+_PROJECT_ROOT = get_project_root()
 _TRAINER_BIN = _PROJECT_ROOT / "build" / "kolibri_mass_trainer"
 _DEFAULT_MODEL = _PROJECT_ROOT / "data" / "models" / "kolibri_web.klm"
 _CORPUS_DIR = _PROJECT_ROOT / "data" / "corpus"
@@ -69,6 +70,22 @@ _EMBEDDINGS_SAVE_PATH = _PROJECT_ROOT / "data" / "models" / "kolibri_embeddings.
 
 _MAX_CONTEXT_TURNS = 20
 _QUERY_TIMEOUT = 10
+
+# Минимальный словарь RU→EN для кросс-языкового retrieval по англ. корпусу.
+# Это не переводчик; только "мост" для частых технических терминов.
+_RU_TO_EN_TERMS: dict[str, str] = {
+    "кубит": "qubit",
+    "квантовый": "quantum",
+    "квантовая": "quantum",
+    "квантовые": "quantum",
+    "квантового": "quantum",
+    "квантовой": "quantum",
+    "квантовых": "quantum",
+    "квантовом": "quantum",
+    "компьютер": "computer",
+    "вычисления": "computing",
+    "вычисление": "computing",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -581,8 +598,8 @@ class KolibriAIEngine:
             return
         # Берём до 500 предложений из корпуса
         texts: list[str] = []
-        for sent in self.sentence_store._sentences[:500]:
-            text = sent if isinstance(sent, str) else getattr(sent, "text", "")
+        for idx in range(min(self.sentence_store.size, 500)):
+            text = self.sentence_store.get_text(idx)
             if len(text) > 15:
                 texts.append(text)
         if len(texts) < 10:
@@ -762,8 +779,8 @@ class KolibriAIEngine:
             return
         try:
             all_texts: list[str] = []
-            for sent in self.sentence_store._sentences[:2000]:
-                text = sent if isinstance(sent, str) else getattr(sent, "text", "")
+            for idx in range(min(self.sentence_store.size, 2000)):
+                text = self.sentence_store.get_text(idx)
                 if len(text) > 20:
                     all_texts.append(text)
 
@@ -876,21 +893,50 @@ class KolibriAIEngine:
         # CoT стратегия определяет глубину поиска
         retrieval_k = search_strategy.get("retrieval_top_k", 5)
         best_formula = self.formula_pool.best()
-        retrieved = self.sentence_store.retrieve(
-            query=message, formula=best_formula, top_k=retrieval_k,
+        has_cyrillic = any("\u0400" <= c <= "\u04ff" for c in message)
+        mapped_tokens: list[str] = []
+        mapped_terms: dict[str, str] = {}
+        if has_cyrillic:
+            for tok in _tokenize(message.lower()):
+                mapped = _RU_TO_EN_TERMS.get(tok)
+                if mapped:
+                    mapped_terms[tok] = mapped
+                    mapped_tokens.append(mapped)
+                else:
+                    mapped_tokens.append(tok)
+
+        mapped_query = " ".join(mapped_tokens).strip() if mapped_terms else ""
+        retrieval_query = mapped_query if mapped_query else message
+
+        # Основной retrieval: пробуем исходный запрос + (при необходимости) RU→EN вариант.
+        retrieval_limit = max(12, int(retrieval_k))
+        base_retrieved = self.sentence_store.retrieve(
+            query=message, formula=best_formula, top_k=retrieval_limit,
         )
+        merged_scores: dict[str, float] = {t: s for t, s in base_retrieved}
+        if mapped_query and mapped_query != message:
+            mapped_retrieved = self.sentence_store.retrieve(
+                query=mapped_query, formula=best_formula, top_k=retrieval_limit,
+            )
+            for t, s in mapped_retrieved:
+                prev = merged_scores.get(t)
+                if prev is None or s > prev:
+                    merged_scores[t] = s
 
         # === Контекстное обогащение запроса ===
         # Предыдущие сообщения добавляют ключевые слова к поиску
         enriched_query = self._context_window.get_query_with_context(message)
-        if enriched_query != message and len(retrieved) < 3:
+        if enriched_query != message and len(merged_scores) < 3:
             extra = self.sentence_store.retrieve(
-                query=enriched_query, formula=best_formula, top_k=3,
+                query=enriched_query, formula=best_formula, top_k=6,
             )
-            seen_texts = {t for t, _ in retrieved}
             for t, s in extra:
-                if t not in seen_texts:
-                    retrieved.append((t, s * 0.8))  # Контекстные — менее приоритетны
+                s = s * 0.8  # Контекстные — менее приоритетны
+                prev = merged_scores.get(t)
+                if prev is None or s > prev:
+                    merged_scores[t] = s
+
+        retrieved = sorted(merged_scores.items(), key=lambda x: x[1], reverse=True)[:retrieval_limit]
 
         # === Формульная генерация слов ===
         max_answer_words = search_strategy.get("max_words", 10)
@@ -920,6 +966,7 @@ class KolibriAIEngine:
 
         response, confidence, method = self._synthesize_response(
             message=message,
+            retrieval_query=retrieval_query,
             retrieved_sentences=retrieved,
             formula_words=formula_words,
             graph_answer=graph_answer,
@@ -929,6 +976,16 @@ class KolibriAIEngine:
             c_knowledge=c_knowledge,
             assoc_answer=assoc_answer,
         )
+
+        # Если вопрос был на русском, а retrieval шёл по англ. терминам — добавляем короткую RU-подсказку.
+        if has_cyrillic and mapped_terms.get("кубит") == "qubit":
+            ru_hint = (
+                "Кубит (qubit) — базовая единица квантовой информации: как бит, "
+                "но может быть в суперпозиции 0 и 1."
+            )
+            if ru_hint not in response:
+                response = f"{ru_hint}\n\n{response}"
+                confidence = max(confidence, 0.6)
 
         # --- CoT: обновление шагов реальными результатами ---
         if len(thinking_steps) >= 2:
@@ -1069,6 +1126,7 @@ class KolibriAIEngine:
     def _synthesize_response(
         self,
         message: str,
+        retrieval_query: str,
         retrieved_sentences: list[tuple[str, float]],
         formula_words: list[tuple[str, float]],
         graph_answer: str,
@@ -1101,11 +1159,11 @@ class KolibriAIEngine:
             best_text, best_score = retrieved_sentences[0]
             # Адаптивный порог: длинные запросы → ниже порог
             # (cosine-нормализация сильнее разбавляет score при > токенах)
-            n_tokens = len(_tokenize(message))
+            n_tokens = len(_tokenize(retrieval_query))
             min_threshold = 0.35 if n_tokens <= 3 else 0.20 if n_tokens <= 6 else 0.15
             if best_score >= min_threshold:
                 answer = self._build_coherent_response(
-                    message, retrieved_sentences, formula_words, c_knowledge,
+                    retrieval_query, retrieved_sentences, formula_words, c_knowledge,
                 )
                 if answer:  # Прошёл фильтр релевантности
                     confidence = min(0.95, best_score + 0.2)

@@ -9,17 +9,19 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import shlex
 import time
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+from .project_paths import get_project_root
 
 router = APIRouter(prefix="/api/v1", tags=["crawler"])
 
 # --- Пути ---
-PROJECT_ROOT = Path("/workspaces/kolibri-project")
+PROJECT_ROOT = get_project_root()
 TRAINER_BIN = PROJECT_ROOT / "build" / "kolibri_mass_trainer"
 MODEL_DIR = PROJECT_ROOT / "data" / "models"
 DEFAULT_MODEL = MODEL_DIR / "kolibri_web.klm"
@@ -373,7 +375,50 @@ _ALLOWED_COMMANDS = {
 }
 
 # Чёрный список — категорически запрещённые
-_BLOCKED_PATTERNS = {"rm -rf /", "mkfs", "dd if=", ":(){ :", "fork", "> /dev/sd"}
+_BLOCKED_PATTERNS = {
+    "rm -rf /",
+    "mkfs",
+    "dd if=",
+    ":(){ :",
+    "fork",
+    "> /dev/sd",
+    "$(",
+    "`",
+}
+_SHELL_SPLIT_RE = re.compile(r"(?:&&|\|\||\||;)")
+
+
+def _resolve_cwd(cwd: Optional[str]) -> Path:
+    base = PROJECT_ROOT.resolve()
+    if not cwd:
+        return base
+    candidate = Path(cwd)
+    if not candidate.is_absolute():
+        candidate = base / candidate
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(base)
+    except ValueError:
+        raise HTTPException(403, "cwd должен находиться внутри проекта Kolibri")
+    if not resolved.exists() or not resolved.is_dir():
+        raise HTTPException(400, f"cwd не существует: {resolved}")
+    return resolved
+
+
+def _extract_base_commands(command: str) -> list[str]:
+    bases: list[str] = []
+    for segment in _SHELL_SPLIT_RE.split(command):
+        seg = segment.strip()
+        if not seg:
+            continue
+        try:
+            tokens = shlex.split(seg)
+        except ValueError:
+            continue
+        if not tokens:
+            continue
+        bases.append(tokens[0].split("/")[-1])
+    return bases
 
 
 @router.post("/terminal/exec", response_model=TerminalResponse)
@@ -389,29 +434,37 @@ async def terminal_exec(req: TerminalRequest) -> TerminalResponse:
         if blocked in command:
             raise HTTPException(403, f"Команда заблокирована: {blocked}")
 
-    # Извлекаем базовую команду
-    base_cmd = command.split()[0].split("/")[-1]
+    base_cmds = _extract_base_commands(command)
+    if not base_cmds:
+        raise HTTPException(400, "Не удалось распознать команду")
 
-    # Разрешаем наши бинарники
-    if base_cmd not in _ALLOWED_COMMANDS and not command.startswith("./build/"):
+    # Разрешаем только whitelist-команды (включая цепочки через &&/|)
+    for base_cmd in base_cmds:
+        if base_cmd in _ALLOWED_COMMANDS:
+            continue
+        if base_cmd.startswith("kolibri_"):
+            # Поддержка бинарников проекта вроде ./build/kolibri_mass_trainer
+            continue
         raise HTTPException(
             403,
             f"Команда '{base_cmd}' не в белом списке. "
             f"Разрешены: {', '.join(sorted(_ALLOWED_COMMANDS))}",
         )
 
-    cwd = req.cwd or str(PROJECT_ROOT)
+    cwd = _resolve_cwd(req.cwd)
     t0 = time.monotonic()
 
+    shell_executable = "/bin/bash" if Path("/bin/bash").exists() else "/bin/sh"
+
     try:
-        # SECURITY: используем exec вместо shell для предотвращения инъекций
-        import shlex
-        cmd_parts = shlex.split(command)
-        proc = await asyncio.create_subprocess_exec(
-            *cmd_parts,
+        # Запускаем через shell, чтобы отсутствующие бинарники отдавали stderr/127,
+        # а не роняли API в HTTP 500.
+        proc = await asyncio.create_subprocess_shell(
+            command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            cwd=cwd,
+            cwd=str(cwd),
+            executable=shell_executable,
         )
         stdout_bytes, stderr_bytes = await asyncio.wait_for(
             proc.communicate(), timeout=req.timeout,
@@ -424,8 +477,22 @@ async def terminal_exec(req: TerminalRequest) -> TerminalResponse:
             stderr=f"Таймаут: команда не завершилась за {req.timeout}с",
             duration_ms=round((time.monotonic() - t0) * 1000, 1),
         )
+    except FileNotFoundError as e:
+        return TerminalResponse(
+            status="error",
+            exit_code=127,
+            stdout="",
+            stderr=f"Shell/команда не найдены: {e}",
+            duration_ms=round((time.monotonic() - t0) * 1000, 1),
+        )
     except Exception as e:
-        raise HTTPException(500, str(e))
+        return TerminalResponse(
+            status="error",
+            exit_code=1,
+            stdout="",
+            stderr=f"Ошибка выполнения: {e}",
+            duration_ms=round((time.monotonic() - t0) * 1000, 1),
+        )
 
     duration_ms = round((time.monotonic() - t0) * 1000, 1)
 

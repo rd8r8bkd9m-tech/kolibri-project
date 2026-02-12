@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 .venv/
+.venv312/
 .env/
 venv/
 env/
@@ -38,6 +39,7 @@ frontend/vite.config.d.ts
 frontend/public/kolibri.wasm
 frontend/node_modules/
 frontend/dist/
+frontend/dist.tgz
 
 # OS files
 Thumbs.db
@@ -55,6 +57,8 @@ yarn-error.log*
 data.json
 data.json.bak
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
 *.pid
@@ -125,6 +129,12 @@ data/swarm_log.txt
 test_crash.input
 gdb_cmds
 *.qr.png
+
+# Backups created by hotfix scripts
+backend/service/*.bak.*
+
+# Agent-downloaded corpus (runtime knowledge, не коммитим)
+data/corpus/agent_*.txt
 
 # Build artifacts
 benchmarks/bench_kolibri_vs_world

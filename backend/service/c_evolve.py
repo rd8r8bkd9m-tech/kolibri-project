@@ -13,6 +13,7 @@ import logging
 import math
 import os
 import subprocess
+import sys
 import time
 from ctypes import (
     POINTER,
@@ -27,13 +28,15 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
+from .project_paths import get_project_root
 
 log = logging.getLogger("kolibri.c_evolve")
 
 # --- Пути ---
-_PROJECT_ROOT = Path("/workspaces/kolibri-project")
+_PROJECT_ROOT = get_project_root()
 _FFI_SRC = _PROJECT_ROOT / "backend" / "src" / "evolve_ffi.c"
-_FFI_LIB = _PROJECT_ROOT / "build" / "libkolibri_evolve.so"
+_LIB_EXT = ".dylib" if sys.platform == "darwin" else ".so"
+_FFI_LIB = _PROJECT_ROOT / "build" / f"libkolibri_evolve{_LIB_EXT}"
 
 # --- Константы (зеркало C) ---
 GENE_SIZE = 4000
@@ -57,10 +60,13 @@ def _compile_ffi() -> bool:
     _FFI_LIB.parent.mkdir(parents=True, exist_ok=True)
 
     cmd = [
-        "gcc", "-O3", "-march=native", "-shared", "-fPIC",
-        "-fvisibility=hidden",
-        "-o", str(_FFI_LIB), str(_FFI_SRC), "-lm",
+        os.getenv("CC", "cc"), "-O3", "-march=native",
+        "-fvisibility=hidden", "-o", str(_FFI_LIB), str(_FFI_SRC), "-lm",
     ]
+    if sys.platform == "darwin":
+        cmd[1:1] = ["-dynamiclib"]
+    else:
+        cmd[1:1] = ["-shared", "-fPIC"]
     try:
         result = subprocess.run(
             cmd, capture_output=True, text=True, timeout=30,

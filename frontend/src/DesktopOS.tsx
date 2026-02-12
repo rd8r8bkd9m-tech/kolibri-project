@@ -121,7 +121,7 @@ const WindowFrame = ({
 // --- Applications ---
 
 // API Helper
-const API_URL = "http://localhost:3000";
+const API_URL = "";
 
 const TerminalApp = () => {
   const [lines, setLines] = useState<string[]>([
@@ -212,7 +212,7 @@ const GenomeApp = () => {
     return (
         <div className="font-mono text-xs text-gray-300 p-2 h-full flex flex-col">
             <div className="border-b border-gray-700 pb-2 mb-2 flex gap-4 text-gray-500">
-                <span>File: /workspaces/kolibri-project/kolibri.genome</span>
+                <span>File: ./kolibri.genome</span>
                 <span>Mode: READ-ONLY</span>
             </div>
             <pre className="flex-1 overflow-auto text-orange-300 whitespace-pre-wrap">

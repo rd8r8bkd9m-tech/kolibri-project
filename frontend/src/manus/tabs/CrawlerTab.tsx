@@ -226,6 +226,7 @@ export const CrawlerTab = () => {
           topic: topic.trim(),
           max_urls: maxUrls,
           engines: ['duckduckgo', 'wikipedia_en', 'wikipedia_ru', 'bing'],
+          restart_if_running: true,
         }),
       });
 
@@ -864,7 +865,6 @@ export const CrawlerTab = () => {
         .mode-toggle-btn:hover { color: var(--text-primary); }
         .mode-toggle-btn.active {
           background: var(--bg-secondary); color: var(--text-primary);
-          box-shadow: var(--shadow-card);
         }
 
         /* ——— Body layout ——— */
@@ -986,7 +986,6 @@ export const CrawlerTab = () => {
         .agent-start:hover:not(:disabled) {
           opacity: 0.9;
           transform: translateY(-1px);
-          box-shadow: var(--shadow-elevated);
         }
         .agent-stop {
           background: var(--error);
@@ -1084,8 +1083,8 @@ export const CrawlerTab = () => {
           animation: phase-pulse-anim 1.5s ease-in-out infinite;
         }
         @keyframes phase-pulse-anim {
-          0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(26,26,26,0.2); }
-          50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(26,26,26,0); }
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.7; transform: scale(1.25); }
         }
         .phase-empty {
           width: 8px; height: 8px; border-radius: 50%;
