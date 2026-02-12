@@ -227,8 +227,9 @@ export const ManusLayout = ({
       <style>{`
         .kolibri-layout {
           display: flex;
-          width: 100vw;
+          width: 100%;
           height: 100vh;
+          height: 100svh;
           position: relative;
           background: var(--bg-primary);
           color: var(--text-primary);
@@ -507,6 +508,7 @@ export const ManusLayout = ({
             max-width: 360px;
             height: 100%;
             border-bottom: 0;
+            padding-top: env(safe-area-inset-top);
             transform: translateX(-100%);
             transition: transform 0.2s ease;
           }
@@ -532,8 +534,9 @@ export const ManusLayout = ({
           .kolibri-mobile-toggle {
             display: inline-flex;
             position: fixed;
-            top: 10px;
-            left: 10px;
+            top: calc(10px + env(safe-area-inset-top));
+            left: calc(10px + env(safe-area-inset-left));
+            right: auto;
             z-index: 45;
             width: 34px;
             height: 34px;
@@ -549,6 +552,8 @@ export const ManusLayout = ({
           .kolibri-mobile-toggle.open {
             border-color: var(--border-accent);
             color: var(--accent-primary);
+            left: auto;
+            right: calc(10px + env(safe-area-inset-right));
           }
 
           .kolibri-nav-item {
