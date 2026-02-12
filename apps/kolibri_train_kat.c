@@ -161,6 +161,7 @@ int main(int argc, char *argv[]) {
     const char *model_path = NULL;
     float learning_rate = 0.005f;
     uint64_t seed = 42;
+    int use_full_backprop = 0;  /* 0=fast (LM head only), 1=full backprop */
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--corpus") == 0 && i + 1 < argc) {
@@ -173,21 +174,27 @@ int main(int argc, char *argv[]) {
             learning_rate = (float)atof(argv[++i]);
         } else if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc) {
             seed = (uint64_t)atoll(argv[++i]);
+        } else if (strcmp(argv[i], "--mode") == 0 && i + 1 < argc) {
+            i++;
+            if (strcmp(argv[i], "full") == 0) use_full_backprop = 1;
+            else use_full_backprop = 0;
         } else if (strcmp(argv[i], "--help") == 0) {
             printf("Использование: %s [параметры]\n"
                    "  --corpus DIR     Директория корпуса (default: data/corpus)\n"
                    "  --epochs N       Количество эпох (default: 3)\n"
                    "  --model PATH     Путь для сохранения модели\n"
                    "  --lr FLOAT       Скорость обучения (default: 0.005)\n"
-                   "  --seed N         RNG seed (default: 42)\n",
+                   "  --seed N         RNG seed (default: 42)\n"
+                   "  --mode fast|full Режим: fast (LM head) или full (backprop)\n",
                    argv[0]);
             return 0;
         }
     }
 
     printf("╔══════════════════════════════════════════════════════╗\n");
-    printf("║       Kolibri KAT Transformer — Fast Trainer        ║\n");
-    printf("║       Прямое обучение на текстовом корпусе           ║\n");
+    printf("║       Kolibri KAT Transformer — Trainer              ║\n");
+    printf("║       %s backprop на текстовом корпусе       ║\n",
+           use_full_backprop ? "Full " : "Fast ");
     printf("╚══════════════════════════════════════════════════════╝\n\n");
 
     /* ========== Загрузка корпуса ========== */
@@ -277,9 +284,16 @@ int main(int argc, char *argv[]) {
         for (size_t pos = 0; pos + SEQ_LEN + 1 <= train_len; pos += STEP_SIZE) {
             uint8_t target = train_data[pos + SEQ_LEN];
 
-            float loss = kat_train_step_fast(model, ws,
-                                         train_data + pos, SEQ_LEN,
-                                         target, lr);
+            float loss;
+            if (use_full_backprop) {
+                loss = kat_train_step_full(model, ws,
+                                          train_data + pos, SEQ_LEN,
+                                          target, lr);
+            } else {
+                loss = kat_train_step_fast(model, ws,
+                                          train_data + pos, SEQ_LEN,
+                                          target, lr);
+            }
 
             epoch_loss_sum += (double)loss;
             epoch_steps++;

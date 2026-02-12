@@ -144,7 +144,7 @@ float kwm_observe(KwmContext *ctx, uint8_t byte, KwmPrediction *pred) {
 
             /* --- Онлайн-обучение (каждый 4-й байт) --- */
             if (ctx->auto_learn && (ctx->tick & 3) == 0) {
-                float loss = kat_train_step(
+                float loss = kat_train_step_fast(
                     (KatModel*)ctx->backbone,
                     (KatWorkspace*)ctx->workspace,
                     ctx->context, seq_len,
@@ -445,7 +445,7 @@ float kwm_learn_step(KwmContext *ctx) {
     uint8_t target = ctx->context[ctx->context_len - 1];
     size_t input_len = ctx->context_len - 1;
 
-    return kat_train_step(
+    return kat_train_step_fast(
         (KatModel*)ctx->backbone,
         (KatWorkspace*)ctx->workspace,
         ctx->context, input_len,

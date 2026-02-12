@@ -198,6 +198,14 @@ float kat_train_step_fast(KatModel *model, KatWorkspace *ws,
                           const uint8_t *tokens, size_t seq_len,
                           uint8_t target, float lr);
 
+/** Полный backpropagation через все слои трансформера.
+ *  Обновляет ВСЕ параметры: LM head, LayerNorm, FFN, Attention, Embeddings.
+ *  Медленнее kat_train_step_fast, но даёт глубокое обучение.
+ *  Возвращает cross-entropy loss. */
+float kat_train_step_full(KatModel *model, KatWorkspace *ws,
+                          const uint8_t *tokens, size_t seq_len,
+                          uint8_t target, float lr);
+
 /* --- Утилиты --- */
 
 float kat_cosine_similarity(const float *a, const float *b, size_t dim);

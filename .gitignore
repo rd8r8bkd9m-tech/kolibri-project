@@ -140,3 +140,4 @@ data/corpus/agent_*.txt
 benchmarks/bench_kolibri_vs_world
 data/kolibri.db-shm
 data/kolibri.db-wal
+vgcore.*

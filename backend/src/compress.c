@@ -2045,7 +2045,45 @@ static void kf62_destroy(KF62M *m) {
     free(m->apm2);
 }
 
-/* v62: SIMD-оптимизированное смешивание и обновление весов */
+/* ============================================================================
+ * v68: SIMD-утилиты — сравнение строк, смешивание, обновление весов
+ * ============================================================================ */
+#if KF_USE_SIMD
+/* v68: 16-байтовое SIMD-сравнение для match finder */
+static inline int kf_match_len_simd(const uint8_t *a, const uint8_t *b,
+                                     int cur_len, int max_len) {
+    /* Догоняем до 16 байт */
+    while (cur_len + 16 <= max_len) {
+        __m128i va = _mm_loadu_si128((const __m128i*)(a + cur_len));
+        __m128i vb = _mm_loadu_si128((const __m128i*)(b + cur_len));
+        __m128i eq = _mm_cmpeq_epi8(va, vb);
+        int mask = _mm_movemask_epi8(eq);
+        if (mask != 0xFFFF) {
+            /* Первый несовпавший байт */
+            cur_len += __builtin_ctz(~mask);
+            return cur_len < max_len ? cur_len : max_len;
+        }
+        cur_len += 16;
+    }
+    /* Хвост побайтово */
+    while (cur_len < max_len && a[cur_len] == b[cur_len]) cur_len++;
+    return cur_len;
+}
+#else
+static inline int kf_match_len_simd(const uint8_t *a, const uint8_t *b,
+                                     int cur_len, int max_len) {
+    while (cur_len + 8 <= max_len) {
+        uint64_t va8, vb8;
+        memcpy(&va8, a + cur_len, 8);
+        memcpy(&vb8, b + cur_len, 8);
+        if (va8 != vb8) break;
+        cur_len += 8;
+    }
+    while (cur_len < max_len && a[cur_len] == b[cur_len]) cur_len++;
+    return cur_len;
+}
+#endif
+
 #if KF_USE_SIMD
 static inline int32_t kf_hsum_epi32(__m128i v) {
     __m128i hi = _mm_shuffle_epi32(v, _MM_SHUFFLE(2, 3, 0, 1));
@@ -2286,6 +2324,16 @@ do {                                                                        \
     while (run_len < 15 && run_len < 7                                       \
            && hist[run_len] == hist[run_len+1]) run_len++;                   \
     uint32_t cx = 1;                                                        \
+    /* v68: prefetch — подгружаем кэш-строки таблиц для текущего контекста */\
+    __builtin_prefetch(&mm->t0[(hist[0]*256u) & (T0_SIZE-1)], 1, 3);        \
+    __builtin_prefetch(&mm->t1[(h1*256u) & (T1_SIZE-1)], 1, 3);             \
+    __builtin_prefetch(&mm->t2[(h2*256u) & (T2_SIZE-1)], 1, 3);             \
+    __builtin_prefetch(&mm->t3[(h3*256u) & (T3_SIZE-1)], 1, 3);             \
+    __builtin_prefetch(&mm->t4[(h4*256u) & (T4_SIZE-1)], 0, 2);             \
+    __builtin_prefetch(&mm->t5[(h5*256u) & (T5_SIZE-1)], 0, 2);             \
+    __builtin_prefetch(&mm->t6[(h6*256u) & (T6_SIZE-1)], 0, 2);             \
+    __builtin_prefetch(&mm->t7[(h7*256u) & (T7_SIZE-1)], 0, 2);             \
+    __builtin_prefetch(&mm->t8[(h8*256u) & (T8_SIZE-1)], 0, 2);             \
     for (int b = 7; b >= 0; b--) {                                          \
         /* v66: раздельные индексы для O0-O8 */                              \
         uint32_t i0 = (hist[0] * 256u + cx) & (T0_SIZE - 1);               \
@@ -2676,15 +2724,7 @@ static inline int lzcm_find_match(
                 uint32_t va, vb;
                 memcpy(&va, a, 4); memcpy(&vb, b, 4);
                 if (va == vb) {
-                    len = 4;
-                    while (len + 8 <= max_len) {
-                        uint64_t va8, vb8;
-                        memcpy(&va8, a + len, 8);
-                        memcpy(&vb8, b + len, 8);
-                        if (va8 != vb8) break;
-                        len += 8;
-                    }
-                    while (len < max_len && a[len] == b[len]) len++;
+                    len = kf_match_len_simd(a, b, 4, max_len);
                 } else {
                     while (len < max_len && a[len] == b[len]) len++;
                 }
@@ -2718,16 +2758,8 @@ static inline int lzcm_find_match(
                     memcpy(&va, input + pos, 4);
                     memcpy(&vb, input + candidate, 4);
                     if (va == vb) {
-                        len = 4;
-                        while (len + 8 <= max_len) {
-                            uint64_t va8, vb8;
-                            memcpy(&va8, input + pos + len, 8);
-                            memcpy(&vb8, input + candidate + len, 8);
-                            if (va8 != vb8) break;
-                            len += 8;
-                        }
-                        while (len < max_len && input[pos + len] == input[candidate + len])
-                            len++;
+                        len = kf_match_len_simd(input + pos, input + candidate,
+                                                4, max_len);
                     }
                 }
                 if (len >= LZCM_MIN_MATCH && len > best_len) {
@@ -4292,6 +4324,343 @@ void kolibri_archive_close(KolibriArchive *archive) {
     }
 
     free(archive);
+}
+
+/* ============================================================================
+ * Streaming (потоковое) API — инкрементальное сжатие/распаковка
+ * ============================================================================ */
+
+/* --- Магический маркер потокового формата --- */
+#define KOLIBRI_STREAM_MAGIC 0x4B53  /* "KS" */
+#define KOLIBRI_STREAM_VERSION 1
+/* Заголовок потока: magic(2) + version(1) + block_size(4) = 7 байт */
+#define KOLIBRI_STREAM_HDR_SIZE 7
+/* Маркер конца потока: block_csize == 0xFFFFFFFF */
+#define KOLIBRI_STREAM_END_MARKER 0xFFFFFFFFu
+
+struct KolibriStream {
+    KolibriStreamMode mode;
+    uint32_t methods;
+    KolibriStreamWriteFn write_fn;
+    void *user_data;
+
+    /* Аккумулятор входных данных (до block_size) */
+    uint8_t *buf;
+    size_t buf_pos;
+    size_t block_size;
+
+    /* Статистика */
+    size_t total_in;
+    size_t total_out;
+    int blocks_written;
+    int finished;
+
+    /* Для декомпрессии: чтение заголовка + блоков */
+    int header_read;
+    /* Буфер заголовка блока (4 байта compressed_size + 4 байта original_size) */
+    uint8_t blk_hdr[8];
+    size_t blk_hdr_pos;
+    uint8_t *blk_buf;
+    size_t blk_buf_size;
+    size_t blk_buf_pos;
+    size_t blk_orig_size;
+    int reading_blk_hdr;
+
+    /* Буфер для чтения заголовка потока (7 байт) */
+    uint8_t stream_hdr[KOLIBRI_STREAM_HDR_SIZE];
+    size_t stream_hdr_pos;
+};
+
+KolibriStream *kolibri_stream_create(KolibriStreamMode mode,
+                                      uint32_t methods,
+                                      KolibriStreamWriteFn write_fn,
+                                      void *user_data) {
+    if (!write_fn) return NULL;
+
+    KolibriStream *s = (KolibriStream *)calloc(1, sizeof(KolibriStream));
+    if (!s) return NULL;
+
+    s->mode = mode;
+    s->methods = methods;
+    s->write_fn = write_fn;
+    s->user_data = user_data;
+    s->block_size = (size_t)KF62_BLOCK_SIZE;
+    s->finished = 0;
+
+    s->buf = (uint8_t *)malloc(s->block_size);
+    if (!s->buf) { free(s); return NULL; }
+    s->buf_pos = 0;
+
+    if (mode == KOLIBRI_STREAM_DECOMPRESS) {
+        s->reading_blk_hdr = 1;
+        s->blk_hdr_pos = 0;
+        s->header_read = 0;
+        s->stream_hdr_pos = 0;
+    }
+
+    return s;
+}
+
+/* --- Вспомогательная: сжать один блок и отправить через write_fn --- */
+static KolibriStreamStatus stream_flush_compress_block(KolibriStream *s,
+                                                         const uint8_t *data,
+                                                         size_t data_size) {
+    if (data_size == 0) return KOLIBRI_STREAM_OK;
+
+    /* Сжимаем блок через LZCM */
+    size_t out_max = data_size + 1024;
+    uint8_t *cbuf = (uint8_t *)malloc(out_max);
+    if (!cbuf) return KOLIBRI_STREAM_ERROR;
+
+    size_t csize = compress_lzcm_v66_block(data, data_size, cbuf, out_max);
+
+    /* Заголовок блока: compressed_size(4) + original_size(4) = 8 байт */
+    uint8_t blk_hdr[8];
+    uint32_t cs, os;
+
+    if (csize == 0 || csize >= data_size) {
+        /* Несжимаемый: записываем raw */
+        os = (uint32_t)data_size;
+        cs = (uint32_t)data_size;
+        memcpy(blk_hdr, &cs, 4);
+        memcpy(blk_hdr + 4, &os, 4);
+
+        int r = s->write_fn(s->user_data, blk_hdr, 8);
+        if (r != 0) { free(cbuf); return KOLIBRI_STREAM_ERROR; }
+        s->total_out += 8;
+
+        r = s->write_fn(s->user_data, data, data_size);
+        if (r != 0) { free(cbuf); return KOLIBRI_STREAM_ERROR; }
+        s->total_out += data_size;
+    } else {
+        os = (uint32_t)data_size;
+        cs = (uint32_t)csize;
+        memcpy(blk_hdr, &cs, 4);
+        memcpy(blk_hdr + 4, &os, 4);
+
+        int r = s->write_fn(s->user_data, blk_hdr, 8);
+        if (r != 0) { free(cbuf); return KOLIBRI_STREAM_ERROR; }
+        s->total_out += 8;
+
+        r = s->write_fn(s->user_data, cbuf, csize);
+        if (r != 0) { free(cbuf); return KOLIBRI_STREAM_ERROR; }
+        s->total_out += csize;
+    }
+
+    free(cbuf);
+    s->blocks_written++;
+    s->total_in += data_size;
+    return KOLIBRI_STREAM_OK;
+}
+
+/* --- Вспомогательная: записать stream-заголовок --- */
+static KolibriStreamStatus stream_write_header(KolibriStream *s) {
+    uint8_t hdr[KOLIBRI_STREAM_HDR_SIZE];
+    uint16_t magic = KOLIBRI_STREAM_MAGIC;
+    memcpy(hdr, &magic, 2);
+    hdr[2] = (uint8_t)KOLIBRI_STREAM_VERSION;
+    uint32_t bs = (uint32_t)s->block_size;
+    memcpy(hdr + 3, &bs, 4);
+
+    int r = s->write_fn(s->user_data, hdr, KOLIBRI_STREAM_HDR_SIZE);
+    if (r != 0) return KOLIBRI_STREAM_ERROR;
+    s->total_out += KOLIBRI_STREAM_HDR_SIZE;
+    return KOLIBRI_STREAM_OK;
+}
+
+KolibriStreamStatus kolibri_stream_write(KolibriStream *stream,
+                                          const uint8_t *data,
+                                          size_t size) {
+    if (!stream || !data || stream->finished) return KOLIBRI_STREAM_ERROR;
+
+    if (stream->mode == KOLIBRI_STREAM_COMPRESS) {
+        /* Первый вызов — пишем заголовок потока */
+        if (stream->blocks_written == 0 && stream->buf_pos == 0 && stream->total_out == 0) {
+            KolibriStreamStatus st = stream_write_header(stream);
+            if (st != KOLIBRI_STREAM_OK) return st;
+        }
+
+        size_t off = 0;
+        while (off < size) {
+            size_t space = stream->block_size - stream->buf_pos;
+            size_t take = MIN(space, size - off);
+            memcpy(stream->buf + stream->buf_pos, data + off, take);
+            stream->buf_pos += take;
+            off += take;
+
+            /* Блок полон — сжимаем и отправляем */
+            if (stream->buf_pos >= stream->block_size) {
+                KolibriStreamStatus st = stream_flush_compress_block(
+                    stream, stream->buf, stream->buf_pos);
+                if (st != KOLIBRI_STREAM_OK) return st;
+                stream->buf_pos = 0;
+            }
+        }
+        return KOLIBRI_STREAM_OK;
+
+    } else {
+        /* === DECOMPRESS === */
+        size_t off = 0;
+
+        /* Читаем заголовок потока */
+        if (!stream->header_read) {
+            while (off < size && stream->stream_hdr_pos < KOLIBRI_STREAM_HDR_SIZE) {
+                stream->stream_hdr[stream->stream_hdr_pos++] = data[off++];
+            }
+            if (stream->stream_hdr_pos < KOLIBRI_STREAM_HDR_SIZE) {
+                return KOLIBRI_STREAM_NEED_MORE;
+            }
+            uint16_t magic;
+            memcpy(&magic, stream->stream_hdr, 2);
+            if (magic != KOLIBRI_STREAM_MAGIC) return KOLIBRI_STREAM_ERROR;
+            uint32_t bs;
+            memcpy(&bs, stream->stream_hdr + 3, 4);
+            stream->block_size = (size_t)bs;
+            stream->header_read = 1;
+            stream->reading_blk_hdr = 1;
+            stream->blk_hdr_pos = 0;
+        }
+
+        while (off < size) {
+            /* Читаем заголовок блока (8 байт) */
+            if (stream->reading_blk_hdr) {
+                while (off < size && stream->blk_hdr_pos < 8) {
+                    stream->blk_hdr[stream->blk_hdr_pos++] = data[off++];
+                }
+                if (stream->blk_hdr_pos < 8) return KOLIBRI_STREAM_NEED_MORE;
+
+                uint32_t cs, os;
+                memcpy(&cs, stream->blk_hdr, 4);
+                memcpy(&os, stream->blk_hdr + 4, 4);
+
+                /* Маркер конца потока */
+                if (cs == KOLIBRI_STREAM_END_MARKER) {
+                    stream->finished = 1;
+                    return KOLIBRI_STREAM_DONE;
+                }
+
+                stream->blk_buf_size = (size_t)cs;
+                stream->blk_orig_size = (size_t)os;
+                stream->blk_buf = (uint8_t *)malloc(stream->blk_buf_size);
+                if (!stream->blk_buf) return KOLIBRI_STREAM_ERROR;
+                stream->blk_buf_pos = 0;
+                stream->reading_blk_hdr = 0;
+            }
+
+            /* Читаем данные блока */
+            {
+                size_t need = stream->blk_buf_size - stream->blk_buf_pos;
+                size_t avail = size - off;
+                size_t take = MIN(need, avail);
+                memcpy(stream->blk_buf + stream->blk_buf_pos, data + off, take);
+                stream->blk_buf_pos += take;
+                off += take;
+            }
+
+            if (stream->blk_buf_pos >= stream->blk_buf_size) {
+                /* Блок полностью получен — декомпрессия */
+                stream->total_in += stream->blk_buf_size;
+
+                uint8_t *out_buf = (uint8_t *)malloc(stream->blk_orig_size);
+                if (!out_buf) {
+                    free(stream->blk_buf);
+                    stream->blk_buf = NULL;
+                    return KOLIBRI_STREAM_ERROR;
+                }
+
+                if (stream->blk_buf_size == stream->blk_orig_size) {
+                    /* Raw блок — копируем */
+                    memcpy(out_buf, stream->blk_buf, stream->blk_orig_size);
+                } else {
+                    /* Сжатый блок — распаковка */
+                    size_t dec = decompress_lzcm_v66_block(
+                        stream->blk_buf, stream->blk_buf_size,
+                        out_buf, stream->blk_orig_size, stream->blk_orig_size);
+                    if (dec != stream->blk_orig_size) {
+                        free(out_buf);
+                        free(stream->blk_buf);
+                        stream->blk_buf = NULL;
+                        return KOLIBRI_STREAM_ERROR;
+                    }
+                }
+
+                /* Отдаём данные пользователю */
+                int r = stream->write_fn(stream->user_data, out_buf, stream->blk_orig_size);
+                stream->total_out += stream->blk_orig_size;
+                stream->blocks_written++;
+
+                free(out_buf);
+                free(stream->blk_buf);
+                stream->blk_buf = NULL;
+
+                if (r != 0) return KOLIBRI_STREAM_ERROR;
+
+                /* Готовы к следующему блоку */
+                stream->reading_blk_hdr = 1;
+                stream->blk_hdr_pos = 0;
+            }
+        }
+
+        return KOLIBRI_STREAM_OK;
+    }
+}
+
+KolibriStreamStatus kolibri_stream_finish(KolibriStream *stream) {
+    if (!stream || stream->finished) return KOLIBRI_STREAM_ERROR;
+
+    if (stream->mode == KOLIBRI_STREAM_COMPRESS) {
+        /* Если ещё ничего не писали — запишем заголовок */
+        if (stream->total_out == 0) {
+            KolibriStreamStatus st = stream_write_header(stream);
+            if (st != KOLIBRI_STREAM_OK) return st;
+        }
+
+        /* Сбрасываем оставшиеся данные */
+        if (stream->buf_pos > 0) {
+            KolibriStreamStatus st = stream_flush_compress_block(
+                stream, stream->buf, stream->buf_pos);
+            if (st != KOLIBRI_STREAM_OK) return st;
+            stream->buf_pos = 0;
+        }
+
+        /* Пишем маркер конца потока: csize = 0xFFFFFFFF, osize = 0 */
+        uint8_t end_marker[8];
+        uint32_t end_cs = KOLIBRI_STREAM_END_MARKER;
+        uint32_t end_os = 0;
+        memcpy(end_marker, &end_cs, 4);
+        memcpy(end_marker + 4, &end_os, 4);
+        int r = stream->write_fn(stream->user_data, end_marker, 8);
+        if (r != 0) return KOLIBRI_STREAM_ERROR;
+        stream->total_out += 8;
+    }
+
+    stream->finished = 1;
+    return KOLIBRI_STREAM_DONE;
+}
+
+void kolibri_stream_stats(const KolibriStream *stream,
+                           KolibriCompressStats *stats) {
+    if (!stream || !stats) return;
+    memset(stats, 0, sizeof(*stats));
+    if (stream->mode == KOLIBRI_STREAM_COMPRESS) {
+        stats->original_size = stream->total_in;
+        stats->compressed_size = stream->total_out;
+    } else {
+        stats->original_size = stream->total_out;
+        stats->compressed_size = stream->total_in;
+    }
+    if (stats->compressed_size > 0) {
+        stats->compression_ratio =
+            (double)stats->original_size / (double)stats->compressed_size;
+    }
+    stats->methods_used = KOLIBRI_COMPRESS_LZCM;
+}
+
+void kolibri_stream_destroy(KolibriStream *stream) {
+    if (!stream) return;
+    free(stream->buf);
+    free(stream->blk_buf);
+    free(stream);
 }
 
 

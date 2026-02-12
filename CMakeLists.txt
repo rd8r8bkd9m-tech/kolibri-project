@@ -294,6 +294,12 @@ if(KOLIBRI_ENABLE_TESTS)
     add_executable(test_compress tests/test_compress.c)
     target_link_libraries(test_compress PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_compress COMMAND test_compress)
+
+    # STREAMING API TEST - потоковое сжатие/распаковка
+    add_executable(test_stream tests/test_stream.c)
+    target_link_libraries(test_stream PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_stream COMMAND test_stream)
+
     # MEGA COMPRESSION TEST - демонстрация 300000x изобретения!
     add_executable(test_mega_compression tests/test_mega_compression.c)
     target_link_libraries(test_mega_compression PRIVATE kolibri_core Threads::Threads)

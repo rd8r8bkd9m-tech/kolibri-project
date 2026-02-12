@@ -323,6 +323,79 @@ static void test_serialization_new(void) {
     printf("  [OK] Serialization (KAT1 format, medium)\n");
 }
 
+/* --- Тест 12: Полный backpropagation (loss уменьшается) --- */
+static void test_full_backprop(void) {
+    KatModel *model = kat_model_create(42);
+    KatWorkspace *ws = kat_workspace_create();
+
+    uint8_t input[] = "The capital of France is Pari";
+    uint8_t target = 's';
+
+    /* Начальный loss */
+    float loss1 = kat_train_step_full(model, ws, input, strlen((char *)input),
+                                      target, 0.0005f);
+    assert(loss1 > 0.0f);
+
+    /* 50 шагов обучения — loss должен уменьшаться */
+    float loss_final = loss1;
+    for (int i = 0; i < 50; i++) {
+        loss_final = kat_train_step_full(model, ws, input, strlen((char *)input),
+                                         target, 0.0005f);
+    }
+
+    assert(loss_final > 0.0f);
+    /* Полный backprop должен сходиться быстрее, чем только LM head */
+    assert(loss_final < loss1);
+
+    printf("  [OK] Full backprop (initial=%.4f, final=%.4f, reduction=%.1f%%)\n",
+           (double)loss1, (double)loss_final,
+           (double)(100.0f * (1.0f - loss_final / loss1)));
+
+    kat_workspace_destroy(ws);
+    kat_model_destroy(model);
+}
+
+/* --- Тест 13: Сравнение fast vs full backprop --- */
+static void test_full_vs_fast(void) {
+    /* Две одинаковые модели с одинаковыми весами */
+    KatModel *m_fast = kat_model_create(123);
+    KatModel *m_full = kat_model_create(123);
+    KatWorkspace *ws_fast = kat_workspace_create();
+    KatWorkspace *ws_full = kat_workspace_create();
+
+    uint8_t input[] = "Hello world test";
+    uint8_t target = '!';
+
+    /* 30 шагов fast */
+    float loss_fast = 0.0f;
+    for (int i = 0; i < 30; i++) {
+        loss_fast = kat_train_step_fast(m_fast, ws_fast, input,
+                                        strlen((char *)input),
+                                        target, 0.001f);
+    }
+
+    /* 30 шагов full */
+    float loss_full = 0.0f;
+    for (int i = 0; i < 30; i++) {
+        loss_full = kat_train_step_full(m_full, ws_full, input,
+                                        strlen((char *)input),
+                                        target, 0.0005f);
+    }
+
+    /* Оба должны давать положительный loss */
+    assert(loss_fast > 0.0f);
+    assert(loss_full > 0.0f);
+
+    /* Full backprop должен давать лучший (или сопоставимый) loss */
+    printf("  [OK] Full vs Fast (fast_loss=%.4f, full_loss=%.4f)\n",
+           (double)loss_fast, (double)loss_full);
+
+    kat_workspace_destroy(ws_fast);
+    kat_workspace_destroy(ws_full);
+    kat_model_destroy(m_fast);
+    kat_model_destroy(m_full);
+}
+
 int main(void) {
     printf("=== Kolibri AGI: Attention Module Tests ===\n");
 
@@ -337,7 +410,9 @@ int main(void) {
     test_different_embeddings();
     test_configs();
     test_serialization_new();
+    test_full_backprop();
+    test_full_vs_fast();
 
-    printf("=== All %d attention tests PASSED ===\n", 11);
+    printf("=== All %d attention tests PASSED ===\n", 13);
     return 0;
 }

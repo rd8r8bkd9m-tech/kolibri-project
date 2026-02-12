@@ -120,6 +120,84 @@ typedef struct {
     KolibriFileType type;
 } KolibriArchiveEntry;
 
+/* ============================================================================
+ * Streaming (incremental) API — сжатие/распаковка потоковых данных
+ * ============================================================================ */
+
+/** Тип операции потока */
+typedef enum {
+    KOLIBRI_STREAM_COMPRESS,
+    KOLIBRI_STREAM_DECOMPRESS
+} KolibriStreamMode;
+
+/** Статус потоковой операции */
+typedef enum {
+    KOLIBRI_STREAM_OK         =  0,   /* Успех */
+    KOLIBRI_STREAM_ERROR      = -1,   /* Внутренняя ошибка */
+    KOLIBRI_STREAM_DONE       =  1,   /* Поток завершён */
+    KOLIBRI_STREAM_NEED_MORE  =  2    /* Нужно больше входных данных */
+} KolibriStreamStatus;
+
+/** Колбэк вывода: вызывается потоком для записи готовых данных.
+ *  @param user_data   Пользовательский контекст (файл, буфер, …)
+ *  @param data        Указатель на выходные данные
+ *  @param size        Размер выходных данных
+ *  @return            0 = OK, иначе ошибка → поток прервётся
+ */
+typedef int (*KolibriStreamWriteFn)(void *user_data,
+                                     const uint8_t *data, size_t size);
+
+/** Opaque streaming context */
+typedef struct KolibriStream KolibriStream;
+
+/**
+ * Создать поток сжатия/распаковки.
+ * @param mode       KOLIBRI_STREAM_COMPRESS или KOLIBRI_STREAM_DECOMPRESS
+ * @param methods    Битовые флаги методов (для сжатия; игнорируется при распаковке)
+ * @param write_fn   Колбэк для записи выходных данных
+ * @param user_data  Пользовательский контекст, передаваемый в write_fn
+ * @return Новый контекст потока или NULL при ошибке
+ */
+KolibriStream *kolibri_stream_create(KolibriStreamMode mode,
+                                      uint32_t methods,
+                                      KolibriStreamWriteFn write_fn,
+                                      void *user_data);
+
+/**
+ * Подать входные данные в поток.
+ * Можно вызывать многократно, передавая произвольные порции данных.
+ * Внутри накапливается блок KF62_BLOCK_SIZE, после чего он сжимается
+ * (или распаковывается) и результат отправляется через write_fn.
+ * @return KOLIBRI_STREAM_OK или KOLIBRI_STREAM_ERROR
+ */
+KolibriStreamStatus kolibri_stream_write(KolibriStream *stream,
+                                          const uint8_t *data,
+                                          size_t size);
+
+/**
+ * Завершить поток: сбросить оставшиеся данные, записать финализатор.
+ * После вызова поток становится недействительным (нужно уничтожить).
+ * @return KOLIBRI_STREAM_DONE или KOLIBRI_STREAM_ERROR
+ */
+KolibriStreamStatus kolibri_stream_finish(KolibriStream *stream);
+
+/**
+ * Получить промежуточную статистику потока.
+ * @param stream   Контекст потока
+ * @param stats    Заполняемая структура статистики
+ */
+void kolibri_stream_stats(const KolibriStream *stream,
+                           KolibriCompressStats *stats);
+
+/**
+ * Уничтожить потоковый контекст и освободить ресурсы.
+ */
+void kolibri_stream_destroy(KolibriStream *stream);
+
+/* ============================================================================
+ * Archive management
+ * ============================================================================ */
+
 /**
  * Create a new archive
  */

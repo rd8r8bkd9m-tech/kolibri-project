@@ -945,6 +945,875 @@ float kat_train_step_fast(KatModel *model, KatWorkspace *ws,
 }
 
 /* ============================================================================
+ * Полный Backpropagation через все слои трансформера
+ * ============================================================================ */
+
+/*
+ * Производная GELU:
+ *   gelu(x) = 0.5 * x * (1 + tanh(c * (x + 0.044715 * x^3)))
+ *   gelu'(x) = 0.5*(1+tanh(u)) + 0.5*x*(1-tanh(u)^2)*u'
+ *   где u = c*(x + 0.044715*x^3), u' = c*(1 + 3*0.044715*x^2)
+ */
+static float gelu_grad(float x) {
+    float c = 0.7978845608f;  /* sqrt(2/pi) */
+    float x3 = x * x * x;
+    float u = c * (x + 0.044715f * x3);
+    float tanh_u = tanhf(u);
+    float du = c * (1.0f + 3.0f * 0.044715f * x * x);
+    return 0.5f * (1.0f + tanh_u) + 0.5f * x * (1.0f - tanh_u * tanh_u) * du;
+}
+
+/*
+ * Обратный проход LayerNorm:
+ *   y = gamma * (x - mean) / sqrt(var + eps) + beta
+ *
+ * Входы:  dy[dim] — градиент по выходу
+ *         x[dim]  — исходный вход в LayerNorm
+ *         gamma[dim] — масштаб
+ * Выходы: dx[dim]     — градиент по входу (накапливается += )
+ *         dgamma[dim] — градиент по gamma (накапливается += )
+ *         dbeta[dim]  — градиент по beta  (накапливается += )
+ */
+static void layer_norm_backward(
+    const float *dy,      /* [dim] градиент по выходу */
+    const float *x,       /* [dim] вход в LayerNorm */
+    const float *gamma,   /* [dim] масштаб */
+    float *dx,            /* [dim] градиент по входу (+=) */
+    float *dgamma,        /* [dim] градиент по gamma (+=) */
+    float *dbeta,         /* [dim] градиент по beta (+=) */
+    size_t dim
+) {
+    /* Пересчитаем mean и var */
+    float mean = 0.0f;
+    for (size_t i = 0; i < dim; i++) mean += x[i];
+    mean /= (float)dim;
+
+    float var = 0.0f;
+    for (size_t i = 0; i < dim; i++) {
+        float d = x[i] - mean;
+        var += d * d;
+    }
+    var /= (float)dim;
+
+    float inv_std = 1.0f / sqrtf(var + KAT_EPSILON);
+    float inv_n = 1.0f / (float)dim;
+
+    /* x_hat[i] = (x[i] - mean) * inv_std */
+    /* dgamma[i] += dy[i] * x_hat[i] */
+    /* dbeta[i]  += dy[i] */
+    float sum_dy_xhat = 0.0f;
+    float sum_dy_gamma = 0.0f;
+
+    for (size_t i = 0; i < dim; i++) {
+        float x_hat = (x[i] - mean) * inv_std;
+        dgamma[i] += dy[i] * x_hat;
+        dbeta[i]  += dy[i];
+        float dy_g = dy[i] * gamma[i];
+        sum_dy_xhat  += dy_g * x_hat;
+        sum_dy_gamma += dy_g;
+    }
+
+    /* dx[i] += gamma[i] * inv_std * (dy[i] - inv_n*(sum_dy_gamma + x_hat_i * sum_dy_xhat)) */
+    for (size_t i = 0; i < dim; i++) {
+        float x_hat = (x[i] - mean) * inv_std;
+        float dy_g = dy[i] * gamma[i];
+        dx[i] += inv_std * (dy_g - inv_n * (sum_dy_gamma + x_hat * sum_dy_xhat));
+    }
+}
+
+/*
+ * Обратный проход softmax (для одной строки):
+ *   dz[j] = s[j] * (ds[j] - sum_k(ds[k] * s[k]))
+ *   где s = softmax(z), ds = dL/ds
+ *
+ * Записывает результат в dz (перезаписывает).
+ */
+static void softmax_backward(
+    const float *s,    /* [n] softmax выход */
+    const float *ds,   /* [n] градиент по softmax выходу */
+    float *dz,         /* [n] выход: градиент по logits (перезапись) */
+    size_t n
+) {
+    float dot = 0.0f;
+    for (size_t i = 0; i < n; i++) {
+        dot += ds[i] * s[i];
+    }
+    for (size_t i = 0; i < n; i++) {
+        dz[i] = s[i] * (ds[i] - dot);
+    }
+}
+
+/*
+ * Кэш активаций для обучения.
+ * Хранит все промежуточные значения forward pass, нужные для backward.
+ */
+typedef struct {
+    int num_layers;
+    int num_heads;
+    size_t seq_len;
+    KatConfig cfg;
+
+    /* Per-layer [num_layers] */
+    float **layer_input;      /* [seq_len * E] — вход в каждый блок */
+    float **attn_normed;      /* [seq_len * E] — после LN перед attention */
+    float **attn_concat;      /* [seq_len * E] — конкатенация голов до Wo */
+    float **mid_hidden;       /* [seq_len * E] — после attn residual */
+    float **ffn_normed;       /* [seq_len * E] — после LN перед FFN */
+    float **ffn_pre_gelu;     /* [seq_len * F] — вход в GELU */
+    float **ffn_post_gelu;    /* [seq_len * F] — выход GELU */
+
+    /* Per-layer per-head [num_layers * num_heads] */
+    float **head_q;           /* [seq_len * D] */
+    float **head_k;           /* [seq_len * D] */
+    float **head_v;           /* [seq_len * D] */
+    float **head_scores;      /* [seq_len * S] (после softmax) */
+
+    /* Final LN */
+    float *final_ln_input;    /* [seq_len * E] — вход в финальный LN */
+} KatTrainCache;
+
+static KatTrainCache* train_cache_create(const KatConfig *cfg, size_t seq_len) {
+    KatTrainCache *tc = (KatTrainCache*)calloc(1, sizeof(KatTrainCache));
+    if (!tc) return NULL;
+
+    int L = cfg->num_layers;
+    int H = cfg->num_heads;
+    int E = cfg->embed_dim;
+    int D = cfg->head_dim;
+    int F = cfg->ff_dim;
+    int S = cfg->max_seq;
+
+    tc->num_layers = L;
+    tc->num_heads  = H;
+    tc->seq_len    = seq_len;
+    tc->cfg        = *cfg;
+
+    /* Аллокация per-layer буферов */
+    tc->layer_input   = (float**)calloc(L, sizeof(float*));
+    tc->attn_normed   = (float**)calloc(L, sizeof(float*));
+    tc->attn_concat   = (float**)calloc(L, sizeof(float*));
+    tc->mid_hidden    = (float**)calloc(L, sizeof(float*));
+    tc->ffn_normed    = (float**)calloc(L, sizeof(float*));
+    tc->ffn_pre_gelu  = (float**)calloc(L, sizeof(float*));
+    tc->ffn_post_gelu = (float**)calloc(L, sizeof(float*));
+
+    for (int l = 0; l < L; l++) {
+        tc->layer_input[l]   = alloc_floats(seq_len * E);
+        tc->attn_normed[l]   = alloc_floats(seq_len * E);
+        tc->attn_concat[l]   = alloc_floats(seq_len * E);
+        tc->mid_hidden[l]    = alloc_floats(seq_len * E);
+        tc->ffn_normed[l]    = alloc_floats(seq_len * E);
+        tc->ffn_pre_gelu[l]  = alloc_floats(seq_len * F);
+        tc->ffn_post_gelu[l] = alloc_floats(seq_len * F);
+    }
+
+    /* Per-layer per-head буферы */
+    int LH = L * H;
+    tc->head_q      = (float**)calloc(LH, sizeof(float*));
+    tc->head_k      = (float**)calloc(LH, sizeof(float*));
+    tc->head_v      = (float**)calloc(LH, sizeof(float*));
+    tc->head_scores = (float**)calloc(LH, sizeof(float*));
+
+    for (int i = 0; i < LH; i++) {
+        tc->head_q[i]      = alloc_floats(seq_len * D);
+        tc->head_k[i]      = alloc_floats(seq_len * D);
+        tc->head_v[i]      = alloc_floats(seq_len * D);
+        tc->head_scores[i] = alloc_floats(seq_len * S);
+    }
+
+    tc->final_ln_input = alloc_floats(seq_len * E);
+
+    return tc;
+}
+
+static void train_cache_destroy(KatTrainCache *tc) {
+    if (!tc) return;
+    int L = tc->num_layers;
+    int H = tc->num_heads;
+    int LH = L * H;
+
+    for (int l = 0; l < L; l++) {
+        free(tc->layer_input[l]);
+        free(tc->attn_normed[l]);
+        free(tc->attn_concat[l]);
+        free(tc->mid_hidden[l]);
+        free(tc->ffn_normed[l]);
+        free(tc->ffn_pre_gelu[l]);
+        free(tc->ffn_post_gelu[l]);
+    }
+    free(tc->layer_input);
+    free(tc->attn_normed);
+    free(tc->attn_concat);
+    free(tc->mid_hidden);
+    free(tc->ffn_normed);
+    free(tc->ffn_pre_gelu);
+    free(tc->ffn_post_gelu);
+
+    for (int i = 0; i < LH; i++) {
+        free(tc->head_q[i]);
+        free(tc->head_k[i]);
+        free(tc->head_v[i]);
+        free(tc->head_scores[i]);
+    }
+    free(tc->head_q);
+    free(tc->head_k);
+    free(tc->head_v);
+    free(tc->head_scores);
+
+    free(tc->final_ln_input);
+    free(tc);
+}
+
+/*
+ * Ограничение нормы градиента (gradient clipping by global norm)
+ */
+static void clip_grad(float *grad, size_t n, float max_norm) {
+    float sum_sq = 0.0f;
+    for (size_t i = 0; i < n; i++) {
+        sum_sq += grad[i] * grad[i];
+    }
+    float norm = sqrtf(sum_sq + 1e-12f);
+    if (norm > max_norm) {
+        float scale = max_norm / norm;
+        for (size_t i = 0; i < n; i++) {
+            grad[i] *= scale;
+        }
+    }
+}
+
+/*
+ * Training forward pass с кэшированием промежуточных результатов.
+ * Идентичен kat_forward, но сохраняет все активации в tc.
+ */
+static int training_forward(
+    const KatModel *model, KatWorkspace *ws, KatTrainCache *tc,
+    const uint8_t *tokens, size_t seq_len
+) {
+    const KatConfig *cfg = &model->cfg;
+    int E = cfg->embed_dim;
+    int V = cfg->vocab_size;
+    int L = cfg->num_layers;
+    int H = cfg->num_heads;
+    int D = cfg->head_dim;
+    int S = cfg->max_seq;
+
+    if (seq_len > (size_t)S) seq_len = (size_t)S;
+    ws->seq_len = seq_len;
+    tc->seq_len = seq_len;
+
+    /* --- Шаг 1: Эмбеддинги --- */
+    for (size_t t = 0; t < seq_len; t++) {
+        int tok = tokens[t];
+        if (tok >= V) tok = 0;
+        for (int d = 0; d < E; d++) {
+            ws->hidden[IDX2(t, d, E)] =
+                model->embed.token_embed[IDX2(tok, d, E)] +
+                model->embed.pos_embed[IDX2(t, d, E)];
+        }
+    }
+
+    /* --- Шаг 2: Стек блоков (с кэшированием) --- */
+    for (int layer = 0; layer < L; layer++) {
+        const KatTransformerBlock *block = &model->layers[layer];
+
+        /* Сохраняем вход слоя */
+        memcpy(tc->layer_input[layer], ws->hidden,
+               seq_len * E * sizeof(float));
+
+        /* === Attention sub-block === */
+
+        /* Pre-LN: attention LayerNorm */
+        for (size_t t = 0; t < seq_len; t++) {
+            layer_norm(&ws->hidden[t * E],
+                       &tc->attn_normed[layer][t * E],
+                       block->attn.ln_gamma, block->attn.ln_beta, E);
+        }
+
+        /* Каждая голова */
+        memset(ws->attn_out, 0, seq_len * E * sizeof(float));
+
+        for (int h = 0; h < H; h++) {
+            int lh = layer * H + h;
+            const KatAttentionHead *head = &block->attn.heads[h];
+            float *qbuf = tc->head_q[lh];
+            float *kbuf = tc->head_k[lh];
+            float *vbuf = tc->head_v[lh];
+            float *sbuf = tc->head_scores[lh];
+
+            /* Q, K, V проекции */
+            for (size_t t = 0; t < seq_len; t++) {
+                for (int d = 0; d < D; d++) {
+                    float sq = 0.0f, sk = 0.0f, sv = 0.0f;
+                    for (int j = 0; j < E; j++) {
+                        float hn = tc->attn_normed[layer][IDX2(t, j, E)];
+                        sq += hn * head->wq[IDX2(j, d, D)];
+                        sk += hn * head->wk[IDX2(j, d, D)];
+                        sv += hn * head->wv[IDX2(j, d, D)];
+                    }
+                    qbuf[IDX2(t, d, D)] = sq;
+                    kbuf[IDX2(t, d, D)] = sk;
+                    vbuf[IDX2(t, d, D)] = sv;
+                }
+            }
+
+            /* Attention scores + causal mask + softmax */
+            float scale = 1.0f / sqrtf((float)D);
+            for (size_t i = 0; i < seq_len; i++) {
+                for (size_t j = 0; j < seq_len; j++) {
+                    if (j > i) {
+                        sbuf[IDX2(i, j, S)] = -1e9f;
+                    } else {
+                        float dot = 0.0f;
+                        for (int d = 0; d < D; d++) {
+                            dot += qbuf[IDX2(i, d, D)] * kbuf[IDX2(j, d, D)];
+                        }
+                        sbuf[IDX2(i, j, S)] = dot * scale;
+                    }
+                }
+                softmax(&sbuf[i * (size_t)S], seq_len);
+            }
+
+            /* Weighted sum of V → head_out */
+            size_t offset = (size_t)h * D;
+            for (size_t i = 0; i < seq_len; i++) {
+                for (int d = 0; d < D; d++) {
+                    float sum = 0.0f;
+                    for (size_t j = 0; j <= i; j++) {
+                        sum += sbuf[IDX2(i, j, S)] * vbuf[IDX2(j, d, D)];
+                    }
+                    /* Сразу в attn_concat */
+                    ws->attn_out[IDX2(i, offset + d, E)] = sum;
+                }
+            }
+        }
+
+        /* Сохраняем concat до проекции Wo */
+        memcpy(tc->attn_concat[layer], ws->attn_out,
+               seq_len * E * sizeof(float));
+
+        /* Выходная проекция: attn_out @ Wo → layer_attn_out */
+        for (size_t t = 0; t < seq_len; t++) {
+            for (int i = 0; i < E; i++) {
+                float sum = 0.0f;
+                for (int j = 0; j < E; j++) {
+                    sum += ws->attn_out[IDX2(t, j, E)] *
+                           block->attn.wo[IDX2(j, i, E)];
+                }
+                ws->layer_attn_out[IDX2(t, i, E)] = sum;
+            }
+        }
+
+        /* Residual connection после attention */
+        for (size_t t = 0; t < seq_len; t++) {
+            for (int d = 0; d < E; d++) {
+                size_t idx = IDX2(t, d, E);
+                ws->hidden[idx] = tc->layer_input[layer][idx]
+                                  + ws->layer_attn_out[idx];
+            }
+        }
+
+        /* Сохраняем mid_hidden */
+        memcpy(tc->mid_hidden[layer], ws->hidden,
+               seq_len * E * sizeof(float));
+
+        /* === FFN sub-block === */
+
+        /* Pre-LN: FFN LayerNorm */
+        for (size_t t = 0; t < seq_len; t++) {
+            layer_norm(&ws->hidden[t * E],
+                       &tc->ffn_normed[layer][t * E],
+                       block->ffn.ln_gamma, block->ffn.ln_beta, E);
+        }
+
+        /* Первый слой FFN: pre_gelu = normed @ W1 + b1 */
+        for (size_t t = 0; t < seq_len; t++) {
+            for (int f = 0; f < cfg->ff_dim; f++) {
+                float sum = block->ffn.b1[f];
+                for (int e = 0; e < E; e++) {
+                    sum += tc->ffn_normed[layer][IDX2(t, e, E)] *
+                           block->ffn.w1[IDX2(e, f, cfg->ff_dim)];
+                }
+                tc->ffn_pre_gelu[layer][IDX2(t, f, cfg->ff_dim)] = sum;
+                tc->ffn_post_gelu[layer][IDX2(t, f, cfg->ff_dim)] = gelu(sum);
+            }
+        }
+
+        /* Второй слой FFN: ff_out = post_gelu @ W2 + b2 */
+        for (size_t t = 0; t < seq_len; t++) {
+            for (int e = 0; e < E; e++) {
+                float sum = block->ffn.b2[e];
+                for (int f = 0; f < cfg->ff_dim; f++) {
+                    sum += tc->ffn_post_gelu[layer][IDX2(t, f, cfg->ff_dim)] *
+                           block->ffn.w2[IDX2(f, e, E)];
+                }
+                ws->layer_ffn_out[IDX2(t, e, E)] = sum;
+            }
+        }
+
+        /* Residual connection после FFN */
+        for (size_t t = 0; t < seq_len; t++) {
+            for (int d = 0; d < E; d++) {
+                size_t idx = IDX2(t, d, E);
+                ws->hidden[idx] = tc->mid_hidden[layer][idx]
+                                  + ws->layer_ffn_out[idx];
+            }
+        }
+    }
+
+    /* --- Шаг 3: Финальный LayerNorm --- */
+    memcpy(tc->final_ln_input, ws->hidden,
+           seq_len * E * sizeof(float));
+
+    for (size_t t = 0; t < seq_len; t++) {
+        float tmp[1024];  /* embed_dim <= 1024 */
+        layer_norm(&ws->hidden[t * E], tmp,
+                   model->final_ln_gamma, model->final_ln_beta, E);
+        memcpy(&ws->hidden[t * E], tmp, E * sizeof(float));
+    }
+
+    /* --- Шаг 4: LM Head → logits + softmax --- */
+    size_t last = seq_len - 1;
+    for (int vi = 0; vi < V; vi++) {
+        float sum = 0.0f;
+        for (int d = 0; d < E; d++) {
+            sum += ws->hidden[IDX2(last, d, E)] *
+                   model->lm_head[IDX2(d, vi, V)];
+        }
+        ws->logits[vi] = sum;
+    }
+    memcpy(ws->probs, ws->logits, V * sizeof(float));
+    softmax(ws->probs, V);
+
+    return 0;
+}
+
+/*
+ * Полный backpropagation: обратный проход через ВСЕ слои трансформера.
+ *
+ * Обновляет:
+ *   - LM head (линейная проекция → логиты)
+ *   - Финальный LayerNorm (gamma, beta + входной сигнал)
+ *   - Для каждого блока (обратный порядок):
+ *     * FFN: W2, b2, GELU, W1, b1, LayerNorm
+ *     * MHA: Wo, per-head Wq/Wk/Wv (через attention scores), LayerNorm
+ *   - Token embeddings, Position embeddings
+ */
+float kat_train_step_full(KatModel *model, KatWorkspace *ws,
+                          const uint8_t *tokens, size_t seq_len,
+                          uint8_t target, float lr) {
+    if (!model || !ws || !tokens || seq_len == 0) return 0.0f;
+
+    const KatConfig *cfg = &model->cfg;
+    int E = cfg->embed_dim;
+    int V = cfg->vocab_size;
+    int L = cfg->num_layers;
+    int H = cfg->num_heads;
+    int D = cfg->head_dim;
+    int F = cfg->ff_dim;
+    int S = cfg->max_seq;
+
+    if (seq_len > (size_t)S) seq_len = (size_t)S;
+
+    /* Аллокация кэша */
+    KatTrainCache *tc = train_cache_create(cfg, seq_len);
+    if (!tc) return 0.0f;
+
+    /* ===== Forward pass с кэшированием ===== */
+    training_forward(model, ws, tc, tokens, seq_len);
+
+    /* Cross-entropy loss */
+    float p_target = ws->probs[target];
+    if (p_target < 1e-10f) p_target = 1e-10f;
+    float loss = -logf(p_target);
+
+    /* ===== Backward pass ===== */
+
+    size_t last = seq_len - 1;
+    float grad_clip = 1.0f;  /* Максимальная норма градиента */
+
+    /* --- Градиент по логитам: dL/dlogit[v] = probs[v] - one_hot(target) --- */
+    float *dlogits = alloc_floats(V);
+    for (int v = 0; v < V; v++) {
+        dlogits[v] = ws->probs[v];
+    }
+    dlogits[target] -= 1.0f;
+
+    /* --- Обновление LM head и градиент по hidden[last] --- */
+    float *d_hidden = alloc_floats(seq_len * E);
+    memset(d_hidden, 0, seq_len * E * sizeof(float));
+
+    /* dL/d_h_last[d] = sum_v(lm_head[d,v] * dlogits[v]) */
+    for (int d = 0; d < E; d++) {
+        float grad_d = 0.0f;
+        for (int v = 0; v < V; v++) {
+            grad_d += model->lm_head[IDX2(d, v, V)] * dlogits[v];
+        }
+        d_hidden[IDX2(last, d, E)] = grad_d;
+    }
+
+    /* Обновление LM head: W[d][v] -= lr * h[d] * dlogits[v] */
+    for (int d = 0; d < E; d++) {
+        float hd = ws->hidden[IDX2(last, d, E)];
+        for (int v = 0; v < V; v++) {
+            model->lm_head[IDX2(d, v, V)] -= lr * hd * dlogits[v];
+        }
+    }
+
+    free(dlogits);
+
+    /* --- Backward через финальный LayerNorm --- */
+    /* d_hidden сейчас содержит градиент по выходу final LN (только last) */
+    /* Нужен градиент по входу final LN → tc->final_ln_input */
+    float *d_pre_final_ln = alloc_floats(seq_len * E);
+    memset(d_pre_final_ln, 0, seq_len * E * sizeof(float));
+
+    float *d_final_ln_gamma = alloc_floats(E);
+    float *d_final_ln_beta  = alloc_floats(E);
+    memset(d_final_ln_gamma, 0, E * sizeof(float));
+    memset(d_final_ln_beta,  0, E * sizeof(float));
+
+    /* LayerNorm backward для позиции last */
+    layer_norm_backward(
+        &d_hidden[last * E],
+        &tc->final_ln_input[last * E],
+        model->final_ln_gamma,
+        &d_pre_final_ln[last * E],
+        d_final_ln_gamma,
+        d_final_ln_beta,
+        E
+    );
+
+    /* Обновление final LN параметров */
+    clip_grad(d_final_ln_gamma, E, grad_clip);
+    clip_grad(d_final_ln_beta, E, grad_clip);
+    for (int d = 0; d < E; d++) {
+        model->final_ln_gamma[d] -= lr * d_final_ln_gamma[d];
+        model->final_ln_beta[d]  -= lr * d_final_ln_beta[d];
+    }
+    free(d_final_ln_gamma);
+    free(d_final_ln_beta);
+    free(d_hidden);
+
+    /* Теперь d_pre_final_ln содержит dL/d_hidden[last] перед final LN */
+    /* Это то же, что выход последнего блока */
+
+    /* --- Backward через трансформерные блоки (обратный порядок) --- */
+    float *d_layer = d_pre_final_ln; /* [seq_len * E] — текущий градиент */
+
+    /* Вспомогательные буферы */
+    float *d_attn_proj = alloc_floats(seq_len * E);  /* после Wo */
+    float *d_attn_concat = alloc_floats(seq_len * E); /* до Wo */
+    float *d_normed = alloc_floats(seq_len * E);       /* после LN */
+    float *d_ff_out = alloc_floats(seq_len * E);       /* FFN output */
+    float *d_ff_hidden = alloc_floats(seq_len * F);    /* FFN pre/post gelu */
+    float *d_head_q = alloc_floats(seq_len * D);
+    float *d_head_k = alloc_floats(seq_len * D);
+    float *d_head_v = alloc_floats(seq_len * D);
+    float *d_scores = alloc_floats(seq_len * S);
+    float *d_raw    = alloc_floats(seq_len * S);
+    float *d_layer_input = alloc_floats(seq_len * E);
+
+    for (int layer = L - 1; layer >= 0; layer--) {
+        KatTransformerBlock *block = &model->layers[layer];
+
+        /* =============================================
+         * Backward FFN sub-block
+         * ============================================= */
+
+        /* d_layer = dL/d_output_of_block[layer]
+         *
+         * Forward: output = mid_hidden + ff_out
+         *   → d_mid_hidden += d_layer
+         *   → d_ff_out      = d_layer (residual connection)
+         */
+        memcpy(d_ff_out, d_layer, seq_len * E * sizeof(float));
+
+        /* --- Backward через W2: ff_out[t][e] = sum_f(gelu_out[t][f] * W2[f][e]) + b2[e] --- */
+
+        /* dW2[f][e] += sum_t(gelu_out[t][f] * d_ff_out[t][e]) */
+        /* db2[e]    += sum_t(d_ff_out[t][e]) */
+        /* d_gelu_out[t][f] = sum_e(d_ff_out[t][e] * W2[f][e]) */
+        memset(d_ff_hidden, 0, seq_len * F * sizeof(float));
+
+        for (size_t t = 0; t < seq_len; t++) {
+            for (int e = 0; e < E; e++) {
+                float dfe = d_ff_out[IDX2(t, e, E)];
+                block->ffn.b2[e] -= lr * dfe;
+                for (int f = 0; f < F; f++) {
+                    float pg = tc->ffn_post_gelu[layer][IDX2(t, f, F)];
+                    block->ffn.w2[IDX2(f, e, E)] -= lr * pg * dfe;
+                    d_ff_hidden[IDX2(t, f, F)] +=
+                        dfe * block->ffn.w2[IDX2(f, e, E)];
+                }
+            }
+        }
+
+        /* --- Backward через GELU --- */
+        /* d_pre_gelu[t][f] = d_gelu_out[t][f] * gelu'(pre_gelu[t][f]) */
+        for (size_t t = 0; t < seq_len; t++) {
+            for (int f = 0; f < F; f++) {
+                size_t idx = IDX2(t, f, F);
+                d_ff_hidden[idx] *= gelu_grad(
+                    tc->ffn_pre_gelu[layer][idx]);
+            }
+        }
+
+        /* --- Backward через W1: pre_gelu[t][f] = sum_e(normed[t][e]*W1[e][f]) + b1[f] --- */
+        /* dW1[e][f] += sum_t(normed[t][e] * d_pre_gelu[t][f]) */
+        /* db1[f]    += sum_t(d_pre_gelu[t][f]) */
+        /* d_normed[t][e] = sum_f(d_pre_gelu[t][f] * W1[e][f]) */
+        memset(d_normed, 0, seq_len * E * sizeof(float));
+
+        for (size_t t = 0; t < seq_len; t++) {
+            for (int f = 0; f < F; f++) {
+                float dpg = d_ff_hidden[IDX2(t, f, F)];
+                block->ffn.b1[f] -= lr * dpg;
+                for (int e = 0; e < E; e++) {
+                    float n = tc->ffn_normed[layer][IDX2(t, e, E)];
+                    block->ffn.w1[IDX2(e, f, F)] -= lr * n * dpg;
+                    d_normed[IDX2(t, e, E)] +=
+                        dpg * block->ffn.w1[IDX2(e, f, F)];
+                }
+            }
+        }
+
+        /* --- Backward через FFN LayerNorm --- */
+        /* d_normed → d_mid_hidden (через LN backward) */
+        float *d_ffn_ln_gamma = alloc_floats(E);
+        float *d_ffn_ln_beta  = alloc_floats(E);
+        memset(d_ffn_ln_gamma, 0, E * sizeof(float));
+        memset(d_ffn_ln_beta,  0, E * sizeof(float));
+
+        /* Буфер для dx через LN */
+        float *d_mid = alloc_floats(seq_len * E);
+        memset(d_mid, 0, seq_len * E * sizeof(float));
+
+        for (size_t t = 0; t < seq_len; t++) {
+            layer_norm_backward(
+                &d_normed[IDX2(t, 0, E)],
+                &tc->mid_hidden[layer][t * E],
+                block->ffn.ln_gamma,
+                &d_mid[t * E],
+                d_ffn_ln_gamma,
+                d_ffn_ln_beta,
+                E
+            );
+        }
+
+        /* Обновление FFN LN параметров */
+        clip_grad(d_ffn_ln_gamma, E, grad_clip);
+        clip_grad(d_ffn_ln_beta, E, grad_clip);
+        for (int d = 0; d < E; d++) {
+            block->ffn.ln_gamma[d] -= lr * d_ffn_ln_gamma[d];
+            block->ffn.ln_beta[d]  -= lr * d_ffn_ln_beta[d];
+        }
+        free(d_ffn_ln_gamma);
+        free(d_ffn_ln_beta);
+
+        /* d_mid_hidden = d_layer (residual) + d_mid (через LN) */
+        for (size_t i = 0; i < seq_len * (size_t)E; i++) {
+            d_mid[i] += d_layer[i];
+        }
+
+        /* =============================================
+         * Backward Attention sub-block
+         * ============================================= */
+
+        /* Forward: hidden = layer_input + attn_proj
+         *   → d_layer_input += d_mid
+         *   → d_attn_proj    = d_mid
+         */
+        memcpy(d_attn_proj, d_mid, seq_len * E * sizeof(float));
+
+        /* --- Backward через Wo: attn_proj[t][i] = sum_j(concat[t][j]*Wo[j][i]) --- */
+        /* dWo[j][i] += sum_t(concat[t][j] * d_proj[t][i]) */
+        /* d_concat[t][j] = sum_i(d_proj[t][i] * Wo[j][i]) */
+        memset(d_attn_concat, 0, seq_len * E * sizeof(float));
+
+        for (size_t t = 0; t < seq_len; t++) {
+            for (int i = 0; i < E; i++) {
+                float dp = d_attn_proj[IDX2(t, i, E)];
+                for (int j = 0; j < E; j++) {
+                    float c = tc->attn_concat[layer][IDX2(t, j, E)];
+                    block->attn.wo[IDX2(j, i, E)] -= lr * c * dp;
+                    d_attn_concat[IDX2(t, j, E)] +=
+                        dp * block->attn.wo[IDX2(j, i, E)];
+                }
+            }
+        }
+
+        /* --- Backward через each head --- */
+        /* Суммируем вклады всех голов в d_normed */
+        memset(d_normed, 0, seq_len * E * sizeof(float));
+
+        for (int h = 0; h < H; h++) {
+            int lh = layer * H + h;
+            KatAttentionHead *head = &block->attn.heads[h];
+            size_t offset = (size_t)h * D;
+
+            float *qbuf = tc->head_q[lh];
+            float *kbuf = tc->head_k[lh];
+            float *vbuf = tc->head_v[lh];
+            float *sbuf = tc->head_scores[lh];  /* softmax output */
+
+            /* Извлекаем d_head_out из d_attn_concat[:, offset:offset+D] */
+            /* head_out[i][d] = sum_j(scores[i][j] * V[j][d]) */
+
+            /* d_scores[i][j] = sum_d(d_head_out[i][d] * V[j][d]) */
+            /* d_V[j][d]      += sum_i(scores[i][j] * d_head_out[i][d]) */
+            memset(d_head_v, 0, seq_len * D * sizeof(float));
+            memset(d_scores, 0, seq_len * S * sizeof(float));
+
+            for (size_t i = 0; i < seq_len; i++) {
+                for (int d = 0; d < D; d++) {
+                    float dho = d_attn_concat[IDX2(i, offset + d, E)];
+                    for (size_t j = 0; j <= i; j++) {
+                        d_scores[IDX2(i, j, S)] +=
+                            dho * vbuf[IDX2(j, d, D)];
+                        d_head_v[IDX2(j, d, D)] +=
+                            sbuf[IDX2(i, j, S)] * dho;
+                    }
+                }
+            }
+
+            /* --- Backward через softmax --- */
+            /* d_raw_scores = softmax_backward(scores, d_scores) * scale */
+            float scale = 1.0f / sqrtf((float)D);
+            for (size_t i = 0; i < seq_len; i++) {
+                softmax_backward(
+                    &sbuf[i * S],
+                    &d_scores[i * S],
+                    &d_raw[i * S],
+                    seq_len
+                );
+                /* Домножаем на scale (scores = raw * scale → d_raw *= scale) */
+                for (size_t j = 0; j < seq_len; j++) {
+                    d_raw[IDX2(i, j, S)] *= scale;
+                }
+            }
+
+            /* --- Backward Q/K score: raw[i][j] = Q[i]·K[j] --- */
+            /* d_Q[i][d] = sum_j(d_raw[i][j] * K[j][d]) */
+            /* d_K[j][d] = sum_i(d_raw[i][j] * Q[i][d]) */
+            memset(d_head_q, 0, seq_len * D * sizeof(float));
+            memset(d_head_k, 0, seq_len * D * sizeof(float));
+
+            for (size_t i = 0; i < seq_len; i++) {
+                for (size_t j = 0; j <= i; j++) {
+                    float dr = d_raw[IDX2(i, j, S)];
+                    for (int d = 0; d < D; d++) {
+                        d_head_q[IDX2(i, d, D)] +=
+                            dr * kbuf[IDX2(j, d, D)];
+                        d_head_k[IDX2(j, d, D)] +=
+                            dr * qbuf[IDX2(i, d, D)];
+                    }
+                }
+            }
+
+            /* --- Backward Q/K/V проекции --- */
+            /* Q = normed @ Wq → dWq += normed^T @ dQ, d_normed += dQ @ Wq^T */
+            /* K = normed @ Wk → аналогично */
+            /* V = normed @ Wv → аналогично */
+
+            for (size_t t = 0; t < seq_len; t++) {
+                for (int d = 0; d < D; d++) {
+                    float dq = d_head_q[IDX2(t, d, D)];
+                    float dk = d_head_k[IDX2(t, d, D)];
+                    float dv = d_head_v[IDX2(t, d, D)];
+
+                    for (int e = 0; e < E; e++) {
+                        float n = tc->attn_normed[layer][IDX2(t, e, E)];
+
+                        /* Обновление Wq, Wk, Wv */
+                        head->wq[IDX2(e, d, D)] -= lr * n * dq;
+                        head->wk[IDX2(e, d, D)] -= lr * n * dk;
+                        head->wv[IDX2(e, d, D)] -= lr * n * dv;
+
+                        /* Градиент по normed */
+                        d_normed[IDX2(t, e, E)] +=
+                            dq * head->wq[IDX2(e, d, D)] +
+                            dk * head->wk[IDX2(e, d, D)] +
+                            dv * head->wv[IDX2(e, d, D)];
+                    }
+                }
+            }
+        } /* end heads loop */
+
+        /* --- Backward через Attention LayerNorm --- */
+        float *d_attn_ln_gamma = alloc_floats(E);
+        float *d_attn_ln_beta  = alloc_floats(E);
+        memset(d_attn_ln_gamma, 0, E * sizeof(float));
+        memset(d_attn_ln_beta,  0, E * sizeof(float));
+
+        memset(d_layer_input, 0, seq_len * E * sizeof(float));
+
+        for (size_t t = 0; t < seq_len; t++) {
+            layer_norm_backward(
+                &d_normed[IDX2(t, 0, E)],
+                &tc->layer_input[layer][t * E],
+                block->attn.ln_gamma,
+                &d_layer_input[t * E],
+                d_attn_ln_gamma,
+                d_attn_ln_beta,
+                E
+            );
+        }
+
+        /* Обновление attention LN */
+        clip_grad(d_attn_ln_gamma, E, grad_clip);
+        clip_grad(d_attn_ln_beta, E, grad_clip);
+        for (int d = 0; d < E; d++) {
+            block->attn.ln_gamma[d] -= lr * d_attn_ln_gamma[d];
+            block->attn.ln_beta[d]  -= lr * d_attn_ln_beta[d];
+        }
+        free(d_attn_ln_gamma);
+        free(d_attn_ln_beta);
+
+        /* d_layer_input += d_mid (residual в attention sub-block) */
+        for (size_t i = 0; i < seq_len * (size_t)E; i++) {
+            d_layer_input[i] += d_mid[i];
+        }
+
+        /* Передаём градиент в предыдущий слой */
+        memcpy(d_layer, d_layer_input, seq_len * E * sizeof(float));
+
+        free(d_mid);
+    } /* end layers loop */
+
+    /* --- Backward через эмбеддинги --- */
+    /* d_layer теперь содержит dL/d_embed_output */
+
+    /* Обновление token/position embeddings */
+    float emb_lr = lr * 0.1f;  /* Уменьшенный LR для эмбеддингов */
+    for (size_t t = 0; t < seq_len; t++) {
+        int tok = tokens[t];
+        if (tok >= V) tok = 0;
+        for (int d = 0; d < E; d++) {
+            float grad = d_layer[IDX2(t, d, E)];
+            model->embed.token_embed[IDX2(tok, d, E)] -= emb_lr * grad;
+            model->embed.pos_embed[IDX2(t, d, E)]     -= emb_lr * grad;
+        }
+    }
+
+    /* Освобождение */
+    free(d_pre_final_ln);  /* = d_layer */
+    free(d_attn_proj);
+    free(d_attn_concat);
+    free(d_normed);
+    free(d_ff_out);
+    free(d_ff_hidden);
+    free(d_head_q);
+    free(d_head_k);
+    free(d_head_v);
+    free(d_scores);
+    free(d_raw);
+    free(d_layer_input);
+    train_cache_destroy(tc);
+
+    return loss;
+}
+
+/* ============================================================================
  * Утилиты
  * ============================================================================ */
 
