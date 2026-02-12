@@ -21,6 +21,10 @@ from pydantic import BaseModel, Field
 
 from .ai_engine import get_engine
 from .number_mind import (
+    KLM_PATTERN_SIZE,
+    GENE_SIZE,
+    FORMULA_LAYERS,
+    FORMULA_LAYERS_FAST,
     word_to_pattern,
     pattern_to_str,
     pattern_similarity,
@@ -112,14 +116,25 @@ class EngineStatsResponse(BaseModel):
     # Числовой граф
     graph_patterns: int
     graph_edges: int
+    graph_max_patterns: int = 0
+    graph_max_edges: int = 0
+    graph_max_degree: int = 0
     graph_documents: int
     graph_tokens: int
+    graph_version: int = 0
+    delta_log_len: int = 0
+    delta_oldest_version: int = 0
     graph_avg_fitness: float
     graph_avg_weight: float
     # Формулы
     formula_generation: int
     formula_fitness: float
     formula_genome_hex: str
+    gene_digits: int = GENE_SIZE
+    formula_layers: int = FORMULA_LAYERS
+    formula_layers_fast: int = FORMULA_LAYERS_FAST
+    formula_ops: int = 12
+    pattern_size: int = KLM_PATTERN_SIZE
     # C-модель
     c_model_patterns: int
     c_model_edges: int
@@ -431,13 +446,24 @@ async def engine_stats() -> EngineStatsResponse:
         model_available=engine.c_retriever.available,
         graph_patterns=g["patterns"],
         graph_edges=g["edges"],
+        graph_max_patterns=g.get("max_patterns", 0),
+        graph_max_edges=g.get("max_edges", 0),
+        graph_max_degree=g.get("max_degree", 0),
         graph_documents=g["documents_trained"],
         graph_tokens=g["tokens_processed"],
+        graph_version=g.get("graph_version", 0),
+        delta_log_len=g.get("delta_log_len", 0),
+        delta_oldest_version=g.get("delta_oldest_version", 0),
         graph_avg_fitness=g["avg_fitness"],
         graph_avg_weight=g["avg_weight"],
         formula_generation=engine.formula_pool.generation,
         formula_fitness=round(best.fitness, 4),
         formula_genome_hex=best.gene.to_hex()[:32],
+        gene_digits=len(best.gene.digits),
+        formula_layers=FORMULA_LAYERS,
+        formula_layers_fast=FORMULA_LAYERS_FAST,
+        formula_ops=12,
+        pattern_size=KLM_PATTERN_SIZE,
         c_model_patterns=c.get("patterns", 0),
         c_model_edges=c.get("edges", 0),
         c_model_size_mb=c.get("size_mb", 0.0),

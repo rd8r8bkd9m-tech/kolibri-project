@@ -12,16 +12,18 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
+import os
 import json
-import struct
 import time
 from dataclasses import dataclass, field
 from typing import Optional
 
 import aiohttp
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
+
+from .ai_engine import get_engine
+from .swarm_security import require_swarm_token
 
 router = APIRouter(prefix="/api/v1/sync", tags=["sync"])
 
@@ -112,6 +114,118 @@ class DeltaPacket:
 
 
 # ============================================================
+# Преобразования форматов (graph delta <-> DeltaPacket)
+# ============================================================
+
+def _graph_delta_to_packet(graph_delta: dict, node_id: str) -> tuple[DeltaPacket, dict]:
+    """
+    Превратить KnowledgeGraph.export_delta() в DeltaPacket (+ meta поля).
+
+    KnowledgeGraph.export_delta() возвращает patterns/edges как dict:
+      patterns[str(hash)] = {word, pattern, frequency, fitness, version}
+      edges["a:b"] = {weight, cooccurrence, version}
+    """
+    meta = {
+        "needs_full_sync": bool(graph_delta.get("needs_full_sync", False)),
+        "truncated": bool(graph_delta.get("truncated", False)),
+    }
+    if "oldest_available_version" in graph_delta:
+        meta["oldest_available_version"] = int(graph_delta["oldest_available_version"])
+
+    from_v = int(graph_delta.get("from_version", 0))
+    to_v = int(graph_delta.get("to_version", 0))
+
+    if meta["needs_full_sync"]:
+        # Пир слишком отстал: дельта уже не хранится в логах.
+        return (
+            DeltaPacket(
+                from_version=from_v,
+                to_version=to_v,
+                node_id=node_id,
+                patterns=[],
+                edges=[],
+                timestamp=time.time(),
+            ),
+            meta,
+        )
+
+    patterns: list[PatternDelta] = []
+    for h_str, pdata in (graph_delta.get("patterns") or {}).items():
+        try:
+            h = int(h_str)
+        except Exception:
+            continue
+        patterns.append(
+            PatternDelta(
+                word=str(pdata.get("word", "")),
+                hash=h,
+                pattern=list(pdata.get("pattern", [])),
+                fitness=float(pdata.get("fitness", 0.0)),
+                frequency=int(pdata.get("frequency", 0)),
+                version=int(pdata.get("version", 0)),
+            )
+        )
+
+    edges: list[EdgeDelta] = []
+    for key_str, edata in (graph_delta.get("edges") or {}).items():
+        parts = str(key_str).split(":")
+        if len(parts) != 2:
+            continue
+        try:
+            a = int(parts[0])
+            b = int(parts[1])
+        except Exception:
+            continue
+        edges.append(
+            EdgeDelta(
+                source_hash=min(a, b),
+                target_hash=max(a, b),
+                weight=float(edata.get("weight", 0.0)),
+                cooccurrence=int(edata.get("cooccurrence", 0)),
+                version=int(edata.get("version", 0)),
+            )
+        )
+
+    return (
+        DeltaPacket(
+            from_version=from_v,
+            to_version=to_v,
+            node_id=node_id,
+            patterns=patterns,
+            edges=edges,
+            timestamp=time.time(),
+        ),
+        meta,
+    )
+
+
+def _packet_to_merge_state(delta: DeltaPacket) -> dict:
+    """DeltaPacket -> формат для KnowledgeGraph.merge_state()."""
+    patterns: dict[str, dict] = {}
+    for p in delta.patterns:
+        patterns[str(int(p.hash))] = {
+            "word": p.word,
+            "pattern": list(p.pattern),
+            "frequency": int(p.frequency),
+            "fitness": float(p.fitness),
+            "version": int(p.version),
+        }
+
+    edges: dict[str, dict] = {}
+    for e in delta.edges:
+        a = int(e.source_hash)
+        b = int(e.target_hash)
+        key = f"{min(a, b)}:{max(a, b)}"
+        edges[key] = {
+            "weight": float(e.weight),
+            "cooccurrence": int(e.cooccurrence),
+            "version": int(e.version),
+        }
+
+    return {"patterns": patterns, "edges": edges}
+
+
+# ============================================================
 # DeltaSyncManager — управление дельта-синхронизацией
 # ============================================================
 
@@ -121,9 +235,7 @@ class DeltaSyncManager:
     def __init__(self, node_id: str, sync_interval: float = 5.0) -> None:
         self.node_id = node_id
         self.sync_interval = sync_interval
-        self._global_version: int = 0
         self._peer_versions: dict[str, int] = {}  # peer_id → last_known_version
-        self._pending_deltas: list[DeltaPacket] = []
         self._peers: dict[str, str] = {}  # peer_id → url
         self._running = False
         self._stats = {
@@ -146,19 +258,11 @@ class DeltaSyncManager:
         self._peers.pop(peer_id, None)
         self._peer_versions.pop(peer_id, None)
 
-    def bump_version(self) -> int:
-        """Увеличить глобальную версию (при каждом изменении модели)."""
-        self._global_version += 1
-        return self._global_version
-
-    def extract_delta(self, since_version: int) -> DeltaPacket:
-        """Извлечь дельту от since_version (заглушка для интеграции с C)."""
-        # В реальности это вызывает klm_delta_extract через ctypes/cffi
-        return DeltaPacket(
-            from_version=since_version,
-            to_version=self._global_version,
-            node_id=self.node_id,
-        )
+    def extract_delta(self, since_version: int, max_items: int = 10000) -> tuple[DeltaPacket, dict]:
+        """Извлечь дельту от since_version из локального KnowledgeGraph."""
+        engine = get_engine()
+        graph_delta = engine.graph.export_delta(since_version, max_items=max_items)
+        return _graph_delta_to_packet(graph_delta, node_id=self.node_id)
 
     async def push_delta(self, peer_id: str, delta: DeltaPacket) -> bool:
         """Отправить дельту конкретному пиру."""
@@ -167,12 +271,16 @@ class DeltaSyncManager:
             return False
 
         payload = delta.to_json()
+        headers = {"Content-Type": "application/json"}
+        token = os.getenv("KOLIBRI_SWARM_TOKEN", "").strip()
+        if token:
+            headers["X-Kolibri-Swarm-Token"] = token
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                     f"{url}/api/v1/sync/apply",
-                    data=payload,
-                    headers={"Content-Type": "application/json"},
+                    json={"data": payload},
+                    headers=headers,
                     timeout=aiohttp.ClientTimeout(total=10),
                 ) as resp:
                     if resp.status == 200:
@@ -191,11 +299,16 @@ class DeltaSyncManager:
             return None
 
         since = self._peer_versions.get(peer_id, 0)
+        headers: dict[str, str] = {}
+        token = os.getenv("KOLIBRI_SWARM_TOKEN", "").strip()
+        if token:
+            headers["X-Kolibri-Swarm-Token"] = token
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     f"{url}/api/v1/sync/delta",
                     params={"since_version": since},
+                    headers=headers or None,
                     timeout=aiohttp.ClientTimeout(total=10),
                 ) as resp:
                     if resp.status == 200:
@@ -203,6 +316,7 @@ class DeltaSyncManager:
                         delta = DeltaPacket.from_json(data)
                         self._stats["deltas_received"] += 1
                         self._stats["bytes_received"] += delta.size_bytes
+                        self._peer_versions[peer_id] = delta.to_version
                         return delta
         except Exception:
             pass
@@ -214,10 +328,12 @@ class DeltaSyncManager:
         for peer_id in list(self._peers):
             delta = await self.pull_delta(peer_id)
             if delta and not delta.is_empty:
-                # TODO: вызвать klm_delta_apply через C-биндинг
+                engine = get_engine()
+                merge_result = engine.graph.merge_state(_packet_to_merge_state(delta))
                 results[peer_id] = (
-                    f"applied {len(delta.patterns)} patterns, "
-                    f"{len(delta.edges)} edges"
+                    f"applied {len(delta.patterns)} patterns, {len(delta.edges)} edges "
+                    f"(merged_patterns={merge_result.get('merged_patterns', 0)}, "
+                    f"merged_edges={merge_result.get('merged_edges', 0)})"
                 )
             else:
                 results[peer_id] = "up-to-date"
@@ -236,9 +352,11 @@ class DeltaSyncManager:
 
     @property
     def stats(self) -> dict:
+        engine = get_engine()
+        graph_v = engine.graph.version
         return {
             **self._stats,
-            "global_version": self._global_version,
+            "global_version": graph_v,
             "peers": len(self._peers),
             "peer_versions": dict(self._peer_versions),
         }
@@ -269,7 +387,7 @@ class RegisterPeerRequest(BaseModel):
 
 
 class DeltaApplyRequest(BaseModel):
-    data: str = Field(description="JSON-сериализованный DeltaPacket")
+    data: object = Field(description="DeltaPacket JSON (string/dict) или raw payload")
 
 
 class SyncStatusResponse(BaseModel):
@@ -287,7 +405,7 @@ class SyncStatusResponse(BaseModel):
 # ============================================================
 
 @router.post("/peer/register")
-async def register_peer(req: RegisterPeerRequest) -> dict:
+async def register_peer(req: RegisterPeerRequest, _auth: None = Depends(require_swarm_token)) -> dict:
     """Зарегистрировать ноду-соседа для синхронизации."""
     mgr = get_sync_manager()
     mgr.register_peer(req.peer_id, req.url)
@@ -295,7 +413,7 @@ async def register_peer(req: RegisterPeerRequest) -> dict:
 
 
 @router.delete("/peer/{peer_id}")
-async def unregister_peer(peer_id: str) -> dict:
+async def unregister_peer(peer_id: str, _auth: None = Depends(require_swarm_token)) -> dict:
     """Убрать ноду из синхронизации."""
     mgr = get_sync_manager()
     mgr.unregister_peer(peer_id)
@@ -303,33 +421,77 @@ async def unregister_peer(peer_id: str) -> dict:
 
 
 @router.get("/delta")
-async def get_delta(since_version: int = 0) -> dict:
+async def get_delta(
+    since_version: int = 0,
+    max_items: int = 10000,
+    _auth: None = Depends(require_swarm_token),
+) -> dict:
     """Получить дельту с указанной версии."""
     mgr = get_sync_manager()
-    delta = mgr.extract_delta(since_version)
-    return json.loads(delta.to_json())
+    delta, meta = mgr.extract_delta(since_version, max_items=max_items)
+    payload = json.loads(delta.to_json())
+    payload.update(meta)
+    return payload
 
 
 @router.post("/apply")
-async def apply_delta(req: DeltaApplyRequest) -> dict:
+async def apply_delta(request: Request, _auth: None = Depends(require_swarm_token)) -> dict:
     """Применить входящую дельту от другой ноды."""
     try:
-        delta = DeltaPacket.from_json(req.data)
-    except Exception as e:
-        raise HTTPException(400, f"Некорректный формат дельты: {e}")
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Ожидается JSON body")
 
-    mgr = get_sync_manager()
-    # TODO: вызвать klm_delta_apply через C-биндинг
-    return {
-        "status": "applied",
-        "patterns": len(delta.patterns),
-        "edges": len(delta.edges),
-        "from_node": delta.node_id,
-    }
+    data_obj: object = body.get("data", body) if isinstance(body, dict) else body
+
+    # 1) data может быть JSON-строкой (DeltaPacket.to_json())
+    if isinstance(data_obj, str):
+        try:
+            parsed = json.loads(data_obj)
+        except Exception as e:
+            raise HTTPException(400, f"Некорректный JSON в поле data: {e}")
+    # 2) data может быть уже dict payload
+    elif isinstance(data_obj, dict):
+        parsed = data_obj
+    else:
+        raise HTTPException(400, "Некорректный формат: data должен быть string или object")
+
+    engine = get_engine()
+
+    # DeltaPacket формат (patterns/edges как списки)
+    if isinstance(parsed.get("patterns"), list) and isinstance(parsed.get("edges"), list):
+        try:
+            delta = DeltaPacket.from_json(json.dumps(parsed))
+        except Exception as e:
+            raise HTTPException(400, f"Некорректный DeltaPacket: {e}")
+        merge_result = engine.graph.merge_state(_packet_to_merge_state(delta))
+        return {
+            "status": "applied",
+            "from_node": delta.node_id,
+            "delta_patterns": len(delta.patterns),
+            "delta_edges": len(delta.edges),
+            **merge_result,
+            "graph_version": engine.graph.version,
+        }
+
+    # KnowledgeGraph экспорт (patterns/edges как dict) — принимаем напрямую
+    if isinstance(parsed.get("patterns"), dict) and isinstance(parsed.get("edges"), dict):
+        remote_state = {"patterns": parsed.get("patterns", {}), "edges": parsed.get("edges", {})}
+        merge_result = engine.graph.merge_state(remote_state)
+        return {
+            "status": "applied",
+            "from_node": str(parsed.get("node_id", "")),
+            "delta_patterns": len(remote_state["patterns"]),
+            "delta_edges": len(remote_state["edges"]),
+            **merge_result,
+            "graph_version": engine.graph.version,
+        }
+
+    raise HTTPException(400, "Неизвестный формат дельты: ожидается DeltaPacket или граф-экспорт")
 
 
 @router.post("/sync/all")
-async def sync_with_all() -> dict:
+async def sync_with_all(_auth: None = Depends(require_swarm_token)) -> dict:
     """Синхронизировать со всеми зарегистрированными пирами."""
     mgr = get_sync_manager()
     results = await mgr.sync_all()
@@ -337,7 +499,7 @@ async def sync_with_all() -> dict:
 
 
 @router.get("/status", response_model=SyncStatusResponse)
-async def sync_status() -> SyncStatusResponse:
+async def sync_status(_auth: None = Depends(require_swarm_token)) -> SyncStatusResponse:
     """Статус синхронизации."""
     mgr = get_sync_manager()
     s = mgr.stats

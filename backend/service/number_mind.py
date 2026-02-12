@@ -4,14 +4,14 @@ number_mind.py — Ядро «Числового Мышления» Kolibri
 Чистая Python-реализация формульного движка (зеркало C-ядра):
 - Каждое слово → 64-цифровой паттерн (через DJB2 + LCG каскад)
 - Граф знаний: слово↔слово с весами (co-occurrence)
-- 100-слойная формульная «нейросеть» на 1024 цифрах генома
+- Формульная ResNet-сеть: геном **4000 цифр** → до **500 слоёв**
 - Эволюция формул (генетический алгоритм)
 - Дистилляция: вытеснение слабых знаний
 - Обратное восстановление: формулы → текст
 
 Это НЕ классический ML. Это уникальная система, где:
 - ВСЕ знания хранятся в ЧИСЛАХ
-- Формулы из 1024 цифр определяют "поведение мозга"
+- Формулы из **4000 цифр** определяют "поведение мозга"
 - Граф знаний = связи между числовыми паттернами слов
 - Ответ = навигация по графу + формульный predict
 """
@@ -28,7 +28,7 @@ import struct
 import time
 import zlib
 from array import array
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -53,8 +53,9 @@ def _get_embedding_class():
 
 KLM_PATTERN_SIZE = 64       # Цифр в числовом паттерне слова
 KLM_WORD_MAX = 128          # Макс длина слова
-GENE_SIZE = 4000            # Цифр в геноме формулы (500 слоёв × 8)
-FORMULA_LAYERS = 500        # Слоёв формульной "нейросети"
+GENE_SIZE = 4000            # Цифр в геноме формулы (500 слоёв × 8 цифр на слой)
+FORMULA_LAYERS = 500        # Слоёв формульной "нейросети" (максимум)
+FORMULA_LAYERS_FAST = 100   # Быстрый режим (используется для эволюции/оценки)
 MAX_ASSOCIATIONS = 10000    # Макс ассоциаций Q→A в формуле
 POPULATION_SIZE = 16        # Формул в популяции
 
@@ -164,7 +165,7 @@ def digits_to_text(digits: list[int]) -> str:
 @dataclass
 class KolibriGene:
     """
-    Геном формулы — 1024 цифр (0–11).
+    Геном формулы — 4000 цифр (0–11).
     
     Каждые 8 цифр = один "слой" преобразования:
       [0]: operation (% 12 → тип операции)
@@ -185,7 +186,7 @@ class KolibriGene:
 
     def predict_fast(self, x: float) -> float:
         """Быстрый вариант: 100 слоёв (10 residual-блоков)."""
-        return self._run_layers(x, 100)
+        return self._run_layers(x, FORMULA_LAYERS_FAST)
 
     # --- ResNet-архитектура: Residual Blocks + Layer Normalization ---
     # Каждые BLOCK_SIZE слоёв = 1 residual block.
@@ -379,7 +380,7 @@ class FormulaPool:
     Пул из 16 формул, эволюционирующих конкурентно.
 
     Каждая формула содержит:
-    - Геном (1024 цифры) → 500-слойная ResNet-подобная сеть
+    - Геном (4000 цифр) → 500-слойная ResNet-подобная сеть
     - Ассоциации (Q→A через FNV1a хеши)
     - Fitness (качество СЕМАНТИЧЕСКИХ предсказаний)
 
@@ -705,6 +706,8 @@ class KnowledgeEdge:
     target_hash: int
     weight: float = 0.0
     cooccurrence: int = 0
+    # Локальная версия изменения (для дельта-синхронизации между нодами)
+    version: int = 0
     
     def strengthen(self) -> None:
         """Усилить связь (сигмоида как в C)."""
@@ -720,6 +723,8 @@ class PatternEntry:
     hash: int
     frequency: int = 0
     fitness: float = 0.0
+    # Локальная версия изменения (для дельта-синхронизации между нодами)
+    version: int = 0
 
 
 class KnowledgeGraph:
@@ -736,13 +741,29 @@ class KnowledgeGraph:
     4. Топ-N слов по score = ответ
     """
     
-    def __init__(self, max_patterns: int = 131072, max_edges: int = 262144) -> None:
+    def __init__(
+        self,
+        max_patterns: int | None = None,
+        max_edges: int | None = None,
+        max_degree: int | None = None,
+        *,
+        delta_log_max: int | None = None,
+    ) -> None:
         self.patterns: dict[int, PatternEntry] = {}
         self.edges: dict[tuple[int, int], KnowledgeEdge] = {}
         self._adj: dict[int, set[int]] = {}  # Индекс смежности для быстрого answer()
         self._hash_to_word: dict[int, str] = {}  # Обратный индекс: хеш → слово
-        self.max_patterns = max_patterns
-        self.max_edges = max_edges
+        # Лимиты можно переопределять через ENV, чтобы масштабировать экспериментально.
+        # Важно: на миллионах узлов Python-структуры потребуют очень много RAM.
+        self.max_patterns = max_patterns if max_patterns is not None else int(
+            os.getenv("KOLIBRI_GRAPH_MAX_PATTERNS", "131072")
+        )
+        self.max_edges = max_edges if max_edges is not None else int(
+            os.getenv("KOLIBRI_GRAPH_MAX_EDGES", "262144")
+        )
+        self.max_degree = max_degree if max_degree is not None else (
+            int(os.getenv("KOLIBRI_GRAPH_MAX_DEGREE", "0")) or None
+        )
         self.documents_trained: int = 0
         self.tokens_processed: int = 0
         self.current_epoch: int = 0
@@ -754,6 +775,137 @@ class KnowledgeGraph:
 
         import threading
         self._lock = threading.RLock()  # Защита от race condition (train vs stats)
+
+        # --- Delta log / версии: для P2P синхронизации (см. service/delta_sync.py) ---
+        self._version: int = 0
+        self._delta_log: deque[tuple[int, str, object]] = deque(
+            maxlen=delta_log_max
+            if delta_log_max is not None
+            else int(os.getenv("KOLIBRI_DELTA_LOG_MAX", "200000"))
+        )
+
+    def _record_delta(self, kind: str, key: object) -> int:
+        """Записать изменение в delta-log и вернуть новую версию (вызывается под _lock)."""
+        self._version += 1
+        v = self._version
+        self._delta_log.append((v, kind, key))
+        return v
+
+    @property
+    def version(self) -> int:
+        return self._version
+
+    def export_delta(self, since_version: int, max_items: int = 10000) -> dict:
+        """
+        Экспортировать только изменения (дельту) с указанной версии.
+
+        Возвращаем формат, совместимый с merge_state():
+          {from_version, to_version, needs_full_sync, patterns, edges}
+        """
+        with self._lock:
+            to_v = self._version
+            if not self._delta_log:
+                return {
+                    "from_version": since_version,
+                    "to_version": to_v,
+                    "needs_full_sync": False,
+                    "truncated": False,
+                    "patterns": {},
+                    "edges": {},
+                }
+
+            oldest_v = self._delta_log[0][0]
+            if since_version < oldest_v:
+                # Пир слишком отстал: нашей дельты уже не хватает.
+                return {
+                    "from_version": since_version,
+                    "to_version": to_v,
+                    "needs_full_sync": True,
+                    "oldest_available_version": oldest_v,
+                    "truncated": False,
+                    "patterns": {},
+                    "edges": {},
+                }
+
+            patterns: dict[str, dict] = {}
+            edges: dict[str, dict] = {}
+            total = 0
+
+            for v, kind, key in self._delta_log:
+                if v <= since_version:
+                    continue
+                if kind == "p":
+                    h = int(key)  # word hash
+                    entry = self.patterns.get(h)
+                    if entry is None:
+                        continue
+                    patterns[str(h)] = {
+                        "word": entry.word,
+                        "pattern": entry.pattern,
+                        "frequency": entry.frequency,
+                        "fitness": entry.fitness,
+                        "version": entry.version,
+                    }
+                    total += 1
+                elif kind == "e":
+                    src, tgt = key  # type: ignore[misc]
+                    edge = self.edges.get((src, tgt))
+                    if edge is None:
+                        continue
+                    edges[f"{src}:{tgt}"] = {
+                        "weight": edge.weight,
+                        "cooccurrence": edge.cooccurrence,
+                        "version": edge.version,
+                    }
+                    total += 1
+                else:
+                    continue
+
+                if total >= max_items:
+                    break
+
+        return {
+            "from_version": since_version,
+            "to_version": to_v,
+            "needs_full_sync": False,
+            "truncated": total >= max_items,
+            "patterns": patterns,
+            "edges": edges,
+        }
+
+    def _prune_node_degree(self, h: int) -> int:
+        """Ограничить степень узла до max_degree (вызывается под _lock)."""
+        if self.max_degree is None:
+            return 0
+        neighbors = self._adj.get(h)
+        if not neighbors or len(neighbors) <= self.max_degree:
+            return 0
+
+        # Оставляем самые сильные связи.
+        scored: list[tuple[float, int]] = []
+        for other in neighbors:
+            key = (min(h, other), max(h, other))
+            edge = self.edges.get(key)
+            scored.append((edge.weight if edge else 0.0, other))
+        scored.sort(key=lambda x: x[0])  # слабые первые
+        to_remove = scored[: max(0, len(scored) - self.max_degree)]
+
+        removed = 0
+        for _, other in to_remove:
+            key = (min(h, other), max(h, other))
+            self.edges.pop(key, None)
+            if h in self._adj:
+                self._adj[h].discard(other)
+                if not self._adj[h]:
+                    self._adj.pop(h, None)
+            if other in self._adj:
+                self._adj[other].discard(h)
+                if not self._adj[other]:
+                    self._adj.pop(other, None)
+            removed += 1
+            # (опционально) дельты удаления не отправляем: пиры сами дистиллируют.
+
+        return removed
     
     def add_word(self, word: str) -> PatternEntry:
         """Добавить слово в граф (или обновить частоту)."""
@@ -773,6 +925,7 @@ class KnowledgeGraph:
                 frequency=1,
                 fitness=0.06,
             )
+            entry.version = self._record_delta("p", h)
             self.patterns[h] = entry
             self._hash_to_word[h] = word.lower()  # Обратный индекс
             return entry
@@ -788,15 +941,20 @@ class KnowledgeGraph:
             key = (min(h1, h2), max(h1, h2))
             if key in self.edges:
                 self.edges[key].strengthen()
+                self.edges[key].version = self._record_delta("e", key)
             else:
                 if len(self.edges) >= self.max_edges:
                     self._distill_edges()
                 edge = KnowledgeEdge(source_hash=key[0], target_hash=key[1])
                 edge.strengthen()
+                edge.version = self._record_delta("e", key)
                 self.edges[key] = edge
                 # Индекс смежности
-                self._adj.setdefault(h1, set()).add(h2)
-                self._adj.setdefault(h2, set()).add(h1)
+                self._adj.setdefault(key[0], set()).add(key[1])
+                self._adj.setdefault(key[1], set()).add(key[0])
+                # Ограничение степени (если включено)
+                self._prune_node_degree(key[0])
+                self._prune_node_degree(key[1])
     
     def train_text(self, text: str, context_window: int = 5) -> dict:
         """
@@ -1313,9 +1471,13 @@ class KnowledgeGraph:
             "max_patterns": self.max_patterns,
             "edges": len(edges_snap),
             "max_edges": self.max_edges,
+            "max_degree": self.max_degree or 0,
             "documents_trained": self.documents_trained,
             "tokens_processed": self.tokens_processed,
             "epoch": self.current_epoch,
+            "graph_version": self._version,
+            "delta_log_len": len(self._delta_log),
+            "delta_oldest_version": self._delta_log[0][0] if self._delta_log else self._version,
             "avg_fitness": round(avg_fitness, 4),
             "avg_weight": round(avg_weight, 4),
         }
@@ -1653,6 +1815,7 @@ class KnowledgeGraph:
             "version": 1,
             "timestamp": time.time(),
             "epoch": self.current_epoch,
+            "graph_version": self._version,
             "documents_trained": self.documents_trained,
             "tokens_processed": self.tokens_processed,
             "patterns": {
@@ -1661,6 +1824,7 @@ class KnowledgeGraph:
                     "pattern": e.pattern,
                     "frequency": e.frequency,
                     "fitness": e.fitness,
+                    "version": e.version,
                 }
                 for h, e in patterns_snap
             },
@@ -1668,6 +1832,7 @@ class KnowledgeGraph:
                 f"{src}:{tgt}": {
                     "weight": e.weight,
                     "cooccurrence": e.cooccurrence,
+                    "version": e.version,
                 }
                 for (src, tgt), e in edges_snap
             },
@@ -1683,44 +1848,63 @@ class KnowledgeGraph:
         """
         merged_patterns = 0
         merged_edges = 0
-        
-        for h_str, pdata in remote.get("patterns", {}).items():
-            h = int(h_str)
-            if h in self.patterns:
-                # Слияние: берём максимум частоты и fitness
-                local = self.patterns[h]
-                local.frequency = max(local.frequency, pdata["frequency"])
-                local.fitness = max(local.fitness, pdata["fitness"])
-            else:
-                if len(self.patterns) < self.max_patterns:
-                    self.patterns[h] = PatternEntry(
-                        word=pdata["word"],
-                        pattern=pdata["pattern"],
-                        hash=h,
-                        frequency=pdata["frequency"],
-                        fitness=pdata["fitness"],
-                    )
-                    self._hash_to_word[h] = pdata["word"]  # Обратный индекс для слитых паттернов
-                    merged_patterns += 1
-        
-        for key_str, edata in remote.get("edges", {}).items():
-            parts = key_str.split(":")
-            key = (int(parts[0]), int(parts[1]))
-            if key in self.edges:
-                self.edges[key].cooccurrence += edata["cooccurrence"]
-                self.edges[key].weight = 1.0 - 1.0 / (1.0 + self.edges[key].cooccurrence)
-            else:
-                if len(self.edges) < self.max_edges:
-                    self.edges[key] = KnowledgeEdge(
-                        source_hash=key[0],
-                        target_hash=key[1],
-                        weight=edata["weight"],
-                        cooccurrence=edata["cooccurrence"],
-                    )
-                    # Индекс смежности для слитых рёбер — без этого answer() их не видит
-                    self._adj.setdefault(key[0], set()).add(key[1])
-                    self._adj.setdefault(key[1], set()).add(key[0])
-                    merged_edges += 1
+
+        with self._lock:
+            for h_str, pdata in remote.get("patterns", {}).items():
+                h = int(h_str)
+                freq = int(pdata.get("frequency", 0))
+                fit = float(pdata.get("fitness", 0.0))
+                if h in self.patterns:
+                    # Слияние: берём максимум частоты и fitness
+                    local = self.patterns[h]
+                    local.frequency = max(local.frequency, freq)
+                    local.fitness = max(local.fitness, fit)
+                    local.version = self._record_delta("p", h)
+                else:
+                    if len(self.patterns) < self.max_patterns:
+                        entry = PatternEntry(
+                            word=str(pdata.get("word", "")),
+                            pattern=list(pdata.get("pattern", [])),
+                            hash=h,
+                            frequency=freq,
+                            fitness=fit,
+                        )
+                        entry.version = self._record_delta("p", h)
+                        self.patterns[h] = entry
+                        self._hash_to_word[h] = entry.word  # Обратный индекс для слитых паттернов
+                        merged_patterns += 1
+
+            for key_str, edata in remote.get("edges", {}).items():
+                parts = key_str.split(":")
+                if len(parts) != 2:
+                    continue
+                a = int(parts[0])
+                b = int(parts[1])
+                key = (min(a, b), max(a, b))
+                co = int(edata.get("cooccurrence", 0))
+                w = float(edata.get("weight", 0.0))
+
+                if key in self.edges:
+                    self.edges[key].cooccurrence += co
+                    self.edges[key].weight = 1.0 - 1.0 / (1.0 + self.edges[key].cooccurrence)
+                    self.edges[key].version = self._record_delta("e", key)
+                else:
+                    if len(self.edges) < self.max_edges:
+                        edge = KnowledgeEdge(
+                            source_hash=key[0],
+                            target_hash=key[1],
+                            weight=w if w > 0 else (1.0 - 1.0 / (1.0 + max(co, 1))),
+                            cooccurrence=co if co > 0 else 1,
+                        )
+                        edge.version = self._record_delta("e", key)
+                        self.edges[key] = edge
+                        # Индекс смежности для слитых рёбер — без этого answer() их не видит
+                        self._adj.setdefault(key[0], set()).add(key[1])
+                        self._adj.setdefault(key[1], set()).add(key[0])
+                        # Ограничение степени (если включено)
+                        self._prune_node_degree(key[0])
+                        self._prune_node_degree(key[1])
+                        merged_edges += 1
         
         return {
             "merged_patterns": merged_patterns,

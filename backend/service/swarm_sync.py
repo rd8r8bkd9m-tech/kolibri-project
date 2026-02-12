@@ -22,9 +22,10 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from .swarm_security import require_swarm_token
 
 # ---------------------------------------------------------------------------
 # Модели данных
@@ -250,7 +251,7 @@ swarm_router = APIRouter(prefix="/api/v1/swarm", tags=["swarm"])
 
 
 @swarm_router.post("/register")
-async def register_node(req: NodeRegisterRequest) -> dict:
+async def register_node(req: NodeRegisterRequest, _auth: None = Depends(require_swarm_token)) -> dict:
     """Зарегистрировать узел в рое."""
     mgr = get_swarm_manager()
     node = mgr.register_node(req)
@@ -263,7 +264,7 @@ async def register_node(req: NodeRegisterRequest) -> dict:
 
 
 @swarm_router.post("/heartbeat/{node_id}")
-async def heartbeat(node_id: str) -> dict:
+async def heartbeat(node_id: str, _auth: None = Depends(require_swarm_token)) -> dict:
     """Heartbeat узла."""
     mgr = get_swarm_manager()
     ok = mgr.heartbeat(node_id)
@@ -283,7 +284,7 @@ async def get_peers() -> dict:
 
 
 @swarm_router.post("/sync")
-async def sync_knowledge(req: SyncRequest) -> dict:
+async def sync_knowledge(req: SyncRequest, _auth: None = Depends(require_swarm_token)) -> dict:
     """
     Синхронизация знаний с другим узлом.
     Принимаем числовые паттерны + рёбра, отдаём свои.

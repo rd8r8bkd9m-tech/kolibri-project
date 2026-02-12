@@ -143,7 +143,9 @@ class KolibriBenchmarks:
         except ImportError:
             return
 
-        svc = ArchiverService(evolve_rounds=1)
+        # ArchiverService больше не требует evolve_rounds/train для работы:
+        # API совместимости оставлен, но параметр evolve_rounds удалён.
+        svc = ArchiverService()
 
         # Тестовые данные
         test_text = "Kolibri predictive compression test. " * (20 if quick else 1000)

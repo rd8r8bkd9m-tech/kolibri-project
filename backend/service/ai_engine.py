@@ -5,7 +5,7 @@ ai_engine.py — Движок «Числового Мышления» Kolibri
 
 1. Каждое слово = 64-цифровой числовой паттерн (DJB2 → LCG каскад)
 2. Знания = граф связей между паттернами (co-occurrence edges)
-3. Формулы = 1024 цифры генома → 100-слойная нейросеть из 12 операций
+3. Формулы = 4000 цифр генома → до 500 слоёв, 12 операций
 4. Эволюция: мутация + кроссовер + селекция = улучшение формул
 5. Восстановление: из числового паттерна → исходное слово
 6. Всё хранится в ЧИСЛАХ. Формулах. Паттернах.
@@ -300,7 +300,7 @@ class KolibriAIEngine:
     1. Каждое слово = 64-цифровой паттерн (DJB2 + LCG)
     2. Знания = граф числовых паттернов с весами
     3. Ответ = навигация по графу + формульный прогноз
-    4. Формулы = геном 1024 цифр → 100 слоёв, 12 операций
+    4. Формулы = геном 4000 цифр → до 500 слоёв, 12 операций
     5. Эволюция формул = мутация + кроссовер + селекция
     """
 
@@ -314,6 +314,13 @@ class KolibriAIEngine:
         # Связываем эмбеддинги с графом и sentence store
         self.graph.embeddings = self.embeddings
         self.sentence_store.embeddings = self.embeddings
+        # Связываем SwarmManager с текущим графом, иначе /api/v1/swarm/sync
+        # будет в "no-op" режиме (граф не будет меняться).
+        try:
+            from .swarm_sync import get_swarm_manager
+            get_swarm_manager().set_knowledge_graph(self.graph)
+        except Exception:
+            pass
         self.c_retriever = CModelRetriever(model_path)
         self.conversations: dict[str, Conversation] = {}
         self._corpus_loaded = False
@@ -1920,7 +1927,7 @@ class KolibriAIEngine:
             resp = (
                 "🧠 **Kolibri AI — Числовое Формульное Мышление**\n\n"
                 "• 🔢 **Все знания в ЧИСЛАХ** — каждое слово = 64 цифры\n"
-                "• ⚡ **Формулы** — 1024 цифры генома, 100 слоёв, 12 операций\n"
+                "• ⚡ **Формулы** — 4000 цифр генома, до 500 слоёв, 12 операций\n"
                 "• 🧬 **Эволюция** — мутация + кроссовер + селекция формул\n"
                 "• 🕸️ **Граф знаний** — связи между числовыми паттернами\n"
                 "• 🔄 **Децентрализация** — обмен знаниями между узлами\n\n"
@@ -1985,10 +1992,10 @@ class KolibriAIEngine:
                 f"• Fitness: **{round(best.fitness, 6)}**\n"
                 f"• Ассоциаций: **{len(best.associations)}**\n"
                 f"• Сложность: **{round(best.gene.complexity(), 3)}**\n\n"
-                f"**Геном (64 из 1024 цифр):**\n"
+                f"**Геном (64 из 4000 цифр):**\n"
                 f"`{''.join(str(d) for d in gene_preview)}`\n\n"
                 f"**Hex:** `{best.gene.to_hex()}`\n\n"
-                f"**100 слоёв × 12 операций:**\n"
+                f"**500 слоёв × 12 операций (fast=100):**\n"
                 f"linear, inverse, modular, quadratic, XOR, AND, sin, saturate, OR, gaussian, tanh, sigmoid"
             )
             return {"response": resp, "confidence": 1.0, "sources": ["formula-pool"], "method": "formula-inspect", "knowledge_hits": 0, "formula_data": self._basic_formula_data(), "graph_stats": self.graph.get_stats()}
@@ -2051,9 +2058,17 @@ class KolibriAIEngine:
     def reload_corpus(self) -> dict:
         """Перезагрузить корпус и пересобрать числовой граф. Формулы сохраняются."""
         self.graph = KnowledgeGraph()
+        # После пересоздания графа нужно заново привязать эмбеддинги и swarm.
+        self.graph.embeddings = self.embeddings
+        try:
+            from .swarm_sync import get_swarm_manager
+            get_swarm_manager().set_knowledge_graph(self.graph)
+        except Exception:
+            pass
         # Формулы НЕ сбрасываем — они продолжают эволюцию
         # Загружаем с диска (если сохранены) или оставляем текущие
         self.sentence_store = SentenceStore()
+        self.sentence_store.embeddings = self.embeddings
         self._corpus_loaded = False
         self._load_corpus()
         # Сохраняем обновлённые формулы

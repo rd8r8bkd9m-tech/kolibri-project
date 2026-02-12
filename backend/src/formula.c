@@ -256,7 +256,8 @@ static int decode_operation(const KolibriGene *gene, size_t offset, int *operati
     if (offset >= gene->length) {
         return -1;
     }
-    *operation = (int)(gene->digits[offset] % 8U);
+    /* digits are generated as 0..11, and the switch below implements 12 ops */
+    *operation = (int)(gene->digits[offset] % 12U);
     return 0;
 }
 
