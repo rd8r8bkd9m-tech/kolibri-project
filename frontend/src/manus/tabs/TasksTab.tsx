@@ -1,404 +1,806 @@
-/**
- * tabs/TasksTab.tsx
- *
- * Полнофункциональный менеджер задач с сохранением в localStorage.
- * Создание, удаление, смена статуса, приоритетов.
- */
+import { useEffect, useMemo, useState } from 'react';
+import { AlarmClock, ChevronDown, Plus, X } from 'lucide-react';
 
-import { useState, useCallback, useEffect } from 'react';
-import {
-  Plus,
-  CheckCircle2,
-  Circle,
-  Clock,
-  AlertCircle,
-  PlayCircle,
-  Trash2,
-  X,
-  ArrowUp,
-  ArrowRight,
-  ArrowDown,
-  Edit3,
-  Save,
-} from 'lucide-react';
+type TaskFrequency = 'daily' | 'weekly' | 'hourly';
 
-interface Task {
+interface TaskItem {
   id: string;
   title: string;
-  description: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  priority: 'low' | 'medium' | 'high';
+  instructions: string;
+  frequency: TaskFrequency;
+  time: string;
+  pushEnabled: boolean;
+  emailEnabled: boolean;
   createdAt: string;
 }
 
-const STORAGE_KEY = 'kolibri-tasks';
+interface TasksTabProps {
+  onClose?: () => void;
+}
 
-function loadTasks(): Task[] {
+const TASK_STORAGE_KEY = 'kolibri-mobile-tasks-v2';
+
+const loadTasks = (): TaskItem[] => {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return [];
-}
-
-function saveTasks(tasks: Task[]) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); } catch {}
-}
-
-const STATUS_CONFIG = {
-  pending: { icon: Circle, color: 'var(--text-muted)', label: 'Ожидает' },
-  running: { icon: PlayCircle, color: 'var(--warning)', label: 'В работе' },
-  completed: { icon: CheckCircle2, color: 'var(--success)', label: 'Готово' },
-  failed: { icon: AlertCircle, color: 'var(--error)', label: 'Ошибка' },
+    const raw = localStorage.getItem(TASK_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw) as TaskItem[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 };
 
-const PRIORITY_CONFIG = {
-  low: { color: 'var(--info)', label: 'Низкий', icon: ArrowDown },
-  medium: { color: 'var(--warning)', label: 'Средний', icon: ArrowRight },
-  high: { color: 'var(--error)', label: 'Высокий', icon: ArrowUp },
+const formatFrequency = (value: TaskFrequency): string => {
+  if (value === 'daily') {
+    return 'Daily';
+  }
+  if (value === 'weekly') {
+    return 'Weekly';
+  }
+  return 'Hourly';
 };
 
-export const TasksTab = () => {
-  const [tasks, setTasks] = useState<Task[]>(loadTasks);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'running' | 'completed'>('all');
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState('');
+export const TasksTab = ({ onClose }: TasksTabProps) => {
+  const [tasks, setTasks] = useState<TaskItem[]>(loadTasks);
+  const [mode, setMode] = useState<'list' | 'create'>(() => (loadTasks().length > 0 ? 'list' : 'list'));
 
-  // Новая задача
-  const [newTitle, setNewTitle] = useState('');
-  const [newDesc, setNewDesc] = useState('');
-  const [newPriority, setNewPriority] = useState<Task['priority']>('medium');
+  const [title, setTitle] = useState('');
+  const [instructions, setInstructions] = useState('');
+  const [frequency, setFrequency] = useState<TaskFrequency>('daily');
+  const [taskTime, setTaskTime] = useState(() => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  });
+  const [pushEnabled, setPushEnabled] = useState(true);
+  const [emailEnabled, setEmailEnabled] = useState(true);
 
-  // Сохранять при каждом изменении
-  useEffect(() => { saveTasks(tasks); }, [tasks]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(tasks));
+    } catch {
+      // ignore localStorage errors
+    }
+  }, [tasks]);
 
-  const filteredTasks = tasks.filter(t => filter === 'all' || t.status === filter);
+  const dailyCount = useMemo(() => tasks.filter((task) => task.frequency === 'daily').length, [tasks]);
 
-  const stats = {
-    total: tasks.length,
-    completed: tasks.filter(t => t.status === 'completed').length,
-    running: tasks.filter(t => t.status === 'running').length,
-    pending: tasks.filter(t => t.status === 'pending').length,
+  const resetForm = () => {
+    setTitle('');
+    setInstructions('');
+    setFrequency('daily');
+    setPushEnabled(true);
+    setEmailEnabled(true);
   };
 
-  const addTask = useCallback(() => {
-    if (!newTitle.trim()) return;
-    const task: Task = {
-      id: Date.now().toString(),
-      title: newTitle.trim(),
-      description: newDesc.trim(),
-      status: 'pending',
-      priority: newPriority,
+  const handleCreateTask = () => {
+    if (!title.trim()) {
+      return;
+    }
+
+    const task: TaskItem = {
+      id: `task-${Date.now()}`,
+      title: title.trim(),
+      instructions: instructions.trim(),
+      frequency,
+      time: taskTime,
+      pushEnabled,
+      emailEnabled,
       createdAt: new Date().toISOString(),
     };
-    setTasks(prev => [task, ...prev]);
-    setNewTitle('');
-    setNewDesc('');
-    setNewPriority('medium');
-    setShowAddDialog(false);
-  }, [newTitle, newDesc, newPriority]);
 
-  const toggleStatus = (id: string) => {
-    setTasks(prev => prev.map(t => {
-      if (t.id !== id) return t;
-      const nextStatus: Record<string, Task['status']> = {
-        pending: 'running',
-        running: 'completed',
-        completed: 'pending',
-        failed: 'pending',
-      };
-      return { ...t, status: nextStatus[t.status] };
-    }));
+    setTasks((prev) => [task, ...prev]);
+    resetForm();
+    setMode('list');
   };
 
-  const deleteTask = (id: string) => {
-    setTasks(prev => prev.filter(t => t.id !== id));
-  };
-
-  const startEdit = (task: Task) => {
-    setEditingId(task.id);
-    setEditTitle(task.title);
-  };
-
-  const saveEdit = (id: string) => {
-    if (editTitle.trim()) {
-      setTasks(prev => prev.map(t => t.id === id ? { ...t, title: editTitle.trim() } : t));
+  const handleCloseList = () => {
+    if (onClose) {
+      onClose();
+      return;
     }
-    setEditingId(null);
-  };
-
-  const changePriority = (id: string) => {
-    setTasks(prev => prev.map(t => {
-      if (t.id !== id) return t;
-      const cycle: Record<string, Task['priority']> = { low: 'medium', medium: 'high', high: 'low' };
-      return { ...t, priority: cycle[t.priority] };
-    }));
+    setMode('list');
   };
 
   return (
-    <div className="tasks-tab">
-      {/* Заголовок */}
-      <div className="tasks-header">
-        <div className="tasks-title-section">
-          <h1 className="tasks-title">Задачи</h1>
-          <span className="tasks-count">{stats.total}</span>
-        </div>
-        <button className="add-task-btn" onClick={() => setShowAddDialog(true)}>
-          <Plus size={18} />
-          <span>Новая задача</span>
-        </button>
-      </div>
-
-      {/* Статистика */}
-      <div className="tasks-stats">
-        <div className="tstat-card">
-          <div className="tstat-value done">{stats.completed}</div>
-          <div className="tstat-label">Выполнено</div>
-        </div>
-        <div className="tstat-card">
-          <div className="tstat-value running">{stats.running}</div>
-          <div className="tstat-label">В работе</div>
-        </div>
-        <div className="tstat-card">
-          <div className="tstat-value pending">{stats.pending}</div>
-          <div className="tstat-label">Ожидает</div>
-        </div>
-      </div>
-
-      {/* Фильтры */}
-      <div className="tasks-filters">
-        {(['all', 'pending', 'running', 'completed'] as const).map(f => (
-          <button
-            key={f}
-            className={`tfilter-btn ${filter === f ? 'active' : ''}`}
-            onClick={() => setFilter(f)}
-          >
-            {f === 'all' ? `Все (${stats.total})` : `${STATUS_CONFIG[f].label} (${stats[f === 'completed' ? 'completed' : f === 'running' ? 'running' : 'pending']})`}
-          </button>
-        ))}
-      </div>
-
-      {/* Список задач */}
-      <div className="tasks-list">
-        {filteredTasks.map(task => {
-          const StatusIcon = STATUS_CONFIG[task.status].icon;
-          const PriorityIcon = PRIORITY_CONFIG[task.priority].icon;
-          const isEditing = editingId === task.id;
-
-          return (
-            <div key={task.id} className={`task-item ${task.status}`}>
-              <button
-                className="task-status-btn"
-                onClick={() => toggleStatus(task.id)}
-                style={{ color: STATUS_CONFIG[task.status].color }}
-                title={`Сейчас: ${STATUS_CONFIG[task.status].label}. Клик — сменить.`}
-              >
-                <StatusIcon size={20} />
+    <div className="kol-task-page">
+      <div className="kol-task-sheet">
+        {mode === 'list' ? (
+          <>
+            <header className="kol-task-header">
+              <button type="button" className="kol-task-circle" onClick={handleCloseList} aria-label="Закрыть">
+                <X size={32} />
               </button>
+              <h1>Задачи</h1>
+              <span className="kol-task-spacer" aria-hidden="true" />
+            </header>
 
-              <div className="task-content">
-                {isEditing ? (
-                  <div className="task-edit-row">
-                    <input
-                      className="task-edit-input"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && saveEdit(task.id)}
-                      autoFocus
-                    />
-                    <button className="task-save-btn" onClick={() => saveEdit(task.id)}>
-                      <Save size={14} />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="task-title" onDoubleClick={() => startEdit(task)}>{task.title}</div>
-                )}
-                {task.description && !isEditing && (
-                  <div className="task-desc">{task.description}</div>
-                )}
-                <div className="task-meta">
-                  <button
-                    className="task-priority-btn"
-                    style={{ color: PRIORITY_CONFIG[task.priority].color }}
-                    onClick={() => changePriority(task.id)}
-                    title="Клик — сменить приоритет"
-                  >
-                    <PriorityIcon size={12} />
-                    {PRIORITY_CONFIG[task.priority].label}
-                  </button>
-                  <span className="task-time">
-                    <Clock size={12} />
-                    {new Date(task.createdAt).toLocaleDateString('ru-RU')}
-                  </span>
+            {tasks.length === 0 ? (
+              <section className="kol-task-empty">
+                <div className="kol-task-empty-icon" aria-hidden="true">
+                  <AlarmClock size={44} />
                 </div>
-              </div>
+                <h2>Начни с добавления задачи</h2>
+                <p>Запланировать задачу для автоматизации любых запросов и получения напоминания после их выполнения</p>
+                <button type="button" className="kol-task-outline-btn" onClick={() => setMode('create')}>
+                  <Plus size={34} />
+                  <span>Создать задачу</span>
+                </button>
+              </section>
+            ) : (
+              <section className="kol-task-list-wrap">
+                <button type="button" className="kol-task-create-link" onClick={() => setMode('create')}>
+                  Создать задачу
+                </button>
+                <div className="kol-task-list">
+                  {tasks.map((task) => (
+                    <article key={task.id} className="kol-task-row">
+                      <div>
+                        <h3>{task.title}</h3>
+                        <p>{task.instructions || 'Инструкции будут добавлены позже'}</p>
+                      </div>
+                      <div className="kol-task-meta">
+                        <span>{formatFrequency(task.frequency)}</span>
+                        <time>{task.time}</time>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+          </>
+        ) : (
+          <>
+            <header className="kol-task-header is-create">
+              <button
+                type="button"
+                className="kol-task-circle"
+                onClick={() => {
+                  setMode('list');
+                  resetForm();
+                }}
+                aria-label="Назад"
+              >
+                <X size={32} />
+              </button>
+              <h1>Новая задача</h1>
+              <button type="button" className="kol-task-create-top" onClick={handleCreateTask} disabled={!title.trim()}>
+                Создать
+              </button>
+            </header>
 
-              <div className="task-actions">
-                <button className="taction-btn" onClick={() => startEdit(task)} title="Редактировать">
-                  <Edit3 size={14} />
-                </button>
-                <button className="taction-btn danger" onClick={() => deleteTask(task.id)} title="Удалить">
-                  <Trash2 size={14} />
-                </button>
+            <div className="kol-task-form">
+              <label className="kol-task-input-wrap">
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="Название задачи"
+                  autoFocus
+                />
+              </label>
+
+              <section className="kol-task-block">
+                <h3>Schedule</h3>
+                <div className="kol-task-table-row">
+                  <span>Частота</span>
+                  <label className="kol-task-select-wrap">
+                    <select value={frequency} onChange={(event) => setFrequency(event.target.value as TaskFrequency)}>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="hourly">Hourly</option>
+                    </select>
+                    <ChevronDown size={16} />
+                  </label>
+                </div>
+                <div className="kol-task-divider" />
+                <div className="kol-task-table-row">
+                  <span>Время</span>
+                  <label className="kol-task-time-wrap">
+                    <input type="time" value={taskTime} onChange={(event) => setTaskTime(event.target.value)} />
+                  </label>
+                </div>
+              </section>
+
+              <section className="kol-task-block">
+                <h3>Instructions</h3>
+                <textarea
+                  value={instructions}
+                  onChange={(event) => setInstructions(event.target.value)}
+                  placeholder="Введи запрос здесь"
+                  rows={5}
+                />
+              </section>
+
+              <section className="kol-task-block">
+                <h3>Notifications</h3>
+                <div className="kol-task-table-row">
+                  <span>Push-уведомления</span>
+                  <button
+                    type="button"
+                    className={`kol-task-switch ${pushEnabled ? 'is-on' : ''}`}
+                    onClick={() => setPushEnabled((value) => !value)}
+                    aria-pressed={pushEnabled}
+                  >
+                    <span />
+                  </button>
+                </div>
+                <div className="kol-task-divider" />
+                <div className="kol-task-table-row">
+                  <span>Электронная почта</span>
+                  <button
+                    type="button"
+                    className={`kol-task-switch ${emailEnabled ? 'is-on' : ''}`}
+                    onClick={() => setEmailEnabled((value) => !value)}
+                    aria-pressed={emailEnabled}
+                  >
+                    <span />
+                  </button>
+                </div>
+              </section>
+            </div>
+
+            <div className="kol-task-counter">
+              <span className="kol-task-counter-dot" />
+              <div>
+                <strong>{dailyCount}/2</strong>
+                <span>Daily Tasks</span>
               </div>
             </div>
-          );
-        })}
-
-        {filteredTasks.length === 0 && (
-          <div className="tasks-empty">
-            <Circle size={48} strokeWidth={1} />
-            <p>{tasks.length === 0 ? 'Задач пока нет. Создайте первую!' : 'Нет задач с таким фильтром.'}</p>
-          </div>
+          </>
         )}
       </div>
 
-      {/* === Диалог создания задачи === */}
-      {showAddDialog && (
-        <div className="dialog-overlay" onClick={() => setShowAddDialog(false)}>
-          <div className="dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="dialog-header">
-              <h3>Новая задача</h3>
-              <button className="dialog-close" onClick={() => setShowAddDialog(false)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="dialog-body">
-              <div className="dialog-field">
-                <label>Название</label>
-                <input
-                  type="text"
-                  className="dialog-input"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addTask()}
-                  placeholder="Что нужно сделать?"
-                  autoFocus
-                />
-              </div>
-
-              <div className="dialog-field">
-                <label>Описание (опционально)</label>
-                <textarea
-                  className="dialog-textarea"
-                  value={newDesc}
-                  onChange={(e) => setNewDesc(e.target.value)}
-                  placeholder="Подробности задачи..."
-                  rows={3}
-                />
-              </div>
-
-              <div className="dialog-field">
-                <label>Приоритет</label>
-                <div className="priority-selector">
-                  {(['low', 'medium', 'high'] as const).map(p => {
-                    const PI = PRIORITY_CONFIG[p].icon;
-                    return (
-                      <button
-                        key={p}
-                        className={`priority-btn ${newPriority === p ? 'active' : ''}`}
-                        style={newPriority === p ? { borderColor: PRIORITY_CONFIG[p].color, color: PRIORITY_CONFIG[p].color } : {}}
-                        onClick={() => setNewPriority(p)}
-                      >
-                        <PI size={14} />
-                        {PRIORITY_CONFIG[p].label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <div className="dialog-footer">
-              <button className="dialog-cancel" onClick={() => setShowAddDialog(false)}>Отмена</button>
-              <button className="dialog-submit" onClick={addTask} disabled={!newTitle.trim()}>
-                <Plus size={16} />
-                Создать
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <style>{`
-        .tasks-tab { display: flex; flex-direction: column; height: 100%; padding: 24px; overflow-y: auto; }
+        .kol-task-page {
+          height: 100%;
+          overflow: auto;
+          padding: 18px 14px calc(24px + env(safe-area-inset-bottom));
+          background: #000;
+          color: #fff;
+        }
 
-        .tasks-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-        .tasks-title-section { display: flex; align-items: center; gap: 12px; }
-        .tasks-title { font-size: 28px; font-weight: 600; margin: 0; color: var(--text-primary); }
-        .tasks-count { background: var(--accent-bg); color: var(--accent-primary); padding: 4px 10px; border-radius: 20px; font-size: 13px; font-weight: 500; }
-        .add-task-btn { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--accent-gradient); border: none; border-radius: 10px; color: white; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s ease; }
-        .add-task-btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-elevated); }
+        .kol-task-sheet {
+          min-height: calc(100% - 2px);
+          background: linear-gradient(180deg, #06070a 0%, #0a0c10 100%);
+          border-radius: 34px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          padding: 16px 16px 26px;
+          display: flex;
+          flex-direction: column;
+          position: relative;
+        }
 
-        .tasks-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
-        .tstat-card { background: var(--bg-card); border: 1px solid var(--border-primary); border-radius: 12px; padding: 20px; text-align: center; }
-        .tstat-value { font-size: 32px; font-weight: 600; margin-bottom: 4px; }
-        .tstat-value.done { color: var(--success); }
-        .tstat-value.running { color: var(--warning); }
-        .tstat-value.pending { color: var(--text-muted); }
-        .tstat-label { font-size: 13px; color: var(--text-muted); }
+        .kol-task-header {
+          display: grid;
+          grid-template-columns: 84px minmax(0, 1fr) 84px;
+          align-items: center;
+          gap: 10px;
+          min-height: 82px;
+          margin-bottom: 14px;
+        }
 
-        .tasks-filters { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
-        .tfilter-btn { padding: 8px 16px; background: var(--bg-tertiary); border: 1px solid var(--border-primary); border-radius: 8px; color: var(--text-secondary); font-size: 13px; cursor: pointer; transition: all 0.15s ease; }
-        .tfilter-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-        .tfilter-btn.active { background: var(--accent-bg); border-color: var(--border-accent); color: var(--accent-primary); }
+        .kol-task-header h1 {
+          margin: 0;
+          text-align: center;
+          font-size: 60px;
+          font-weight: 700;
+          letter-spacing: -0.02em;
+        }
 
-        .tasks-list { display: flex; flex-direction: column; gap: 8px; }
-        .task-item { display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: var(--bg-card); border: 1px solid var(--border-primary); border-radius: 12px; transition: all 0.15s ease; }
-        .task-item:hover { background: var(--bg-hover); border-color: var(--border-hover); }
-        .task-item.completed .task-title { text-decoration: line-through; color: var(--text-muted); }
+        .kol-task-spacer {
+          width: 84px;
+          height: 84px;
+        }
 
-        .task-status-btn { background: none; border: none; cursor: pointer; padding: 4px; display: flex; transition: transform 0.15s ease; flex-shrink: 0; margin-top: 2px; }
-        .task-status-btn:hover { transform: scale(1.15); }
-        .task-content { flex: 1; min-width: 0; }
-        .task-title { font-size: 14px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px; cursor: default; }
-        .task-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; line-height: 1.4; }
-        .task-meta { display: flex; align-items: center; gap: 12px; }
-        .task-priority-btn { display: flex; align-items: center; gap: 4px; padding: 2px 8px; background: transparent; border: none; border-radius: 4px; font-size: 11px; font-weight: 500; cursor: pointer; }
-        .task-priority-btn:hover { opacity: 0.8; }
-        .task-time { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-dimmed); }
+        .kol-task-circle {
+          width: 84px;
+          height: 84px;
+          border-radius: 999px;
+          border: 2px solid rgba(255, 255, 255, 0.78);
+          background: rgba(255, 255, 255, 0.02);
+          color: #fff;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
 
-        .task-edit-row { display: flex; gap: 8px; margin-bottom: 4px; }
-        .task-edit-input { flex: 1; padding: 6px 10px; background: var(--bg-overlay); border: 1px solid var(--accent-primary); border-radius: 6px; color: var(--text-primary); font-size: 14px; outline: none; }
-        .task-save-btn { width: 28px; height: 28px; border-radius: 6px; background: var(--accent-bg); border: none; color: var(--accent-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .kol-task-empty {
+          flex: 1;
+          display: grid;
+          place-content: center;
+          text-align: center;
+          gap: 20px;
+          padding: 20px;
+        }
 
-        .task-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s ease; flex-shrink: 0; }
-        .task-item:hover .task-actions { opacity: 1; }
-        .taction-btn { width: 28px; height: 28px; border-radius: 6px; background: transparent; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; }
-        .taction-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-        .taction-btn.danger:hover { background: rgba(239, 68, 68, 0.15); color: var(--error); }
+        .kol-task-empty-icon {
+          width: 126px;
+          height: 126px;
+          border-radius: 50%;
+          margin: 0 auto;
+          background: rgba(255, 255, 255, 0.08);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          color: rgba(255, 255, 255, 0.9);
+        }
 
-        .tasks-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px; color: var(--text-dimmed); }
-        .tasks-empty p { margin-top: 16px; font-size: 14px; }
+        .kol-task-empty h2 {
+          margin: 0;
+          font-size: 64px;
+          line-height: 1.08;
+          letter-spacing: -0.02em;
+        }
 
-        /* Диалог */
-        .dialog-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 100; }
-        .dialog { background: var(--bg-primary); border: 1px solid var(--border-primary); border-radius: 16px; width: 480px; max-width: 90vw; box-shadow: var(--shadow-elevated); }
-        .dialog-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px 0; }
-        .dialog-header h3 { margin: 0; font-size: 18px; font-weight: 600; color: var(--text-primary); }
-        .dialog-close { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; border-radius: 6px; }
-        .dialog-close:hover { background: var(--bg-hover); color: var(--text-primary); }
-        .dialog-body { padding: 20px 24px; }
-        .dialog-field { margin-bottom: 16px; }
-        .dialog-field label { display: block; font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
-        .dialog-input, .dialog-textarea { width: 100%; padding: 10px 14px; background: var(--bg-tertiary); border: 1px solid var(--border-primary); border-radius: 8px; color: var(--text-primary); font-size: 14px; outline: none; box-sizing: border-box; font-family: inherit; }
-        .dialog-input:focus, .dialog-textarea:focus { border-color: var(--accent-primary); }
-        .dialog-input::placeholder, .dialog-textarea::placeholder { color: var(--text-faint); }
-        .dialog-textarea { resize: vertical; min-height: 60px; }
+        .kol-task-empty p {
+          margin: 0 auto;
+          max-width: 680px;
+          font-size: 48px;
+          line-height: 1.24;
+          color: rgba(255, 255, 255, 0.7);
+        }
 
-        .priority-selector { display: flex; gap: 8px; }
-        .priority-btn { display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: var(--bg-tertiary); border: 2px solid var(--border-primary); border-radius: 8px; color: var(--text-muted); font-size: 13px; cursor: pointer; transition: all 0.15s ease; }
-        .priority-btn:hover { background: var(--bg-hover); }
-        .priority-btn.active { background: var(--bg-card); }
+        .kol-task-outline-btn {
+          margin: 12px auto 0;
+          border: 2px solid rgba(255, 255, 255, 0.82);
+          background: rgba(255, 255, 255, 0.02);
+          color: #fff;
+          height: 112px;
+          border-radius: 56px;
+          padding: 0 44px;
+          display: inline-flex;
+          align-items: center;
+          gap: 16px;
+          font-size: 58px;
+          font-weight: 700;
+        }
 
-        .dialog-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 0 24px 20px; }
-        .dialog-cancel { padding: 10px 16px; background: var(--bg-tertiary); border: 1px solid var(--border-primary); border-radius: 8px; color: var(--text-secondary); font-size: 13px; cursor: pointer; }
-        .dialog-cancel:hover { background: var(--bg-hover); }
-        .dialog-submit { display: flex; align-items: center; gap: 6px; padding: 10px 20px; background: var(--accent-gradient); border: none; border-radius: 8px; color: white; font-size: 13px; font-weight: 500; cursor: pointer; }
-        .dialog-submit:disabled { opacity: 0.4; cursor: not-allowed; }
-        .dialog-submit:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--shadow-elevated); }
+        .kol-task-list-wrap {
+          display: grid;
+          gap: 14px;
+        }
+
+        .kol-task-create-link {
+          justify-self: flex-end;
+          border: 1px solid rgba(255, 255, 255, 0.65);
+          border-radius: 999px;
+          min-height: 56px;
+          padding: 0 24px;
+          font-size: 24px;
+          color: #fff;
+          background: transparent;
+        }
+
+        .kol-task-list {
+          display: grid;
+          gap: 12px;
+        }
+
+        .kol-task-row {
+          border-radius: 20px;
+          background: rgba(255, 255, 255, 0.08);
+          padding: 18px;
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          align-items: flex-start;
+        }
+
+        .kol-task-row h3 {
+          margin: 0;
+          font-size: 24px;
+        }
+
+        .kol-task-row p {
+          margin: 6px 0 0;
+          font-size: 16px;
+          color: rgba(255, 255, 255, 0.68);
+          line-height: 1.35;
+        }
+
+        .kol-task-meta {
+          text-align: right;
+          display: grid;
+          gap: 5px;
+          font-size: 14px;
+          color: rgba(255, 255, 255, 0.68);
+        }
+
+        .kol-task-header.is-create {
+          margin-bottom: 10px;
+        }
+
+        .kol-task-create-top {
+          justify-self: end;
+          border: 2px solid rgba(255, 255, 255, 0.7);
+          min-height: 84px;
+          padding: 0 26px;
+          border-radius: 999px;
+          background: transparent;
+          color: #fff;
+          font-size: 56px;
+          font-weight: 700;
+        }
+
+        .kol-task-create-top:disabled {
+          opacity: 0.4;
+        }
+
+        .kol-task-form {
+          display: grid;
+          gap: 18px;
+          padding-bottom: 130px;
+        }
+
+        .kol-task-input-wrap input,
+        .kol-task-block textarea,
+        .kol-task-select-wrap,
+        .kol-task-time-wrap {
+          width: 100%;
+          border-radius: 28px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.1);
+          color: #fff;
+        }
+
+        .kol-task-input-wrap input {
+          height: 118px;
+          font-size: 62px;
+          padding: 0 34px;
+          outline: none;
+        }
+
+        .kol-task-input-wrap input::placeholder,
+        .kol-task-block textarea::placeholder {
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .kol-task-block {
+          border-radius: 34px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.08);
+          padding: 20px 22px;
+          display: grid;
+          gap: 16px;
+        }
+
+        .kol-task-block h3 {
+          margin: 0;
+          font-size: 56px;
+          color: rgba(255, 255, 255, 0.72);
+          letter-spacing: -0.01em;
+        }
+
+        .kol-task-table-row {
+          min-height: 86px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          font-size: 62px;
+          font-weight: 600;
+        }
+
+        .kol-task-divider {
+          height: 1px;
+          background: rgba(255, 255, 255, 0.16);
+        }
+
+        .kol-task-select-wrap,
+        .kol-task-time-wrap {
+          min-width: 220px;
+          height: 86px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          padding: 0 16px;
+          overflow: hidden;
+        }
+
+        .kol-task-select-wrap select,
+        .kol-task-time-wrap input {
+          border: 0;
+          outline: 0;
+          background: transparent;
+          color: #fff;
+          font-size: 60px;
+          font-weight: 700;
+          text-align: center;
+        }
+
+        .kol-task-time-wrap input {
+          width: 100%;
+        }
+
+        .kol-task-block textarea {
+          min-height: 300px;
+          resize: none;
+          padding: 26px 28px;
+          font-size: 58px;
+          line-height: 1.18;
+          outline: none;
+        }
+
+        .kol-task-switch {
+          width: 134px;
+          height: 74px;
+          border-radius: 999px;
+          border: 0;
+          background: rgba(255, 255, 255, 0.22);
+          padding: 7px;
+          display: inline-flex;
+          justify-content: flex-start;
+        }
+
+        .kol-task-switch span {
+          width: 60px;
+          height: 60px;
+          border-radius: 50%;
+          background: #ececec;
+          transition: transform 160ms ease;
+        }
+
+        .kol-task-switch.is-on {
+          background: #4be46a;
+        }
+
+        .kol-task-switch.is-on span {
+          transform: translateX(60px);
+          background: #ffffff;
+        }
+
+        .kol-task-counter {
+          position: absolute;
+          left: 50%;
+          bottom: calc(18px + env(safe-area-inset-bottom));
+          transform: translateX(-50%);
+          width: min(360px, calc(100% - 40px));
+          min-height: 78px;
+          border-radius: 999px;
+          border: 2px solid rgba(255, 255, 255, 0.65);
+          background: #030509;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 14px;
+          color: #fff;
+        }
+
+        .kol-task-counter-dot {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          border: 2px solid rgba(255, 255, 255, 0.38);
+        }
+
+        .kol-task-counter div {
+          display: grid;
+          gap: 0;
+          line-height: 1.05;
+          text-align: left;
+        }
+
+        .kol-task-counter strong {
+          font-size: 48px;
+        }
+
+        .kol-task-counter span {
+          font-size: 42px;
+          color: rgba(255, 255, 255, 0.72);
+        }
+
+        @media (max-width: 900px) {
+          .kol-task-header h1 {
+            font-size: clamp(26px, 8.2vw, 56px);
+          }
+
+          .kol-task-circle {
+            width: clamp(64px, 18vw, 84px);
+            height: clamp(64px, 18vw, 84px);
+          }
+
+          .kol-task-spacer {
+            width: clamp(64px, 18vw, 84px);
+            height: clamp(64px, 18vw, 84px);
+          }
+
+          .kol-task-create-top {
+            min-height: clamp(64px, 18vw, 84px);
+            font-size: clamp(28px, 7vw, 56px);
+            padding: 0 clamp(18px, 4vw, 26px);
+          }
+
+          .kol-task-empty h2 {
+            font-size: clamp(32px, 9vw, 64px);
+          }
+
+          .kol-task-empty p {
+            font-size: clamp(20px, 5vw, 48px);
+          }
+
+          .kol-task-outline-btn {
+            font-size: clamp(28px, 6vw, 58px);
+            height: clamp(72px, 17vw, 112px);
+          }
+
+          .kol-task-input-wrap input {
+            height: clamp(68px, 17vw, 118px);
+            font-size: clamp(28px, 8vw, 62px);
+            padding: 0 clamp(18px, 4.5vw, 34px);
+          }
+
+          .kol-task-block h3 {
+            font-size: clamp(24px, 7vw, 56px);
+          }
+
+          .kol-task-table-row {
+            min-height: clamp(56px, 15vw, 86px);
+            font-size: clamp(22px, 7vw, 62px);
+          }
+
+          .kol-task-select-wrap,
+          .kol-task-time-wrap {
+            height: clamp(56px, 15vw, 86px);
+            min-width: clamp(132px, 34vw, 220px);
+          }
+
+          .kol-task-select-wrap select,
+          .kol-task-time-wrap input {
+            font-size: clamp(22px, 6vw, 60px);
+          }
+
+          .kol-task-block textarea {
+            min-height: clamp(136px, 36vw, 300px);
+            font-size: clamp(22px, 6vw, 58px);
+            padding: clamp(14px, 3vw, 26px) clamp(16px, 4vw, 28px);
+          }
+
+          .kol-task-switch {
+            width: clamp(76px, 21vw, 134px);
+            height: clamp(44px, 12vw, 74px);
+          }
+
+          .kol-task-switch span {
+            width: clamp(30px, 8.4vw, 60px);
+            height: clamp(30px, 8.4vw, 60px);
+          }
+
+          .kol-task-switch.is-on span {
+            transform: translateX(clamp(30px, 8.4vw, 60px));
+          }
+
+          .kol-task-counter strong {
+            font-size: clamp(24px, 6.5vw, 48px);
+          }
+
+          .kol-task-counter span {
+            font-size: clamp(18px, 4.5vw, 42px);
+          }
+        }
+
+        @media (min-width: 901px) {
+          .kol-task-page {
+            padding: 24px;
+            background: transparent;
+          }
+
+          .kol-task-sheet {
+            border-radius: 24px;
+            max-width: 920px;
+            margin: 0 auto;
+            background: rgba(9, 11, 15, 0.96);
+            padding: 18px 20px 22px;
+          }
+
+          .kol-task-header {
+            grid-template-columns: 56px minmax(0, 1fr) 56px;
+            min-height: 56px;
+            margin-bottom: 12px;
+          }
+
+          .kol-task-circle,
+          .kol-task-spacer,
+          .kol-task-create-top {
+            width: 56px;
+            height: 56px;
+            min-height: 56px;
+            padding: 0;
+            font-size: 16px;
+          }
+
+          .kol-task-create-top {
+            width: auto;
+            min-width: 120px;
+            border-width: 1px;
+          }
+
+          .kol-task-header h1 {
+            font-size: 38px;
+          }
+
+          .kol-task-empty h2 {
+            font-size: 42px;
+          }
+
+          .kol-task-empty p {
+            font-size: 26px;
+            max-width: 700px;
+          }
+
+          .kol-task-outline-btn {
+            height: 72px;
+            font-size: 34px;
+            border-width: 1px;
+          }
+
+          .kol-task-input-wrap input {
+            height: 68px;
+            font-size: 36px;
+          }
+
+          .kol-task-block h3 {
+            font-size: 26px;
+          }
+
+          .kol-task-table-row {
+            min-height: 64px;
+            font-size: 34px;
+          }
+
+          .kol-task-select-wrap,
+          .kol-task-time-wrap {
+            height: 64px;
+            min-width: 170px;
+          }
+
+          .kol-task-select-wrap select,
+          .kol-task-time-wrap input {
+            font-size: 32px;
+          }
+
+          .kol-task-block textarea {
+            min-height: 170px;
+            font-size: 32px;
+          }
+
+          .kol-task-switch {
+            width: 96px;
+            height: 52px;
+          }
+
+          .kol-task-switch span {
+            width: 38px;
+            height: 38px;
+          }
+
+          .kol-task-switch.is-on span {
+            transform: translateX(44px);
+          }
+
+          .kol-task-counter {
+            max-width: 320px;
+            min-height: 64px;
+            border-width: 1px;
+            bottom: 12px;
+          }
+
+          .kol-task-counter-dot {
+            width: 26px;
+            height: 26px;
+          }
+
+          .kol-task-counter strong {
+            font-size: 30px;
+          }
+
+          .kol-task-counter span {
+            font-size: 20px;
+          }
+        }
       `}</style>
     </div>
   );

@@ -1,13 +1,16 @@
 /**
  * ManusLayout.tsx
  *
- * Unified app shell inspired by Grok/GPT information architecture:
- * sidebar + chat-first canvas + responsive mobile off-canvas navigation.
+ * Unified application shell.
+ * Desktop: classic sidebar + content.
+ * Mobile: Grok-like top bar + full-screen drawer.
  */
 
 import { ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   Archive,
+  Bot,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Database,
@@ -16,10 +19,11 @@ import {
   Menu,
   MessageSquare,
   Mic,
-  Plus,
+  PenSquare,
   Search,
   Settings,
   Terminal as TerminalIcon,
+  User,
   X,
   Zap,
 } from 'lucide-react';
@@ -50,20 +54,13 @@ interface SidebarItem {
 
 const SIDEBAR_ITEMS: SidebarItem[] = [
   { id: 'chat', label: 'Чаты', icon: <MessageSquare size={18} /> },
-  { id: 'voice', label: 'Голос', icon: <Mic size={18} /> },
+  { id: 'voice', label: 'Компаньоны', icon: <Mic size={18} /> },
   { id: 'tasks', label: 'Задачи', icon: <ListTodo size={18} /> },
   { id: 'crawler', label: 'AI Агент', icon: <Globe size={18} /> },
   { id: 'knowledge', label: 'Знания', icon: <Database size={18} /> },
   { id: 'archiver', label: 'Архиватор', icon: <Archive size={18} /> },
   { id: 'terminal', label: 'Терминал', icon: <TerminalIcon size={18} /> },
   { id: 'settings', label: 'Настройки', icon: <Settings size={18} /> },
-];
-
-const MOBILE_PRIMARY_ITEMS: SidebarItem[] = [
-  { id: 'chat', label: 'Чат', icon: <MessageSquare size={18} /> },
-  { id: 'crawler', label: 'Агент', icon: <Globe size={18} /> },
-  { id: 'voice', label: 'Голос', icon: <Mic size={18} /> },
-  { id: 'archiver', label: 'Архив', icon: <Archive size={18} /> },
 ];
 
 interface ManusLayoutProps {
@@ -88,6 +85,8 @@ const isMobileViewport = (): boolean => {
   }
   return window.matchMedia('(max-width: 900px)').matches;
 };
+
+const MOBILE_TOPBAR_TABS: TabId[] = ['chat', 'crawler', 'voice'];
 
 export const ManusLayout = ({
   activeTab,
@@ -164,29 +163,27 @@ export const ManusLayout = ({
     }
   };
 
-  const showExpandedSidebar = !sidebarCollapsed || mobileViewport;
-  const activeTabLabel = SIDEBAR_ITEMS.find((item) => item.id === activeTab)?.label || 'Раздел';
+  const showExpandedSidebar = !sidebarCollapsed;
+  const showMobileTopbar = mobileViewport && MOBILE_TOPBAR_TABS.includes(activeTab);
 
   return (
     <div className="gx-shell">
-      <aside
-        className={`gx-sidebar ${sidebarCollapsed ? 'is-collapsed' : ''} ${mobileMenuOpen ? 'is-mobile-open' : ''}`}
-      >
-        <div className="gx-sidebar-top">
-          <div className="gx-brand-row">
-            <button type="button" className="gx-brand" onClick={() => handleTabChange('chat')}>
-              <span className="gx-brand-badge" aria-hidden="true">
-                <Zap size={14} />
-              </span>
-              {showExpandedSidebar && (
-                <span className="gx-brand-label-wrap">
-                  <span className="gx-brand-title">Kolibri</span>
-                  <span className="gx-brand-subtitle">Assistant Workspace</span>
+      {!mobileViewport && (
+        <aside className={`gx-sidebar ${sidebarCollapsed ? 'is-collapsed' : ''}`}>
+          <div className="gx-sidebar-top">
+            <div className="gx-brand-row">
+              <button type="button" className="gx-brand" onClick={() => handleTabChange('chat')}>
+                <span className="gx-brand-badge" aria-hidden="true">
+                  <Zap size={14} />
                 </span>
-              )}
-            </button>
+                {showExpandedSidebar && (
+                  <span className="gx-brand-label-wrap">
+                    <span className="gx-brand-title">Kolibri</span>
+                    <span className="gx-brand-subtitle">Assistant Workspace</span>
+                  </span>
+                )}
+              </button>
 
-            {!mobileViewport && (
               <button
                 type="button"
                 className="gx-collapse-btn"
@@ -195,87 +192,188 @@ export const ManusLayout = ({
               >
                 {sidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
               </button>
+            </div>
+
+            {showExpandedSidebar && (
+              <>
+                <button type="button" className="gx-new-chat" onClick={onNewChat}>
+                  <PenSquare size={16} />
+                  <span>Новый чат</span>
+                </button>
+
+                <label className="gx-search" aria-label="Поиск чатов">
+                  <Search size={15} />
+                  <input
+                    type="text"
+                    value={searchText}
+                    onChange={(event) => setSearchText(event.target.value)}
+                    placeholder="Поиск по истории"
+                  />
+                </label>
+              </>
             )}
           </div>
 
-          {showExpandedSidebar && (
-            <>
-              <button type="button" className="gx-new-chat" onClick={onNewChat}>
-                <Plus size={16} />
-                <span>Новый чат</span>
+          <nav className="gx-nav" aria-label="Разделы">
+            {SIDEBAR_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`gx-nav-item ${activeTab === item.id ? 'is-active' : ''}`}
+                onClick={() => handleTabChange(item.id)}
+                title={item.label}
+              >
+                <span className="gx-nav-icon" aria-hidden="true">
+                  {item.icon}
+                </span>
+                {showExpandedSidebar && <span className="gx-nav-label">{item.label}</span>}
               </button>
+            ))}
+          </nav>
 
-              <label className="gx-search" aria-label="Поиск чатов">
-                <Search size={15} />
-                <input
-                  type="text"
-                  value={searchText}
-                  onChange={(event) => setSearchText(event.target.value)}
-                  placeholder="Поиск по истории"
-                />
-              </label>
-            </>
+          {showExpandedSidebar && (
+            <section className="gx-history" aria-label="История чатов">
+              <div className="gx-history-header">
+                <span>История</span>
+                <span>{visibleHistory.length}</span>
+              </div>
+
+              {visibleHistory.length === 0 ? (
+                <p className="gx-history-empty">
+                  {searchText.trim() ? 'Совпадений не найдено' : 'Начните новый диалог'}
+                </p>
+              ) : (
+                <div className="gx-history-list">
+                  {visibleHistory.slice(0, 60).map((chat) => (
+                    <button
+                      key={chat.id}
+                      type="button"
+                      className="gx-history-item"
+                      onClick={() => {
+                        onOpenChat(chat.id);
+                        handleTabChange('chat');
+                      }}
+                      title={chat.title}
+                    >
+                      <span className="gx-history-avatar">{chat.title.slice(0, 1).toUpperCase()}</span>
+                      <span className="gx-history-main">
+                        <span className="gx-history-title">{chat.title}</span>
+                        <span className="gx-history-preview">{chat.preview || 'Без текста'}</span>
+                      </span>
+                      <span className={`gx-history-time ${chat.unread ? 'is-unread' : ''}`}>
+                        {formatHistoryTime(chat.updatedAt)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
           )}
-        </div>
+        </aside>
+      )}
 
-        <nav className="gx-nav" aria-label="Разделы">
-          {SIDEBAR_ITEMS.map((item) => (
+      {mobileViewport && (
+        <aside className={`gx-mobile-drawer ${mobileMenuOpen ? 'is-open' : ''}`}>
+          <div className="gx-mobile-drawer-shell">
             <button
-              key={item.id}
               type="button"
-              className={`gx-nav-item ${activeTab === item.id ? 'is-active' : ''}`}
-              onClick={() => handleTabChange(item.id)}
-              title={item.label}
+              className="gx-mobile-profile"
+              onClick={() => handleTabChange('settings')}
+              aria-label="Профиль и настройки"
             >
-              <span className="gx-nav-icon" aria-hidden="true">
-                {item.icon}
+              <span className="gx-mobile-profile-avatar" aria-hidden="true">
+                <User size={22} />
               </span>
-              {showExpandedSidebar && <span className="gx-nav-label">{item.label}</span>}
+              <span className="gx-mobile-profile-meta">
+                <strong>Vladislav Kochurov</strong>
+                <span>Аккаунт</span>
+              </span>
+              <span className="gx-mobile-profile-open" aria-hidden="true">
+                <ChevronRight size={19} />
+              </span>
             </button>
-          ))}
-        </nav>
 
-        {showExpandedSidebar && (
-          <section className="gx-history" aria-label="История чатов">
-            <div className="gx-history-header">
-              <span>История</span>
-              <span>{visibleHistory.length}</span>
+            <div className="gx-mobile-shortcuts">
+              <button type="button" className="gx-mobile-shortcut" onClick={() => handleTabChange('tasks')}>
+                <ListTodo size={21} />
+                <span>Задачи</span>
+              </button>
+              <button type="button" className="gx-mobile-shortcut" onClick={() => handleTabChange('voice')}>
+                <Bot size={21} />
+                <span>Компаньоны</span>
+              </button>
             </div>
 
-            {visibleHistory.length === 0 ? (
-              <p className="gx-history-empty">
-                {searchText.trim() ? 'Совпадений не найдено' : 'Начните новый диалог'}
-              </p>
-            ) : (
-              <div className="gx-history-list">
-                {visibleHistory.slice(0, 40).map((chat) => (
+            <div className="gx-mobile-conversations-head">
+              <span>Conversations</span>
+              <ChevronDown size={20} />
+            </div>
+
+            <div className="gx-mobile-conversations-list">
+              {visibleHistory.length === 0 ? (
+                <div className="gx-mobile-conversation-empty">Разговоры появятся после первых сообщений</div>
+              ) : (
+                visibleHistory.slice(0, 120).map((chat) => (
                   <button
                     key={chat.id}
                     type="button"
-                    className="gx-history-item"
+                    className="gx-mobile-conversation-item"
                     onClick={() => {
                       onOpenChat(chat.id);
                       handleTabChange('chat');
                     }}
-                    title={chat.title}
                   >
-                    <span className="gx-history-avatar">{chat.title.slice(0, 1).toUpperCase()}</span>
-                    <span className="gx-history-main">
-                      <span className="gx-history-title">{chat.title}</span>
-                      <span className="gx-history-preview">{chat.preview || 'Без текста'}</span>
-                    </span>
-                    <span className={`gx-history-time ${chat.unread ? 'is-unread' : ''}`}>
-                      {formatHistoryTime(chat.updatedAt)}
+                    <span className="gx-mobile-conversation-title">{chat.title}</span>
+                    <span className="gx-mobile-conversation-time">
+                      {chat.updatedAt
+                        ? new Date(chat.updatedAt).toLocaleDateString('ru-RU', {
+                            day: '2-digit',
+                            month: '2-digit',
+                          })
+                        : 'Сегодня'}
                     </span>
                   </button>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
-      </aside>
+                ))
+              )}
+            </div>
 
-      {mobileMenuOpen && (
+            <div className="gx-mobile-drawer-bottom">
+              <label className="gx-mobile-drawer-search" aria-label="Поиск">
+                <Search size={20} />
+                <input
+                  type="search"
+                  value={searchText}
+                  onChange={(event) => setSearchText(event.target.value)}
+                  placeholder="Поиск"
+                />
+              </label>
+
+              <button
+                type="button"
+                className="gx-mobile-drawer-action"
+                onClick={() => handleTabChange('settings')}
+                aria-label="Настройки"
+              >
+                <Settings size={21} />
+              </button>
+
+              <button
+                type="button"
+                className="gx-mobile-drawer-action"
+                onClick={() => {
+                  onNewChat();
+                  setMobileMenuOpen(false);
+                }}
+                aria-label="Новый чат"
+              >
+                <PenSquare size={21} />
+              </button>
+            </div>
+          </div>
+        </aside>
+      )}
+
+      {mobileMenuOpen && mobileViewport && (
         <button
           type="button"
           className="gx-mobile-overlay"
@@ -285,57 +383,51 @@ export const ManusLayout = ({
       )}
 
       <main className="gx-content">
-        {mobileViewport && (
-          <div className="gx-mobile-topbar">
+        {showMobileTopbar && (
+          <div className="gx-mobile-topbar gx-mobile-topbar-grok">
             <button
               type="button"
-              className="gx-mobile-top-btn"
+              className="gx-mobile-circle-btn"
               onClick={() => setMobileMenuOpen(true)}
               aria-label="Открыть меню"
             >
-              <Menu size={19} />
+              <Menu size={23} />
             </button>
-            <button type="button" className="gx-mobile-top-brand" onClick={() => handleTabChange('chat')}>
-              <span className="gx-mobile-top-brand-title">Kolibri</span>
-              <span className="gx-mobile-top-brand-subtitle">{activeTabLabel}</span>
-            </button>
-            <button type="button" className="gx-mobile-top-btn is-accent" onClick={onNewChat} aria-label="Новый чат">
-              <Plus size={18} />
+
+            <div className="gx-mobile-segment" role="tablist" aria-label="Режим">
+              <button
+                type="button"
+                role="tab"
+                className={`gx-mobile-segment-btn ${activeTab !== 'crawler' ? 'is-active' : ''}`}
+                aria-selected={activeTab !== 'crawler'}
+                onClick={() => handleTabChange('chat')}
+              >
+                Спросить
+              </button>
+              <button
+                type="button"
+                role="tab"
+                className={`gx-mobile-segment-btn ${activeTab === 'crawler' ? 'is-active' : ''}`}
+                aria-selected={activeTab === 'crawler'}
+                onClick={() => handleTabChange('crawler')}
+              >
+                Imagine
+              </button>
+            </div>
+
+            <button
+              type="button"
+              className="gx-mobile-circle-btn"
+              onClick={onNewChat}
+              aria-label="Новый чат"
+            >
+              <PenSquare size={22} />
             </button>
           </div>
         )}
+
         <div className="gx-content-body">{children}</div>
       </main>
-
-      {mobileViewport && (
-        <nav className="gx-mobile-bottom" aria-label="Быстрые разделы">
-          {MOBILE_PRIMARY_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`gx-mobile-bottom-item ${activeTab === item.id ? 'is-active' : ''}`}
-              onClick={() => handleTabChange(item.id)}
-              aria-label={item.label}
-            >
-              <span className="gx-mobile-bottom-icon" aria-hidden="true">
-                {item.icon}
-              </span>
-              <span className="gx-mobile-bottom-label">{item.label}</span>
-            </button>
-          ))}
-          <button
-            type="button"
-            className={`gx-mobile-bottom-item ${mobileMenuOpen ? 'is-active' : ''}`}
-            onClick={() => setMobileMenuOpen((previous) => !previous)}
-            aria-label={mobileMenuOpen ? 'Закрыть меню' : 'Открыть меню'}
-          >
-            <span className="gx-mobile-bottom-icon" aria-hidden="true">
-              {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
-            </span>
-            <span className="gx-mobile-bottom-label">Меню</span>
-          </button>
-        </nav>
-      )}
     </div>
   );
 };

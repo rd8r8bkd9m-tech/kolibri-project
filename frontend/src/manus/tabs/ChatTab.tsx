@@ -11,12 +11,21 @@ import {
   Bot,
   Check,
   Copy,
+  Ellipsis,
   Loader2,
   Mic,
+  Paperclip,
+  RefreshCw,
+  Rocket,
+  Settings2,
+  Share2,
+  ThumbsDown,
+  ThumbsUp,
+  Video,
   RotateCcw,
-  Sparkles,
   Volume2,
   VolumeX,
+  Zap,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -79,6 +88,25 @@ const CHAT_MODES: Array<{ id: ChatModeId; label: string; temperature: number }> 
   { id: 'deep', label: 'Deep', temperature: 0.45 },
   { id: 'creative', label: 'Creative', temperature: 0.9 },
 ];
+
+const FEEDBACK_EMOJIS = ['😡', '😔', '😐', '🙂', '😁'];
+
+const buildFollowUps = (content: string): string[] => {
+  const text = content.toLowerCase();
+  if (!text.trim()) {
+    return [];
+  }
+  if (text.includes('колобок')) {
+    return ['Расскажи историю Колобка для детей', 'Сказка про Теремок', 'Сделай конец счастливым'];
+  }
+  if (text.includes('план') || text.includes('задач')) {
+    return ['Сделай это в формате чек-листа', 'Добавь сроки и риски', 'Сформируй это как задачу'];
+  }
+  if (text.includes('код') || text.includes('backend') || text.includes('frontend')) {
+    return ['Покажи конкретные правки', 'Сделай вариант без регрессий', 'Добавь тест-кейсы'];
+  }
+  return ['Уточни ключевой вывод', 'Сделай краткую версию', 'Продолжай'];
+};
 
 const sleep = (ms: number) => new Promise((resolve) => globalThis.setTimeout(resolve, ms));
 
@@ -174,10 +202,6 @@ async function sendAIMessage(message: string, conversationId: string | null, tem
   };
 }
 
-const formatMessageTime = (value: Date): string => {
-  return value.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-};
-
 const resolveRecognitionCtor = (): SpeechRecognitionCtor | null => {
   if (typeof window === 'undefined') {
     return null;
@@ -227,6 +251,9 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
   const [serverVoiceAvailable, setServerVoiceAvailable] = useState(false);
   const [serverVoiceName, setServerVoiceName] = useState('alloy');
   const [chatMode, setChatMode] = useState<ChatModeId>('smart');
+  const [voiceSession, setVoiceSession] = useState(false);
+  const [showCallFeedback, setShowCallFeedback] = useState(false);
+  const [messageReactions, setMessageReactions] = useState<Record<string, 'up' | 'down' | undefined>>({});
   const [autoSpeak, setAutoSpeak] = useState<boolean>(() => {
     try {
       if (typeof window === 'undefined') {
@@ -432,13 +459,23 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
   const voiceSupported = useMemo(() => resolveRecognitionCtor() !== null, []);
   const speechSupported = useMemo(() => canUseSpeechSynthesis(), []);
   const audioReplySupported = speechSupported || serverVoiceAvailable;
-  const totalMessages = messages.length;
-  const statusLabel = isListening
-    ? 'Слушаю микрофон'
-    : isProcessing
-      ? 'Модель отвечает'
-      : 'Готово к запросу';
-  const conversationLabel = conversationId ? `ID ${conversationId.slice(0, 8)}` : 'Новый диалог';
+  const latestAssistantReply = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].role === 'assistant') {
+        return messages[i].content;
+      }
+    }
+    return '';
+  }, [messages]);
+  const lastUserMessage = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].role === 'user') {
+        return messages[i].content;
+      }
+    }
+    return '';
+  }, [messages]);
+  const followUpSuggestions = useMemo(() => buildFollowUps(latestAssistantReply), [latestAssistantReply]);
 
   const triggerMicPulse = useCallback(() => {
     setMicPulse(true);
@@ -528,6 +565,28 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
     }
   }, []);
 
+  const handleShareMessage = useCallback(
+    async (content: string) => {
+      const text = content.trim();
+      if (!text) {
+        return;
+      }
+
+      const nav = typeof navigator === 'undefined' ? null : (navigator as Navigator & { share?: (data: ShareData) => Promise<void> });
+      if (nav?.share) {
+        try {
+          await nav.share({ text });
+          return;
+        } catch {
+          // ignore and fallback to clipboard
+        }
+      }
+
+      await handleCopyMessage(`share-${Date.now()}`, text);
+    },
+    [handleCopyMessage],
+  );
+
   const speakReply = useCallback(
     async (text: string) => {
       const content = text.trim();
@@ -612,70 +671,104 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
     setMessages([]);
     setInput('');
     setConversationId(null);
+    setVoiceSession(false);
+    setShowCallFeedback(false);
+    setMessageReactions({});
     localSessionIdRef.current = `chat-${Date.now()}`;
   };
 
+  const sendMessageText = useCallback(
+    async (rawText: string) => {
+      const text = rawText.trim();
+      if (!text || isProcessing) {
+        return;
+      }
+      stopListening();
+
+      const userMessage: Message = {
+        id: `${Date.now()}-user`,
+        role: 'user',
+        content: text,
+        timestamp: new Date(),
+      };
+
+      setMessages((previous) => [...previous, userMessage]);
+      pushHistory(text, text);
+      setInput('');
+      setIsProcessing(true);
+
+      try {
+        const result = await sendAIMessage(text, conversationId, activeMode.temperature);
+        if (result.conversation_id) {
+          setConversationId(result.conversation_id);
+        }
+
+        const assistantMessage: Message = {
+          id: `${Date.now()}-assistant`,
+          role: 'assistant',
+          content: result.response || 'Не удалось сформировать ответ.',
+          timestamp: new Date(),
+        };
+
+        setMessages((previous) => [...previous, assistantMessage]);
+        pushHistory(text, assistantMessage.content);
+        setShowCallFeedback(true);
+        if (autoSpeak) {
+          void speakReply(assistantMessage.content);
+        }
+      } catch (error) {
+        const message = `Ошибка: ${error instanceof Error ? error.message : String(error)}`;
+        const failedMessage: Message = {
+          id: `${Date.now()}-error`,
+          role: 'assistant',
+          content: message,
+          timestamp: new Date(),
+        };
+        setMessages((previous) => [...previous, failedMessage]);
+        pushHistory(text, message);
+      } finally {
+        setIsProcessing(false);
+        composerRef.current?.focus();
+      }
+    },
+    [activeMode.temperature, autoSpeak, conversationId, isProcessing, pushHistory, speakReply, stopListening],
+  );
+
   const handleSend = useCallback(async () => {
-    const text = input.trim();
-    if (!text || isProcessing) {
+    await sendMessageText(input);
+  }, [input, sendMessageText]);
+
+  const handleRegenerate = useCallback(async () => {
+    if (!lastUserMessage || isProcessing) {
       return;
     }
+    await sendMessageText(lastUserMessage);
+  }, [isProcessing, lastUserMessage, sendMessageText]);
+
+  const stopVoiceSession = useCallback(() => {
+    setVoiceSession(false);
     stopListening();
-
-    const userMessage: Message = {
-      id: `${Date.now()}-user`,
-      role: 'user',
-      content: text,
-      timestamp: new Date(),
-    };
-
-    setMessages((previous) => [...previous, userMessage]);
-    pushHistory(text, text);
-    setInput('');
-    setIsProcessing(true);
-
-    try {
-      const result = await sendAIMessage(text, conversationId, activeMode.temperature);
-      if (result.conversation_id) {
-        setConversationId(result.conversation_id);
-      }
-
-      const assistantMessage: Message = {
-        id: `${Date.now()}-assistant`,
-        role: 'assistant',
-        content: result.response || 'Не удалось сформировать ответ.',
-        timestamp: new Date(),
-      };
-
-      setMessages((previous) => [...previous, assistantMessage]);
-      pushHistory(text, assistantMessage.content);
-      if (autoSpeak) {
-        void speakReply(assistantMessage.content);
-      }
-    } catch (error) {
-      const message = `Ошибка: ${error instanceof Error ? error.message : String(error)}`;
-      const failedMessage: Message = {
-        id: `${Date.now()}-error`,
-        role: 'assistant',
-        content: message,
-        timestamp: new Date(),
-      };
-      setMessages((previous) => [...previous, failedMessage]);
-      pushHistory(text, message);
-    } finally {
-      setIsProcessing(false);
-      composerRef.current?.focus();
+    setIsSpeaking(false);
+    if (speechSupported) {
+      window.speechSynthesis.cancel();
     }
-  }, [activeMode.temperature, autoSpeak, conversationId, input, isProcessing, pushHistory, speakReply, stopListening]);
-
-  const latestAssistantReply = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      if (messages[i].role === 'assistant') {
-        return messages[i].content;
-      }
+    if (replyAudioRef.current) {
+      replyAudioRef.current.pause();
+      replyAudioRef.current.src = '';
+      replyAudioRef.current = null;
     }
-    return '';
-  }, [messages]);
+  }, [speechSupported, stopListening]);
+
+  const handleTalkToggle = useCallback(() => {
+    if (voiceSession) {
+      stopVoiceSession();
+      return;
+    }
+    setVoiceSession(true);
+    if (!isListening) {
+      startListening();
+    }
+  }, [isListening, startListening, stopVoiceSession, voiceSession]);
 
   useEffect(() => {
     if (!isListening || isProcessing) {
@@ -691,12 +784,33 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
     }
   };
 
+  const handleSuggestionClick = (text: string) => {
+    setInput(text);
+    window.requestAnimationFrame(() => composerRef.current?.focus());
+  };
+
+  const setReaction = (messageId: string, reaction: 'up' | 'down') => {
+    setMessageReactions((prev) => ({
+      ...prev,
+      [messageId]: prev[messageId] === reaction ? undefined : reaction,
+    }));
+  };
+
+  const statusLabel = isListening
+    ? 'Слушаю микрофон'
+    : isProcessing
+      ? 'Модель отвечает'
+      : 'Готово к запросу';
+
+  const primaryActionLabel = canSend ? 'Отправить' : voiceSession ? 'Остановить' : 'Говорить';
+  const primaryActionAria = canSend ? 'Отправить сообщение' : primaryActionLabel;
+
   return (
     <div className="gx-chat-root">
       <header className="gx-chat-header">
         <div className="gx-chat-header-main">
-          <h1>Kolibri AI</h1>
-          <p>Основной чатовый режим Colibri AI</p>
+          <h1>Colibri AI</h1>
+          <p>{statusLabel}</p>
           <div className="gx-chat-mode-row" role="tablist" aria-label="Режим ответа">
             {CHAT_MODES.map((mode) => (
               <button
@@ -740,23 +854,6 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
         </div>
       </header>
 
-      <div className="gx-chat-statusbar" aria-live="polite">
-        <span className={`gx-status-dot ${isProcessing || isListening ? 'is-live' : ''}`} aria-hidden="true" />
-        <span>{statusLabel}</span>
-        <span className="gx-status-separator" aria-hidden="true">
-          ·
-        </span>
-        <span>{activeMode.label}</span>
-        <span className="gx-status-separator" aria-hidden="true">
-          ·
-        </span>
-        <span>{conversationLabel}</span>
-        <span className="gx-status-separator" aria-hidden="true">
-          ·
-        </span>
-        <span>{totalMessages} сообщений</span>
-      </div>
-
       <section className="gx-chat-feed" role="log" aria-live="polite">
         <div className="gx-chat-thread">
           {voiceError && (
@@ -766,35 +863,26 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
           )}
 
           {messages.length === 0 && !isProcessing && (
-            <div className="gx-empty-state">
-              <div className="gx-empty-badge">
-                <Sparkles size={16} />
-                <span>Ready</span>
+            <div className="gx-chat-placeholder">
+              <div className="gx-chat-logo" aria-hidden="true">
+                <Zap size={44} />
               </div>
-              <h2>Чем помочь в этом чате?</h2>
-              <p>Задайте вопрос, продиктуйте голосом или дайте ссылку для быстрого обучения модели.</p>
-              <div className="gx-prompt-grid">
-                {STARTER_PROMPTS.map((prompt, index) => (
-                  <button
-                    key={prompt}
-                    type="button"
-                    className="gx-prompt-card"
-                    onClick={() => {
-                      setInput(prompt);
-                      window.requestAnimationFrame(() => composerRef.current?.focus());
-                    }}
-                    style={{ animationDelay: `${index * 70}ms` }}
-                  >
-                    {prompt}
-                  </button>
-                ))}
+              <div className="gx-empty-state-desktop">
+                <h2>Чем помочь в этом чате?</h2>
+                <div className="gx-prompt-grid">
+                  {STARTER_PROMPTS.map((prompt) => (
+                    <button key={prompt} type="button" className="gx-prompt-card" onClick={() => handleSuggestionClick(prompt)}>
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
 
           {messages.map((message) => {
             const isAssistant = message.role === 'assistant';
-
+            const reaction = messageReactions[message.id];
             return (
               <article key={message.id} className={`gx-message-row ${isAssistant ? 'is-assistant' : 'is-user'}`}>
                 {isAssistant && (
@@ -804,11 +892,6 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
                 )}
 
                 <div className={`gx-message-bubble ${isAssistant ? 'is-assistant' : 'is-user'}`}>
-                  <div className="gx-message-meta">
-                    <span>{isAssistant ? 'Kolibri Assistant' : 'Вы'}</span>
-                    <time>{formatMessageTime(message.timestamp)}</time>
-                  </div>
-
                   {isAssistant ? (
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
                   ) : (
@@ -816,14 +899,50 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
                   )}
 
                   {isAssistant && (
-                    <button
-                      type="button"
-                      className="gx-copy-btn"
-                      onClick={() => void handleCopyMessage(message.id, message.content)}
-                    >
-                      {copiedMessageId === message.id ? <Check size={12} /> : <Copy size={12} />}
-                      <span>{copiedMessageId === message.id ? 'Скопировано' : 'Копировать'}</span>
-                    </button>
+                    <div className="gx-message-action-row">
+                      <button
+                        type="button"
+                        className="gx-message-action"
+                        onClick={() => void handleCopyMessage(message.id, message.content)}
+                      >
+                        {copiedMessageId === message.id ? <Check size={15} /> : <Copy size={15} />}
+                      </button>
+                      <button
+                        type="button"
+                        className="gx-message-action"
+                        onClick={() => void handleShareMessage(message.content)}
+                      >
+                        <Share2 size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        className={`gx-message-action ${reaction === 'up' ? 'is-active' : ''}`}
+                        onClick={() => setReaction(message.id, 'up')}
+                      >
+                        <ThumbsUp size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        className={`gx-message-action ${reaction === 'down' ? 'is-active' : ''}`}
+                        onClick={() => setReaction(message.id, 'down')}
+                      >
+                        <ThumbsDown size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        className="gx-message-action"
+                        disabled={!message.content.trim() || isSpeaking}
+                        onClick={() => void speakReply(message.content)}
+                      >
+                        {isSpeaking ? <Loader2 size={15} className="gx-spin" /> : <Volume2 size={15} />}
+                      </button>
+                      <button type="button" className="gx-message-action" onClick={() => void handleRegenerate()}>
+                        <RefreshCw size={15} />
+                      </button>
+                      <button type="button" className="gx-message-action">
+                        <Ellipsis size={15} />
+                      </button>
+                    </div>
                   )}
                 </div>
               </article>
@@ -836,10 +955,6 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
                 <Bot size={14} />
               </div>
               <div className="gx-message-bubble is-assistant">
-                <div className="gx-message-meta">
-                  <span>Kolibri Assistant</span>
-                  <time>сейчас</time>
-                </div>
                 <div className="gx-loading-line">
                   <Loader2 size={14} className="gx-spin" />
                   <span>Формирую ответ...</span>
@@ -848,11 +963,64 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
             </article>
           )}
 
+          {showCallFeedback && latestAssistantReply && (
+            <section className="gx-call-feedback">
+              <h3>Как прошёл твой звонок?</h3>
+              <div className="gx-call-feedback-row">
+                {FEEDBACK_EMOJIS.map((emoji) => (
+                  <button key={emoji} type="button" className="gx-call-feedback-btn">
+                    <span>{emoji}</span>
+                    <span className="gx-call-feedback-line" />
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {followUpSuggestions.length > 0 && (
+            <section className="gx-followup-list">
+              {followUpSuggestions.map((item) => (
+                <button key={item} type="button" className="gx-followup-item" onClick={() => handleSuggestionClick(item)}>
+                  {item}
+                </button>
+              ))}
+            </section>
+          )}
+
           <div ref={endRef} />
         </div>
       </section>
 
       <footer className="gx-composer-wrap">
+        {latestAssistantReply && (
+          <div className="gx-think-wrap">
+            <button type="button" className="gx-think-btn" onClick={() => setChatMode('deep')}>
+              <Rocket size={18} />
+              <span>Think harder</span>
+            </button>
+          </div>
+        )}
+
+        {voiceSession && (
+          <div className="gx-voice-session">
+            <div className="gx-voice-tip">Tap here to change the voice or personality</div>
+            <div className="gx-voice-controls">
+              <button type="button" className="gx-voice-ctrl">
+                <Video size={20} />
+              </button>
+              <button type="button" className="gx-voice-ctrl" onClick={() => setAutoSpeak((v) => !v)}>
+                <Volume2 size={20} />
+              </button>
+              <button type="button" className="gx-voice-ctrl" onClick={handleVoiceToggle}>
+                {isListening ? <Loader2 size={19} className="gx-spin" /> : <Mic size={19} />}
+              </button>
+              <button type="button" className="gx-voice-ctrl">
+                <Settings2 size={20} />
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="gx-composer-card">
           <textarea
             ref={composerRef}
@@ -867,6 +1035,21 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
 
           <div className="gx-composer-footer">
             <div className="gx-composer-tools">
+              <button type="button" className="gx-tool-btn" aria-label="Прикрепить файл">
+                <Paperclip size={18} />
+              </button>
+
+              <button
+                type="button"
+                className={`gx-auto-btn ${chatMode === 'smart' ? 'is-active' : ''}`}
+                onClick={() => setChatMode('smart')}
+              >
+                <Rocket size={17} />
+                <span>Auto</span>
+              </button>
+            </div>
+
+            <div className="gx-composer-primary">
               <button
                 type="button"
                 className={`gx-tool-btn ${micPulse ? 'is-pulse' : ''}`}
@@ -874,34 +1057,21 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
                 disabled={!voiceSupported || isProcessing}
                 aria-label={isListening ? 'Остановить голосовой ввод' : 'Голосовой ввод'}
               >
-                {isListening ? <Loader2 size={15} className="gx-spin" /> : <Mic size={15} />}
+                {isListening ? <Loader2 size={16} className="gx-spin" /> : <Mic size={16} />}
               </button>
+
               <button
                 type="button"
-                className="gx-tool-btn"
-                aria-label="Озвучить последний ответ"
-                disabled={!audioReplySupported || !latestAssistantReply || isSpeaking}
-                onClick={() => void speakReply(latestAssistantReply)}
+                className={`gx-talk-btn ${voiceSession ? 'is-live' : ''}`}
+                onClick={canSend ? () => void handleSend() : handleTalkToggle}
+                aria-label={primaryActionAria}
               >
-                {isSpeaking ? <Loader2 size={15} className="gx-spin" /> : <Volume2 size={15} />}
+                {canSend ? <ArrowUp size={20} /> : <Volume2 size={20} />}
+                <span>{primaryActionLabel}</span>
               </button>
             </div>
-
-            <button
-              type="button"
-              className={`gx-send-btn ${canSend ? 'is-active' : ''}`}
-              onClick={canSend ? () => void handleSend() : handleVoiceToggle}
-              aria-label={canSend ? 'Отправить сообщение' : isListening ? 'Остановить голосовой ввод' : 'Голосовой режим'}
-            >
-              {isProcessing ? <Loader2 size={15} className="gx-spin" /> : <ArrowUp size={15} />}
-            </button>
           </div>
         </div>
-
-        <p className="gx-composer-hint">
-          Enter — отправить, Shift+Enter — новая строка · Режим: {activeMode.label}
-          {conversationId ? ` · Диалог: ${conversationId.slice(0, 8)}` : ''}
-        </p>
       </footer>
     </div>
   );

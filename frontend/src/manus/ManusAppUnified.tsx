@@ -72,7 +72,7 @@ export const ManusAppUnified = () => {
       case 'crawler':
         return <CrawlerTab />;
       case 'tasks':
-        return <TasksTab />;
+        return <TasksTab onClose={() => setActiveTab('chat')} />;
       case 'knowledge':
         return <KnowledgeTab />;
       case 'terminal':
@@ -80,7 +80,7 @@ export const ManusAppUnified = () => {
       case 'archiver':
         return <ArchiverTab />;
       case 'settings':
-        return <SettingsTab />;
+        return <SettingsTab onClose={() => setActiveTab('chat')} />;
       default:
         return (
           <ChatTab
