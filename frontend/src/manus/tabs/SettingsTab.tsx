@@ -835,6 +835,164 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
           color: rgba(255, 255, 255, 0.56);
         }
 
+        @media (max-width: 900px) {
+          .kol-settings-header {
+            min-height: 62px;
+          }
+
+          .kol-settings-header h1 {
+            font-size: clamp(24px, 6.8vw, 34px);
+          }
+
+          .kol-settings-circle,
+          .kol-settings-spacer,
+          .kol-settings-save {
+            width: clamp(46px, 13vw, 58px);
+            height: clamp(46px, 13vw, 58px);
+            min-height: clamp(46px, 13vw, 58px);
+          }
+
+          .kol-settings-save {
+            font-size: clamp(14px, 4.2vw, 18px);
+            padding: 0 12px;
+          }
+
+          .kol-settings-section h3 {
+            font-size: clamp(16px, 4.6vw, 22px);
+          }
+
+          .kol-settings-profile-card {
+            min-height: 94px;
+            border-radius: 18px;
+            padding: 14px;
+            gap: 10px;
+          }
+
+          .kol-settings-profile-info strong {
+            font-size: clamp(18px, 5vw, 24px);
+          }
+
+          .kol-settings-profile-info span {
+            font-size: clamp(13px, 3.8vw, 16px);
+          }
+
+          .kol-settings-upgrade {
+            min-height: 104px;
+            border-radius: 18px;
+            padding: 14px;
+          }
+
+          .kol-settings-upgrade-copy strong {
+            font-size: clamp(18px, 5.2vw, 24px);
+          }
+
+          .kol-settings-upgrade-copy span {
+            font-size: clamp(12px, 3.6vw, 14px);
+          }
+
+          .kol-settings-upgrade button {
+            min-height: 46px;
+            font-size: clamp(14px, 3.8vw, 16px);
+            border-width: 1px;
+            padding: 0 12px;
+          }
+
+          .kol-settings-row {
+            min-height: 54px;
+            padding: 0 14px;
+            gap: 8px;
+          }
+
+          .kol-settings-row span {
+            font-size: clamp(15px, 4.2vw, 18px);
+            line-height: 1.2;
+            min-width: 0;
+            flex: 1;
+          }
+
+          .kol-settings-row-value {
+            font-size: clamp(13px, 3.8vw, 16px);
+            flex-shrink: 0;
+          }
+
+          .kol-settings-theme-card {
+            min-height: 92px;
+            border-radius: 16px;
+            gap: 8px;
+          }
+
+          .kol-settings-theme-card span {
+            font-size: clamp(14px, 4vw, 17px);
+          }
+
+          .kol-settings-font-range {
+            min-height: 62px;
+            grid-template-columns: 26px 1fr 26px;
+            padding: 0 12px;
+          }
+
+          .kol-settings-font-range span {
+            font-size: clamp(13px, 3.8vw, 16px);
+          }
+
+          .kol-settings-preview-user {
+            font-size: clamp(13px, 3.8vw, 16px);
+          }
+
+          .kol-settings-font-preview p {
+            font-size: clamp(15px, 4.3vw, 19px);
+            line-height: 1.3;
+          }
+
+          .kol-settings-font-preview button {
+            min-height: 44px;
+            font-size: clamp(14px, 4vw, 17px);
+            border-width: 1px;
+          }
+
+          .kol-settings-widget-card h3 {
+            font-size: clamp(19px, 5.2vw, 24px);
+          }
+
+          .kol-settings-widget-card p {
+            font-size: clamp(14px, 4.1vw, 17px);
+            line-height: 1.35;
+          }
+
+          .kol-settings-logout {
+            min-height: 56px;
+            border-radius: 16px;
+            font-size: clamp(16px, 4.6vw, 20px);
+          }
+
+          .kol-settings-edit-btn {
+            min-height: 48px;
+            font-size: clamp(14px, 4vw, 17px);
+            border-width: 1px;
+          }
+
+          .kol-settings-profile-fields input {
+            font-size: clamp(17px, 4.8vw, 22px);
+            padding: 12px 14px;
+          }
+
+          .kol-settings-year-select {
+            height: 44px;
+            min-width: 112px;
+            border-radius: 12px;
+            padding: 0 8px;
+          }
+
+          .kol-settings-year-select select {
+            font-size: clamp(14px, 4vw, 17px);
+          }
+
+          .kol-settings-apple-note,
+          .kol-settings-version {
+            font-size: clamp(12px, 3.6vw, 14px);
+          }
+        }
+
         @media (min-width: 901px) {
           .kol-settings-page {
             padding: 24px;

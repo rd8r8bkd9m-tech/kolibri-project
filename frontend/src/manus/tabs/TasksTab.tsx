@@ -484,6 +484,12 @@ export const TasksTab = ({ onClose }: TasksTabProps) => {
           font-weight: 600;
         }
 
+        .kol-task-table-row > span {
+          min-width: 0;
+          flex: 1;
+          line-height: 1.12;
+        }
+
         .kol-task-divider {
           height: 1px;
           background: rgba(255, 255, 255, 0.16);
@@ -610,75 +616,79 @@ export const TasksTab = ({ onClose }: TasksTabProps) => {
 
           .kol-task-create-top {
             min-height: clamp(64px, 18vw, 84px);
-            font-size: clamp(28px, 7vw, 56px);
+            font-size: clamp(18px, 5.4vw, 28px);
             padding: 0 clamp(18px, 4vw, 26px);
           }
 
           .kol-task-empty h2 {
-            font-size: clamp(32px, 9vw, 64px);
+            font-size: clamp(24px, 7.4vw, 34px);
           }
 
           .kol-task-empty p {
-            font-size: clamp(20px, 5vw, 48px);
+            font-size: clamp(15px, 4.8vw, 20px);
           }
 
           .kol-task-outline-btn {
-            font-size: clamp(28px, 6vw, 58px);
-            height: clamp(72px, 17vw, 112px);
+            font-size: clamp(17px, 4.8vw, 24px);
+            height: clamp(60px, 14vw, 78px);
           }
 
           .kol-task-input-wrap input {
-            height: clamp(68px, 17vw, 118px);
-            font-size: clamp(28px, 8vw, 62px);
+            height: clamp(60px, 15vw, 78px);
+            font-size: clamp(18px, 5.2vw, 24px);
             padding: 0 clamp(18px, 4.5vw, 34px);
           }
 
           .kol-task-block h3 {
-            font-size: clamp(24px, 7vw, 56px);
+            font-size: clamp(17px, 4.9vw, 24px);
           }
 
           .kol-task-table-row {
             min-height: clamp(56px, 15vw, 86px);
-            font-size: clamp(22px, 7vw, 62px);
+            font-size: clamp(15px, 4.6vw, 21px);
+            align-items: flex-start;
+            gap: 10px;
           }
 
           .kol-task-select-wrap,
           .kol-task-time-wrap {
-            height: clamp(56px, 15vw, 86px);
-            min-width: clamp(132px, 34vw, 220px);
+            height: clamp(44px, 12vw, 56px);
+            min-width: clamp(104px, 28vw, 160px);
+            padding: 0 10px;
           }
 
           .kol-task-select-wrap select,
           .kol-task-time-wrap input {
-            font-size: clamp(22px, 6vw, 60px);
+            font-size: clamp(14px, 4.2vw, 18px);
           }
 
           .kol-task-block textarea {
             min-height: clamp(136px, 36vw, 300px);
-            font-size: clamp(22px, 6vw, 58px);
+            font-size: clamp(16px, 4.6vw, 20px);
             padding: clamp(14px, 3vw, 26px) clamp(16px, 4vw, 28px);
           }
 
           .kol-task-switch {
-            width: clamp(76px, 21vw, 134px);
-            height: clamp(44px, 12vw, 74px);
+            width: clamp(56px, 17vw, 76px);
+            height: clamp(34px, 9vw, 44px);
+            padding: 4px;
           }
 
           .kol-task-switch span {
-            width: clamp(30px, 8.4vw, 60px);
-            height: clamp(30px, 8.4vw, 60px);
+            width: clamp(24px, 6.8vw, 30px);
+            height: clamp(24px, 6.8vw, 30px);
           }
 
           .kol-task-switch.is-on span {
-            transform: translateX(clamp(30px, 8.4vw, 60px));
+            transform: translateX(clamp(20px, 6.2vw, 34px));
           }
 
           .kol-task-counter strong {
-            font-size: clamp(24px, 6.5vw, 48px);
+            font-size: clamp(19px, 5.2vw, 24px);
           }
 
           .kol-task-counter span {
-            font-size: clamp(18px, 4.5vw, 42px);
+            font-size: clamp(14px, 3.8vw, 17px);
           }
         }
 
