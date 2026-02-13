@@ -301,6 +301,8 @@ export const CrawlerTab = () => {
   const searchResults = agentStatus?.search_results || [];
   const pagesText = agentStatus?.pages_text || [];
   const isActive = isAgentRunning || (agentStatus?.running ?? false);
+  const patternFill = model && model.max_patterns > 0 ? Math.min(100, (model.patterns / model.max_patterns) * 100) : 0;
+  const edgesFill = model && model.max_edges > 0 ? Math.min(100, (model.edges / model.max_edges) * 100) : 0;
 
   /* ═══════ RENDER ═══════ */
   return (
@@ -344,6 +346,17 @@ export const CrawlerTab = () => {
       <div className="agent-body">
         {/* ═══════ LEFT: Controls ═══════ */}
         <div className="agent-controls">
+          <div className="quick-guide">
+            <div className="quick-guide-title">
+              <Target size={14} />
+              <span>Как пользоваться</span>
+            </div>
+            <ol>
+              <li>Выберите режим: <strong>Тема</strong> или <strong>URL</strong>.</li>
+              <li>Заполните поле и нажмите <strong>Запустить</strong>.</li>
+              <li>Следите за прогрессом справа: фаза, статистика, источники и лог.</li>
+            </ol>
+          </div>
 
           {inputMode === 'topic' ? (
             /* ——— Topic Mode ——— */
@@ -530,7 +543,7 @@ export const CrawlerTab = () => {
                   <div className="bar-track">
                     <div
                       className="bar-fill patterns"
-                      style={{ width: `${(model.patterns / model.max_patterns) * 100}%` }}
+                      style={{ width: `${patternFill}%` }}
                     />
                   </div>
                 </div>
@@ -542,7 +555,7 @@ export const CrawlerTab = () => {
                   <div className="bar-track">
                     <div
                       className="bar-fill edges"
-                      style={{ width: `${(model.edges / model.max_edges) * 100}%` }}
+                      style={{ width: `${edgesFill}%` }}
                     />
                   </div>
                 </div>
@@ -881,6 +894,36 @@ export const CrawlerTab = () => {
           overflow-y: auto;
           display: flex; flex-direction: column; gap: 14px;
           background: var(--bg-secondary);
+        }
+        .control-section,
+        .presets {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .quick-guide {
+          border: 1px solid var(--border-primary);
+          border-radius: 10px;
+          padding: 10px 12px;
+          background: var(--bg-tertiary);
+        }
+        .quick-guide-title {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 12px;
+          color: var(--text-primary);
+          font-weight: 600;
+          margin-bottom: 6px;
+        }
+        .quick-guide ol {
+          margin: 0;
+          padding-left: 18px;
+          display: grid;
+          gap: 4px;
+          color: var(--text-secondary);
+          font-size: 12px;
+          line-height: 1.4;
         }
         .control-label {
           display: flex; align-items: center; gap: 6px;
@@ -1296,6 +1339,95 @@ export const CrawlerTab = () => {
         }
         .try-again-btn:hover {
           background: var(--bg-hover);
+        }
+
+        @media (max-width: 980px) {
+          .agent-header {
+            padding: 14px;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+          }
+          .agent-body {
+            display: block;
+            overflow-y: auto;
+          }
+          .agent-controls,
+          .agent-dashboard {
+            min-height: auto;
+            border-right: none;
+            padding: 12px;
+          }
+          .agent-controls {
+            border-bottom: 1px solid var(--border-primary);
+          }
+          .phase-indicator {
+            justify-content: flex-start;
+            overflow-x: auto;
+            padding-bottom: 6px;
+          }
+          .phase-step {
+            min-width: max-content;
+          }
+        }
+
+        @media (max-width: 760px) {
+          .mode-toggle {
+            width: 100%;
+          }
+          .mode-toggle-btn {
+            flex: 1;
+            justify-content: center;
+          }
+          .preset-grid,
+          .url-mode-switch {
+            grid-template-columns: 1fr;
+          }
+          .param-row {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+          }
+          .param-control {
+            width: 100%;
+          }
+          .param-control input[type=range] {
+            width: 100%;
+          }
+          .stats-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .empty-state {
+            height: auto;
+            min-height: 240px;
+            padding: 24px 12px;
+          }
+          .complete-banner {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+          .try-again-btn {
+            width: 100%;
+            justify-content: center;
+          }
+        }
+
+        @media (max-width: 460px) {
+          .agent-header-left {
+            align-items: flex-start;
+          }
+          .agent-title {
+            font-size: 16px;
+          }
+          .agent-subtitle {
+            font-size: 11px;
+          }
+          .stats-grid {
+            grid-template-columns: 1fr;
+          }
+          .progress-label {
+            max-width: 220px;
+          }
         }
 
         /* Scrollbars */

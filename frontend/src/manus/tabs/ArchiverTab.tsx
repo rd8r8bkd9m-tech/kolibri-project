@@ -339,6 +339,33 @@ export const ArchiverTab = () => {
         .archiver-info strong {
           color: var(--text-primary);
         }
+        @media (max-width: 760px) {
+          .archiver-tab {
+            padding: 14px 12px 24px;
+          }
+          .archiver-header h2 {
+            font-size: 22px;
+          }
+          .archiver-mode-btn {
+            min-height: 42px;
+            font-size: 15px;
+          }
+          .archiver-textarea {
+            font-size: 15px;
+            min-height: 180px;
+          }
+          .archiver-actions {
+            flex-direction: column;
+          }
+          .archiver-btn {
+            width: 100%;
+            justify-content: center;
+            min-height: 44px;
+          }
+          .archiver-stat-grid {
+            grid-template-columns: 1fr;
+          }
+        }
       `}</style>
 
       {/* Заголовок */}

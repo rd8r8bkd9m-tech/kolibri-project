@@ -17,7 +17,16 @@ const shouldShowLandingInitially = (): boolean => {
   }
 
   const params = new URLSearchParams(window.location.search);
+  if (params.get("landing") === "1") {
+    return true;
+  }
   if (params.get("app") === "1") {
+    return false;
+  }
+
+  // На мобильных устройствах запускаем сразу приложение:
+  // лендинг добавлял лишний шаг и мешал быстрому входу в чат.
+  if (typeof window.matchMedia === "function" && window.matchMedia("(max-width: 900px)").matches) {
     return false;
   }
 

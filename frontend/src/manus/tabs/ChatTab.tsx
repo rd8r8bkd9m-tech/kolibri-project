@@ -1,11 +1,25 @@
 /**
  * ChatTab.tsx
  *
- * Grok-like chat canvas with floating composer.
+ * Main conversational surface with Grok/GPT-like structure:
+ * header, thread, sticky composer, and mobile-safe behavior.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, Bot, Ellipsis, Loader2, Mic, Sparkles, Volume2 } from 'lucide-react';
+import {
+  ArrowUp,
+  Bot,
+  Check,
+  Copy,
+  Loader2,
+  Mic,
+  RotateCcw,
+  Sparkles,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { ChatHistoryItem } from '../ManusLayout';
 
 interface Message {
@@ -20,28 +34,97 @@ interface AIResponse {
   conversation_id: string;
 }
 
+interface VoiceHealthResponse {
+  enabled: boolean;
+  default_voice?: string;
+}
+
+interface VoiceSpeakResponse {
+  audio_base64: string;
+  audio_mime: string;
+}
+
 interface ChatTabProps {
   resetToken?: number;
   activeChatId?: string;
   onChatActivity?: (item: ChatHistoryItem) => void;
 }
 
+type SpeechRecognitionCtor = new () => {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start: () => void;
+  stop: () => void;
+  onresult: ((event: any) => void) | null;
+  onerror: ((event: any) => void) | null;
+  onend: (() => void) | null;
+};
+
 const API = '/api';
 const CHAT_SESSIONS_KEY = 'kolibri-chat-sessions-v1';
+const CHAT_AUTO_SPEAK_KEY = 'kolibri-chat-auto-speak-v1';
+const CHAT_REQUEST_RETRIES = 2;
 const STARTER_PROMPTS = [
-  'Покажи статус системы и доступные модули.',
-  'Сделай краткий аудит backend и frontend.',
+  'Сделай быстрый статус backend и frontend.',
+  'Покажи 5 рисков текущей архитектуры и решения.',
   'Обучи модель на https://en.wikipedia.org/wiki/Neural_network',
+  'Составь план релиза на эту неделю.',
 ];
 
-async function sendAIMessage(message: string, conversationId: string | null): Promise<AIResponse> {
+type ChatModeId = 'smart' | 'deep' | 'creative';
+
+const CHAT_MODES: Array<{ id: ChatModeId; label: string; temperature: number }> = [
+  { id: 'smart', label: 'Smart', temperature: 0.62 },
+  { id: 'deep', label: 'Deep', temperature: 0.45 },
+  { id: 'creative', label: 'Creative', temperature: 0.9 },
+];
+
+const sleep = (ms: number) => new Promise((resolve) => globalThis.setTimeout(resolve, ms));
+
+async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+  for (let attempt = 0; attempt <= CHAT_REQUEST_RETRIES; attempt += 1) {
+    try {
+      const response = await fetch(url, init);
+      if (response.ok || response.status < 500 || attempt === CHAT_REQUEST_RETRIES) {
+        return response;
+      }
+    } catch (error) {
+      if (attempt === CHAT_REQUEST_RETRIES) {
+        throw error;
+      }
+    }
+
+    const backoff = 260 * (attempt + 1);
+    await sleep(backoff);
+  }
+
+  throw new Error('Сервер не отвечает');
+}
+
+async function parseErrorMessage(response: Response, fallback: string): Promise<string> {
+  try {
+    const payload = await response.json();
+    if (payload && typeof payload.detail === 'string' && payload.detail.trim()) {
+      return payload.detail.trim();
+    }
+    if (payload && typeof payload.response === 'string' && payload.response.trim()) {
+      return payload.response.trim();
+    }
+  } catch {
+    // ignore JSON parsing errors
+  }
+  return fallback;
+}
+
+async function sendAIMessage(message: string, conversationId: string | null, temperature: number): Promise<AIResponse> {
   const urlMatch = message.match(/https?:\/\/\S+/i);
   if (urlMatch && (message.toLowerCase().includes('обучи') || message.toLowerCase().includes('обход'))) {
     const url = urlMatch[0];
     const pagesMatch = message.match(/(\d+)\s*страниц/);
     const maxPages = pagesMatch ? parseInt(pagesMatch[1], 10) : 5;
 
-    const crawlResp = await fetch(`${API}/v1/crawl`, {
+    const crawlResp = await fetchWithRetry(`${API}/v1/crawl`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -58,29 +141,30 @@ async function sendAIMessage(message: string, conversationId: string | null): Pr
       throw new Error(crawlData.detail || 'Ошибка web-обучения');
     }
 
-    await fetch(`${API}/v1/ai/reload`, { method: 'POST' });
+    await fetchWithRetry(`${API}/v1/ai/reload`, { method: 'POST' });
 
     return {
       response:
-        `✅ Обучение завершено.\n` +
+        `Обучение завершено.\n` +
         `Источник: ${url}\n` +
         `Страниц: ${crawlData.pages_crawled ?? 0}, токенов: ${(crawlData.tokens ?? 0).toLocaleString()}`,
       conversation_id: conversationId || '',
     };
   }
 
-  const response = await fetch(`${API}/v1/ai/chat`, {
+  const response = await fetchWithRetry(`${API}/v1/ai/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       message,
       conversation_id: conversationId,
-      temperature: 0.65,
+      temperature,
     }),
   });
 
   if (!response.ok) {
-    throw new Error(`AI endpoint error (${response.status})`);
+    const detail = await parseErrorMessage(response, `AI endpoint error (${response.status})`);
+    throw new Error(detail);
   }
 
   const payload = await response.json();
@@ -90,20 +174,89 @@ async function sendAIMessage(message: string, conversationId: string | null): Pr
   };
 }
 
+const formatMessageTime = (value: Date): string => {
+  return value.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+};
+
+const resolveRecognitionCtor = (): SpeechRecognitionCtor | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  const win = window as Window & {
+    SpeechRecognition?: SpeechRecognitionCtor;
+    webkitSpeechRecognition?: SpeechRecognitionCtor;
+  };
+  return win.SpeechRecognition || win.webkitSpeechRecognition || null;
+};
+
+const mapSpeechError = (code: string): string => {
+  switch (code) {
+    case 'not-allowed':
+    case 'service-not-allowed':
+      return 'Доступ к микрофону заблокирован. Разрешите его в настройках браузера.';
+    case 'no-speech':
+      return 'Речь не распознана. Попробуйте говорить ближе к микрофону.';
+    case 'audio-capture':
+      return 'Микрофон не найден или занят другим приложением.';
+    case 'network':
+      return 'Ошибка сети во время распознавания речи.';
+    case 'aborted':
+      return 'Голосовой ввод остановлен.';
+    default:
+      return `Ошибка микрофона: ${code || 'unknown'}`;
+  }
+};
+
+const canUseSpeechSynthesis = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  return typeof window.speechSynthesis !== 'undefined' && typeof window.SpeechSynthesisUtterance !== 'undefined';
+};
+
 export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTabProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [micPulse, setMicPulse] = useState(false);
-  const micTimerRef = useRef<number | null>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceError, setVoiceError] = useState<string>('');
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [serverVoiceAvailable, setServerVoiceAvailable] = useState(false);
+  const [serverVoiceName, setServerVoiceName] = useState('alloy');
+  const [chatMode, setChatMode] = useState<ChatModeId>('smart');
+  const [autoSpeak, setAutoSpeak] = useState<boolean>(() => {
+    try {
+      if (typeof window === 'undefined') {
+        return true;
+      }
+      const raw = localStorage.getItem(CHAT_AUTO_SPEAK_KEY);
+      if (raw === '0') {
+        return false;
+      }
+      return true;
+    } catch {
+      return true;
+    }
+  });
+
   const endRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const localSessionIdRef = useRef<string | null>(null);
+  const micTimerRef = useRef<number | null>(null);
+  const recognitionRef = useRef<InstanceType<SpeechRecognitionCtor> | null>(null);
+  const finalTranscriptRef = useRef('');
+  const speechUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const replyAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const loadSession = useCallback((sessionId: string) => {
     try {
       const raw = localStorage.getItem(CHAT_SESSIONS_KEY);
-      if (!raw) return null;
+      if (!raw) {
+        return null;
+      }
       const parsed = JSON.parse(raw) as Record<
         string,
         {
@@ -112,14 +265,16 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
         }
       >;
       const found = parsed[sessionId];
-      if (!found) return null;
+      if (!found) {
+        return null;
+      }
       return {
         conversationId: found.conversationId || null,
-        messages: (found.messages || []).map((m) => ({
-          id: m.id,
-          role: m.role,
-          content: m.content,
-          timestamp: new Date(m.timestamp),
+        messages: (found.messages || []).map((item) => ({
+          id: item.id,
+          role: item.role,
+          content: item.content,
+          timestamp: new Date(item.timestamp),
         })),
       };
     } catch {
@@ -139,35 +294,53 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
             }
           >)
         : {};
+
       parsed[sessionId] = {
         conversationId: nextConversationId,
-        messages: nextMessages.slice(-120).map((m) => ({
-          id: m.id,
-          role: m.role,
-          content: m.content,
-          timestamp: m.timestamp.toISOString(),
+        messages: nextMessages.slice(-120).map((item) => ({
+          id: item.id,
+          role: item.role,
+          content: item.content,
+          timestamp: item.timestamp.toISOString(),
         })),
       };
+
       localStorage.setItem(CHAT_SESSIONS_KEY, JSON.stringify(parsed));
     } catch {
       // ignore storage errors
     }
   }, []);
 
-  const pushHistory = useCallback((title: string, preview: string) => {
-    const id = localSessionIdRef.current || `chat-${Date.now()}`;
-    localSessionIdRef.current = id;
-    onChatActivity?.({
-      id,
-      title: title.trim().slice(0, 42) || 'Новый чат',
-      preview: preview.trim().slice(0, 90),
-      updatedAt: Date.now(),
-      unread: false,
-    });
-  }, [onChatActivity]);
+  const pushHistory = useCallback(
+    (title: string, preview: string) => {
+      const id = localSessionIdRef.current || `chat-${Date.now()}`;
+      localSessionIdRef.current = id;
+      onChatActivity?.({
+        id,
+        title: title.trim().slice(0, 52) || 'Новый чат',
+        preview: preview.trim().slice(0, 120),
+        updatedAt: Date.now(),
+        unread: false,
+      });
+    },
+    [onChatActivity],
+  );
+
+  const resizeComposer = useCallback(() => {
+    if (!composerRef.current) {
+      return;
+    }
+    composerRef.current.style.height = '0px';
+    const nextHeight = Math.min(composerRef.current.scrollHeight, 220);
+    composerRef.current.style.height = `${nextHeight}px`;
+  }, []);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    resizeComposer();
+  }, [input, resizeComposer]);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, isProcessing]);
 
   useEffect(() => {
@@ -175,15 +348,56 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
       if (micTimerRef.current != null) {
         window.clearTimeout(micTimerRef.current);
       }
+      try {
+        recognitionRef.current?.stop();
+      } catch {
+        // ignore voice cleanup errors
+      }
+      if (canUseSpeechSynthesis()) {
+        window.speechSynthesis.cancel();
+      }
+      if (replyAudioRef.current) {
+        replyAudioRef.current.pause();
+        replyAudioRef.current.src = '';
+      }
     };
   }, []);
+
+  useEffect(() => {
+    const loadVoiceHealth = async () => {
+      try {
+        const resp = await fetch('/api/v1/ai/voice/health');
+        if (!resp.ok) {
+          return;
+        }
+        const payload = (await resp.json()) as VoiceHealthResponse;
+        if (payload.enabled) {
+          setServerVoiceAvailable(true);
+          if (payload.default_voice?.trim()) {
+            setServerVoiceName(payload.default_voice.trim());
+          }
+        }
+      } catch {
+        // silent fallback to browser speech
+      }
+    };
+    void loadVoiceHealth();
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CHAT_AUTO_SPEAK_KEY, autoSpeak ? '1' : '0');
+    } catch {
+      // ignore storage errors
+    }
+  }, [autoSpeak]);
 
   useEffect(() => {
     setMessages([]);
     setInput('');
     setConversationId(null);
     localSessionIdRef.current = activeChatId || null;
-  }, [resetToken]);
+  }, [resetToken, activeChatId]);
 
   useEffect(() => {
     if (!activeChatId) {
@@ -192,24 +406,39 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
       setConversationId(null);
       return;
     }
+
     localSessionIdRef.current = activeChatId;
     const session = loadSession(activeChatId);
     if (session) {
       setMessages(session.messages);
       setConversationId(session.conversationId);
-    } else {
-      setMessages([]);
-      setConversationId(null);
+      return;
     }
+
+    setMessages([]);
+    setConversationId(null);
   }, [activeChatId, loadSession]);
 
   useEffect(() => {
-    const sid = localSessionIdRef.current;
-    if (!sid) return;
-    persistSession(sid, messages, conversationId);
+    const sessionId = localSessionIdRef.current;
+    if (!sessionId) {
+      return;
+    }
+    persistSession(sessionId, messages, conversationId);
   }, [messages, conversationId, persistSession]);
 
-  const canSend = useMemo(() => input.trim().length > 3 && !isProcessing, [input, isProcessing]);
+  const canSend = useMemo(() => input.trim().length > 0 && !isProcessing, [input, isProcessing]);
+  const activeMode = useMemo(() => CHAT_MODES.find((item) => item.id === chatMode) ?? CHAT_MODES[0], [chatMode]);
+  const voiceSupported = useMemo(() => resolveRecognitionCtor() !== null, []);
+  const speechSupported = useMemo(() => canUseSpeechSynthesis(), []);
+  const audioReplySupported = speechSupported || serverVoiceAvailable;
+  const totalMessages = messages.length;
+  const statusLabel = isListening
+    ? 'Слушаю микрофон'
+    : isProcessing
+      ? 'Модель отвечает'
+      : 'Готово к запросу';
+  const conversationLabel = conversationId ? `ID ${conversationId.slice(0, 8)}` : 'Новый диалог';
 
   const triggerMicPulse = useCallback(() => {
     setMicPulse(true);
@@ -222,88 +451,340 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
     }, 900);
   }, []);
 
+  const stopListening = useCallback(() => {
+    try {
+      recognitionRef.current?.stop();
+    } catch {
+      // stop can throw if recognition is not active
+    }
+    setIsListening(false);
+  }, []);
+
+  const startListening = useCallback(() => {
+    if (isProcessing) {
+      return;
+    }
+    setVoiceError('');
+    const Ctor = resolveRecognitionCtor();
+    if (!Ctor) {
+      setVoiceError('Голосовой ввод не поддерживается в этом браузере.');
+      return;
+    }
+    finalTranscriptRef.current = '';
+
+    if (!recognitionRef.current) {
+      const recognition = new Ctor();
+      const browserLang = typeof navigator !== 'undefined' ? navigator.language : '';
+      recognition.lang = browserLang?.toLowerCase().startsWith('ru') ? 'ru-RU' : browserLang || 'ru-RU';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.onresult = (event: any) => {
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          const value = event.results[i][0].transcript || '';
+          if (event.results[i].isFinal) {
+            finalTranscriptRef.current = `${finalTranscriptRef.current} ${value}`.trim();
+          } else {
+            interim += value;
+          }
+        }
+        const nextText = `${finalTranscriptRef.current} ${interim}`.trim();
+        setInput(nextText);
+      };
+      recognition.onerror = (event: any) => {
+        setVoiceError(mapSpeechError(event?.error || 'unknown'));
+        setIsListening(false);
+      };
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+      recognitionRef.current = recognition;
+    }
+
+    try {
+      recognitionRef.current.start();
+      setIsListening(true);
+      triggerMicPulse();
+    } catch (error) {
+      setVoiceError(`Не удалось запустить микрофон: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }, [isProcessing, triggerMicPulse]);
+
+  const handleVoiceToggle = useCallback(() => {
+    if (isListening) {
+      stopListening();
+      return;
+    }
+    startListening();
+  }, [isListening, startListening, stopListening]);
+
+  const handleCopyMessage = useCallback(async (messageId: string, content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedMessageId(messageId);
+      window.setTimeout(() => setCopiedMessageId((current) => (current === messageId ? null : current)), 1600);
+    } catch {
+      // ignore clipboard errors
+    }
+  }, []);
+
+  const speakReply = useCallback(
+    async (text: string) => {
+      const content = text.trim();
+      if (!content) {
+        return;
+      }
+
+      if (serverVoiceAvailable) {
+        try {
+          const response = await fetch('/api/v1/ai/voice/speak', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: content,
+              voice: serverVoiceName,
+              audio_format: 'mp3',
+              speed: 1.0,
+            }),
+          });
+          if (response.ok) {
+            const payload = (await response.json()) as VoiceSpeakResponse;
+            const audio = new Audio(`data:${payload.audio_mime};base64,${payload.audio_base64}`);
+            if (replyAudioRef.current) {
+              replyAudioRef.current.pause();
+              replyAudioRef.current.src = '';
+            }
+            replyAudioRef.current = audio;
+            audio.onplay = () => setIsSpeaking(true);
+            audio.onended = () => setIsSpeaking(false);
+            audio.onerror = () => {
+              setIsSpeaking(false);
+              setVoiceError('Не удалось воспроизвести серверный голос.');
+            };
+            await audio.play();
+            return;
+          }
+          if (response.status >= 500) {
+            setServerVoiceAvailable(false);
+            setVoiceError('Серверный голос временно недоступен. Переключен на браузерную озвучку.');
+          }
+        } catch {
+          setServerVoiceAvailable(false);
+        }
+      }
+
+      if (!speechSupported) {
+        return;
+      }
+
+      const message = content.length > 1400 ? `${content.slice(0, 1400)}...` : content;
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(message);
+      const browserLang = typeof navigator !== 'undefined' ? navigator.language : '';
+      utterance.lang = browserLang?.toLowerCase().startsWith('ru') ? 'ru-RU' : browserLang || 'ru-RU';
+      utterance.rate = 1;
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        speechUtteranceRef.current = null;
+      };
+      utterance.onerror = () => {
+        setIsSpeaking(false);
+        speechUtteranceRef.current = null;
+      };
+      speechUtteranceRef.current = utterance;
+      window.speechSynthesis.speak(utterance);
+    },
+    [serverVoiceAvailable, serverVoiceName, speechSupported],
+  );
+
+  const resetCurrentConversation = () => {
+    stopListening();
+    if (speechSupported) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
+    if (replyAudioRef.current) {
+      replyAudioRef.current.pause();
+      replyAudioRef.current.src = '';
+      replyAudioRef.current = null;
+    }
+    setMessages([]);
+    setInput('');
+    setConversationId(null);
+    localSessionIdRef.current = `chat-${Date.now()}`;
+  };
+
   const handleSend = useCallback(async () => {
     const text = input.trim();
     if (!text || isProcessing) {
       return;
     }
+    stopListening();
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `${Date.now()}-user`,
-        role: 'user',
-        content: text,
-        timestamp: new Date(),
-      },
-    ]);
+    const userMessage: Message = {
+      id: `${Date.now()}-user`,
+      role: 'user',
+      content: text,
+      timestamp: new Date(),
+    };
+
+    setMessages((previous) => [...previous, userMessage]);
     pushHistory(text, text);
     setInput('');
     setIsProcessing(true);
 
     try {
-      const result = await sendAIMessage(text, conversationId);
-      if (result.conversation_id && !conversationId) {
+      const result = await sendAIMessage(text, conversationId, activeMode.temperature);
+      if (result.conversation_id) {
         setConversationId(result.conversation_id);
       }
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `${Date.now()}-assistant`,
-          role: 'assistant',
-          content: result.response || 'Я не смог сформировать ответ.',
-          timestamp: new Date(),
-        },
-      ]);
-      pushHistory(text, result.response || text);
+      const assistantMessage: Message = {
+        id: `${Date.now()}-assistant`,
+        role: 'assistant',
+        content: result.response || 'Не удалось сформировать ответ.',
+        timestamp: new Date(),
+      };
+
+      setMessages((previous) => [...previous, assistantMessage]);
+      pushHistory(text, assistantMessage.content);
+      if (autoSpeak) {
+        void speakReply(assistantMessage.content);
+      }
     } catch (error) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `${Date.now()}-error`,
-          role: 'assistant',
-          content: `Ошибка: ${error instanceof Error ? error.message : String(error)}`,
-          timestamp: new Date(),
-        },
-      ]);
-      pushHistory(text, `Ошибка: ${error instanceof Error ? error.message : String(error)}`);
+      const message = `Ошибка: ${error instanceof Error ? error.message : String(error)}`;
+      const failedMessage: Message = {
+        id: `${Date.now()}-error`,
+        role: 'assistant',
+        content: message,
+        timestamp: new Date(),
+      };
+      setMessages((previous) => [...previous, failedMessage]);
+      pushHistory(text, message);
     } finally {
       setIsProcessing(false);
+      composerRef.current?.focus();
     }
-  }, [conversationId, input, isProcessing, pushHistory]);
+  }, [activeMode.temperature, autoSpeak, conversationId, input, isProcessing, pushHistory, speakReply, stopListening]);
 
-  const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') {
+  const latestAssistantReply = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].role === 'assistant') {
+        return messages[i].content;
+      }
+    }
+    return '';
+  }, [messages]);
+
+  useEffect(() => {
+    if (!isListening || isProcessing) {
+      return;
+    }
+    stopListening();
+  }, [isListening, isProcessing, stopListening]);
+
+  const handleInputKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      handleSend();
+      void handleSend();
     }
   };
 
   return (
-    <div className="grok-chat-root">
-      <header className="grok-chat-head">
-        <div className="grok-chat-title">Kolibri AI · Чат</div>
-        <div className="grok-chat-head-actions">
-          <button type="button" className="head-icon" aria-label="Меню">
-            <Ellipsis size={16} />
+    <div className="gx-chat-root">
+      <header className="gx-chat-header">
+        <div className="gx-chat-header-main">
+          <h1>Kolibri AI</h1>
+          <p>Основной чатовый режим Colibri AI</p>
+          <div className="gx-chat-mode-row" role="tablist" aria-label="Режим ответа">
+            {CHAT_MODES.map((mode) => (
+              <button
+                key={mode.id}
+                type="button"
+                role="tab"
+                className={`gx-chat-mode-chip ${chatMode === mode.id ? 'is-active' : ''}`}
+                aria-selected={chatMode === mode.id}
+                onClick={() => setChatMode(mode.id)}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="gx-chat-header-actions">
+          <button type="button" className="gx-chat-head-btn" onClick={resetCurrentConversation}>
+            <RotateCcw size={14} />
+            <span>Очистить</span>
           </button>
-          <button type="button" className="share-btn">
-            Поделиться
+          <button
+            type="button"
+            className={`gx-chat-head-btn is-accent ${isListening ? 'is-listening' : ''}`}
+            onClick={handleVoiceToggle}
+            disabled={!voiceSupported}
+            aria-label={isListening ? 'Остановить голосовой ввод' : 'Запустить голосовой ввод'}
+          >
+            {isListening ? <Loader2 size={14} className="gx-spin" /> : <Mic size={14} />}
+            <span>{isListening ? 'Стоп' : 'Голос'}</span>
+          </button>
+          <button
+            type="button"
+            className={`gx-chat-head-btn ${autoSpeak ? 'is-accent' : ''}`}
+            onClick={() => setAutoSpeak((v) => !v)}
+            disabled={!audioReplySupported}
+            aria-label={autoSpeak ? 'Отключить автоозвучку' : 'Включить автоозвучку'}
+          >
+            {autoSpeak ? <Volume2 size={14} /> : <VolumeX size={14} />}
+            <span>{autoSpeak ? 'Озвучка ON' : 'Озвучка OFF'}</span>
           </button>
         </div>
       </header>
-      <div className="grok-status-line">Ara слушает...</div>
 
-      <div className="grok-chat-scroll" role="log" aria-live="polite">
-        <div className="grok-thread">
+      <div className="gx-chat-statusbar" aria-live="polite">
+        <span className={`gx-status-dot ${isProcessing || isListening ? 'is-live' : ''}`} aria-hidden="true" />
+        <span>{statusLabel}</span>
+        <span className="gx-status-separator" aria-hidden="true">
+          ·
+        </span>
+        <span>{activeMode.label}</span>
+        <span className="gx-status-separator" aria-hidden="true">
+          ·
+        </span>
+        <span>{conversationLabel}</span>
+        <span className="gx-status-separator" aria-hidden="true">
+          ·
+        </span>
+        <span>{totalMessages} сообщений</span>
+      </div>
+
+      <section className="gx-chat-feed" role="log" aria-live="polite">
+        <div className="gx-chat-thread">
+          {voiceError && (
+            <div className="gx-voice-error" role="status">
+              {voiceError}
+            </div>
+          )}
+
           {messages.length === 0 && !isProcessing && (
-            <div className="assistant-intro">
-              <p>Добро пожаловать в Kolibri AI Beta.</p>
-              <p>Доступны: чат, AI агент, архиватор, терминал, знания.</p>
-              <div className="starter-prompts">
-                {STARTER_PROMPTS.map((prompt) => (
-                  <button key={prompt} type="button" className="starter-prompt" onClick={() => setInput(prompt)}>
+            <div className="gx-empty-state">
+              <div className="gx-empty-badge">
+                <Sparkles size={16} />
+                <span>Ready</span>
+              </div>
+              <h2>Чем помочь в этом чате?</h2>
+              <p>Задайте вопрос, продиктуйте голосом или дайте ссылку для быстрого обучения модели.</p>
+              <div className="gx-prompt-grid">
+                {STARTER_PROMPTS.map((prompt, index) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    className="gx-prompt-card"
+                    onClick={() => {
+                      setInput(prompt);
+                      window.requestAnimationFrame(() => composerRef.current?.focus());
+                    }}
+                    style={{ animationDelay: `${index * 70}ms` }}
+                  >
                     {prompt}
                   </button>
                 ))}
@@ -311,414 +792,117 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
             </div>
           )}
 
-          {messages.map((message) => (
-            <div key={message.id} className={`thread-row ${message.role}`}>
-              {message.role === 'assistant' && (
-                <div className="thread-avatar">
-                  <Bot size={14} />
+          {messages.map((message) => {
+            const isAssistant = message.role === 'assistant';
+
+            return (
+              <article key={message.id} className={`gx-message-row ${isAssistant ? 'is-assistant' : 'is-user'}`}>
+                {isAssistant && (
+                  <div className="gx-message-avatar" aria-hidden="true">
+                    <Bot size={14} />
+                  </div>
+                )}
+
+                <div className={`gx-message-bubble ${isAssistant ? 'is-assistant' : 'is-user'}`}>
+                  <div className="gx-message-meta">
+                    <span>{isAssistant ? 'Kolibri Assistant' : 'Вы'}</span>
+                    <time>{formatMessageTime(message.timestamp)}</time>
+                  </div>
+
+                  {isAssistant ? (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                  ) : (
+                    <p>{message.content}</p>
+                  )}
+
+                  {isAssistant && (
+                    <button
+                      type="button"
+                      className="gx-copy-btn"
+                      onClick={() => void handleCopyMessage(message.id, message.content)}
+                    >
+                      {copiedMessageId === message.id ? <Check size={12} /> : <Copy size={12} />}
+                      <span>{copiedMessageId === message.id ? 'Скопировано' : 'Копировать'}</span>
+                    </button>
+                  )}
                 </div>
-              )}
-              <div className={`thread-bubble ${message.role}`}>{message.content}</div>
-            </div>
-          ))}
+              </article>
+            );
+          })}
 
           {isProcessing && (
-            <div className="thread-row assistant">
-              <div className="thread-avatar">
+            <article className="gx-message-row is-assistant is-loading">
+              <div className="gx-message-avatar" aria-hidden="true">
                 <Bot size={14} />
               </div>
-              <div className="thread-bubble assistant loading">
-                <Loader2 size={14} className="spin" />
-                <span>Ara формирует ответ...</span>
+              <div className="gx-message-bubble is-assistant">
+                <div className="gx-message-meta">
+                  <span>Kolibri Assistant</span>
+                  <time>сейчас</time>
+                </div>
+                <div className="gx-loading-line">
+                  <Loader2 size={14} className="gx-spin" />
+                  <span>Формирую ответ...</span>
+                </div>
               </div>
-            </div>
+            </article>
           )}
 
           <div ref={endRef} />
         </div>
-      </div>
+      </section>
 
-      <div className="composer-wrap">
-        <div className="composer-card">
-          <input
-            type="text"
-            className="composer-input"
+      <footer className="gx-composer-wrap">
+        <div className="gx-composer-card">
+          <textarea
+            ref={composerRef}
+            className="gx-composer-input"
             value={input}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={handleInputKeyDown}
-            placeholder="Как Ara может помочь?"
+            placeholder="Напишите сообщение для Kolibri Assistant"
             disabled={isProcessing}
+            rows={1}
           />
-          <div className="composer-controls">
-            <button type="button" className="chip icon" aria-label="Режимы">
-              <Sparkles size={15} />
-            </button>
-            <button type="button" className={`chip icon ${micPulse ? 'pulse' : ''}`} onClick={triggerMicPulse} aria-label="Микрофон">
-              <Mic size={15} />
-            </button>
-            <button type="button" className="chip icon" aria-label="Аудио">
-              <Volume2 size={15} />
-            </button>
-            <button type="button" className="chip assistant-chip">
-              Ara · Assistant
-            </button>
+
+          <div className="gx-composer-footer">
+            <div className="gx-composer-tools">
+              <button
+                type="button"
+                className={`gx-tool-btn ${micPulse ? 'is-pulse' : ''}`}
+                onClick={handleVoiceToggle}
+                disabled={!voiceSupported || isProcessing}
+                aria-label={isListening ? 'Остановить голосовой ввод' : 'Голосовой ввод'}
+              >
+                {isListening ? <Loader2 size={15} className="gx-spin" /> : <Mic size={15} />}
+              </button>
+              <button
+                type="button"
+                className="gx-tool-btn"
+                aria-label="Озвучить последний ответ"
+                disabled={!audioReplySupported || !latestAssistantReply || isSpeaking}
+                onClick={() => void speakReply(latestAssistantReply)}
+              >
+                {isSpeaking ? <Loader2 size={15} className="gx-spin" /> : <Volume2 size={15} />}
+              </button>
+            </div>
+
             <button
               type="button"
-              className={`send-btn ${canSend ? 'active' : ''}`}
-              onClick={canSend ? handleSend : triggerMicPulse}
-              aria-label={canSend ? 'Отправить' : 'Голос'}
+              className={`gx-send-btn ${canSend ? 'is-active' : ''}`}
+              onClick={canSend ? () => void handleSend() : handleVoiceToggle}
+              aria-label={canSend ? 'Отправить сообщение' : isListening ? 'Остановить голосовой ввод' : 'Голосовой режим'}
             >
-              {canSend ? <ArrowRight size={16} /> : <Mic size={16} />}
+              {isProcessing ? <Loader2 size={15} className="gx-spin" /> : <ArrowUp size={15} />}
             </button>
           </div>
         </div>
-        {conversationId && <div className="conversation-id">Диалог: {conversationId.slice(0, 8)}</div>}
-      </div>
 
-      <style>{`
-        .grok-chat-root {
-          position: relative;
-          display: flex;
-          flex-direction: column;
-          width: 100%;
-          height: 100%;
-          background: var(--bg-primary);
-          color: var(--text-primary);
-          overflow: hidden;
-        }
-
-        .grok-chat-head {
-          height: 50px;
-          min-height: 50px;
-          border-bottom: 1px solid var(--border-primary);
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          padding: 0 18px;
-        }
-
-        .grok-chat-title {
-          color: var(--text-primary);
-          font-size: 14px;
-          font-weight: 600;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .grok-status-line {
-          min-height: 26px;
-          display: inline-flex;
-          align-items: center;
-          padding: 0 18px;
-          font-size: 12px;
-          font-weight: 500;
-          color: var(--accent-primary);
-          opacity: 0.8;
-          border-bottom: 1px solid var(--border-primary);
-        }
-
-        .grok-chat-head-actions {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .head-icon {
-          width: 34px;
-          height: 34px;
-          border-radius: 999px;
-          border: 1px solid var(--border-primary);
-          background: var(--bg-overlay);
-          color: var(--text-muted);
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-        }
-
-        .head-icon:hover {
-          border-color: var(--border-hover);
-          color: var(--text-primary);
-        }
-
-        .share-btn {
-          min-height: 34px;
-          border: 1px solid var(--border-primary);
-          border-radius: 999px;
-          background: var(--bg-overlay);
-          color: var(--text-secondary);
-          font-size: 13px;
-          font-weight: 500;
-          padding: 0 14px;
-          cursor: pointer;
-        }
-
-        .share-btn:hover {
-          border-color: var(--border-hover);
-          color: var(--text-primary);
-        }
-
-        .grok-chat-scroll {
-          flex: 1;
-          overflow-y: auto;
-          padding: 20px 24px 182px;
-        }
-
-        .grok-thread {
-          max-width: 760px;
-          margin: 0 auto;
-          display: flex;
-          flex-direction: column;
-          gap: 14px;
-        }
-
-        .assistant-intro {
-          color: var(--text-secondary);
-          line-height: 1.5;
-          font-size: 15px;
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          margin-top: 8px;
-        }
-
-        .assistant-intro p {
-          margin: 0;
-        }
-
-        .starter-prompts {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          margin-top: 6px;
-        }
-
-        .starter-prompt {
-          border: 1px solid var(--border-primary);
-          background: var(--bg-overlay);
-          color: var(--text-secondary);
-          border-radius: 999px;
-          padding: 8px 12px;
-          font-size: 13px;
-          cursor: pointer;
-        }
-
-        .starter-prompt:hover {
-          background: var(--bg-hover);
-          color: var(--text-primary);
-          border-color: var(--border-hover);
-        }
-
-        .thread-row {
-          display: flex;
-          align-items: flex-start;
-          gap: 8px;
-          width: 100%;
-        }
-
-        .thread-row.user {
-          justify-content: flex-end;
-        }
-
-        .thread-avatar {
-          width: 24px;
-          height: 24px;
-          border-radius: 999px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          color: var(--accent-primary);
-          background: var(--accent-bg);
-          border: 1px solid var(--border-accent);
-          flex-shrink: 0;
-          margin-top: 2px;
-        }
-
-        .thread-bubble {
-          max-width: min(76%, 720px);
-          font-size: 15px;
-          line-height: 1.5;
-          white-space: pre-wrap;
-          word-break: break-word;
-          border: 1px solid var(--border-primary);
-          padding: 10px 13px;
-        }
-
-        .thread-bubble.user {
-          background: var(--bg-tertiary);
-          color: var(--text-primary);
-          border-radius: 14px 6px 6px 14px;
-        }
-
-        .thread-bubble.assistant {
-          background: var(--bg-card);
-          color: var(--text-secondary);
-          border-radius: 6px 14px 14px 6px;
-        }
-
-        .thread-bubble.loading {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          color: var(--text-secondary);
-        }
-
-        .spin {
-          animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-          to {
-            transform: rotate(360deg);
-          }
-        }
-
-        .composer-wrap {
-          position: absolute;
-          left: 50%;
-          transform: translateX(-50%);
-          bottom: 18px;
-          width: min(760px, calc(100% - 44px));
-          z-index: 3;
-        }
-
-        .composer-card {
-          border-radius: 12px;
-          border: 1px solid var(--border-primary);
-          background: var(--bg-overlay);
-          backdrop-filter: blur(8px);
-          padding: 10px;
-        }
-
-        .composer-input {
-          width: 100%;
-          border: none;
-          background: transparent;
-          color: var(--text-primary);
-          font-size: 15px;
-          outline: none;
-          padding: 0 6px;
-          min-height: 40px;
-        }
-
-        .composer-input::placeholder {
-          color: var(--text-muted);
-        }
-
-        .composer-controls {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          margin-top: 10px;
-        }
-
-        .chip {
-          border: 1px solid var(--border-primary);
-          background: var(--bg-input);
-          color: var(--text-secondary);
-          border-radius: 999px;
-          min-height: 34px;
-          padding: 0 12px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          font-size: 13px;
-        }
-
-        .chip.icon {
-          width: 34px;
-          min-width: 34px;
-          padding: 0;
-        }
-
-        .chip.pulse {
-          animation: pulse 0.9s ease-out;
-        }
-
-        @keyframes pulse {
-          0% {
-            transform: scale(1);
-          }
-          45% {
-            transform: scale(1.08);
-          }
-          100% {
-            transform: scale(1);
-          }
-        }
-
-        .assistant-chip {
-          margin-left: 2px;
-          color: var(--text-secondary);
-        }
-
-        .send-btn {
-          margin-left: auto;
-          width: 36px;
-          height: 36px;
-          border-radius: 8px;
-          border: 1px solid var(--border-primary);
-          background: var(--bg-input);
-          color: var(--text-muted);
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-        }
-
-        .send-btn.active {
-          border-color: var(--border-accent);
-          background: var(--accent-bg);
-          color: var(--accent-primary);
-        }
-
-        .conversation-id {
-          color: var(--text-dimmed);
-          font-size: 11px;
-          margin-top: 6px;
-          text-align: right;
-          padding: 0 4px;
-        }
-
-        @media (max-width: 760px) {
-          .grok-chat-head {
-            padding: 0 12px;
-          }
-
-          .grok-chat-title {
-            font-size: 14px;
-          }
-
-          .grok-chat-scroll {
-            padding: 14px 12px 174px;
-          }
-
-          .thread-bubble {
-            max-width: 92%;
-            font-size: 14px;
-          }
-
-          .composer-wrap {
-            width: calc(100% - 20px);
-            bottom: 10px;
-          }
-
-          .composer-card {
-            border-radius: 16px;
-          }
-
-          .composer-input {
-            font-size: 16px;
-          }
-
-          .share-btn {
-            display: none;
-          }
-        }
-      `}</style>
+        <p className="gx-composer-hint">
+          Enter — отправить, Shift+Enter — новая строка · Режим: {activeMode.label}
+          {conversationId ? ` · Диалог: ${conversationId.slice(0, 8)}` : ''}
+        </p>
+      </footer>
     </div>
   );
 };
