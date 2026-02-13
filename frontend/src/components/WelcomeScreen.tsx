@@ -11,10 +11,10 @@ import SuggestionCard from "./SuggestionCard";
 const suggestionItems = [
   { icon: Rocket, title: "Написать черновик", prompt: "Помоги мне написать текст..." },
   { icon: Compass, title: "Создать план", prompt: "Составь подробный план по теме..." },
-  { icon: BookOpenText, title: "Узнать что-нибудь новое", prompt: "Что нового в мире Kolibri?" },
+  { icon: BookOpenText, title: "Узнать что-нибудь новое", prompt: "Что нового в мире Колибри?" },
   { icon: BrainCircuit, title: "Провести мозговой штурм", prompt: "Проведи мозговой штурм идей для..." },
-  { icon: Lightbulb, title: "Получить совет", prompt: "Дай совет по улучшению проекта Kolibri." },
-  { icon: Wand2, title: "Практиковаться в языке", prompt: "Давай потренируем язык KolibriScript." },
+  { icon: Lightbulb, title: "Получить совет", prompt: "Дай совет по улучшению проекта Колибри." },
+  { icon: Wand2, title: "Практиковаться в языке", prompt: "Давай потренируем язык КолибриScript." },
 ] as const;
 
 interface WelcomeScreenProps {

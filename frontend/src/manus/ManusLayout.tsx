@@ -3,7 +3,7 @@
  *
  * Unified application shell.
  * Desktop: classic sidebar + content.
- * Mobile: Grok-like top bar + full-screen drawer.
+ * Mobile: compact top bar + full-screen drawer.
  */
 
 import { ReactNode, useEffect, useMemo, useState } from 'react';
@@ -24,9 +24,8 @@ import {
   Settings,
   Terminal as TerminalIcon,
   User,
-  X,
-  Zap,
 } from 'lucide-react';
+import { KolibriBrandMark } from './components/KolibriBrandMark';
 
 export type TabId =
   | 'chat'
@@ -174,12 +173,12 @@ export const ManusLayout = ({
             <div className="gx-brand-row">
               <button type="button" className="gx-brand" onClick={() => handleTabChange('chat')}>
                 <span className="gx-brand-badge" aria-hidden="true">
-                  <Zap size={14} />
+                  <KolibriBrandMark size={18} />
                 </span>
                 {showExpandedSidebar && (
                   <span className="gx-brand-label-wrap">
-                    <span className="gx-brand-title">Kolibri</span>
-                    <span className="gx-brand-subtitle">Assistant Workspace</span>
+                    <span className="gx-brand-title">Колибри</span>
+                    <span className="gx-brand-subtitle">AI Workspace</span>
                   </span>
                 )}
               </button>
@@ -305,7 +304,7 @@ export const ManusLayout = ({
             </div>
 
             <div className="gx-mobile-conversations-head">
-              <span>Conversations</span>
+              <span>Разговоры</span>
               <ChevronDown size={20} />
             </div>
 

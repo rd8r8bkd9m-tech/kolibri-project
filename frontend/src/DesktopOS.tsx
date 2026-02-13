@@ -27,7 +27,7 @@ const TopBar = () => {
     <div className="h-7 bg-black/80 text-white flex items-center justify-between px-4 text-sm font-medium backdrop-blur-md select-none sticky top-0 z-50">
       <div className="flex items-center gap-4">
         <span className="font-bold">Activities</span>
-        <span className="text-gray-400 hover:text-white cursor-pointer transition-colors">Kolibri OS</span>
+        <span className="text-gray-400 hover:text-white cursor-pointer transition-colors">Колибри OS</span>
       </div>
       <div className="absolute left-1/2 -translate-x-1/2">
         {time.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -125,7 +125,7 @@ const API_URL = "";
 
 const TerminalApp = () => {
   const [lines, setLines] = useState<string[]>([
-    "Booting Kolibri/Ubuntu Interface...",
+    "Booting Колибри/Ubuntu Interface...",
     "Connecting to local kernel bridge (localhost:3000)...",
     "-----------------------------------------------------"
   ]);

@@ -257,20 +257,22 @@ export const TasksTab = ({ onClose }: TasksTabProps) => {
         .kol-task-page {
           height: 100%;
           overflow: auto;
+          overflow-x: hidden;
           padding: 18px 14px calc(24px + env(safe-area-inset-bottom));
-          background: #000;
-          color: #fff;
+          background: var(--bg-primary);
+          color: var(--text-primary);
         }
 
         .kol-task-sheet {
           min-height: calc(100% - 2px);
-          background: linear-gradient(180deg, #06070a 0%, #0a0c10 100%);
+          background: var(--bg-secondary);
           border-radius: 34px;
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          border: 1px solid var(--border-primary);
           padding: 16px 16px 26px;
           display: flex;
           flex-direction: column;
           position: relative;
+          max-width: 100%;
         }
 
         .kol-task-header {
@@ -299,9 +301,9 @@ export const TasksTab = ({ onClose }: TasksTabProps) => {
           width: 84px;
           height: 84px;
           border-radius: 999px;
-          border: 2px solid rgba(255, 255, 255, 0.78);
-          background: rgba(255, 255, 255, 0.02);
-          color: #fff;
+          border: 2px solid var(--border-primary);
+          background: var(--bg-tertiary);
+          color: var(--text-primary);
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -321,11 +323,11 @@ export const TasksTab = ({ onClose }: TasksTabProps) => {
           height: 126px;
           border-radius: 50%;
           margin: 0 auto;
-          background: rgba(255, 255, 255, 0.08);
+          background: var(--bg-tertiary);
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          color: rgba(255, 255, 255, 0.9);
+          color: var(--text-primary);
         }
 
         .kol-task-empty h2 {
@@ -340,14 +342,14 @@ export const TasksTab = ({ onClose }: TasksTabProps) => {
           max-width: 680px;
           font-size: 48px;
           line-height: 1.24;
-          color: rgba(255, 255, 255, 0.7);
+          color: var(--text-muted);
         }
 
         .kol-task-outline-btn {
           margin: 12px auto 0;
-          border: 2px solid rgba(255, 255, 255, 0.82);
-          background: rgba(255, 255, 255, 0.02);
-          color: #fff;
+          border: 2px solid var(--border-primary);
+          background: var(--bg-tertiary);
+          color: var(--text-primary);
           height: 112px;
           border-radius: 56px;
           padding: 0 44px;
@@ -365,12 +367,12 @@ export const TasksTab = ({ onClose }: TasksTabProps) => {
 
         .kol-task-create-link {
           justify-self: flex-end;
-          border: 1px solid rgba(255, 255, 255, 0.65);
+          border: 1px solid var(--border-primary);
           border-radius: 999px;
           min-height: 56px;
           padding: 0 24px;
           font-size: 24px;
-          color: #fff;
+          color: var(--text-primary);
           background: transparent;
         }
 
@@ -381,7 +383,8 @@ export const TasksTab = ({ onClose }: TasksTabProps) => {
 
         .kol-task-row {
           border-radius: 20px;
-          background: rgba(255, 255, 255, 0.08);
+          background: var(--bg-card);
+          border: 1px solid var(--border-primary);
           padding: 18px;
           display: flex;
           justify-content: space-between;
@@ -397,7 +400,7 @@ export const TasksTab = ({ onClose }: TasksTabProps) => {
         .kol-task-row p {
           margin: 6px 0 0;
           font-size: 16px;
-          color: rgba(255, 255, 255, 0.68);
+          color: var(--text-muted);
           line-height: 1.35;
         }
 
@@ -406,7 +409,7 @@ export const TasksTab = ({ onClose }: TasksTabProps) => {
           display: grid;
           gap: 5px;
           font-size: 14px;
-          color: rgba(255, 255, 255, 0.68);
+          color: var(--text-muted);
         }
 
         .kol-task-header.is-create {
@@ -415,12 +418,12 @@ export const TasksTab = ({ onClose }: TasksTabProps) => {
 
         .kol-task-create-top {
           justify-self: end;
-          border: 2px solid rgba(255, 255, 255, 0.7);
+          border: 2px solid var(--border-primary);
           min-height: 84px;
           padding: 0 26px;
           border-radius: 999px;
           background: transparent;
-          color: #fff;
+          color: var(--text-primary);
           font-size: 56px;
           font-weight: 700;
         }
@@ -441,9 +444,9 @@ export const TasksTab = ({ onClose }: TasksTabProps) => {
         .kol-task-time-wrap {
           width: 100%;
           border-radius: 28px;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          background: rgba(255, 255, 255, 0.1);
-          color: #fff;
+          border: 1px solid var(--border-primary);
+          background: var(--bg-input);
+          color: var(--text-primary);
         }
 
         .kol-task-input-wrap input {
@@ -455,13 +458,13 @@ export const TasksTab = ({ onClose }: TasksTabProps) => {
 
         .kol-task-input-wrap input::placeholder,
         .kol-task-block textarea::placeholder {
-          color: rgba(255, 255, 255, 0.5);
+          color: var(--text-dimmed);
         }
 
         .kol-task-block {
           border-radius: 34px;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid var(--border-primary);
+          background: var(--bg-card);
           padding: 20px 22px;
           display: grid;
           gap: 16px;
@@ -470,7 +473,7 @@ export const TasksTab = ({ onClose }: TasksTabProps) => {
         .kol-task-block h3 {
           margin: 0;
           font-size: 56px;
-          color: rgba(255, 255, 255, 0.72);
+          color: var(--text-muted);
           letter-spacing: -0.01em;
         }
 
@@ -488,11 +491,12 @@ export const TasksTab = ({ onClose }: TasksTabProps) => {
           min-width: 0;
           flex: 1;
           line-height: 1.12;
+          overflow-wrap: anywhere;
         }
 
         .kol-task-divider {
           height: 1px;
-          background: rgba(255, 255, 255, 0.16);
+          background: var(--border-primary);
         }
 
         .kol-task-select-wrap,
@@ -512,7 +516,7 @@ export const TasksTab = ({ onClose }: TasksTabProps) => {
           border: 0;
           outline: 0;
           background: transparent;
-          color: #fff;
+          color: var(--text-primary);
           font-size: 60px;
           font-weight: 700;
           text-align: center;
@@ -536,7 +540,7 @@ export const TasksTab = ({ onClose }: TasksTabProps) => {
           height: 74px;
           border-radius: 999px;
           border: 0;
-          background: rgba(255, 255, 255, 0.22);
+          background: var(--bg-hover);
           padding: 7px;
           display: inline-flex;
           justify-content: flex-start;
@@ -567,20 +571,20 @@ export const TasksTab = ({ onClose }: TasksTabProps) => {
           width: min(360px, calc(100% - 40px));
           min-height: 78px;
           border-radius: 999px;
-          border: 2px solid rgba(255, 255, 255, 0.65);
-          background: #030509;
+          border: 2px solid var(--border-primary);
+          background: var(--bg-overlay);
           display: inline-flex;
           align-items: center;
           justify-content: center;
           gap: 14px;
-          color: #fff;
+          color: var(--text-primary);
         }
 
         .kol-task-counter-dot {
           width: 40px;
           height: 40px;
           border-radius: 50%;
-          border: 2px solid rgba(255, 255, 255, 0.38);
+          border: 2px solid var(--border-primary);
         }
 
         .kol-task-counter div {
@@ -596,7 +600,7 @@ export const TasksTab = ({ onClose }: TasksTabProps) => {
 
         .kol-task-counter span {
           font-size: 42px;
-          color: rgba(255, 255, 255, 0.72);
+          color: var(--text-muted);
         }
 
         @media (max-width: 900px) {
@@ -702,7 +706,7 @@ export const TasksTab = ({ onClose }: TasksTabProps) => {
             border-radius: 24px;
             max-width: 920px;
             margin: 0 auto;
-            background: rgba(9, 11, 15, 0.96);
+            background: var(--bg-secondary);
             padding: 18px 20px 22px;
           }
 

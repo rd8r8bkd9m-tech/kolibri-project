@@ -1,6 +1,6 @@
 {
-  "name": "Kolibri AI Workspace",
-  "short_name": "Kolibri",
+  "name": "Колибри AI Workspace",
+  "short_name": "Колибри",
   "description": "Мобильное AI workspace приложение с голосом и агентами.",
   "start_url": "/?app=1",
   "scope": "/",

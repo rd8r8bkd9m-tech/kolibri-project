@@ -71,7 +71,7 @@ export const TerminalTab = () => {
       setHistory(prev => [...prev, {
         id: Date.now().toString(),
         command,
-        output: `Kolibri Terminal — реальное выполнение команд\n\nДоступные команды:\n  ls, cat, head, tail, wc, du, df, free, uptime\n  whoami, hostname, date, pwd, echo, find, grep\n  file, stat, uname, env, which\n  ./build/* — бинарники проекта\n  cmake, ctest — сборка и тесты\n\nСпециальные:\n  clear — очистить терминал\n  help  — эта справка\n\n⚠️ Опасные команды (rm, dd, mkfs) заблокированы.`,
+        output: `Колибри Terminal — реальное выполнение команд\n\nДоступные команды:\n  ls, cat, head, tail, wc, du, df, free, uptime\n  whoami, hostname, date, pwd, echo, find, grep\n  file, stat, uname, env, which\n  ./build/* — бинарники проекта\n  cmake, ctest — сборка и тесты\n\nСпециальные:\n  clear — очистить терминал\n  help  — эта справка\n\n⚠️ Опасные команды (rm, dd, mkfs) заблокированы.`,
         status: 'success',
         duration_ms: 0,
         timestamp: new Date(),
@@ -195,7 +195,7 @@ export const TerminalTab = () => {
   ██║  ██╗╚██████╔╝███████╗██║██████╔╝██║  ██║██║
   ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝╚═════╝ ╚═╝  ╚═╝╚═╝`}</pre>
           <div className="welcome-text">
-            Kolibri OS Terminal — реальное выполнение команд
+            Колибри OS Terminal — реальное выполнение команд
             <br />
             Наберите <span className="hl">help</span> для списка команд · <span className="hl">↑↓</span> история
           </div>

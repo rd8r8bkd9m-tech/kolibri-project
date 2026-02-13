@@ -31,7 +31,7 @@ const Sidebar = () => (
     </div>
     <div className="mt-6 rounded-2xl border border-border-strong bg-background-card/80 p-4">
       <p className="text-sm font-semibold text-text-primary">Vladislav Kochurov</p>
-      <p className="mt-1 text-xs text-text-secondary">Kolibri может делать ошибки.</p>
+      <p className="mt-1 text-xs text-text-secondary">Колибри может делать ошибки.</p>
     </div>
   </div>
 );

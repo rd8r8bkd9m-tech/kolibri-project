@@ -1,7 +1,7 @@
 /**
  * ChatTab.tsx
  *
- * Main conversational surface with Grok/GPT-like structure:
+ * Main conversational surface with a GPT-style structure:
  * header, thread, sticky composer, and mobile-safe behavior.
  */
 
@@ -25,11 +25,11 @@ import {
   RotateCcw,
   Volume2,
   VolumeX,
-  Zap,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ChatHistoryItem } from '../ManusLayout';
+import { KolibriBrandMark } from '../components/KolibriBrandMark';
 
 interface Message {
   id: string;
@@ -84,9 +84,9 @@ const STARTER_PROMPTS = [
 type ChatModeId = 'smart' | 'deep' | 'creative';
 
 const CHAT_MODES: Array<{ id: ChatModeId; label: string; temperature: number }> = [
-  { id: 'smart', label: 'Smart', temperature: 0.62 },
-  { id: 'deep', label: 'Deep', temperature: 0.45 },
-  { id: 'creative', label: 'Creative', temperature: 0.9 },
+  { id: 'smart', label: 'Auto', temperature: 0.62 },
+  { id: 'deep', label: 'Глубоко', temperature: 0.45 },
+  { id: 'creative', label: 'Креатив', temperature: 0.9 },
 ];
 
 const FEEDBACK_EMOJIS = ['😡', '😔', '😐', '🙂', '😁'];
@@ -809,7 +809,7 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
     <div className="gx-chat-root">
       <header className="gx-chat-header">
         <div className="gx-chat-header-main">
-          <h1>Colibri AI</h1>
+          <h1>Колибри AI</h1>
           <p>{statusLabel}</p>
           <div className="gx-chat-mode-row" role="tablist" aria-label="Режим ответа">
             {CHAT_MODES.map((mode) => (
@@ -865,7 +865,7 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
           {messages.length === 0 && !isProcessing && (
             <div className="gx-chat-placeholder">
               <div className="gx-chat-logo" aria-hidden="true">
-                <Zap size={44} />
+                <KolibriBrandMark size={44} />
               </div>
               <div className="gx-empty-state-desktop">
                 <h2>Чем помочь в этом чате?</h2>
@@ -1028,7 +1028,7 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
             value={input}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={handleInputKeyDown}
-            placeholder="Напишите сообщение для Kolibri Assistant"
+            placeholder="Напишите сообщение для ассистента Колибри"
             disabled={isProcessing}
             rows={1}
           />

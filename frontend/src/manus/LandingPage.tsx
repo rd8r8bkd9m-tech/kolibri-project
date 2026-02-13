@@ -10,9 +10,9 @@ import {
   MessageSquare,
   Settings,
   ShieldCheck,
-  Sparkles,
   Terminal,
 } from "lucide-react";
+import { KolibriBrandMark } from "./components/KolibriBrandMark";
 
 interface LandingPageProps {
   onEnter: () => void;
@@ -47,10 +47,10 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
         <header className="landing-header">
           <div className="landing-logo-wrap">
             <div className="landing-logo-icon">
-              <Sparkles size={16} />
+              <KolibriBrandMark size={18} />
             </div>
             <div>
-              <p className="landing-logo-title">Kolibri AI</p>
+              <p className="landing-logo-title">Колибри AI</p>
               <p className="landing-logo-subtitle">Production Preview</p>
             </div>
           </div>
@@ -64,7 +64,7 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
           <section className="landing-hero">
             <p className="landing-kicker">Стартовая страница</p>
             <h1 className="landing-title">
-              Kolibri AI запущен в бета-режиме на домене{" "}
+              Колибри AI запущен в бета-режиме на домене{" "}
               <span>{PRIMARY_DOMAIN}</span>
             </h1>
             <p className="landing-description">
@@ -118,8 +118,8 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
             <div className="landing-preview">
               <aside className="landing-preview-sidebar">
                 <div className="landing-preview-brand">
-                  <div className="landing-preview-dot" />
-                  <span>Kolibri</span>
+                  <KolibriBrandMark size={14} className="landing-preview-mark" />
+                  <span>Колибри</span>
                 </div>
                 {PREVIEW_TABS.map((tab) => (
                   <div
@@ -142,7 +142,7 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
                 </div>
 
                 <div className="landing-preview-message system">
-                  Добро пожаловать в Kolibri AI Beta.
+                  Добро пожаловать в Колибри AI Beta.
                 </div>
                 <div className="landing-preview-message user">
                   Покажи статус системы и доступные модули.
@@ -224,8 +224,9 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
           display: flex;
           align-items: center;
           justify-content: center;
-          background: linear-gradient(135deg, #10b981, #0891b2);
-          color: #ffffff;
+          border: 1px solid var(--border-accent);
+          background: var(--accent-bg);
+          color: var(--text-primary);
         }
 
         .landing-logo-title {
@@ -249,9 +250,9 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
           border-radius: 999px;
           font-size: 12px;
           font-weight: 600;
-          color: #0f766e;
-          background: rgba(16, 185, 129, 0.14);
-          border: 1px solid rgba(16, 185, 129, 0.28);
+          color: var(--accent-primary);
+          background: var(--accent-bg);
+          border: 1px solid var(--border-accent);
         }
 
         .landing-main {
@@ -278,7 +279,7 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
           font-weight: 700;
           letter-spacing: 0.08em;
           text-transform: uppercase;
-          color: #0f766e;
+          color: var(--accent-primary);
         }
 
         .landing-title {
@@ -291,7 +292,7 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
         }
 
         .landing-title span {
-          color: #0f766e;
+          color: var(--accent-primary);
         }
 
         .landing-description {
@@ -325,15 +326,14 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
         }
 
         .landing-btn-primary {
-          background: #111827;
+          background: var(--accent-gradient);
           color: #f9fafb;
-          border-color: #111827;
+          border-color: transparent;
         }
 
         .landing-btn-primary:hover {
           transform: translateY(-1px);
-          background: #1f2937;
-          border-color: #1f2937;
+          filter: brightness(1.08);
         }
 
         .landing-btn-secondary {
@@ -425,11 +425,9 @@ export const LandingPage = ({ onEnter }: LandingPageProps) => {
           font-weight: 600;
         }
 
-        .landing-preview-dot {
-          width: 9px;
-          height: 9px;
-          border-radius: 50%;
-          background: #10b981;
+        .landing-preview-mark {
+          color: var(--accent-primary);
+          flex-shrink: 0;
         }
 
         .landing-preview-tab {

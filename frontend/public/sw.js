@@ -1,4 +1,4 @@
-const CACHE_VERSION = "kolibri-pwa-v1-20260212";
+const CACHE_VERSION = "kolibri-pwa-v2-20260213";
 const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/kolibri.svg", "/favicon.ico"];
 
 self.addEventListener("install", (event) => {
@@ -14,6 +14,12 @@ self.addEventListener("activate", (event) => {
       .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_VERSION).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("fetch", (event) => {

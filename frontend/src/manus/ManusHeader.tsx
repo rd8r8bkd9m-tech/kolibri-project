@@ -25,7 +25,7 @@ export const ManusHeader = ({ onToggleSidebar, onClearHistory }: ManusHeaderProp
         
         <div className="manus-logo">
           <Sparkles size={24} className="manus-logo-icon" />
-          <span className="manus-logo-text">Kolibri</span>
+          <span className="manus-logo-text">Колибри</span>
           <span className="manus-logo-badge">AI</span>
         </div>
       </div>

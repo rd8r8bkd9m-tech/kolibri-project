@@ -58,7 +58,7 @@ const TopBar = () => (
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-rose-500 to-orange-500 font-bold text-white shadow-lg shadow-orange-500/20">
             <span className="text-lg">K</span>
         </div>
-        <span className="font-bold text-white text-lg">Контент‑фабрика Kolibri</span>
+        <span className="font-bold text-white text-lg">Контент‑фабрика Колибри</span>
       </div>
     </div>
     <div className="flex items-center gap-4">

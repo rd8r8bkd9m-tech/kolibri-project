@@ -133,7 +133,7 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
           <h3>Подписка</h3>
           <div className="kol-settings-upgrade">
             <div className="kol-settings-upgrade-copy">
-              <strong>Попробуй SuperGrok бесплатно</strong>
+              <strong>Попробуй Колибри Pro бесплатно</strong>
               <span>Улучшить для увеличенные лимиты</span>
             </div>
             <button type="button">Попробовать</button>
@@ -149,7 +149,7 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
             </button>
             <div className="kol-settings-divider" />
             <button type="button" className="kol-settings-row">
-              <span><SlidersHorizontal size={26} /> Персонализировать Grok</span>
+              <span><SlidersHorizontal size={26} /> Персонализировать Колибри</span>
               <ChevronRight size={24} />
             </button>
             <div className="kol-settings-divider" />
@@ -417,19 +417,21 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
         .kol-settings-page {
           height: 100%;
           overflow: auto;
-          background: #000;
-          color: #fff;
+          overflow-x: hidden;
+          background: var(--bg-primary);
+          color: var(--text-primary);
           padding: 18px 14px calc(24px + env(safe-area-inset-bottom));
         }
 
         .kol-settings-sheet {
           min-height: calc(100% - 2px);
           border-radius: 34px;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          background: linear-gradient(180deg, #05070b 0%, #0a0c10 100%);
+          border: 1px solid var(--border-primary);
+          background: var(--bg-secondary);
           padding: 16px;
           display: grid;
           gap: 18px;
+          max-width: 100%;
         }
 
         .kol-settings-header {
@@ -455,9 +457,9 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
           width: clamp(64px, 18vw, 84px);
           height: clamp(64px, 18vw, 84px);
           border-radius: 999px;
-          border: 2px solid rgba(255, 255, 255, 0.74);
-          background: rgba(255, 255, 255, 0.02);
-          color: #fff;
+          border: 2px solid var(--border-primary);
+          background: var(--bg-tertiary);
+          color: var(--text-primary);
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -469,12 +471,12 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
         }
 
         .kol-settings-save {
-          border: 2px solid rgba(255, 255, 255, 0.7);
+          border: 2px solid var(--border-primary);
           border-radius: 999px;
           min-height: clamp(64px, 18vw, 84px);
           padding: 0 clamp(16px, 4vw, 24px);
           background: transparent;
-          color: #fff;
+          color: var(--text-primary);
           font-size: clamp(28px, 6.5vw, 54px);
           font-weight: 700;
         }
@@ -487,16 +489,16 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
         .kol-settings-section h3 {
           margin: 0;
           font-size: clamp(22px, 6vw, 50px);
-          color: rgba(255, 255, 255, 0.64);
+          color: var(--text-muted);
           letter-spacing: -0.01em;
         }
 
         .kol-settings-profile-card,
         .kol-settings-list-card {
           border-radius: 30px;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          background: rgba(255, 255, 255, 0.1);
-          color: #fff;
+          border: 1px solid var(--border-primary);
+          background: var(--bg-card);
+          color: var(--text-primary);
           width: 100%;
         }
 
@@ -513,12 +515,12 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
           width: clamp(74px, 20vw, 110px);
           height: clamp(74px, 20vw, 110px);
           border-radius: 50%;
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid var(--border-primary);
+          background: var(--bg-tertiary);
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          color: rgba(255, 255, 255, 0.86);
+          color: var(--text-secondary);
           flex-shrink: 0;
         }
 
@@ -542,7 +544,7 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
         .kol-settings-profile-info span {
           font-size: clamp(20px, 5vw, 44px);
           line-height: 1.2;
-          color: rgba(255, 255, 255, 0.55);
+          color: var(--text-muted);
           word-break: break-word;
         }
 
@@ -594,7 +596,7 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
           align-items: center;
           justify-content: space-between;
           gap: 16px;
-          color: #fff;
+          color: var(--text-primary);
           background: transparent;
           border: 0;
           text-align: left;
@@ -611,12 +613,12 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
         .kol-settings-row-value {
           font-size: clamp(24px, 6vw, 52px);
           font-weight: 600;
-          color: rgba(255, 255, 255, 0.56);
+          color: var(--text-muted);
         }
 
         .kol-settings-divider {
           height: 1px;
-          background: rgba(255, 255, 255, 0.14);
+          background: var(--border-primary);
           margin: 0 clamp(16px, 4vw, 28px);
         }
 
@@ -629,9 +631,9 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
         .kol-settings-theme-card {
           min-height: clamp(150px, 34vw, 230px);
           border-radius: 22px;
-          border: 1px solid rgba(255, 255, 255, 0.14);
-          background: rgba(0, 0, 0, 0.36);
-          color: rgba(255, 255, 255, 0.8);
+          border: 1px solid var(--border-primary);
+          background: var(--bg-tertiary);
+          color: var(--text-secondary);
           display: grid;
           place-items: center;
           gap: 10px;
@@ -644,9 +646,9 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
         }
 
         .kol-settings-theme-card.is-active {
-          background: rgba(255, 255, 255, 0.14);
-          color: #fff;
-          border-color: rgba(255, 255, 255, 0.22);
+          background: var(--accent-bg);
+          color: var(--text-primary);
+          border-color: var(--border-accent);
         }
 
         .kol-settings-font-card {
@@ -665,7 +667,7 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
 
         .kol-settings-font-range span {
           font-size: clamp(30px, 7vw, 56px);
-          color: rgba(255, 255, 255, 0.68);
+          color: var(--text-secondary);
           text-align: center;
         }
 
@@ -675,7 +677,7 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
 
         .kol-settings-font-range input {
           width: 100%;
-          accent-color: #fff;
+          accent-color: var(--accent-primary);
         }
 
         .kol-settings-font-preview {
@@ -688,7 +690,7 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
           width: fit-content;
           margin-left: auto;
           border-radius: 999px;
-          background: rgba(255, 255, 255, 0.18);
+          background: var(--bg-tertiary);
           padding: 10px 14px;
           font-size: clamp(20px, 4.8vw, 36px);
         }
@@ -701,11 +703,11 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
 
         .kol-settings-font-preview button {
           justify-self: center;
-          border: 2px solid rgba(255, 255, 255, 0.8);
+          border: 2px solid var(--border-primary);
           border-radius: 999px;
           min-height: 68px;
           padding: 0 24px;
-          color: #fff;
+          color: var(--text-primary);
           background: transparent;
           font-size: clamp(24px, 5.8vw, 42px);
           font-weight: 700;
@@ -738,7 +740,7 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
           margin: 0;
           font-size: clamp(24px, 6vw, 44px);
           line-height: 1.2;
-          color: rgba(255, 255, 255, 0.84);
+          color: var(--text-secondary);
         }
 
         .kol-settings-widget-dots {
@@ -751,11 +753,11 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
           width: 10px;
           height: 10px;
           border-radius: 50%;
-          background: rgba(255, 255, 255, 0.45);
+          background: var(--text-dimmed);
         }
 
         .kol-settings-widget-dots span.is-active {
-          background: #fff;
+          background: var(--text-primary);
           transform: scale(1.2);
         }
 
@@ -763,16 +765,16 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
           margin-top: 8px;
           text-align: center;
           font-size: clamp(16px, 4vw, 28px);
-          color: rgba(255, 255, 255, 0.42);
+          color: var(--text-dimmed);
         }
 
         .kol-settings-logout {
           width: 100%;
           min-height: 92px;
           border-radius: 26px;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          background: rgba(255, 255, 255, 0.08);
-          color: #ff5e7c;
+          border: 1px solid var(--border-primary);
+          background: var(--bg-card);
+          color: var(--error);
           font-size: clamp(28px, 6vw, 48px);
           font-weight: 700;
         }
@@ -784,11 +786,11 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
         }
 
         .kol-settings-edit-btn {
-          border: 2px solid rgba(255, 255, 255, 0.72);
+          border: 2px solid var(--border-primary);
           min-height: 74px;
           border-radius: 999px;
           padding: 0 22px;
-          color: #fff;
+          color: var(--text-primary);
           background: transparent;
           font-size: clamp(24px, 5.6vw, 42px);
           font-weight: 700;
@@ -798,7 +800,7 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
           width: 100%;
           border: 0;
           background: transparent;
-          color: #fff;
+          color: var(--text-primary);
           font-size: clamp(30px, 7vw, 56px);
           padding: 16px clamp(16px, 4vw, 28px);
           outline: none;
@@ -808,8 +810,8 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
           min-width: clamp(124px, 30vw, 220px);
           height: clamp(56px, 15vw, 86px);
           border-radius: 999px;
-          border: 1px solid rgba(255, 255, 255, 0.14);
-          background: rgba(255, 255, 255, 0.18);
+          border: 1px solid var(--border-primary);
+          background: var(--bg-tertiary);
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -820,7 +822,7 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
           border: 0;
           outline: 0;
           background: transparent;
-          color: #fff;
+          color: var(--text-primary);
           font-size: clamp(24px, 6vw, 46px);
           font-weight: 600;
         }
@@ -832,7 +834,7 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
         .kol-settings-apple-note {
           margin: 2px 8px 0;
           font-size: clamp(20px, 4.8vw, 38px);
-          color: rgba(255, 255, 255, 0.56);
+          color: var(--text-muted);
         }
 
         @media (max-width: 900px) {
@@ -1005,7 +1007,7 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
             border-radius: 24px;
             padding: 18px;
             gap: 14px;
-            background: rgba(9, 11, 15, 0.96);
+            background: var(--bg-secondary);
           }
 
           .kol-settings-header {

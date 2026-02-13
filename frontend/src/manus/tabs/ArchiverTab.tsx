@@ -374,7 +374,7 @@ export const ArchiverTab = () => {
           <Archive size={20} />
         </div>
         <div>
-          <h2>Calibre Архиватор</h2>
+          <h2>Колибри Архиватор</h2>
           <span style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>
             Предиктивное сжатие на основе формул
           </span>
@@ -549,7 +549,7 @@ export const ArchiverTab = () => {
 
       {/* Информация */}
       <div className="archiver-info">
-        <p><strong>Calibre Predictive Compression (KPC)</strong></p>
+        <p><strong>Колибри Predictive Compression (KPC)</strong></p>
         <p>
           Предиктивное сжатие использует эволюционирующие MLP-формулы для предсказания 
           следующего байта. Арифметическое кодирование конвертирует предсказания в компактный 

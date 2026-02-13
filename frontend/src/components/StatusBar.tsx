@@ -12,7 +12,7 @@ const StatusBar = ({ status, error, isLoading = false, onRefresh }: StatusBarPro
   <header className="flex flex-col gap-4 rounded-3xl border border-border-strong bg-background-card/70 p-6 backdrop-blur">
     <div className="flex items-center justify-between">
       <div>
-        <p className="text-xs uppercase tracking-widest text-text-secondary">Цифровой геном Kolibri</p>
+        <p className="text-xs uppercase tracking-widest text-text-secondary">Цифровой геном Колибри</p>
         <h2 className="mt-1 text-2xl font-semibold text-text-primary">Живая память знаний</h2>
       </div>
       <button

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MockInstance } from 'vitest';
 import App from './App';
 
-describe('Kolibri Manus UI', () => {
+describe('Колибри Manus UI', () => {
   let consoleErrorSpy: MockInstance<Parameters<typeof console.error>, ReturnType<typeof console.error>>;
   let fetchSpy: MockInstance;
 
@@ -38,7 +38,7 @@ describe('Kolibri Manus UI', () => {
       render(<App />);
     });
 
-    expect(screen.getByText('Kolibri')).toBeInTheDocument();
+    expect(screen.getByText('Колибри')).toBeInTheDocument();
     expect(screen.getByText('Чаты')).toBeInTheDocument();
     expect(screen.getByText('AI Агент')).toBeInTheDocument();
     expect(screen.getByText('Задачи')).toBeInTheDocument();
@@ -61,7 +61,7 @@ describe('Kolibri Manus UI', () => {
       render(<App />);
     });
 
-    const textarea = screen.getByPlaceholderText(/Напишите сообщение для Kolibri Assistant/i);
+    const textarea = screen.getByPlaceholderText(/Напишите сообщение для ассистента Колибри/i);
     expect(textarea).toBeInTheDocument();
   });
 
@@ -70,7 +70,7 @@ describe('Kolibri Manus UI', () => {
       render(<App />);
     });
 
-    const textarea = screen.getByPlaceholderText(/Напишите сообщение для Kolibri Assistant/i);
+    const textarea = screen.getByPlaceholderText(/Напишите сообщение для ассистента Колибри/i);
     await userEvent.type(textarea, 'Привет');
     expect(textarea).toHaveValue('Привет');
   });
@@ -80,7 +80,7 @@ describe('Kolibri Manus UI', () => {
       render(<App />);
     });
 
-    const textarea = screen.getByPlaceholderText(/Напишите сообщение для Kolibri Assistant/i);
+    const textarea = screen.getByPlaceholderText(/Напишите сообщение для ассистента Колибри/i);
     await userEvent.type(textarea, 'Привет');
 
     const sendButton = screen.getByRole('button', { name: /Отправить сообщение/i });
@@ -99,7 +99,7 @@ describe('Kolibri Manus UI', () => {
     const suggestion = screen.getByText('Сделай быстрый статус backend и frontend.');
     await userEvent.click(suggestion);
 
-    const textarea = screen.getByPlaceholderText(/Напишите сообщение для Kolibri Assistant/i) as HTMLTextAreaElement;
+    const textarea = screen.getByPlaceholderText(/Напишите сообщение для ассистента Колибри/i) as HTMLTextAreaElement;
     expect(textarea.value).toBe('Сделай быстрый статус backend и frontend.');
   });
 

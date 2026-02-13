@@ -37,7 +37,7 @@ const MessageBubble = ({ message }: { message: Message }) => {
       <div className="manus-message-content">
         <div className="manus-message-header">
           <span className="manus-message-role">
-            {isUser ? 'Вы' : 'Kolibri AI'}
+            {isUser ? 'Вы' : 'Колибри AI'}
           </span>
           <span className="manus-message-time">
             {message.timestamp.toLocaleTimeString('ru-RU', { 

@@ -1,5 +1,5 @@
 /**
- * PatternViewer.tsx — Визуализация числовых паттернов Kolibri в браузере.
+ * PatternViewer.tsx — Визуализация числовых паттернов Колибри в браузере.
  *
  * Показывает:
  * - 64-цифровой числовой паттерн любого слова
@@ -139,7 +139,7 @@ export default function PatternViewer() {
   return (
     <div className="space-y-4 p-4">
       <h3 className="text-sm font-semibold text-text-primary">
-        🔢 Числовые паттерны Kolibri
+        🔢 Числовые паттерны Колибри
       </h3>
 
       {/* Ввод */}

@@ -1,7 +1,7 @@
 /**
  * tabs/CrawlerTab.tsx
  *
- * Kolibri AI Learning Agent — автономный агент обучения.
+ * Колибри AI Learning Agent — автономный агент обучения.
  * Вводишь тему → агент ищет по DuckDuckGo/Bing/Wikipedia →
  * загружает страницы → обучает модель → показывает результат.
  *
@@ -316,7 +316,7 @@ export const CrawlerTab = () => {
           </div>
           <div>
             <h1 className="agent-title">
-              Kolibri <span className="agent-title-accent">Learning Agent</span>
+              Колибри <span className="agent-title-accent">Learning Agent</span>
             </h1>
             <p className="agent-subtitle">
               Автономное обучение из интернета — поиск, загрузка, обучение
@@ -781,7 +781,7 @@ export const CrawlerTab = () => {
                 <div className="empty-globe-ring" />
                 <Globe size={48} strokeWidth={1} />
               </div>
-              <h3>Kolibri Learning Agent</h3>
+              <h3>Колибри Learning Agent</h3>
               <p>
                 Введите тему — агент найдёт страницы в DuckDuckGo, Bing и Wikipedia,
                 загрузит их, извлечёт текст и обучит модель автоматически

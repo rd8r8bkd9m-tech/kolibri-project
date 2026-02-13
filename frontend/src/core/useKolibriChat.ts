@@ -103,8 +103,8 @@ export const useKolibriChat = (): UseKolibriChatResult => {
           role: "assistant",
           content:
             error instanceof Error
-              ? `Не удалось инициализировать KolibriScript: ${error.message}`
-              : "Не удалось инициализировать KolibriScript.",
+              ? `Не удалось инициализировать КолибриScript: ${error.message}`
+              : "Не удалось инициализировать КолибриScript.",
           timestamp: moment.display,
           isoTimestamp: moment.iso,
         };
@@ -170,8 +170,8 @@ export const useKolibriChat = (): UseKolibriChatResult => {
         role: "assistant",
         content:
           error instanceof Error
-            ? `Не удалось сбросить KolibriScript: ${error.message}`
-            : "Не удалось сбросить KolibriScript.",
+            ? `Не удалось сбросить КолибриScript: ${error.message}`
+            : "Не удалось сбросить КолибриScript.",
         timestamp: moment.display,
         isoTimestamp: moment.iso,
       };

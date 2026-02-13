@@ -303,7 +303,7 @@ class KolibriWasmRuntime {
     const exports = createKolibriWasmExports(instance.exports, this.wasi);
     const initResult = exports._kolibri_bridge_init();
     if (initResult !== 0) {
-      throw new Error(`Не удалось инициализировать KolibriScript (код ${initResult})`);
+      throw new Error(`Не удалось инициализировать КолибриScript (код ${initResult})`);
     }
     this.exports = exports;
   }
@@ -316,7 +316,7 @@ class KolibriWasmRuntime {
         const streaming = await WebAssembly.instantiateStreaming(fetch(WASM_RESOURCE_URL), importObject);
         return streaming.instance;
       } catch (error) {
-        console.warn("Kolibri WASM streaming instantiation failed, retrying with ArrayBuffer.", error);
+        console.warn("Колибри WASM streaming instantiation failed, retrying with ArrayBuffer.", error);
       }
     }
 
@@ -331,7 +331,7 @@ class KolibriWasmRuntime {
 
   async execute(prompt: string, mode: string, context: KnowledgeSnippet[]): Promise<string> {
     if (!this.exports) {
-      throw new Error("Kolibri WASM мост не инициализирован");
+      throw new Error("Колибри WASM мост не инициализирован");
     }
 
     const script = buildScript(prompt, mode ?? DEFAULT_MODE_LABEL, context);
@@ -347,7 +347,7 @@ class KolibriWasmRuntime {
       if (outputPtr) {
         exports._free(outputPtr);
       }
-      throw new Error("Недостаточно памяти для выполнения KolibriScript");
+      throw new Error("Недостаточно памяти для выполнения КолибриScript");
     }
 
     try {
@@ -362,7 +362,7 @@ class KolibriWasmRuntime {
 
       const outputBytes = heap.subarray(outputPtr, outputPtr + written);
       const rawText = textDecoder.decode(outputBytes).trim();
-      const answer = rawText.length === 0 ? "KolibriScript завершил работу без вывода." : rawText;
+      const answer = rawText.length === 0 ? "КолибриScript завершил работу без вывода." : rawText;
 
       void teachKnowledge(prompt, answer);
       void sendKnowledgeFeedback("good", prompt, answer);
@@ -376,28 +376,28 @@ class KolibriWasmRuntime {
 
   async reset(): Promise<void> {
     if (!this.exports) {
-      throw new Error("Kolibri WASM мост не инициализирован");
+      throw new Error("Колибри WASM мост не инициализирован");
     }
     const result = this.exports._kolibri_bridge_reset();
     if (result !== 0) {
-      throw new Error(`Не удалось сбросить KolibriScript (код ${result})`);
+      throw new Error(`Не удалось сбросить КолибриScript (код ${result})`);
     }
   }
 
   private describeExecutionError(code: number): string {
     switch (code) {
       case -1:
-        return "Не удалось инициализировать KolibriScript.";
+        return "Не удалось инициализировать КолибриScript.";
       case -2:
         return "WASM-модуль не смог подготовить временный вывод.";
       case -3:
-        return "KolibriScript сообщил об ошибке при разборе программы.";
+        return "КолибриScript сообщил об ошибке при разборе программы.";
       case -4:
-        return "Во время выполнения KolibriScript произошла ошибка.";
+        return "Во время выполнения КолибриScript произошла ошибка.";
       case -5:
-        return "Некорректные аргументы вызова KolibriScript.";
+        return "Некорректные аргументы вызова КолибриScript.";
       default:
-        return `Неизвестная ошибка KolibriScript (код ${code}).`;
+        return `Неизвестная ошибка КолибриScript (код ${code}).`;
     }
   }
 }

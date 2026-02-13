@@ -68,7 +68,7 @@ export const ManusWelcome = ({ onSuggestionClick }: ManusWelcomeProps) => {
         </div>
 
         <h1 className="manus-welcome-title">
-          Привет! Я Kolibri AI
+          Привет! Я Колибри AI
         </h1>
         
         <p className="manus-welcome-subtitle">
