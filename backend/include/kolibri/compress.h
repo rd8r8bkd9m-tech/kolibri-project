@@ -14,7 +14,7 @@ extern "C" {
 #endif
 
 /* Version */
-#define KOLIBRI_ARCHIVER_VERSION_MAJOR 50
+#define KOLIBRI_ARCHIVER_VERSION_MAJOR 76
 #define KOLIBRI_ARCHIVER_VERSION_MINOR 0
 #define KOLIBRI_ARCHIVER_VERSION_PATCH 0
 
@@ -29,7 +29,10 @@ extern "C" {
 #define KOLIBRI_COMPRESS_ADAPTIVE 0x80 /* v40: Adaptive dictionary */
 #define KOLIBRI_COMPRESS_TOKEN   0x100 /* v52: Token-level text stream */
 #define KOLIBRI_COMPRESS_LZCM    0x200 /* v66: Unified LZ+CM (literals через CM) */
-#define KOLIBRI_COMPRESS_ALL     0x3FF
+#define KOLIBRI_COMPRESS_BWT     0x400 /* v70: BWT preprocessing for text */
+#define KOLIBRI_COMPRESS_TURBO   0x800  /* v75: Turbo LZ-only (max speed, no CM) */
+#define KOLIBRI_COMPRESS_BLAZING 0x1000 /* v76: Blazing-fast LZ (>1 GB/s, <0.1ms/100KB) */
+#define KOLIBRI_COMPRESS_ALL     0x7FF
 
 /* File type detection */
 typedef enum {

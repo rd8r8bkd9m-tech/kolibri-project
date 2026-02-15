@@ -5,6 +5,17 @@ set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# v82: Release по умолчанию для максимальной производительности сжатия
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release RelWithDebInfo MinSizeRel)
+endif()
+
+# v82: -march=native для использования всех инструкций CPU (SSE4.2, AVX2, etc.)
+if(NOT MSVC AND NOT CMAKE_CROSSCOMPILING)
+    add_compile_options(-march=native)
+endif()
+
 option(KOLIBRI_ENABLE_TESTS "Enable Kolibri tests" ON)
 option(KOLIBRI_ENABLE_FUZZ "Enable Kolibri fuzz targets" OFF)
 option(KOLIBRI_ENABLE_GPU "Enable Kolibri GPU acceleration components" ON)
@@ -144,7 +155,7 @@ if(NOT KOLIBRI_OPENSSL_TARGET)
 endif()
 
 target_link_libraries(kolibri_core_objects PUBLIC ${KOLIBRI_OPENSSL_TARGET})
-target_link_libraries(kolibri_core PUBLIC ${KOLIBRI_OPENSSL_TARGET} SQLite::SQLite3 Threads::Threads m)
+target_link_libraries(kolibri_core PUBLIC ${KOLIBRI_OPENSSL_TARGET} SQLite::SQLite3 Threads::Threads m divsufsort)
 
 add_library(kolibri_wasm STATIC
     backend/src/wasm_bridge.c

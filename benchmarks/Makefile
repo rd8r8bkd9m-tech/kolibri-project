@@ -79,7 +79,7 @@ $(COMPARE): $(COMPARE_SRC)
 # Build world compression benchmark (links against core library built by CMake)
 $(WORLD_BENCH): $(WORLD_BENCH_SRC)
 	@echo "Building $(WORLD_BENCH)..."
-	$(CC) $(CFLAGS) $< -o $@ -L../build -lkolibri_core -lssl -lcrypto -lsqlite3 -lpthread -lm
+	$(CC) $(CFLAGS) $< -o $@ -L../build -lkolibri_core -lssl -lcrypto -lsqlite3 -ldivsufsort -lpthread -lm
 
 # Build correctness tests
 $(TEST_CORRECT): $(TEST_CORRECT_SRC)

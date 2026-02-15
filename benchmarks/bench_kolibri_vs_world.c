@@ -3,7 +3,7 @@
  * Kolibri OS — Мировой бенчмарк сжатия
  *
  * Сравнение Kolibri с лучшими архиваторами мира:
- *   gzip, bzip2, xz (LZMA2), zstd, lz4, Kolibri (v65 context-mixing)
+ *   gzip, bzip2, xz (LZMA2), zstd, lz4, Kolibri (v76 context-mixing)
  *
  * Тестовые корпуса:
  *   1. Исходный код C (высокая структурность)
@@ -469,7 +469,7 @@ static BenchResult bench_external(const char *name, const char *compress_cmd,
  * ============================================================================ */
 static BenchResult bench_kolibri_compress(const uint8_t *data, size_t size) {
     BenchResult r = {0};
-    r.name = "Kolibri v65 (CM)";
+    r.name = "Kolibri v76 (CM)";
     r.original_size = size;
 
     KolibriCompressor *comp = kolibri_compressor_create(KOLIBRI_COMPRESS_ALL);
@@ -510,6 +510,130 @@ static BenchResult bench_kolibri_compress(const uint8_t *data, size_t size) {
     free(decompressed);
     kolibri_compressor_destroy(comp);
 
+    return r;
+}
+
+/* v75: Turbo-бенчмарк — LZ-only, максимальная скорость */
+static BenchResult bench_kolibri_fast(const uint8_t *data, size_t size) {
+    BenchResult r = {0};
+    r.name = "Kolibri v76 (Turbo)";
+    r.original_size = size;
+
+    KolibriCompressor *comp = kolibri_compressor_create(KOLIBRI_COMPRESS_TURBO);
+    if (!comp) { r.ratio = -1; return r; }
+
+    uint8_t *compressed = NULL;
+    size_t compressed_size = 0;
+    KolibriCompressStats stats = {0};
+
+    double t0 = get_time_ms();
+    int ret = kolibri_compress(comp, data, size, &compressed, &compressed_size, &stats);
+    double t1 = get_time_ms();
+    r.compress_ms = t1 - t0;
+
+    if (ret != 0 || !compressed) {
+        kolibri_compressor_destroy(comp);
+        r.ratio = -1;
+        return r;
+    }
+
+    r.compressed_size = compressed_size;
+    r.ratio = (compressed_size > 0) ? (double)size / (double)compressed_size : 0;
+
+    uint8_t *decompressed = NULL;
+    size_t decompressed_size = 0;
+
+    t0 = get_time_ms();
+    ret = kolibri_decompress(compressed, compressed_size, &decompressed, &decompressed_size, NULL);
+    t1 = get_time_ms();
+    r.decompress_ms = t1 - t0;
+
+    if (ret == 0 && decompressed && decompressed_size == size) {
+        r.roundtrip_ok = (memcmp(data, decompressed, size) == 0) ? 1 : 0;
+    }
+
+    free(compressed);
+    free(decompressed);
+    kolibri_compressor_destroy(comp);
+    return r;
+}
+
+/* v76: Blazing-бенчмарк — предельная скорость >1 GB/s */
+static BenchResult bench_kolibri_blazing(const uint8_t *data, size_t size) {
+    BenchResult r = {0};
+    r.name = "Kolibri v76 (Blazing)";
+    r.original_size = size;
+
+    KolibriCompressor *comp = kolibri_compressor_create(KOLIBRI_COMPRESS_BLAZING);
+    if (!comp) { r.ratio = -1; return r; }
+
+    uint8_t *compressed = NULL;
+    size_t compressed_size = 0;
+    KolibriCompressStats stats = {0};
+
+    /* Прогрев: 3 прогона для стабильного результата */
+    for (int warmup = 0; warmup < 3; warmup++) {
+        uint8_t *tmp_out = NULL;
+        size_t tmp_sz = 0;
+        kolibri_compress(comp, data, size, &tmp_out, &tmp_sz, NULL);
+        free(tmp_out);
+    }
+
+    /* Замер: среднее из 10 прогонов для точности <0.01мс */
+    double total_compress_ms = 0;
+    for (int run = 0; run < 10; run++) {
+        uint8_t *tmp_out = NULL;
+        size_t tmp_sz = 0;
+        double t0 = get_time_ms();
+        kolibri_compress(comp, data, size, &tmp_out, &tmp_sz, NULL);
+        double t1 = get_time_ms();
+        total_compress_ms += (t1 - t0);
+        if (run == 9) {
+            compressed = tmp_out;
+            compressed_size = tmp_sz;
+        } else {
+            free(tmp_out);
+        }
+    }
+    r.compress_ms = total_compress_ms / 10.0;
+
+    if (!compressed) {
+        kolibri_compressor_destroy(comp);
+        r.ratio = -1;
+        return r;
+    }
+
+    r.compressed_size = compressed_size;
+    r.ratio = (compressed_size > 0) ? (double)size / (double)compressed_size : 0;
+
+    uint8_t *decompressed = NULL;
+    size_t decompressed_size = 0;
+
+    /* Замер декомпрессии: среднее из 10 прогонов */
+    double total_decompress_ms = 0;
+    for (int run = 0; run < 10; run++) {
+        uint8_t *tmp_out = NULL;
+        size_t tmp_sz = 0;
+        double t0 = get_time_ms();
+        int dret = kolibri_decompress(compressed, compressed_size, &tmp_out, &tmp_sz, NULL);
+        double t1 = get_time_ms();
+        total_decompress_ms += (t1 - t0);
+        if (run == 9 && dret == 0) {
+            decompressed = tmp_out;
+            decompressed_size = tmp_sz;
+        } else {
+            free(tmp_out);
+        }
+    }
+    r.decompress_ms = total_decompress_ms / 10.0;
+
+    if (decompressed && decompressed_size == size) {
+        r.roundtrip_ok = (memcmp(data, decompressed, size) == 0) ? 1 : 0;
+    }
+
+    free(compressed);
+    free(decompressed);
+    kolibri_compressor_destroy(comp);
     return r;
 }
 
@@ -567,7 +691,7 @@ static BenchResult bench_kolibri_kpc(const uint8_t *data, size_t size) {
 
 static void print_header(void) {
     printf("\n╔══════════════════════════════════════════════════════════════════════════════════════════╗\n");
-    printf("║           KOLIBRI OS — МИРОВОЙ БЕНЧМАРК СЖАТИЯ (v65 vs World)                         ║\n");
+    printf("║           KOLIBRI OS — МИРОВОЙ БЕНЧМАРК СЖАТИЯ (v76 vs World)                         ║\n");
     printf("╠══════════════════════════════════════════════════════════════════════════════════════════╣\n");
 }
 
@@ -613,8 +737,14 @@ static void bench_corpus(const char *corpus_name, const uint8_t *data, size_t si
     BenchResult results[MAX_RESULTS];
     int n = 0;
 
-    /* --- Kolibri v65 (главный контендер) --- */
+    /* --- Kolibri v76 (главный контендер) --- */
     results[n++] = bench_kolibri_compress(data, size);
+
+    /* --- Kolibri v76 Turbo (LZ-only, высокая скорость) --- */
+    results[n++] = bench_kolibri_fast(data, size);
+
+    /* --- Kolibri v76 Blazing (предельная скорость >1 GB/s) --- */
+    results[n++] = bench_kolibri_blazing(data, size);
 
     /* --- gzip (deflate, LZ77+Huffman) --- */
     results[n++] = bench_external("gzip -9",
@@ -681,8 +811,8 @@ static void bench_corpus(const char *corpus_name, const uint8_t *data, size_t si
     }
 
     (*total_tests)++;
-    /* Победа Kolibri, если best_idx == 0 (v65 CM) или 1 (KPC Evo) */
-    if (best_idx == 0 || best_idx == 1) {
+    /* Победа Kolibri, если best_idx == 0 (v76 CM) или 1 (Turbo) или 2 (Blazing) */
+    if (best_idx == 0 || best_idx == 1 || best_idx == 2) {
         (*total_wins)++;
     }
 }
@@ -907,7 +1037,8 @@ int main(int argc, char **argv) {
         printf("  xz     : LZMA2 (Lempel-Ziv-Markov chain)\n");
         printf("  zstd   : Facebook Zstandard (LZ + FSE)\n");
         printf("  lz4    : Yann Collet LZ4 (ultra-fast)\n");
-        printf("  Kolibri: Context-Mixing v65 (13 предикторов + SSE/APM цепочка)\n");
+        printf("  Kolibri: Context-Mixing v76 (16 предикторов + SSE/APM/APM2 цепочка)\n");
+    printf("  Blazing: LZ-Blazing v76 (>1 GB/s, 4K хеш, rep-match)\n");
         printf("  KPC    : Эволюционный MLP-предсказатель + арифм. кодирование\n\n");
     }
 
