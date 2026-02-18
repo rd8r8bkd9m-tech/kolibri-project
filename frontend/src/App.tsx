@@ -1,77 +1,179 @@
-/**
- * App.tsx
- *
- * Точка входа: лендинг + основное приложение.
- */
+import { FormEvent, useMemo, useState } from "react";
 
-import { useEffect, useMemo, useState } from "react";
-import { ManusAppUnified } from "./manus/ManusAppUnified";
-import { LandingPage } from "./manus/LandingPage";
-import { ThemeProvider } from "./manus/ThemeContext";
-
-const LANDING_STORAGE_KEY = "kolibri-landing-dismissed-v1";
-const TEXT_SCALE_KEY = "kolibri-text-scale-v1";
-
-const shouldShowLandingInitially = (): boolean => {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  const params = new URLSearchParams(window.location.search);
-  if (params.get("landing") === "1") {
-    return true;
-  }
-  if (params.get("app") === "1") {
-    return false;
-  }
-
-  // На мобильных устройствах запускаем сразу приложение:
-  // лендинг добавлял лишний шаг и мешал быстрому входу в чат.
-  if (typeof window.matchMedia === "function" && window.matchMedia("(max-width: 900px)").matches) {
-    return false;
-  }
-
-  try {
-    return localStorage.getItem(LANDING_STORAGE_KEY) !== "1";
-  } catch {
-    return true;
-  }
+type ChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
 };
 
-const App = () => {
-  const [showLanding, setShowLanding] = useState<boolean>(shouldShowLandingInitially);
-  const isTestMode = useMemo(() => import.meta.env.MODE === "test", []);
+type ModelsPayload = {
+  primary_model: string;
+  model_available: boolean;
+  c_trainer_available: boolean;
+  model_path: string;
+  model_size_mb: number;
+  patterns: number;
+  edges: number;
+  documents: number;
+  epoch: number;
+  formula_generation: number;
+  embedding_vocab_size: number;
+  sentence_store_size: number;
+};
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
+const API_BASE = "/api/v1/ai";
+
+export default function App() {
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [models, setModels] = useState<ModelsPayload | null>(null);
+  const [modelPanelOpen, setModelPanelOpen] = useState(false);
+  const [error, setError] = useState("");
+
+  const canSend = useMemo(() => input.trim().length > 0 && !sending, [input, sending]);
+
+  const sendMessage = async (event: FormEvent) => {
+    event.preventDefault();
+    const text = input.trim();
+    if (!text || sending) return;
+
+    const userMessage: ChatMessage = { id: `u-${Date.now()}`, role: "user", text };
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
+    setSending(true);
+    setError("");
+
     try {
-      const raw = localStorage.getItem(TEXT_SCALE_KEY);
-      const value = raw ? Number(raw) : 1;
-      if (Number.isFinite(value)) {
-        const normalized = Math.min(1.3, Math.max(0.85, value));
-        document.documentElement.style.setProperty("--kolibri-font-scale", normalized.toFixed(2));
+      const response = await fetch(`${API_BASE}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: text,
+          conversation_id: conversationId,
+          temperature: 0.6,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Chat error ${response.status}`);
       }
-    } catch {
-      document.documentElement.style.setProperty("--kolibri-font-scale", "1.00");
-    }
-  }, []);
 
-  const enterApp = () => {
-    try {
-      localStorage.setItem(LANDING_STORAGE_KEY, "1");
-    } catch {
-      // no-op: localStorage может быть недоступен
+      const payload = await response.json();
+      if (payload.conversation_id) {
+        setConversationId(payload.conversation_id);
+      }
+
+      const assistantMessage: ChatMessage = {
+        id: `a-${Date.now()}`,
+        role: "assistant",
+        text: String(payload.response || ""),
+      };
+
+      setMessages((prev) => [...prev, assistantMessage]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setSending(false);
     }
-    setShowLanding(false);
+  };
+
+  const loadModels = async () => {
+    setError("");
+    try {
+      const response = await fetch(`${API_BASE}/models`);
+      if (!response.ok) {
+        throw new Error(`Models error ${response.status}`);
+      }
+      const payload = (await response.json()) as ModelsPayload;
+      setModels(payload);
+      setModelPanelOpen(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unknown error");
+    }
   };
 
   return (
-    <ThemeProvider>
-      {showLanding && !isTestMode ? <LandingPage onEnter={enterApp} /> : <ManusAppUnified />}
-    </ThemeProvider>
-  );
-};
+    <div className={`app-root theme-${theme}`}>
+      <header className="topbar">
+        <div className="brand">
+          <span className="brand-mark">K</span>
+          <div>
+            <h1>Kolibri AI</h1>
+            <p>Chat Runtime</p>
+          </div>
+        </div>
 
-export default App;
+        <div className="topbar-actions">
+          <button className="ghost-btn" onClick={loadModels}>Модели</button>
+          <button
+            className="ghost-btn"
+            onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+          >
+            {theme === "dark" ? "Светлая" : "Тёмная"}
+          </button>
+        </div>
+      </header>
+
+      <main className="chat-layout">
+        <section className="chat-panel">
+          <div className="messages">
+            {messages.length === 0 ? (
+              <div className="empty">
+                <h2>Готов к диалогу</h2>
+                <p>Отправь вопрос, и я отвечу через KLM-движок.</p>
+              </div>
+            ) : (
+              messages.map((message) => (
+                <article key={message.id} className={`message ${message.role}`}>
+                  <div className="bubble">{message.text}</div>
+                </article>
+              ))
+            )}
+          </div>
+
+          <form className="composer" onSubmit={sendMessage}>
+            <textarea
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              placeholder="Напиши вопрос…"
+              rows={3}
+            />
+            <button type="submit" disabled={!canSend}>
+              {sending ? "Отправка…" : "Отправить"}
+            </button>
+          </form>
+
+          {error ? <p className="error">{error}</p> : null}
+        </section>
+
+        <aside className={`model-panel ${modelPanelOpen ? "open" : ""}`}>
+          <div className="panel-head">
+            <h3>Загруженные модели</h3>
+            <button className="ghost-btn" onClick={() => setModelPanelOpen(false)}>Закрыть</button>
+          </div>
+
+          {!models ? (
+            <p className="muted">Нажми «Модели», чтобы загрузить статус.</p>
+          ) : (
+            <dl>
+              <dt>Primary</dt><dd>{models.primary_model}</dd>
+              <dt>Model path</dt><dd>{models.model_path}</dd>
+              <dt>KLM loaded</dt><dd>{models.model_available ? "yes" : "no"}</dd>
+              <dt>Trainer</dt><dd>{models.c_trainer_available ? "available" : "missing"}</dd>
+              <dt>Size MB</dt><dd>{models.model_size_mb.toFixed(2)}</dd>
+              <dt>Patterns</dt><dd>{models.patterns}</dd>
+              <dt>Edges</dt><dd>{models.edges}</dd>
+              <dt>Documents</dt><dd>{models.documents}</dd>
+              <dt>Formula generation</dt><dd>{models.formula_generation}</dd>
+              <dt>Embedding vocab</dt><dd>{models.embedding_vocab_size}</dd>
+              <dt>Sentence store</dt><dd>{models.sentence_store_size}</dd>
+            </dl>
+          )}
+        </aside>
+      </main>
+    </div>
+  );
+}

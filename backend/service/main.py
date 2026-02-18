@@ -9,7 +9,6 @@ from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from .gpu_store import router as gpu_router
-from .content_factory import router as factory_router
 from .os_bridge import router as os_router
 from .crawler import router as crawler_router
 from .agent import router as agent_router
@@ -73,7 +72,6 @@ app.add_middleware(
 app.add_middleware(RateLimitMiddleware)
 
 app.include_router(gpu_router)
-app.include_router(factory_router)
 app.include_router(os_router)
 app.include_router(crawler_router)
 app.include_router(agent_router)

@@ -164,6 +164,21 @@ class ReloadResponse(BaseModel):
     formula_fitness: float = 0.0
 
 
+class LoadedModelsResponse(BaseModel):
+    primary_model: str
+    model_available: bool
+    c_trainer_available: bool
+    model_path: str
+    model_size_mb: float
+    patterns: int
+    edges: int
+    documents: int = 0
+    epoch: int = 0
+    formula_generation: int
+    embedding_vocab_size: int
+    sentence_store_size: int
+
+
 class EmbeddingSimilarityRequest(BaseModel):
     word: str = Field(min_length=1, max_length=256)
     top_k: int = Field(default=10, ge=1, le=100)
@@ -430,6 +445,28 @@ async def compute_embedding(req: EmbeddingRequest) -> EmbeddingResponse:
         pattern=pattern,
         hash_djb2=djb2_hash(req.text.lower()),
         hash_fnv1a=fnv1a_hash(req.text.lower()),
+    )
+
+
+@router.get("/models", response_model=LoadedModelsResponse)
+async def loaded_models() -> LoadedModelsResponse:
+    """Список загруженных KLM-моделей и их состояние."""
+    engine = get_engine()
+    c = engine._get_model_stats()
+
+    return LoadedModelsResponse(
+        primary_model=engine.c_retriever.model_path.name,
+        model_available=engine.c_retriever.available,
+        c_trainer_available=engine.c_retriever.trainer_bin.exists(),
+        model_path=str(engine.c_retriever.model_path),
+        model_size_mb=c.get("size_mb", 0.0),
+        patterns=c.get("patterns", 0),
+        edges=c.get("edges", 0),
+        documents=c.get("documents", 0),
+        epoch=c.get("epoch", 0),
+        formula_generation=engine.formula_pool.generation,
+        embedding_vocab_size=engine.embeddings.vocab_size,
+        sentence_store_size=engine.sentence_store.size,
     )
 
 

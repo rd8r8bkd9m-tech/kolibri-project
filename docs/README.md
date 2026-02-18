@@ -6,6 +6,8 @@
 
 Этот каталог содержит полную подборку документации прототипа Kolibri. Каждая запись дополнена кратким описанием, чтобы упростить навигацию:
 
+- [plans/ROADMAP_SINGLE_SOURCE_OF_TRUTH.md](plans/ROADMAP_SINGLE_SOURCE_OF_TRUTH.md) — единый подтверждённый roadmap проекта с честными статусами `implemented/in_progress/planned`.
+- [archive/unconfirmed_reports/README.md](archive/unconfirmed_reports/README.md) — архив отчётов и документов со статусом «требует повторной верификации».
 - [kolibri_integrated_prototype.md](kolibri_integrated_prototype.md) — обзорный научный документ с изложением концепции, экспериментов и результатов.
 - [master_prompt.md](master_prompt.md) — мастер-промпт «Prometheus», определяющий философию и дорожную карту.
 - [architecture.md](architecture.md) — архитектурная модель ядра, подсистем и потоков данных.
@@ -22,6 +24,8 @@
 
 This directory aggregates every documentation artifact required for the Kolibri prototype. Quick references are listed below:
 
+- [plans/ROADMAP_SINGLE_SOURCE_OF_TRUTH.md](plans/ROADMAP_SINGLE_SOURCE_OF_TRUTH.md) — single verified roadmap with honest `implemented/in_progress/planned` statuses.
+- [archive/unconfirmed_reports/README.md](archive/unconfirmed_reports/README.md) — archive of reports/documents marked as "requires re-verification".
 - [kolibri_integrated_prototype.md](kolibri_integrated_prototype.md) — comprehensive paper-style overview with methodology and experiments.
 - [master_prompt.md](master_prompt.md) — "Prometheus" master prompt capturing philosophy and roadmap.
 - [architecture.md](architecture.md) — system architecture for the core, subsystems, and data flows.
@@ -49,4 +53,3 @@ This directory aggregates every documentation artifact required for the Kolibri 
 - [kolibri_os.md](kolibri_os.md) —— 最小 Kolibri OS 启动流程文档。
 - [web_interface.md](web_interface.md) —— PWA/Canvas 界面与 WebAssembly 桥接说明。
 - [research_agenda.md](research_agenda.md) —— 实验计划、指标与研究议程。
-

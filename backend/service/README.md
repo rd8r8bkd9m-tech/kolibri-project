@@ -25,7 +25,6 @@ backend/
 │   ├── search_engine.py      # DDG/Bing/Wiki поиск
 │   ├── swarm_sync.py         # P2P-синхронизация (/api/v1/swarm/*)
 │   ├── gpu_store.py          # GPU-хранилище (/api/gpu/*)
-│   ├── content_factory.py    # Контент-фабрика (/api/factory/*)
 │   ├── os_bridge.py          # ОС-мост (/api/dev/*)
 │   ├── knowledge_base.py     # Построение базы знаний
 │   └── __init__.py
