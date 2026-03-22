@@ -75,6 +75,24 @@ async def test_chat_basic(client: AsyncClient) -> None:
 
 
 @pytest.mark.anyio
+async def test_chat_accepts_runtime_preferences(client: AsyncClient) -> None:
+    """Основной chat endpoint должен принимать persona/memory/model без 422."""
+    resp = await client.post(
+        "/api/v1/ai/chat",
+        json={
+            "message": "Что такое память контекста?",
+            "persona": "romantic",
+            "memory_enabled": False,
+            "model": "Колибри 4 • Тяжёлая",
+            "client_id": "ephemeral:test-client:api",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["response"].startswith("Отвечу мягко и бережно.")
+
+
+@pytest.mark.anyio
 async def test_chat_with_conversation_id(client: AsyncClient) -> None:
     """Чат с conversation_id должен сохранять контекст."""
     conv_id = "test-conv-001"
@@ -85,6 +103,24 @@ async def test_chat_with_conversation_id(client: AsyncClient) -> None:
     assert resp.status_code == 200
     data = resp.json()
     assert data["conversation_id"] == conv_id
+
+
+@pytest.mark.anyio
+async def test_delete_conversation(client: AsyncClient) -> None:
+    """Удаление диалога должно удалять сессию и возвращать 404 при повторе."""
+    conv_id = "test-conv-delete-001"
+    create = await client.post(
+        "/api/v1/ai/chat",
+        json={"message": "привет", "conversation_id": conv_id},
+    )
+    assert create.status_code == 200
+
+    deleted = await client.delete(f"/api/v1/ai/conversations/{conv_id}")
+    assert deleted.status_code == 200
+    assert deleted.json().get("conversation_id") == conv_id
+
+    missing = await client.delete(f"/api/v1/ai/conversations/{conv_id}")
+    assert missing.status_code == 404
 
 
 # ---------------------------------------------------------------------------

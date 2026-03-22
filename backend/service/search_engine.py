@@ -41,6 +41,10 @@ BLOCKED_DOMAINS = {
     "web.archive.org",
 }
 
+# Ограничения для быстрого веб-обогащения в чате
+_MAX_FETCH_BYTES = 1_500_000
+_MAX_FETCH_CHARS = 80_000
+
 
 def _is_good_url(url: str) -> bool:
     """Проверяем что URL подходит для обучения (текстовый контент)."""
@@ -72,7 +76,11 @@ def _is_good_url(url: str) -> bool:
 # DuckDuckGo
 # ============================================================
 
-def search_duckduckgo(query: str, max_results: int = 10) -> list[dict]:
+def search_duckduckgo(
+    query: str,
+    max_results: int = 10,
+    timeout: int = 15,
+) -> list[dict]:
     """
     Поиск через DuckDuckGo HTML-версию.
     Не требует API-ключа.
@@ -84,7 +92,7 @@ def search_duckduckgo(query: str, max_results: int = 10) -> list[dict]:
             url,
             data={"q": query, "b": ""},
             headers=HEADERS,
-            timeout=15,
+            timeout=timeout,
         )
         resp.raise_for_status()
 
@@ -134,7 +142,12 @@ def search_duckduckgo(query: str, max_results: int = 10) -> list[dict]:
 # Wikipedia API
 # ============================================================
 
-def search_wikipedia(query: str, max_results: int = 5, lang: str = "en") -> list[dict]:
+def search_wikipedia(
+    query: str,
+    max_results: int = 5,
+    lang: str = "en",
+    timeout: int = 10,
+) -> list[dict]:
     """
     Поиск через Wikipedia API (opensearch).
     Высококачественные энциклопедические статьи.
@@ -157,7 +170,7 @@ def search_wikipedia(query: str, max_results: int = 5, lang: str = "en") -> list
                 "User-Agent": "KolibriBot/1.0 (https://github.com/kolibri; kolibri@example.com)",
                 "Accept": "application/json",
             },
-            timeout=10,
+            timeout=timeout,
         )
         resp.raise_for_status()
         data = resp.json()
@@ -191,7 +204,11 @@ def search_wikipedia(query: str, max_results: int = 5, lang: str = "en") -> list
 # Bing
 # ============================================================
 
-def search_bing(query: str, max_results: int = 10) -> list[dict]:
+def search_bing(
+    query: str,
+    max_results: int = 10,
+    timeout: int = 15,
+) -> list[dict]:
     """
     Поиск через Bing HTML.
     Backup-движок на случай если DuckDuckGo блокирует.
@@ -202,7 +219,7 @@ def search_bing(query: str, max_results: int = 10) -> list[dict]:
             f"https://www.bing.com/search"
             f"?q={quote_plus(query)}&count={max_results}"
         )
-        resp = requests.get(url, headers=HEADERS, timeout=15)
+        resp = requests.get(url, headers=HEADERS, timeout=timeout)
         resp.raise_for_status()
 
         soup = BeautifulSoup(resp.text, "html.parser")
@@ -339,3 +356,139 @@ def search_topic(
                 topic, len(all_results), len(engines))
 
     return all_results[:max_urls]
+
+
+def search_quick(
+    query: str,
+    max_urls: int = 8,
+    include_bing_fallback: bool = True,
+    timeout: int = 4,
+) -> list[dict]:
+    """
+    Быстрый поиск для онлайн-обогащения ответа в чате.
+
+    В отличие от search_topic() делает минимум сетевых запросов:
+    - 1x DuckDuckGo
+    - 1x Wikipedia (ru или en)
+    - optional 1x Bing (fallback)
+    """
+    q = (query or "").strip()
+    if not q:
+        return []
+
+    seen: set[str] = set()
+    merged: list[dict] = []
+
+    def _merge_block(block: list[dict]) -> bool:
+        for r in block:
+            url = str(r.get("url", "") or "").strip()
+            if not url:
+                continue
+            normalized = re.sub(r"[?#].*$", "", url.rstrip("/").lower())
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            merged.append(r)
+            if len(merged) >= max_urls:
+                return True
+        return False
+
+    short_timeout = max(1, int(timeout))
+    ddg = search_duckduckgo(
+        q,
+        max_results=max(4, min(10, max_urls)),
+        timeout=short_timeout,
+    )
+    if _merge_block(ddg):
+        return merged
+
+    has_cyrillic = any("\u0400" <= c <= "\u04ff" for c in q)
+    wiki_lang = "ru" if has_cyrillic else "en"
+    wiki = search_wikipedia(
+        q,
+        max_results=3,
+        lang=wiki_lang,
+        timeout=short_timeout,
+    )
+    if _merge_block(wiki):
+        return merged
+
+    if include_bing_fallback and len(merged) < max_urls:
+        bing = search_bing(
+            q,
+            max_results=max(3, min(8, max_urls)),
+            timeout=short_timeout,
+        )
+        _merge_block(bing)
+    return merged
+
+
+def fetch_page_text(
+    url: str,
+    timeout: int = 10,
+    max_chars: int = _MAX_FETCH_CHARS,
+) -> tuple[str, str, int]:
+    """
+    Забрать и очистить текст страницы.
+
+    Returns:
+        (text, title, bytes_downloaded)
+    """
+    target = (url or "").strip()
+    if not _is_good_url(target):
+        return "", "", 0
+
+    response = requests.get(
+        target,
+        headers=HEADERS,
+        timeout=timeout,
+        allow_redirects=True,
+    )
+    response.raise_for_status()
+
+    content = response.content[:_MAX_FETCH_BYTES]
+    bytes_downloaded = len(content)
+    if bytes_downloaded <= 0:
+        return "", "", 0
+
+    content_type = (response.headers.get("Content-Type", "") or "").lower()
+    if "text/html" not in content_type and "application/xhtml" not in content_type:
+        return "", "", bytes_downloaded
+
+    encoding = response.encoding or response.apparent_encoding or "utf-8"
+    html = content.decode(encoding, errors="ignore")
+    soup = BeautifulSoup(html, "html.parser")
+
+    title_tag = soup.find("title")
+    title = title_tag.get_text(strip=True) if title_tag else target
+
+    for tag in soup([
+        "script", "style", "nav", "footer", "header", "aside",
+        "noscript", "iframe", "form", "button", "svg", "img",
+        "video", "audio", "figure", "input", "select", "textarea",
+    ]):
+        tag.decompose()
+
+    main_content = (
+        soup.find("article")
+        or soup.find("main")
+        or soup.find(class_=re.compile(r"content|article|post|entry|text", re.I))
+        or soup.find("div", {"id": re.compile(r"content|article|main|body", re.I)})
+        or soup.find("body")
+    )
+    raw_text = (
+        main_content.get_text(separator="\n", strip=True)
+        if main_content is not None
+        else soup.get_text(separator="\n", strip=True)
+    )
+
+    lines: list[str] = []
+    for line in raw_text.split("\n"):
+        clean = re.sub(r"\s+", " ", line.strip())
+        if len(clean) >= 24:
+            lines.append(clean)
+
+    text = "\n".join(lines).strip()
+    if len(text) > max_chars:
+        text = text[:max_chars]
+    return text, title, bytes_downloaded

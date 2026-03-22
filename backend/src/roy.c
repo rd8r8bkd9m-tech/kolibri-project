@@ -19,6 +19,8 @@
 #define KOLIBRI_ROY_VERSIYA 1U
 #define KOLIBRI_ROY_TYP_HELLO 1U
 #define KOLIBRI_ROY_TYP_FORMULA 2U
+#define KOLIBRI_ROY_TYP_FORMULA_CHUNK 3U
+#define KOLIBRI_ROY_TYP_ASSOCIATION_CHUNK 4U
 #define KOLIBRI_ROY_MAKSIMALNYJ_PAKET 512U
 
 /* Преобразует число из хоста в сетевой порядок для 64 бит. */
@@ -69,6 +71,169 @@ static int kolibri_roy_sravnit_hmac(const unsigned char *levyj,
         rezultat |= (unsigned char)(levyj[indeks] ^ pravyj[indeks]);
     }
     return rezultat == 0U ? 0 : -1;
+}
+
+static void kolibri_roy_sbrosit_sborku(KolibriRoySborFormula *sbor) {
+
+    if (!sbor) {
+        return;
+    }
+    memset(sbor, 0, sizeof(*sbor));
+}
+
+static KolibriRoySborFormula *
+kolibri_roy_najti_sborku(KolibriRoy *roy, uint32_t identifikator) {
+
+    if (!roy) {
+        return NULL;
+    }
+    KolibriRoySborFormula *svobodnaya = NULL;
+    for (size_t indeks = 0U; indeks < KOLIBRI_ROY_MAX_SOSSEDI; ++indeks) {
+        KolibriRoySborFormula *tekushchaya = &roy->sborki[indeks];
+        if (tekushchaya->aktivna &&
+            tekushchaya->identifikator == identifikator) {
+            return tekushchaya;
+        }
+        if (!svobodnaya && !tekushchaya->aktivna) {
+            svobodnaya = tekushchaya;
+        }
+    }
+    if (svobodnaya) {
+        kolibri_roy_sbrosit_sborku(svobodnaya);
+        svobodnaya->aktivna = 1;
+        svobodnaya->identifikator = identifikator;
+    }
+    return svobodnaya;
+}
+
+static void
+kolibri_roy_sbrosit_sborku_association(KolibriRoySborAssociation *sbor) {
+
+    if (!sbor) {
+        return;
+    }
+    memset(sbor, 0, sizeof(*sbor));
+}
+
+static KolibriRoySborAssociation *
+kolibri_roy_najti_sborku_association(KolibriRoy *roy, uint32_t identifikator) {
+
+    if (!roy) {
+        return NULL;
+    }
+    KolibriRoySborAssociation *svobodnaya = NULL;
+    for (size_t indeks = 0U; indeks < KOLIBRI_ROY_MAX_SOSSEDI; ++indeks) {
+        KolibriRoySborAssociation *tekushchaya =
+            &roy->sborki_association[indeks];
+        if (tekushchaya->aktivna &&
+            tekushchaya->identifikator == identifikator) {
+            return tekushchaya;
+        }
+        if (!svobodnaya && !tekushchaya->aktivna) {
+            svobodnaya = tekushchaya;
+        }
+    }
+    if (svobodnaya) {
+        kolibri_roy_sbrosit_sborku_association(svobodnaya);
+        svobodnaya->aktivna = 1;
+        svobodnaya->identifikator = identifikator;
+    }
+    return svobodnaya;
+}
+
+static int kolibri_roy_serialize_association(const KolibriAssociation *association,
+                                             uint8_t *buffer, size_t capacity,
+                                             size_t *out_len) {
+
+    size_t qlen = 0U;
+    size_t alen = 0U;
+    size_t slen = 0U;
+    uint16_t qlen16 = 0U;
+    uint16_t alen16 = 0U;
+    uint16_t slen16 = 0U;
+    uint64_t ts = 0U;
+    size_t offset = 0U;
+    if (!association || !buffer || !out_len) {
+        return -1;
+    }
+    qlen = strnlen(association->question, sizeof(association->question));
+    alen = strnlen(association->answer, sizeof(association->answer));
+    slen = strnlen(association->source, sizeof(association->source));
+    if (qlen == 0U || alen == 0U || qlen > 0xFFFFU || alen > 0xFFFFU ||
+        slen > 0xFFFFU) {
+        return -1;
+    }
+    if (capacity < 2U + 2U + 2U + sizeof(uint64_t) + qlen + alen + slen) {
+        return -1;
+    }
+    qlen16 = htons((uint16_t)qlen);
+    alen16 = htons((uint16_t)alen);
+    slen16 = htons((uint16_t)slen);
+    ts = kolibri_htonll(association->timestamp);
+    memcpy(buffer + offset, &qlen16, sizeof(qlen16));
+    offset += sizeof(qlen16);
+    memcpy(buffer + offset, &alen16, sizeof(alen16));
+    offset += sizeof(alen16);
+    memcpy(buffer + offset, &slen16, sizeof(slen16));
+    offset += sizeof(slen16);
+    memcpy(buffer + offset, &ts, sizeof(ts));
+    offset += sizeof(ts);
+    memcpy(buffer + offset, association->question, qlen);
+    offset += qlen;
+    memcpy(buffer + offset, association->answer, alen);
+    offset += alen;
+    if (slen > 0U) {
+        memcpy(buffer + offset, association->source, slen);
+        offset += slen;
+    }
+    *out_len = offset;
+    return 0;
+}
+
+static int kolibri_roy_deserialize_association(const uint8_t *buffer,
+                                               size_t length,
+                                               KolibriAssociation *association) {
+
+    uint16_t qlen = 0U;
+    uint16_t alen = 0U;
+    uint16_t slen = 0U;
+    uint64_t ts = 0U;
+    size_t offset = 0U;
+    if (!buffer || !association || length < 2U + 2U + 2U + sizeof(uint64_t)) {
+        return -1;
+    }
+    memset(association, 0, sizeof(*association));
+    memcpy(&qlen, buffer + offset, sizeof(qlen));
+    offset += sizeof(qlen);
+    memcpy(&alen, buffer + offset, sizeof(alen));
+    offset += sizeof(alen);
+    memcpy(&slen, buffer + offset, sizeof(slen));
+    offset += sizeof(slen);
+    memcpy(&ts, buffer + offset, sizeof(ts));
+    offset += sizeof(ts);
+    qlen = ntohs(qlen);
+    alen = ntohs(alen);
+    slen = ntohs(slen);
+    ts = kolibri_ntohll(ts);
+    if (qlen == 0U || alen == 0U ||
+        length < offset + (size_t)qlen + (size_t)alen + (size_t)slen ||
+        qlen >= sizeof(association->question) ||
+        alen >= sizeof(association->answer) ||
+        slen >= sizeof(association->source)) {
+        return -1;
+    }
+    memcpy(association->question, buffer + offset, qlen);
+    association->question[qlen] = '\0';
+    offset += qlen;
+    memcpy(association->answer, buffer + offset, alen);
+    association->answer[alen] = '\0';
+    offset += alen;
+    if (slen > 0U) {
+        memcpy(association->source, buffer + offset, slen);
+        association->source[slen] = '\0';
+    }
+    association->timestamp = ts;
+    return 0;
 }
 
 /* Обновляет или создаёт запись о соседе. */
@@ -215,8 +380,12 @@ kolibri_roy_soobshchenie_formula(KolibriRoy *roy,
     if (!formula) {
         return -1;
     }
-    uint8_t dlina = (uint8_t)formula->gene.length;
-    if (dlina == 0U || dlina > sizeof(formula->gene.digits)) {
+    size_t compact_length = formula->gene.length;
+    if (compact_length > KOLIBRI_ROY_MAX_GENE_DIGITS) {
+        compact_length = KOLIBRI_ROY_MAX_GENE_DIGITS;
+    }
+    uint8_t dlina = (uint8_t)compact_length;
+    if (dlina == 0U || dlina > KOLIBRI_ROY_MAX_GENE_DIGITS) {
         return -1;
     }
     payload[offset++] = dlina;
@@ -241,6 +410,303 @@ kolibri_roy_soobshchenie_formula(KolibriRoy *roy,
         return -1;
     }
     return kolibri_roy_otpravit_paket(roy, naznachenie, paket, polnaja_dlina);
+}
+
+static int kolibri_roy_soobshchenie_formula_chasti(
+    KolibriRoy *roy, const struct sockaddr_in *naznachenie,
+    const KolibriFormula *formula) {
+
+    if (!roy || !naznachenie || !formula || formula->gene.length == 0U ||
+        formula->gene.length > sizeof(formula->gene.digits)) {
+        return -1;
+    }
+
+    uint16_t dlina_gena = (uint16_t)formula->gene.length;
+    size_t vsego_chastej =
+        (formula->gene.length + KOLIBRI_ROY_MAX_FORMULA_CHUNK_DATA - 1U) /
+        KOLIBRI_ROY_MAX_FORMULA_CHUNK_DATA;
+    if (vsego_chastej == 0U || vsego_chastej > KOLIBRI_ROY_MAX_FORMULA_CHUNKS) {
+        return -1;
+    }
+
+    uint64_t kody;
+    memcpy(&kody, &formula->fitness, sizeof(kody));
+    kody = kolibri_htonll(kody);
+
+    for (size_t chast = 0U; chast < vsego_chastej; ++chast) {
+        uint8_t paket[KOLIBRI_ROY_MAKSIMALNYJ_PAKET];
+        uint8_t payload[KOLIBRI_ROY_MAKSIMALNYJ_PAKET];
+        size_t smeshchenie = chast * KOLIBRI_ROY_MAX_FORMULA_CHUNK_DATA;
+        size_t ostalos = formula->gene.length - smeshchenie;
+        uint16_t dlina_chasti = (uint16_t)(ostalos > KOLIBRI_ROY_MAX_FORMULA_CHUNK_DATA
+                                               ? KOLIBRI_ROY_MAX_FORMULA_CHUNK_DATA
+                                               : ostalos);
+        uint16_t set_dlina_gena = htons(dlina_gena);
+        uint16_t set_chast = htons((uint16_t)chast);
+        uint16_t set_vsego = htons((uint16_t)vsego_chastej);
+        uint16_t set_dlina_chasti = htons(dlina_chasti);
+        size_t offset = 0U;
+        memcpy(payload + offset, &set_dlina_gena, sizeof(set_dlina_gena));
+        offset += sizeof(set_dlina_gena);
+        memcpy(payload + offset, &set_chast, sizeof(set_chast));
+        offset += sizeof(set_chast);
+        memcpy(payload + offset, &set_vsego, sizeof(set_vsego));
+        offset += sizeof(set_vsego);
+        memcpy(payload + offset, &set_dlina_chasti, sizeof(set_dlina_chasti));
+        offset += sizeof(set_dlina_chasti);
+        memcpy(payload + offset, &kody, sizeof(kody));
+        offset += sizeof(kody);
+        memcpy(payload + offset, formula->gene.digits + smeshchenie, dlina_chasti);
+        offset += dlina_chasti;
+
+        size_t zagolovok = kolibri_roy_zapolnit_zagolovok(
+            roy, KOLIBRI_ROY_TYP_FORMULA_CHUNK, paket, sizeof(paket),
+            (uint16_t)offset);
+        if (zagolovok == 0U ||
+            zagolovok + offset + KOLIBRI_ROY_HMAC_SIZE > sizeof(paket)) {
+            return -1;
+        }
+        memcpy(paket + zagolovok, payload, offset);
+        size_t polnaja_dlina =
+            kolibri_roy_prisoedinit_hmac(roy, paket, zagolovok + offset);
+        if (polnaja_dlina == 0U ||
+            kolibri_roy_otpravit_paket(roy, naznachenie, paket,
+                                       polnaja_dlina) != 0) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+static int kolibri_roy_soobshchenie_association_chasti(
+    KolibriRoy *roy, const struct sockaddr_in *naznachenie,
+    const KolibriAssociation *association) {
+
+    uint8_t serialized[KOLIBRI_ROY_MAX_ASSOC_SERIALIZED];
+    size_t serialized_len = 0U;
+    if (!roy || !naznachenie || !association ||
+        kolibri_roy_serialize_association(association, serialized,
+                                          sizeof(serialized),
+                                          &serialized_len) != 0) {
+        return -1;
+    }
+
+    size_t vsego_chastej =
+        (serialized_len + KOLIBRI_ROY_MAX_ASSOC_CHUNK_DATA - 1U) /
+        KOLIBRI_ROY_MAX_ASSOC_CHUNK_DATA;
+    if (vsego_chastej == 0U || vsego_chastej > KOLIBRI_ROY_MAX_ASSOC_CHUNKS) {
+        return -1;
+    }
+
+    for (size_t chast = 0U; chast < vsego_chastej; ++chast) {
+        uint8_t paket[KOLIBRI_ROY_MAKSIMALNYJ_PAKET];
+        uint8_t payload[KOLIBRI_ROY_MAKSIMALNYJ_PAKET];
+        size_t smeshchenie = chast * KOLIBRI_ROY_MAX_ASSOC_CHUNK_DATA;
+        size_t ostalos = serialized_len - smeshchenie;
+        uint16_t dlina_chasti =
+            (uint16_t)(ostalos > KOLIBRI_ROY_MAX_ASSOC_CHUNK_DATA
+                           ? KOLIBRI_ROY_MAX_ASSOC_CHUNK_DATA
+                           : ostalos);
+        uint16_t set_dlina = htons((uint16_t)serialized_len);
+        uint16_t set_chast = htons((uint16_t)chast);
+        uint16_t set_vsego = htons((uint16_t)vsego_chastej);
+        uint16_t set_dlina_chasti = htons(dlina_chasti);
+        size_t offset = 0U;
+        memcpy(payload + offset, &set_dlina, sizeof(set_dlina));
+        offset += sizeof(set_dlina);
+        memcpy(payload + offset, &set_chast, sizeof(set_chast));
+        offset += sizeof(set_chast);
+        memcpy(payload + offset, &set_vsego, sizeof(set_vsego));
+        offset += sizeof(set_vsego);
+        memcpy(payload + offset, &set_dlina_chasti, sizeof(set_dlina_chasti));
+        offset += sizeof(set_dlina_chasti);
+        memcpy(payload + offset, serialized + smeshchenie, dlina_chasti);
+        offset += dlina_chasti;
+
+        size_t zagolovok = kolibri_roy_zapolnit_zagolovok(
+            roy, KOLIBRI_ROY_TYP_ASSOCIATION_CHUNK, paket, sizeof(paket),
+            (uint16_t)offset);
+        if (zagolovok == 0U ||
+            zagolovok + offset + KOLIBRI_ROY_HMAC_SIZE > sizeof(paket)) {
+            return -1;
+        }
+        memcpy(paket + zagolovok, payload, offset);
+        size_t polnaja_dlina =
+            kolibri_roy_prisoedinit_hmac(roy, paket, zagolovok + offset);
+        if (polnaja_dlina == 0U ||
+            kolibri_roy_otpravit_paket(roy, naznachenie, paket,
+                                       polnaja_dlina) != 0) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+static int kolibri_roy_obrabotat_chast_formuly(
+    KolibriRoy *roy, uint32_t identifikator, const struct sockaddr_in *otkuda,
+    const uint8_t *dannye, uint16_t payload) {
+
+    if (!roy || !otkuda || !dannye || payload < 2U + 2U + 2U + 2U + sizeof(uint64_t)) {
+        return -1;
+    }
+
+    uint16_t dlina_gena = 0U;
+    uint16_t nomer_chasti = 0U;
+    uint16_t vsego_chastej = 0U;
+    uint16_t dlina_chasti = 0U;
+    size_t offset = 0U;
+    memcpy(&dlina_gena, dannye + offset, sizeof(dlina_gena));
+    offset += sizeof(dlina_gena);
+    memcpy(&nomer_chasti, dannye + offset, sizeof(nomer_chasti));
+    offset += sizeof(nomer_chasti);
+    memcpy(&vsego_chastej, dannye + offset, sizeof(vsego_chastej));
+    offset += sizeof(vsego_chastej);
+    memcpy(&dlina_chasti, dannye + offset, sizeof(dlina_chasti));
+    offset += sizeof(dlina_chasti);
+    dlina_gena = ntohs(dlina_gena);
+    nomer_chasti = ntohs(nomer_chasti);
+    vsego_chastej = ntohs(vsego_chastej);
+    dlina_chasti = ntohs(dlina_chasti);
+
+    if (dlina_gena == 0U || dlina_gena > sizeof(((KolibriGene *)0)->digits) ||
+        vsego_chastej == 0U || vsego_chastej > KOLIBRI_ROY_MAX_FORMULA_CHUNKS ||
+        nomer_chasti >= vsego_chastej || dlina_chasti == 0U ||
+        dlina_chasti > KOLIBRI_ROY_MAX_FORMULA_CHUNK_DATA ||
+        payload < offset + sizeof(uint64_t) + dlina_chasti) {
+        return -1;
+    }
+
+    uint64_t syrjoj = 0U;
+    memcpy(&syrjoj, dannye + offset, sizeof(syrjoj));
+    offset += sizeof(syrjoj);
+    syrjoj = kolibri_ntohll(syrjoj);
+
+    size_t smeshchenie = (size_t)nomer_chasti * KOLIBRI_ROY_MAX_FORMULA_CHUNK_DATA;
+    if (smeshchenie + dlina_chasti > dlina_gena) {
+        return -1;
+    }
+
+    KolibriRoySborFormula *sbor = kolibri_roy_najti_sborku(roy, identifikator);
+    if (!sbor) {
+        return -1;
+    }
+    if (!sbor->aktivna || sbor->identifikator != identifikator ||
+        sbor->dlina_gena != dlina_gena || sbor->vsego_chastej != vsego_chastej) {
+        kolibri_roy_sbrosit_sborku(sbor);
+        sbor->aktivna = 1;
+        sbor->identifikator = identifikator;
+        sbor->dlina_gena = dlina_gena;
+        sbor->vsego_chastej = vsego_chastej;
+        memcpy(&sbor->fitness, &syrjoj, sizeof(syrjoj));
+    }
+
+    memcpy(sbor->gene_digits + smeshchenie, dannye + offset, dlina_chasti);
+    if (!sbor->karta_chastej[nomer_chasti]) {
+        sbor->karta_chastej[nomer_chasti] = 1U;
+        sbor->polucheno_chastej++;
+    }
+
+    if (sbor->polucheno_chastej == sbor->vsego_chastej) {
+        KolibriRoySobytie *sobytie =
+            (KolibriRoySobytie *)calloc(1U, sizeof(KolibriRoySobytie));
+        if (!sobytie) {
+            return -1;
+        }
+        sobytie->tip = KOLIBRI_ROY_SOBYTIE_FORMULA;
+        sobytie->identifikator = identifikator;
+        sobytie->adres = *otkuda;
+        sobytie->formula.gene.length = sbor->dlina_gena;
+        memcpy(sobytie->formula.gene.digits, sbor->gene_digits, sbor->dlina_gena);
+        sobytie->formula.fitness = sbor->fitness;
+        sobytie->formula.feedback = 0.0;
+        kolibri_roy_postavit_sobytie(roy, sobytie);
+        free(sobytie);
+        kolibri_roy_sbrosit_sborku(sbor);
+    }
+
+    return 0;
+}
+
+static int kolibri_roy_obrabotat_chast_association(
+    KolibriRoy *roy, uint32_t identifikator, const struct sockaddr_in *otkuda,
+    const uint8_t *dannye, uint16_t payload) {
+
+    uint16_t dlina = 0U;
+    uint16_t nomer_chasti = 0U;
+    uint16_t vsego_chastej = 0U;
+    uint16_t dlina_chasti = 0U;
+    size_t offset = 0U;
+    if (!roy || !otkuda || !dannye || payload < 2U + 2U + 2U + 2U) {
+        return -1;
+    }
+    memcpy(&dlina, dannye + offset, sizeof(dlina));
+    offset += sizeof(dlina);
+    memcpy(&nomer_chasti, dannye + offset, sizeof(nomer_chasti));
+    offset += sizeof(nomer_chasti);
+    memcpy(&vsego_chastej, dannye + offset, sizeof(vsego_chastej));
+    offset += sizeof(vsego_chastej);
+    memcpy(&dlina_chasti, dannye + offset, sizeof(dlina_chasti));
+    offset += sizeof(dlina_chasti);
+    dlina = ntohs(dlina);
+    nomer_chasti = ntohs(nomer_chasti);
+    vsego_chastej = ntohs(vsego_chastej);
+    dlina_chasti = ntohs(dlina_chasti);
+
+    if (dlina == 0U || dlina > KOLIBRI_ROY_MAX_ASSOC_SERIALIZED ||
+        vsego_chastej == 0U || vsego_chastej > KOLIBRI_ROY_MAX_ASSOC_CHUNKS ||
+        nomer_chasti >= vsego_chastej || dlina_chasti == 0U ||
+        dlina_chasti > KOLIBRI_ROY_MAX_ASSOC_CHUNK_DATA ||
+        payload < offset + dlina_chasti) {
+        return -1;
+    }
+
+    size_t smeshchenie = (size_t)nomer_chasti * KOLIBRI_ROY_MAX_ASSOC_CHUNK_DATA;
+    if (smeshchenie + dlina_chasti > dlina) {
+        return -1;
+    }
+
+    KolibriRoySborAssociation *sbor =
+        kolibri_roy_najti_sborku_association(roy, identifikator);
+    if (!sbor) {
+        return -1;
+    }
+    if (!sbor->aktivna || sbor->identifikator != identifikator ||
+        sbor->dlina != dlina || sbor->vsego_chastej != vsego_chastej) {
+        kolibri_roy_sbrosit_sborku_association(sbor);
+        sbor->aktivna = 1;
+        sbor->identifikator = identifikator;
+        sbor->dlina = dlina;
+        sbor->vsego_chastej = vsego_chastej;
+    }
+
+    memcpy(sbor->bytes + smeshchenie, dannye + offset, dlina_chasti);
+    if (!sbor->karta_chastej[nomer_chasti]) {
+        sbor->karta_chastej[nomer_chasti] = 1U;
+        sbor->polucheno_chastej++;
+    }
+
+    if (sbor->polucheno_chastej == sbor->vsego_chastej) {
+        KolibriRoySobytie *sobytie =
+            (KolibriRoySobytie *)calloc(1U, sizeof(KolibriRoySobytie));
+        if (!sobytie) {
+            return -1;
+        }
+        sobytie->tip = KOLIBRI_ROY_SOBYTIE_ASSOCIATION;
+        sobytie->identifikator = identifikator;
+        sobytie->adres = *otkuda;
+        if (kolibri_roy_deserialize_association(sbor->bytes, sbor->dlina,
+                                                &sobytie->association) != 0) {
+            free(sobytie);
+            kolibri_roy_sbrosit_sborku_association(sbor);
+            return -1;
+        }
+        kolibri_roy_postavit_sobytie(roy, sobytie);
+        free(sobytie);
+        kolibri_roy_sbrosit_sborku_association(sbor);
+    }
+    return 0;
 }
 
 /* Главная петля фонового потока: слушает UDP и отправляет приветствия. */
@@ -318,33 +784,47 @@ static void *kolibri_roy_potok(void *argument) {
             }
             otkuda.sin_port = htons(port);
             kolibri_roy_obnovit_soseda(roy, identifikator, &otkuda);
-            KolibriRoySobytie sobytie;
-            memset(&sobytie, 0, sizeof(sobytie));
-            sobytie.identifikator = identifikator;
-            sobytie.adres = otkuda;
+            KolibriRoySobytie *sobytie =
+                (KolibriRoySobytie *)calloc(1U, sizeof(KolibriRoySobytie));
+            if (!sobytie) {
+                continue;
+            }
+            sobytie->identifikator = identifikator;
+            sobytie->adres = otkuda;
             if (tip == KOLIBRI_ROY_TYP_HELLO) {
-                sobytie.tip = KOLIBRI_ROY_SOBYTIE_HELLO;
-                kolibri_roy_postavit_sobytie(roy, &sobytie);
+                sobytie->tip = KOLIBRI_ROY_SOBYTIE_HELLO;
+                kolibri_roy_postavit_sobytie(roy, sobytie);
             } else if (tip == KOLIBRI_ROY_TYP_FORMULA) {
                 if (payload < 1U + sizeof(uint64_t)) {
+                    free(sobytie);
                     continue;
                 }
                 const uint8_t *dannye = paket + 14U;
                 uint8_t dlina_gena = dannye[0];
-                if (dlina_gena == 0U || dlina_gena > 32U ||
+                if (dlina_gena == 0U || dlina_gena > KOLIBRI_ROY_MAX_GENE_DIGITS ||
                     payload < 1U + dlina_gena + sizeof(uint64_t)) {
+                    free(sobytie);
                     continue;
                 }
-                memcpy(sobytie.formula.gene.digits, dannye + 1U, dlina_gena);
-                sobytie.formula.gene.length = dlina_gena;
+                memcpy(sobytie->formula.gene.digits, dannye + 1U, dlina_gena);
+                sobytie->formula.gene.length = dlina_gena;
                 uint64_t syrjoj;
                 memcpy(&syrjoj, dannye + 1U + dlina_gena, sizeof(syrjoj));
                 syrjoj = kolibri_ntohll(syrjoj);
-                memcpy(&sobytie.formula.fitness, &syrjoj, sizeof(syrjoj));
-                sobytie.formula.feedback = 0.0;
-                sobytie.tip = KOLIBRI_ROY_SOBYTIE_FORMULA;
-                kolibri_roy_postavit_sobytie(roy, &sobytie);
+                memcpy(&sobytie->formula.fitness, &syrjoj, sizeof(syrjoj));
+                sobytie->formula.feedback = 0.0;
+                sobytie->tip = KOLIBRI_ROY_SOBYTIE_FORMULA;
+                kolibri_roy_postavit_sobytie(roy, sobytie);
+            } else if (tip == KOLIBRI_ROY_TYP_FORMULA_CHUNK) {
+                (void)kolibri_roy_obrabotat_chast_formuly(
+                    roy, identifikator, &otkuda, paket + 14U, payload);
+            } else if (tip == KOLIBRI_ROY_TYP_ASSOCIATION_CHUNK) {
+                (void)kolibri_roy_obrabotat_chast_association(
+                    roy, identifikator, &otkuda, paket + 14U, payload);
+            } else {
+                free(sobytie);
             }
+            free(sobytie);
         }
         time_t seichas = time(NULL);
         if (seichas - roy->poslednij_privet >=
@@ -500,7 +980,13 @@ int kolibri_roy_otpravit_sluchajnomu(KolibriRoy *roy, uint64_t sluchajnoe,
     size_t indeks = (size_t)(sluchajnoe % roy->chislo_sosedey);
     KolibriRoySosed sosed = roy->sosedi[indeks];
     pthread_mutex_unlock(&roy->zamek);
-    if (kolibri_roy_soobshchenie_formula(roy, &sosed.adres, formula) != 0) {
+    int rezultat = 0;
+    if (formula->gene.length > KOLIBRI_ROY_MAX_GENE_DIGITS) {
+        rezultat = kolibri_roy_soobshchenie_formula_chasti(roy, &sosed.adres, formula);
+    } else {
+        rezultat = kolibri_roy_soobshchenie_formula(roy, &sosed.adres, formula);
+    }
+    if (rezultat != 0) {
         return -1;
     }
     return 0;
@@ -511,9 +997,14 @@ int kolibri_roy_otpravit_vsem(KolibriRoy *roy, const KolibriFormula *formula) {
     if (!roy || !formula) {
         return -1;
     }
+    int (*otpravit)(KolibriRoy *, const struct sockaddr_in *,
+                    const KolibriFormula *) =
+        formula->gene.length > KOLIBRI_ROY_MAX_GENE_DIGITS
+            ? kolibri_roy_soobshchenie_formula_chasti
+            : kolibri_roy_soobshchenie_formula;
     struct sockaddr_in broadcast_adres;
     kolibri_roy_shirokoveshchatel(&broadcast_adres, roy->port);
-    kolibri_roy_soobshchenie_formula(roy, &broadcast_adres, formula);
+    otpravit(roy, &broadcast_adres, formula);
     pthread_mutex_lock(&roy->zamek);
     size_t chislo = roy->chislo_sosedey;
     KolibriRoySosed lokalnye[KOLIBRI_ROY_MAX_SOSSEDI];
@@ -522,7 +1013,31 @@ int kolibri_roy_otpravit_vsem(KolibriRoy *roy, const KolibriFormula *formula) {
     }
     pthread_mutex_unlock(&roy->zamek);
     for (size_t indeks = 0U; indeks < chislo; ++indeks) {
-        kolibri_roy_soobshchenie_formula(roy, &lokalnye[indeks].adres, formula);
+        otpravit(roy, &lokalnye[indeks].adres, formula);
+    }
+    return 0;
+}
+
+int kolibri_roy_otpravit_association_vsem(
+    KolibriRoy *roy, const KolibriAssociation *association) {
+
+    if (!roy || !association) {
+        return -1;
+    }
+    struct sockaddr_in broadcast_adres;
+    kolibri_roy_shirokoveshchatel(&broadcast_adres, roy->port);
+    (void)kolibri_roy_soobshchenie_association_chasti(roy, &broadcast_adres,
+                                                      association);
+    pthread_mutex_lock(&roy->zamek);
+    size_t chislo = roy->chislo_sosedey;
+    KolibriRoySosed lokalnye[KOLIBRI_ROY_MAX_SOSSEDI];
+    for (size_t indeks = 0U; indeks < chislo; ++indeks) {
+        lokalnye[indeks] = roy->sosedi[indeks];
+    }
+    pthread_mutex_unlock(&roy->zamek);
+    for (size_t indeks = 0U; indeks < chislo; ++indeks) {
+        (void)kolibri_roy_soobshchenie_association_chasti(
+            roy, &lokalnye[indeks].adres, association);
     }
     return 0;
 }

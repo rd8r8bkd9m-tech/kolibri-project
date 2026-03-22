@@ -26,6 +26,10 @@ static int bridge_ensure_initialized(void) {
 }
 
 int kolibri_bridge_init(void) {
+    if (g_bridge_ready) {
+        ks_free(&g_script);
+        kf_pool_free(&g_pool);
+    }
     g_bridge_ready = 0;
     return bridge_ensure_initialized();
 }
@@ -33,6 +37,7 @@ int kolibri_bridge_init(void) {
 int kolibri_bridge_reset(void) {
     if (g_bridge_ready) {
         ks_free(&g_script);
+        kf_pool_free(&g_pool);
         g_bridge_ready = 0;
     }
     return bridge_ensure_initialized();

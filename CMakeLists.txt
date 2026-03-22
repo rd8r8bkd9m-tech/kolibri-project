@@ -114,6 +114,7 @@ endif()
 find_package(OpenSSL QUIET COMPONENTS Crypto)
 find_package(SQLite3 REQUIRED)
 find_package(Threads REQUIRED)
+find_package(PkgConfig QUIET)
 
 set(KOLIBRI_OPENSSL_TARGET "")
 
@@ -154,8 +155,47 @@ if(NOT KOLIBRI_OPENSSL_TARGET)
     message(FATAL_ERROR "OpenSSL Crypto library not found. Set OPENSSL_ROOT_DIR or install openssl@3.")
 endif()
 
+set(KOLIBRI_DIVSUFSORT_TARGET "")
+if(PkgConfig_FOUND)
+    pkg_check_modules(DIVSUFSORT QUIET libdivsufsort)
+endif()
+
+if(DIVSUFSORT_FOUND)
+    add_library(kolibri_divsufsort INTERFACE)
+    target_include_directories(kolibri_divsufsort INTERFACE ${DIVSUFSORT_INCLUDE_DIRS})
+    target_link_directories(kolibri_divsufsort INTERFACE ${DIVSUFSORT_LIBRARY_DIRS})
+    target_link_libraries(kolibri_divsufsort INTERFACE ${DIVSUFSORT_LIBRARIES})
+    set(KOLIBRI_DIVSUFSORT_TARGET kolibri_divsufsort)
+else()
+    find_path(DIVSUFSORT_INCLUDE_DIR divsufsort.h
+        HINTS
+            /opt/homebrew/include
+            /opt/homebrew/opt/libdivsufsort/include
+            /usr/local/include
+            /usr/local/opt/libdivsufsort/include
+    )
+    find_library(DIVSUFSORT_LIBRARY NAMES divsufsort
+        HINTS
+            /opt/homebrew/lib
+            /opt/homebrew/opt/libdivsufsort/lib
+            /usr/local/lib
+            /usr/local/opt/libdivsufsort/lib
+    )
+    if(DIVSUFSORT_INCLUDE_DIR AND DIVSUFSORT_LIBRARY)
+        add_library(kolibri_divsufsort INTERFACE)
+        target_include_directories(kolibri_divsufsort INTERFACE ${DIVSUFSORT_INCLUDE_DIR})
+        target_link_libraries(kolibri_divsufsort INTERFACE ${DIVSUFSORT_LIBRARY})
+        set(KOLIBRI_DIVSUFSORT_TARGET kolibri_divsufsort)
+    endif()
+endif()
+
+if(NOT KOLIBRI_DIVSUFSORT_TARGET)
+    message(FATAL_ERROR "libdivsufsort not found. Install libdivsufsort or set include/library paths.")
+endif()
+
 target_link_libraries(kolibri_core_objects PUBLIC ${KOLIBRI_OPENSSL_TARGET})
-target_link_libraries(kolibri_core PUBLIC ${KOLIBRI_OPENSSL_TARGET} SQLite::SQLite3 Threads::Threads m divsufsort)
+target_link_libraries(kolibri_core_objects PUBLIC ${KOLIBRI_DIVSUFSORT_TARGET})
+target_link_libraries(kolibri_core PUBLIC ${KOLIBRI_OPENSSL_TARGET} SQLite::SQLite3 Threads::Threads m ${KOLIBRI_DIVSUFSORT_TARGET})
 
 add_library(kolibri_wasm STATIC
     backend/src/wasm_bridge.c
@@ -225,6 +265,8 @@ add_executable(kolibri_archiver apps/kolibri_archiver.c)
 add_executable(kolibri_formula_archiver tools/kolibri_formula_archiver.c)
 add_executable(kolibri_meta_archiver tools/kolibri_meta_archiver.c)
 add_executable(kolibri_mass_trainer apps/kolibri_mass_trainer.c)
+add_executable(kolibri_formula_trainer apps/kolibri_formula_trainer.c)
+add_executable(kolibri_infer_cli apps/kolibri_infer_cli.c)
 add_executable(kolibri_train_kat apps/kolibri_train_kat.c)
 
 target_link_libraries(kolibri_node PRIVATE kolibri_core)
@@ -245,6 +287,8 @@ if(KOLIBRI_ENABLE_GPU)
 endif()
 target_link_libraries(kolibri_meta_archiver PRIVATE kolibri_core)
 target_link_libraries(kolibri_mass_trainer PRIVATE kolibri_core)
+target_link_libraries(kolibri_formula_trainer PRIVATE kolibri_core)
+target_link_libraries(kolibri_infer_cli PRIVATE kolibri_core)
 target_link_libraries(kolibri_train_kat PRIVATE kolibri_core)
 
 add_custom_target(verify_digit_masking ALL
@@ -411,6 +455,11 @@ if(KOLIBRI_ENABLE_TESTS)
     target_link_libraries(test_trace PRIVATE kolibri_core)
     add_test(NAME test_trace COMMAND test_trace)
 
+    # ROY - транспорт и синхронизация роя
+    add_executable(test_roy_transport tests/test_roy.c tests/test_roy_main.c)
+    target_link_libraries(test_roy_transport PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_roy_transport COMMAND test_roy_transport)
+
     # FORMULA LOGIC - мета-формулы
     add_executable(test_formula_logic tests/test_formula_logic.c)
     target_link_libraries(test_formula_logic PRIVATE kolibri_core Threads::Threads m)
@@ -425,6 +474,22 @@ if(KOLIBRI_ENABLE_TESTS)
     add_executable(test_inference tests/test_inference.c)
     target_link_libraries(test_inference PRIVATE kolibri_core Threads::Threads m)
     add_test(NAME test_inference COMMAND test_inference)
+    set_tests_properties(test_inference PROPERTIES
+        ENVIRONMENT "KOLIBRI_KNOWLEDGE_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/data/logic_corpus")
+
+    add_executable(test_inference_web_formula tests/test_inference_web_formula.c)
+    target_link_libraries(test_inference_web_formula PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_inference_web_formula COMMAND test_inference_web_formula)
+    set_tests_properties(test_inference_web_formula PROPERTIES
+        ENVIRONMENT "KOLIBRI_KNOWLEDGE_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/data/web_formula_corpus")
+
+    add_executable(test_knowledge_retrieval
+        tests/test_knowledge_retrieval.c
+        backend/src/knowledge.c)
+    target_include_directories(test_knowledge_retrieval PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/backend/include)
+    target_link_libraries(test_knowledge_retrieval PRIVATE m)
+    add_test(NAME test_knowledge_retrieval COMMAND test_knowledge_retrieval)
 
     # CORPUS TRAINER - масштабное обучение с фиксированным размером
     add_executable(test_corpus_trainer tests/test_corpus_trainer.c)
@@ -507,6 +572,14 @@ target_link_libraries(compare_with_competitors PRIVATE m)
 add_executable(bench_kolibri_vs_world benchmarks/bench_kolibri_vs_world.c)
 target_include_directories(bench_kolibri_vs_world PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/backend/include)
 target_link_libraries(bench_kolibri_vs_world PRIVATE kolibri_core)
+
+add_executable(kolibri_swarm_benchmark benchmarks/kolibri_swarm_benchmark.c)
+target_include_directories(kolibri_swarm_benchmark PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/backend/include)
+target_link_libraries(kolibri_swarm_benchmark PRIVATE kolibri_core Threads::Threads m)
+
+add_executable(kolibri_swarm_knowledge_benchmark benchmarks/kolibri_swarm_knowledge_benchmark.c)
+target_include_directories(kolibri_swarm_knowledge_benchmark PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/backend/include)
+target_link_libraries(kolibri_swarm_knowledge_benchmark PRIVATE kolibri_core Threads::Threads m)
 
 if(KOLIBRI_ENABLE_FUZZ)
   add_executable(kolibri_fuzz_script tests/fuzz_script.c)

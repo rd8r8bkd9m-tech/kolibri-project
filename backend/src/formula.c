@@ -139,6 +139,66 @@ int kf_hash_from_text(const char *text) {
     return kolibri_hash_to_int(fnv1a32(text));
 }
 
+static void formula_copy_into_slot(KolibriFormula *dst, const KolibriFormula *src) {
+    if (!dst || !src) {
+        return;
+    }
+    *dst = *src;
+}
+
+static void formula_bubble_up(KolibriFormulaPool *pool, size_t index) {
+    if (!pool || index >= pool->count) {
+        return;
+    }
+    while (index > 0U &&
+           pool->formulas[index].fitness > pool->formulas[index - 1U].fitness) {
+        KolibriFormula tmp = pool->formulas[index - 1U];
+        pool->formulas[index - 1U] = pool->formulas[index];
+        pool->formulas[index] = tmp;
+        --index;
+    }
+}
+
+int kf_pool_import_formula(KolibriFormulaPool *pool,
+                           const KolibriFormula *formula,
+                           int replace_only_if_better) {
+    if (!pool || !formula || !pool->formulas || pool->count == 0U) {
+        return -1;
+    }
+
+    for (size_t i = 0; i < pool->count; ++i) {
+        KolibriFormula *current = &pool->formulas[i];
+        if (current->gene.length != formula->gene.length) {
+            continue;
+        }
+        if (memcmp(current->gene.digits, formula->gene.digits, formula->gene.length) != 0) {
+            continue;
+        }
+        if (!replace_only_if_better || formula->fitness > current->fitness) {
+            formula_copy_into_slot(current, formula);
+            formula_bubble_up(pool, i);
+        }
+        return 0;
+    }
+
+    size_t worst_index = 0U;
+    double worst_fitness = pool->formulas[0].fitness;
+    for (size_t i = 1; i < pool->count; ++i) {
+        if (pool->formulas[i].fitness < worst_fitness) {
+            worst_fitness = pool->formulas[i].fitness;
+            worst_index = i;
+        }
+    }
+
+    if (replace_only_if_better && formula->fitness <= worst_fitness) {
+        return 1;
+    }
+
+    formula_copy_into_slot(&pool->formulas[worst_index], formula);
+    formula_bubble_up(pool, worst_index);
+    return 0;
+}
+
 static void association_reset(KolibriAssociation *assoc) {
     if (!assoc) {
         return;
@@ -211,6 +271,70 @@ static void association_set(KolibriAssociation *assoc,
             apos += consumed;
         }
     }
+}
+
+static int association_source_is_manual(const char *source) {
+    return source && strstr(source, "manual") != NULL;
+}
+
+static double association_quality_score(const KolibriAssociation *assoc) {
+    if (!assoc || assoc->answer[0] == '\0') {
+        return -1000.0;
+    }
+    double score = 0.0;
+    size_t answer_len = strlen(assoc->answer);
+    if (association_source_is_manual(assoc->source)) {
+        score += 5.0;
+    }
+    if (strstr(assoc->answer, "—") != NULL) {
+        score += 1.5;
+    }
+    if (answer_len >= 48U && answer_len <= 320U) {
+        score += 1.2;
+    } else if (answer_len > 320U) {
+        score -= 0.6;
+    }
+    if (strstr(assoc->answer, "[1]") != NULL ||
+        strstr(assoc->answer, "[2]") != NULL) {
+        score -= 1.2;
+    }
+    if (strstr(assoc->answer, "Википедия") != NULL ||
+        strstr(assoc->answer, "Wikipedia") != NULL ||
+        strstr(assoc->answer, "Материал из Википедии") != NULL ||
+        strstr(assoc->answer, "[править") != NULL ||
+        strstr(assoc->answer, "Символы") != NULL) {
+        score -= 2.4;
+    }
+    if (strstr(assoc->answer, "(от лат.") != NULL ||
+        strstr(assoc->answer, "(от др.-греч.") != NULL) {
+        score -= 0.8;
+    }
+    return score;
+}
+
+static int association_should_replace(const KolibriAssociation *current,
+                                      const KolibriAssociation *candidate) {
+    if (!current || !candidate) {
+        return 1;
+    }
+    if (association_source_is_manual(candidate->source) &&
+        !association_source_is_manual(current->source)) {
+        return 1;
+    }
+    if (association_source_is_manual(current->source) &&
+        !association_source_is_manual(candidate->source)) {
+        return 0;
+    }
+
+    double current_score = association_quality_score(current);
+    double candidate_score = association_quality_score(candidate);
+    if (candidate_score > current_score + 0.25) {
+        return 1;
+    }
+    if (candidate_score + 0.25 < current_score) {
+        return 0;
+    }
+    return candidate->timestamp >= current->timestamp;
 }
 
 static int association_equals(const KolibriAssociation *a, const KolibriAssociation *b) {
@@ -516,9 +640,20 @@ void kf_pool_init(KolibriFormulaPool *pool, uint64_t seed) {
         return;
     }
     memset(pool, 0, sizeof(*pool));
-    
-    /* Динамическая аллокация формул (начинаем с 16, растём безлимитно) */
-    pool->capacity = KOLIBRI_FORMULA_INITIAL_CAPACITY;
+
+    size_t initial_capacity = KOLIBRI_FORMULA_INITIAL_CAPACITY;
+    size_t initial_examples_capacity = 1000U;
+    size_t initial_association_capacity = 1000U;
+#if defined(__EMSCRIPTEN__)
+    /* Браузерный runtime сильно жёстче по памяти: стартуем с малого пула,
+       а дальше растём по мере реального обучения. */
+    initial_capacity = 1U;
+    initial_examples_capacity = 128U;
+    initial_association_capacity = 64U;
+#endif
+
+    /* Динамическая аллокация формул (native — 16, wasm — 1) */
+    pool->capacity = initial_capacity;
     pool->formulas = (KolibriFormula *)calloc(pool->capacity, sizeof(KolibriFormula));
     if (!pool->formulas) {
         pool->capacity = 0;
@@ -531,12 +666,16 @@ void kf_pool_init(KolibriFormulaPool *pool, uint64_t seed) {
     kf_config_default(&pool->config);
     kf_pool_reset_metrics(pool);
     
-    pool->examples_capacity = 1000;
+    pool->examples_capacity = initial_examples_capacity;
     pool->inputs = (int *)malloc(pool->examples_capacity * sizeof(int));
     pool->targets = (int *)malloc(pool->examples_capacity * sizeof(int));
     
-    pool->association_capacity = 1000;
+    pool->association_capacity = initial_association_capacity;
     pool->associations = (KolibriAssociation *)malloc(pool->association_capacity * sizeof(KolibriAssociation));
+    if (!pool->inputs || !pool->targets || !pool->associations) {
+        kf_pool_free(pool);
+        return;
+    }
     
     for (size_t i = 0; i < pool->count; ++i) {
         gene_randomize(pool, &pool->formulas[i].gene);
@@ -620,7 +759,9 @@ int kf_pool_add_association(KolibriFormulaPool *pool,
     for (size_t i = 0; i < pool->association_count; ++i) {
         if (pool->associations[i].input_hash == assoc.input_hash &&
             strcmp(pool->associations[i].question, assoc.question) == 0) {
-            pool->associations[i] = assoc;
+            if (association_should_replace(&pool->associations[i], &assoc)) {
+                pool->associations[i] = assoc;
+            }
             return kf_pool_add_example(pool, assoc.input_hash, assoc.output_hash);
         }
     }
@@ -629,6 +770,45 @@ int kf_pool_add_association(KolibriFormulaPool *pool,
         return -1;
     }
 
+    pool->associations[pool->association_count++] = assoc;
+    return kf_pool_add_example(pool, assoc.input_hash, assoc.output_hash);
+}
+
+int kf_pool_import_association(KolibriFormulaPool *pool,
+                               KolibriSymbolTable *symbols,
+                               const KolibriAssociation *association) {
+    KolibriAssociation assoc;
+    if (!pool || !association || association->question[0] == '\0' ||
+        association->answer[0] == '\0') {
+        return -1;
+    }
+
+    memset(&assoc, 0, sizeof(assoc));
+    if (association->question_digits_length == 0U &&
+        association->answer_digits_length == 0U) {
+        association_set(&assoc, symbols, association->question, association->answer,
+                        association->source, association->timestamp);
+    } else {
+        assoc = *association;
+        if (assoc.input_hash == 0) {
+            assoc.input_hash = kolibri_hash_to_int(fnv1a32(assoc.question));
+        }
+        if (assoc.output_hash == 0) {
+            assoc.output_hash = kolibri_hash_to_int(fnv1a32(assoc.answer));
+        }
+    }
+
+    for (size_t i = 0; i < pool->association_count; ++i) {
+        if (!association_equals(&pool->associations[i], &assoc)) {
+            continue;
+        }
+        pool->associations[i] = assoc;
+        return kf_pool_add_example(pool, assoc.input_hash, assoc.output_hash);
+    }
+
+    if (kf_pool_ensure_association_capacity(pool, pool->association_count + 1U) != 0) {
+        return -1;
+    }
     pool->associations[pool->association_count++] = assoc;
     return kf_pool_add_example(pool, assoc.input_hash, assoc.output_hash);
 }

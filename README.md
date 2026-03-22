@@ -44,6 +44,22 @@ cd frontend && npm ci && npm run dev -- --host 0.0.0.0 --port 3000
 
 - `docs/plans/ROADMAP_SINGLE_SOURCE_OF_TRUTH.md`
 
+## Official Public Surface
+
+Если нужен не весь архив мыслей проекта, а один официальный публичный контур, опирайся на этот набор:
+
+- [docs/PUBLIC_ARCHITECTURE.md](docs/PUBLIC_ARCHITECTURE.md) — главный публичный архитектурный документ
+- [docs/FORMULA_API_DSL.md](docs/FORMULA_API_DSL.md) — публичный Formula API и реальный DSL поверх C-core
+- [docs/KPACK_FORMAT.md](docs/KPACK_FORMAT.md) — пакетный формат знаний `.kpack`
+- [docs/DEMO_PATH.md](docs/DEMO_PATH.md) — один стабильный demo-path
+- [docs/public_interfaces.md](docs/public_interfaces.md) — стабильные публичные интерфейсы
+
+Внутренние глубокие справочники при этом остаются доступными:
+
+- `docs/ARCHITECTURE.md`
+- `docs/C_CORE_REFERENCE.md`
+- `docs/FRONTEND_WASM_REFERENCE.md`
+
 Правило статусов:
 
 - `implemented` = код + тест + воспроизводимый запуск.

@@ -1,0 +1,49 @@
+{
+  "base_url": "https://kolibriai.ru",
+  "checks": [
+    {
+      "name": "models:/api/v1/ai/models",
+      "ok": true,
+      "status": 200,
+      "latency_ms": 7093.15,
+      "sample": {
+        "primary_model": "kolibri_web.klm",
+        "model_available": true,
+        "c_trainer_available": true,
+        "model_path": "/srv/kolibri/repo/data/models/kolibri_web.klm",
+        "model_size_mb": 0.0,
+        "patterns": 0,
+        "edges": 0,
+        "documents": 0,
+        "epoch": 0,
+        "formula_generation": 1526,
+        "embedding_vocab_size": 30036,
+        "sentence_store_size": 9735
+      }
+    },
+    {
+      "name": "models:/api/v1/model/stats",
+      "ok": true,
+      "status": 200,
+      "latency_ms": 1591.05,
+      "sample": {
+        "exists": true,
+        "path": "/srv/kolibri/repo/data/models/kolibri_web.klm",
+        "size_mb": 42.69,
+        "patterns": 0,
+        "edges": 0,
+        "max_patterns": 131072,
+        "max_edges": 262144
+      }
+    },
+    {
+      "name": "chat:/api/v1/ai/chat",
+      "ok": true,
+      "status": 200,
+      "latency_ms": 41134.37,
+      "response_preview": "точное протокол раньше появился развития запуска растений дополните Числовой анализ также выявляет связи с: как (так, над), между (слово, со), какими (веществ, сопротивления), inst"
+    }
+  ],
+  "timestamp": 1771448159,
+  "all_ok": true
+}

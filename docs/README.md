@@ -6,6 +6,16 @@
 
 Этот каталог содержит полную подборку документации прототипа Kolibri. Каждая запись дополнена кратким описанием, чтобы упростить навигацию:
 
+### Официальный публичный набор
+
+- [PUBLIC_ARCHITECTURE.md](PUBLIC_ARCHITECTURE.md) — главный публичный архитектурный документ Kolibri.
+- [FORMULA_API_DSL.md](FORMULA_API_DSL.md) — публичный Formula API и честный DSL, который реально исполняется в C-core.
+- [KPACK_FORMAT.md](KPACK_FORMAT.md) — пакетный формат знаний `.kpack` как продуктовая единица.
+- [DEMO_PATH.md](DEMO_PATH.md) — один стабильный demo-path Kolibri.
+- [public_interfaces.md](public_interfaces.md) — стабильные публичные интерфейсы.
+
+### Глубокие внутренние справочники
+
 - [plans/ROADMAP_SINGLE_SOURCE_OF_TRUTH.md](plans/ROADMAP_SINGLE_SOURCE_OF_TRUTH.md) — единый подтверждённый roadmap проекта с честными статусами `implemented/in_progress/planned`.
 - [archive/unconfirmed_reports/README.md](archive/unconfirmed_reports/README.md) — архив отчётов и документов со статусом «требует повторной верификации».
 - [kolibri_integrated_prototype.md](kolibri_integrated_prototype.md) — обзорный научный документ с изложением концепции, экспериментов и результатов.
@@ -24,6 +34,16 @@
 
 This directory aggregates every documentation artifact required for the Kolibri prototype. Quick references are listed below:
 
+### Official public set
+
+- [PUBLIC_ARCHITECTURE.md](PUBLIC_ARCHITECTURE.md) — official public architecture for Kolibri.
+- [FORMULA_API_DSL.md](FORMULA_API_DSL.md) — public Formula API and the actual DSL executed by the C core.
+- [KPACK_FORMAT.md](KPACK_FORMAT.md) — `.kpack` knowledge-pack format as a product unit.
+- [DEMO_PATH.md](DEMO_PATH.md) — one stable Kolibri demo-path.
+- [public_interfaces.md](public_interfaces.md) — stable public interfaces.
+
+### Deep internal references
+
 - [plans/ROADMAP_SINGLE_SOURCE_OF_TRUTH.md](plans/ROADMAP_SINGLE_SOURCE_OF_TRUTH.md) — single verified roadmap with honest `implemented/in_progress/planned` statuses.
 - [archive/unconfirmed_reports/README.md](archive/unconfirmed_reports/README.md) — archive of reports/documents marked as "requires re-verification".
 - [kolibri_integrated_prototype.md](kolibri_integrated_prototype.md) — comprehensive paper-style overview with methodology and experiments.
@@ -41,6 +61,12 @@ This directory aggregates every documentation artifact required for the Kolibri 
 ## 中文
 
 此目录收录 Kolibri 原型所需的全部文档，并提供快速导航：
+
+- [PUBLIC_ARCHITECTURE.md](PUBLIC_ARCHITECTURE.md) —— 官方公开架构文档。
+- [FORMULA_API_DSL.md](FORMULA_API_DSL.md) —— 公开 Formula API 与实际可执行 DSL。
+- [KPACK_FORMAT.md](KPACK_FORMAT.md) —— `.kpack` 知识包格式。
+- [DEMO_PATH.md](DEMO_PATH.md) —— 官方稳定演示路径。
+- [public_interfaces.md](public_interfaces.md) —— 稳定公开接口。
 
 - [kolibri_integrated_prototype.md](kolibri_integrated_prototype.md) —— 论文式综述，涵盖方法论与实验。
 - [master_prompt.md](master_prompt.md) —— “Prometheus” 主提示词，阐述理念与路线。

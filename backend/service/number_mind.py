@@ -352,7 +352,9 @@ class Formula:
     def lookup(self, question: str) -> Optional[str]:
         """Поиск ответа по ассоциации (hash → text)."""
         h = fnv1a_hash(question.lower())
-        for assoc in self.associations:
+        # Важнее самые свежие ассоциации: пользовательское дообучение
+        # должно переопределять старые/шумные ответы.
+        for assoc in reversed(self.associations):
             if assoc.input_hash == h:
                 return assoc.answer
         return None
@@ -1961,6 +1963,90 @@ def _is_stop_word(word: str) -> bool:
     return word.lower() in STOP_WORDS or len(word) < 2
 
 
+_NOISE_SENTENCE_MARKERS: tuple[str, ...] = (
+    "дата обращения",
+    "архивировано",
+    "архивная копия",
+    "wayback machine",
+    "retrieved",
+    "править код",
+    "обс.",
+    "(utc)",
+    "template:",
+    "isbn",
+    "doi:",
+    "prod-smoke",
+    "deploy-smoke",
+    "backend-smoke",
+    "confidence:",
+    "ответ:",
+    "вопрос:",
+    "зацени",
+    "инсту",
+    "залетает",
+)
+
+
+def _is_low_quality_sentence(text: str) -> bool:
+    """
+    Грубая фильтрация мусорных строк корпуса.
+
+    Отсекаем:
+    - служебные строки источников (архивы, даты обращения, wiki-разметка);
+    - обрывки/заголовки без содержательного текста;
+    - строки с непропорционально большим числом разделителей/шумовых токенов.
+    """
+    src = (text or "").strip()
+    if len(src) < 20:
+        return True
+
+    low = src.lower()
+    if any(marker in low for marker in _NOISE_SENTENCE_MARKERS):
+        return True
+
+    if low.startswith(("#", "*", "•", "—", "-", "|")) and len(_tokenize(low)) < 10:
+        return True
+
+    if "[[" in src or "]]" in src or "{{" in src or "}}" in src:
+        return True
+    if "<ref" in low or "</ref>" in low:
+        return True
+    if "http://" in low or "https://" in low or "www." in low:
+        return True
+    if src.count("|") >= 2 or src.count("//") >= 1:
+        return True
+
+    tokens = _tokenize(src)
+    if len(tokens) < 3:
+        return True
+    if len(tokens) == 3:
+        definitional = (
+            "—" in src
+            or "-" in src
+            or " это " in f" {low} "
+            or " является " in f" {low} "
+            or " равно " in f" {low} "
+        )
+        if not definitional:
+            return True
+    if len(tokens) <= 6 and sum(1 for t in tokens if len(t) <= 2) >= 3:
+        return True
+
+    letters = [ch for ch in src if ch.isalpha()]
+    if len(letters) < 12:
+        return True
+    digits = sum(1 for ch in src if ch.isdigit())
+    if digits > 0 and digits / max(1, len(src)) > 0.25:
+        return True
+
+    # Часто встречающийся шум: списки источников в одну строку.
+    separators = src.count(";") + src.count(" : ") + src.count(" — ")
+    if separators >= 5 and len(src) < 260:
+        return True
+
+    return False
+
+
 def _stem_ru(word: str) -> str:
     """
     Простой стемминг для русских слов — обрезка типичных окончаний.
@@ -1997,9 +2083,14 @@ def _split_sentences(text: str) -> list[str]:
     raw = re.split(r'(?<=[.!?])\s+|\n\n+|\n(?=[А-ЯA-Z0-9•\-—])', text)
     result: list[str] = []
     for chunk in raw:
-        chunk = chunk.strip().strip('•\u2013\u2014\u2022 ')
-        if len(chunk) >= 20 and len(_tokenize(chunk)) >= 3:
-            result.append(chunk)
+        chunk = " ".join(chunk.strip().strip('•\u2013\u2014\u2022 ').split())
+        if len(chunk) < 20:
+            continue
+        if len(_tokenize(chunk)) < 3:
+            continue
+        if _is_low_quality_sentence(chunk):
+            continue
+        result.append(chunk)
     return result
 
 
@@ -2033,6 +2124,7 @@ class SentenceStore:
     def __init__(self, max_sentences: int = 50000) -> None:
         self.sentences: list[SentenceEntry] = []
         self.max_sentences = max_sentences
+        self._sentence_hashes: set[int] = set()
         self._word_index: dict[int, list[int]] = {}
         # --- BM25 параметры ---
         self._doc_freq: dict[int, int] = {}      # word_hash → в скольких документах встречается
@@ -2048,12 +2140,17 @@ class SentenceStore:
         self._compress_threshold: int = 200        # сжимать если > 200 цифр
         self._bytes_saved: int = 0                 # экономия памяти (байт)
 
-    def add_text(self, text: str) -> int:
+    def add_text(self, text: str, max_new_sentences: Optional[int] = None) -> int:
         """Разбить текст на предложения → закодировать в ЦИФРЫ и сохранить."""
         added = 0
         for sent in _split_sentences(text):
+            if max_new_sentences is not None and added >= max_new_sentences:
+                break
             if len(self.sentences) >= self.max_sentences:
                 break
+            sent_hash = fnv1a_hash(sent.lower())
+            if sent_hash in self._sentence_hashes:
+                continue
             tokens = _tokenize(sent)
             word_hashes: set[int] = set()
             fp = 0
@@ -2104,6 +2201,7 @@ class SentenceStore:
                         sh = djb2_hash(stemmed)
                         if sh not in word_hashes:  # Не дублировать
                             self._word_index.setdefault(sh, []).append(idx)
+            self._sentence_hashes.add(sent_hash)
             added += 1
         return added
 

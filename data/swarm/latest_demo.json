@@ -1,0 +1,41 @@
+{
+  "created_at": 1773336184.352918,
+  "title": "Тестовый домен",
+  "source": "pytest",
+  "category": "tests",
+  "saved_documents": 1,
+  "message": "Текст добавлен в живую память, рой принудительно пересчитан, before/after отчёт собран.",
+  "domain_delta": [
+    {
+      "domain": "tests",
+      "before": 0,
+      "after": 1,
+      "delta": 1
+    }
+  ],
+  "knowledge_delta": {
+    "from_timestamp": 1773336154.0,
+    "to_timestamp": 1773336177.0,
+    "documents_delta": 0,
+    "single_hit_delta": 0.0,
+    "isolated_hit_delta": 0.0,
+    "swarm_hit_delta": 0.0,
+    "swarm_vs_single_delta_change": 0.0,
+    "swarm_vs_isolated_delta_change": 0.0
+  },
+  "comparison_summary": {
+    "documents_before": 2,
+    "documents_after": 2,
+    "documents_delta": 0,
+    "single_hit_before": 1.0,
+    "single_hit_after": 1.0,
+    "isolated_hit_before": 0.1,
+    "isolated_hit_after": 0.1,
+    "swarm_hit_before": 1.0,
+    "swarm_hit_after": 1.0,
+    "swarm_vs_single_before": 0.0,
+    "swarm_vs_single_after": 0.0,
+    "swarm_vs_isolated_before": 0.9,
+    "swarm_vs_isolated_after": 0.9
+  }
+}

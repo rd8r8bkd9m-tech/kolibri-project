@@ -2624,7 +2624,22 @@ static int kolibri_execute_evaluate_formula(KolibriScript *script, const Kolibri
         return -1;
     }
     int task_int = kf_hash_from_text(task_text);
-    KolibriFormula *formula = &script->pool->formulas[binding->pool_index % script->pool->count];
+    if (!script->pool->formulas || script->pool->count == 0U) {
+        char fallback[256];
+        if (kolibri_try_calculate(task_text, fallback, sizeof(fallback))) {
+            KolibriValue result_value = kolibri_value_from_string(fallback);
+            kolibri_script_set_variable(script, "итог", result_value);
+            free(task_text);
+            kolibri_value_free(&task_value);
+            return 0;
+        }
+        kolibri_script_log(script, "SCRIPT_ERROR", "Формульный пул недоступен");
+        free(task_text);
+        kolibri_value_free(&task_value);
+        return -1;
+    }
+    size_t formula_index = binding->pool_index % script->pool->count;
+    KolibriFormula *formula = &script->pool->formulas[formula_index];
     int output = 0;
     if (kf_formula_apply(formula, task_int, &output) != 0) {
         free(task_text);
@@ -2713,7 +2728,12 @@ static int kolibri_execute_save_formula(KolibriScript *script, const KolibriStat
         kolibri_script_log(script, "SCRIPT_ERROR", "Формула не найдена для сохранения");
         return -1;
     }
-    KolibriFormula *formula = &script->pool->formulas[binding->pool_index % script->pool->count];
+    if (!script->pool->formulas || script->pool->count == 0U) {
+        kolibri_script_log(script, "SCRIPT_ERROR", "Формульный пул недоступен для сохранения");
+        return -1;
+    }
+    size_t formula_index = binding->pool_index % script->pool->count;
+    KolibriFormula *formula = &script->pool->formulas[formula_index];
     uint8_t digits[128];
     size_t len = kf_formula_digits(formula, digits, sizeof(digits));
     if (len == 0 || len >= sizeof(digits)) {

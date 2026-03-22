@@ -148,6 +148,9 @@ int kf_pool_add_association(KolibriFormulaPool *pool,
                             const char *answer,
                             const char *source,
                             uint64_t timestamp);
+int kf_pool_import_association(KolibriFormulaPool *pool,
+                               KolibriSymbolTable *symbols,
+                               const KolibriAssociation *association);
 void kf_pool_tick(KolibriFormulaPool *pool, size_t generations);
 const KolibriFormula *kf_pool_best(const KolibriFormulaPool *pool);
 int kf_formula_apply(const KolibriFormula *formula, int input, int *output);
@@ -157,6 +160,9 @@ int kf_pool_feedback(KolibriFormulaPool *pool, const KolibriGene *gene, double d
 int kf_formula_lookup_answer(const KolibriFormula *formula, int input,
                              char *buffer, size_t buffer_len);
 int kf_hash_from_text(const char *text);
+int kf_pool_import_formula(KolibriFormulaPool *pool,
+                           const KolibriFormula *formula,
+                           int replace_only_if_better);
 
 /* --- Динамическое управление формулами --- */
 

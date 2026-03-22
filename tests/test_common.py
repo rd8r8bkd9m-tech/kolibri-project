@@ -14,14 +14,17 @@ class TestSettings:
     def test_default_values(self) -> None:
         s = Settings()
         assert s.response_mode == "script"
+        assert s.local_only is True
         assert s.llm_endpoint is None
         assert s.llm_timeout == 30.0
 
     def test_load_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("KOLIBRI_RESPONSE_MODE", "llm")
         monkeypatch.setenv("KOLIBRI_LLM_TIMEOUT", "60")
+        monkeypatch.setenv("KOLIBRI_LOCAL_ONLY", "0")
         s = Settings.load()
         assert s.response_mode == "llm"
+        assert s.local_only is False
         assert s.llm_timeout == 60.0
 
     def test_load_invalid_timeout(self, monkeypatch: pytest.MonkeyPatch) -> None:

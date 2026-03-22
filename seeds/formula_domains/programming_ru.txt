@@ -1,0 +1,5 @@
+https://ru.wikipedia.org/wiki/Программирование
+https://ru.wikipedia.org/wiki/Алгоритм
+https://ru.wikipedia.org/wiki/Структура_данных
+https://ru.wikipedia.org/wiki/Компилятор
+https://ru.wikipedia.org/wiki/Отладка

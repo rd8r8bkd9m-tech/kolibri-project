@@ -17,6 +17,12 @@ extern "C" {
 #define KOLIBRI_ROY_MAX_SOSSEDI 64U
 #define KOLIBRI_ROY_MAX_OCHERED 32U
 #define KOLIBRI_ROY_HMAC_SIZE 32U
+#define KOLIBRI_ROY_MAX_GENE_DIGITS 32U
+#define KOLIBRI_ROY_MAX_FORMULA_CHUNK_DATA 448U
+#define KOLIBRI_ROY_MAX_FORMULA_CHUNKS 16U
+#define KOLIBRI_ROY_MAX_ASSOC_CHUNK_DATA 448U
+#define KOLIBRI_ROY_MAX_ASSOC_CHUNKS 8U
+#define KOLIBRI_ROY_MAX_ASSOC_SERIALIZED 2048U
 #define KOLIBRI_ROY_PRIVET_INTERVAL 5U
 #define KOLIBRI_ROY_SROK_GODA 30U
 
@@ -30,7 +36,8 @@ typedef struct {
 typedef enum {
     KOLIBRI_ROY_SOBYTIE_NONE = 0,
     KOLIBRI_ROY_SOBYTIE_HELLO = 1,
-    KOLIBRI_ROY_SOBYTIE_FORMULA = 2
+    KOLIBRI_ROY_SOBYTIE_FORMULA = 2,
+    KOLIBRI_ROY_SOBYTIE_ASSOCIATION = 3
 } KolibriRoySobytieTip;
 
 typedef struct {
@@ -38,7 +45,29 @@ typedef struct {
     uint32_t identifikator;
     struct sockaddr_in adres;
     KolibriFormula formula;
+    KolibriAssociation association;
 } KolibriRoySobytie;
+
+typedef struct {
+    int aktivna;
+    uint32_t identifikator;
+    uint16_t dlina_gena;
+    uint16_t vsego_chastej;
+    uint16_t polucheno_chastej;
+    uint8_t karta_chastej[KOLIBRI_ROY_MAX_FORMULA_CHUNKS];
+    uint8_t gene_digits[sizeof(((KolibriGene *)0)->digits)];
+    double fitness;
+} KolibriRoySborFormula;
+
+typedef struct {
+    int aktivna;
+    uint32_t identifikator;
+    uint16_t dlina;
+    uint16_t vsego_chastej;
+    uint16_t polucheno_chastej;
+    uint8_t karta_chastej[KOLIBRI_ROY_MAX_ASSOC_CHUNKS];
+    uint8_t bytes[KOLIBRI_ROY_MAX_ASSOC_SERIALIZED];
+} KolibriRoySborAssociation;
 
 typedef struct {
     uint32_t sobstvennyj_id;
@@ -56,6 +85,8 @@ typedef struct {
     size_t ochered_golova;
     size_t ochered_hvost;
     size_t ochered_schetchik;
+    KolibriRoySborFormula sborki[KOLIBRI_ROY_MAX_SOSSEDI];
+    KolibriRoySborAssociation sborki_association[KOLIBRI_ROY_MAX_SOSSEDI];
     time_t poslednij_privet;
 } KolibriRoy;
 
@@ -86,6 +117,10 @@ int kolibri_roy_otpravit_sluchajnomu(KolibriRoy *roy, uint64_t sluchajnoe,
 
 /* Рассылает формулу всем соседям и широковещательно. */
 int kolibri_roy_otpravit_vsem(KolibriRoy *roy, const KolibriFormula *formula);
+
+/* Рассылает ассоциацию знаний всем соседям и широковещательно. */
+int kolibri_roy_otpravit_association_vsem(KolibriRoy *roy,
+                                          const KolibriAssociation *association);
 
 #ifdef __cplusplus
 }

@@ -8,26 +8,19 @@ import os
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from .gpu_store import router as gpu_router
-from .os_bridge import router as os_router
-from .crawler import router as crawler_router
-from .agent import router as agent_router
 from .ai_chat import router as ai_router
 from .ai_engine import pre_init_engine
-from .swarm_sync import swarm_router
-from .distributed_crawler import router as dist_crawler_router
-from .delta_sync import router as delta_sync_router
-from .archiver_service import create_archiver_router
-from .cognition_api import router as cognition_router
 from .auth import router as auth_router
 from .rate_limiter import RateLimitMiddleware
 from .health import router as health_router
+from .swarm_runtime_api import router as swarm_runtime_router, maybe_autostart_swarm_runtime
 from .common import Settings, get_settings, InferenceRequest, perform_upstream_call
 
 
 class HealthResponse(BaseModel):
     status: str = "ok"
     response_mode: str
+    local_only: bool
 
 
 class InferenceResponse(BaseModel):
@@ -38,12 +31,19 @@ class InferenceResponse(BaseModel):
 
 from contextlib import asynccontextmanager
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     """Lifespan: предзагрузка AI-движка при старте."""
     import threading
     threading.Thread(target=pre_init_engine, daemon=True, name="engine-init").start()
+    threading.Thread(target=maybe_autostart_swarm_runtime, daemon=True, name="swarm-runtime-init").start()
     yield
     get_settings.cache_clear()
 
@@ -71,28 +71,49 @@ app.add_middleware(
 # --- Rate-limiter (после CORS, до роутеров) ---
 app.add_middleware(RateLimitMiddleware)
 
-app.include_router(gpu_router)
-app.include_router(os_router)
-app.include_router(crawler_router)
-app.include_router(agent_router)
 app.include_router(ai_router)
-app.include_router(swarm_router)
-app.include_router(dist_crawler_router)
-app.include_router(delta_sync_router)
-app.include_router(create_archiver_router())
-app.include_router(cognition_router)
 app.include_router(auth_router)
 app.include_router(health_router)
+app.include_router(swarm_runtime_router)
+
+if not _env_flag("KOLIBRI_CHAT_ONLY_MODE", default=True):
+    from .gpu_store import router as gpu_router
+    from .os_bridge import router as os_router
+    from .crawler import router as crawler_router
+    from .agent import router as agent_router
+    from .swarm_sync import swarm_router
+    from .distributed_crawler import router as dist_crawler_router
+    from .delta_sync import router as delta_sync_router
+    from .archiver_service import create_archiver_router
+    from .cognition_api import router as cognition_router
+
+    app.include_router(gpu_router)
+    app.include_router(os_router)
+    app.include_router(crawler_router)
+    app.include_router(agent_router)
+    app.include_router(swarm_router)
+    app.include_router(dist_crawler_router)
+    app.include_router(delta_sync_router)
+    app.include_router(create_archiver_router())
+    app.include_router(cognition_router)
 
 
 @app.get("/api/health", response_model=HealthResponse)
 async def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
-    return HealthResponse(status="ok", response_mode=settings.response_mode)
+    return HealthResponse(
+        status="ok",
+        response_mode=settings.response_mode,
+        local_only=settings.local_only,
+    )
 
 
 @app.get("/api/knowledge/healthz", response_model=HealthResponse)
 async def knowledge_health(settings: Settings = Depends(get_settings)) -> HealthResponse:
-    return HealthResponse(status="ok", response_mode=settings.response_mode)
+    return HealthResponse(
+        status="ok",
+        response_mode=settings.response_mode,
+        local_only=settings.local_only,
+    )
 
 
 @app.post("/api/v1/infer", response_model=InferenceResponse)

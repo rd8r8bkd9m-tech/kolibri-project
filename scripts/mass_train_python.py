@@ -110,7 +110,7 @@ def main() -> None:
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
-    root = Path("/workspaces/kolibri-project")
+    root = Path(__file__).resolve().parent.parent
 
     if args.dir:
         dirs = args.dir

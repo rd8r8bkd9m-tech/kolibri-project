@@ -1,0 +1,52 @@
+{
+  "timestamp_utc": "2026-03-06T15:45:20.616332+00:00",
+  "base_url": "https://kolibriai.ru",
+  "status": {
+    "ok": true,
+    "reasons": [],
+    "errors": []
+  },
+  "config": {
+    "runs": 1,
+    "min_score": 0.9,
+    "require_gates_pass": true,
+    "max_p95_regression_ratio": 1.35,
+    "request_timeout": 180.0
+  },
+  "summary": {
+    "runs": 1,
+    "score_avg": 1.0,
+    "pass_rate_avg": 1.0,
+    "latency_p95_ms_avg": 426.3,
+    "gate_fail_runs": 0
+  },
+  "baseline": {
+    "path": "docs/reports/quality_baseline.json",
+    "latency_p95_ms_avg": 0.0,
+    "current_to_baseline_p95_ratio": 1.0
+  },
+  "runs_data": [
+    {
+      "run_index": 1,
+      "run_id": "2b66d6630277",
+      "score": 1.0,
+      "pass_rate": 1.0,
+      "latency_p95_ms": 426.3,
+      "duration_ms": 2824.8,
+      "gates_ok": true,
+      "gates": {
+        "score_min": 0.78,
+        "pass_rate_min": 0.7,
+        "latency_p95_max_ms": 3200.0,
+        "placeholder_rate_max": 0.18,
+        "hallucination_rate_max": 0.28,
+        "score_pass": true,
+        "pass_rate_pass": true,
+        "latency_pass": true,
+        "placeholder_pass": true,
+        "hallucination_pass": true,
+        "overall_pass": true
+      }
+    }
+  ]
+}

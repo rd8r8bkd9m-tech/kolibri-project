@@ -1715,7 +1715,9 @@ static size_t lz_blazing_v76_encode(const uint8_t *restrict input, size_t input_
     int last_dist = 0;  /* v84: Rep-match — последняя использованная дистанция */
 
     /* v84: SSE2 вектор для поиска escape-байта 0xFF в 16-байтных чанках */
+#if KF_USE_SIMD
     const __m128i esc_vec = _mm_set1_epi8((char)0xFF);
+#endif
 
     while (ip <= limit && op < safe_end) {
 
@@ -1796,6 +1798,7 @@ static size_t lz_blazing_v76_encode(const uint8_t *restrict input, size_t input_
         }
 
         /* v84: Литерал: 16-byte SSE2 bulk path — проверка на 0xFF через _mm_cmpeq_epi8 */
+#if KF_USE_SIMD
         if (ip + 16 <= limit && op + 16 <= safe_end) {
             __m128i chunk = _mm_loadu_si128((const __m128i *)(input + ip));
             int esc_mask = _mm_movemask_epi8(_mm_cmpeq_epi8(chunk, esc_vec));
@@ -1808,6 +1811,7 @@ static size_t lz_blazing_v76_encode(const uint8_t *restrict input, size_t input_
                 continue;
             }
         }
+#endif
         /* Fallback: 8-byte SWAR bulk path */
         if (ip + 8 <= limit && op + 8 <= safe_end) {
             uint64_t v8;
@@ -6668,5 +6672,4 @@ void kolibri_stream_destroy(KolibriStream *stream) {
     free(stream->blk_buf);
     free(stream);
 }
-
 

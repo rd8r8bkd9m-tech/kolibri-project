@@ -50,6 +50,38 @@ class TestContextWindow:
         enriched = cw.get_query_with_context("Привет")
         assert enriched == "Привет"  # Нет контекста
 
+    def test_last_substantive_user_message_skips_followup_directive(self) -> None:
+        cw = ContextWindow()
+        cw.add_message("user", "Какая погода в Лениногорске?")
+        cw.add_message("assistant", "Погода в Лениногорске: ясно, +12 °C.")
+        cw.add_message("user", "А подробнее")
+        assert cw.get_last_substantive_user_message("А подробнее") == "Какая погода в Лениногорске?"
+
+    def test_recent_substantive_user_messages_returns_multiple_items(self) -> None:
+        cw = ContextWindow()
+        cw.add_message("user", "В проекте используется порт 8001 для API.")
+        cw.add_message("assistant", "Принял. Зафиксировал в контексте: В проекте используется порт 8001 для API.")
+        cw.add_message("user", "Nginx проксирует запросы на backend.")
+        cw.add_message("user", "А подробнее")
+        recent = cw.get_recent_substantive_user_messages(limit=3, current_query="А подробнее")
+        assert recent[:2] == [
+            "Nginx проксирует запросы на backend.",
+            "В проекте используется порт 8001 для API.",
+        ]
+
+    def test_recent_semantic_facts_returns_thread_memory_cluster(self) -> None:
+        cw = ContextWindow()
+        cw.add_message("user", "В проекте используется порт 8001 для API.")
+        cw.add_message("assistant", "Принял. Зафиксировал в контексте: В проекте используется порт 8001 для API.")
+        cw.add_message("user", "Nginx проксирует запросы на backend.")
+        cw.add_message("assistant", "По контексту текущего диалога: Nginx проксирует запросы на backend.")
+        cw.add_message("user", "Redis сейчас отключён.")
+        facts = cw.get_recent_semantic_facts(query="А как это связано?", limit=5, current_query="А как это связано?")
+        joined = " ".join(facts).lower()
+        assert "порт 8001" in joined
+        assert "nginx" in joined
+        assert "redis" in joined
+
     def test_clear(self) -> None:
         cw = ContextWindow()
         cw.add_message("user", "Тест")

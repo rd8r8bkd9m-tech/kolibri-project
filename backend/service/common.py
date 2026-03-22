@@ -2,10 +2,12 @@ from __future__ import annotations
 import os
 import time
 import json
+import ipaddress
 import httpx
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Optional, Any, Dict
+from urllib.parse import urlparse
 from fastapi import HTTPException, status
 from pydantic import BaseModel, Field
 
@@ -14,9 +16,12 @@ class Settings:
     """Runtime configuration for the LLM proxy service."""
 
     response_mode: str = "script"
+    local_only: bool = True
     llm_endpoint: Optional[str] = None
     llm_api_key: Optional[str] = None
     llm_model: Optional[str] = None
+    llm_provider: str = "auto"
+    llm_fallback_engine: bool = False
     llm_timeout: float = 30.0
 
     @classmethod
@@ -25,18 +30,27 @@ class Settings:
         llm_endpoint = os.getenv("KOLIBRI_LLM_ENDPOINT")
         llm_api_key = os.getenv("KOLIBRI_LLM_API_KEY")
         llm_model = os.getenv("KOLIBRI_LLM_MODEL")
+        llm_provider = os.getenv("KOLIBRI_LLM_PROVIDER", "auto").strip().lower()
+        llm_fallback_engine_raw = os.getenv("KOLIBRI_LLM_FALLBACK_ENGINE", "0").strip().lower()
         timeout_raw = os.getenv("KOLIBRI_LLM_TIMEOUT", "30")
+        local_only_raw = os.getenv("KOLIBRI_LOCAL_ONLY", "1").strip().lower()
 
         try:
             llm_timeout = float(timeout_raw)
         except ValueError as exc:
             raise RuntimeError("KOLIBRI_LLM_TIMEOUT must be numeric") from exc
 
+        local_only = local_only_raw in {"1", "true", "yes", "on"}
+        llm_fallback_engine = llm_fallback_engine_raw in {"1", "true", "yes", "on"}
+
         return cls(
             response_mode=response_mode or "script",
+            local_only=local_only,
             llm_endpoint=llm_endpoint,
             llm_api_key=llm_api_key,
             llm_model=llm_model,
+            llm_provider=llm_provider or "auto",
+            llm_fallback_engine=llm_fallback_engine,
             llm_timeout=llm_timeout,
         )
 
@@ -75,10 +89,101 @@ def extract_text(payload: Any) -> str:
 
     raise ValueError("Upstream response did not contain text output")
 
+
+def _is_local_endpoint(url: str | None) -> bool:
+    if not url:
+        return False
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+    host = (parsed.hostname or "").strip().lower()
+    if host in {"localhost", "127.0.0.1", "::1"}:
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        # Именованные хосты при local_only считаем внешними,
+        # чтобы не открывать случайный egress.
+        return False
+    return ip.is_loopback or ip.is_private
+
+
+def _resolve_provider(settings: Settings) -> str:
+    provider = (settings.llm_provider or "auto").strip().lower()
+    endpoint = (settings.llm_endpoint or "").strip().lower()
+    if provider and provider != "auto":
+        return provider
+    if "/api/generate" in endpoint or ":11434" in endpoint:
+        return "ollama"
+    if "/chat/completions" in endpoint:
+        return "openai-chat"
+    if endpoint.endswith("/responses") or "/v1/responses" in endpoint:
+        return "openai-responses"
+    return "prompt"
+
+
+def _build_llm_payload(request: InferenceRequest, settings: Settings) -> tuple[dict[str, Any], str]:
+    provider = _resolve_provider(settings)
+    model = settings.llm_model
+
+    if provider == "ollama":
+        payload: dict[str, Any] = {
+            "model": model or "qwen2.5:3b-instruct",
+            "prompt": request.prompt,
+            "stream": False,
+        }
+        options: dict[str, Any] = {}
+        if request.temperature is not None:
+            options["temperature"] = float(request.temperature)
+        if request.max_tokens is not None:
+            options["num_predict"] = int(request.max_tokens)
+        if options:
+            payload["options"] = options
+        return payload, "ollama"
+
+    if provider == "openai-chat":
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": request.prompt}],
+        }
+        if request.temperature is not None:
+            payload["temperature"] = request.temperature
+        if request.max_tokens is not None:
+            payload["max_tokens"] = request.max_tokens
+        return payload, "llm-chat"
+
+    if provider == "openai-responses":
+        payload = {
+            "model": model,
+            "input": request.prompt,
+        }
+        if request.temperature is not None:
+            payload["temperature"] = request.temperature
+        if request.max_tokens is not None:
+            payload["max_output_tokens"] = request.max_tokens
+        return payload, "llm-responses"
+
+    payload = {
+        "prompt": request.prompt,
+        "mode": request.mode,
+        "model": model,
+        "temperature": request.temperature,
+        "max_tokens": request.max_tokens,
+    }
+    payload = {k: v for k, v in payload.items() if v is not None}
+    return payload, "llm"
+
 async def perform_upstream_call(
     request: InferenceRequest,
     settings: Settings,
 ) -> tuple[str, float, str]:
+    if settings.local_only and not _is_local_endpoint(settings.llm_endpoint):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="External LLM calls are disabled in local-only mode",
+        )
+
     if not settings.llm_endpoint:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -89,21 +194,13 @@ async def perform_upstream_call(
     if settings.llm_api_key:
         headers["Authorization"] = f"Bearer {settings.llm_api_key}"
 
-    payload: Dict[str, Any] = {
-        "prompt": request.prompt,
-        "mode": request.mode,
-        "model": settings.llm_model,
-        "temperature": request.temperature,
-        "max_tokens": request.max_tokens,
-    }
-
-    sanitized_payload = {key: value for key, value in payload.items() if value is not None}
+    payload, provider_label = _build_llm_payload(request, settings)
 
     start = time.perf_counter()
     async with httpx.AsyncClient(timeout=settings.llm_timeout) as client:
         upstream_response = await client.post(
             settings.llm_endpoint,
-            json=sanitized_payload,
+            json=payload,
             headers=headers,
         )
     elapsed = (time.perf_counter() - start) * 1000.0
@@ -133,7 +230,7 @@ async def perform_upstream_call(
             detail=str(exc),
         ) from exc
 
-    provider = "llm"
+    provider = provider_label
     if isinstance(payload_json, dict) and isinstance(payload_json.get("provider"), str):
         provider = payload_json["provider"].strip() or provider
 
