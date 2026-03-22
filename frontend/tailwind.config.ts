@@ -1,29 +1,46 @@
 import type { Config } from "tailwindcss";
 
-const config: Config = {
+export default {
+  darkMode: ["class"],
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
+    container: {
+      center: true,
+      padding: "1rem"
+    },
     extend: {
       colors: {
-        primary: "#6366F1",
-        accent: "#38BDF8",
-        "background-main": "#0B1120",
-        "background-panel": "rgba(15, 23, 42, 0.75)",
-        "background-card": "rgba(30, 41, 59, 0.75)",
-        "background-input": "rgba(15, 23, 42, 0.85)",
-        "border-strong": "rgba(148, 163, 184, 0.2)",
-        "text-primary": "#E2E8F0",
-        "text-secondary": "#94A3B8",
-      },
-      fontFamily: {
-        sans: ["Inter", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
+        background: "rgb(var(--background) / <alpha-value>)",
+        foreground: "rgb(var(--foreground) / <alpha-value>)",
+        card: "rgb(var(--card) / <alpha-value>)",
+        sidebar: "rgb(var(--sidebar) / <alpha-value>)",
+        muted: "rgb(var(--muted) / <alpha-value>)",
+        border: "rgb(var(--border) / <alpha-value>)",
+        overlay: "rgb(var(--overlay) / <alpha-value>)",
+        cyan: {
+          400: "#00eaff",
+          500: "#00f2ff",
+          600: "#00b3ff"
+        }
       },
       boxShadow: {
-        card: "0 20px 45px -30px rgba(15, 23, 42, 0.6)",
+        "glow-cyan": "0 0 20px rgba(0,242,255,0.15)",
+        "glow-cyan-sm": "0 0 12px rgba(0,242,255,0.12)",
+        "soft-inner": "inset 0 1px 2px rgba(255,255,255,0.05)"
       },
-    },
+      backdropBlur: {
+        md: "12px"
+      },
+      keyframes: {
+        ringPulse: {
+          "0%, 100%": { boxShadow: "0 0 0 0 rgba(0,242,255,0.25)" },
+          "50%": { boxShadow: "0 0 0 6px rgba(0,242,255,0.05)" }
+        }
+      },
+      animation: {
+        "ring-pulse": "ringPulse 1.4s ease-in-out infinite"
+      }
+    }
   },
-  plugins: [],
-};
-
-export default config;
+  plugins: [require("tailwindcss-animate")]
+} satisfies Config;

@@ -1,25 +1,16 @@
 {
-  "name": "Колибри AI Workspace",
+  "name": "Колибри AI",
   "short_name": "Колибри",
-  "description": "Мобильное AI workspace приложение с голосом и агентами.",
-  "start_url": "/?app=1",
-  "scope": "/",
+  "description": "OLED-style AI chat interface",
+  "theme_color": "#000000",
+  "background_color": "#000000",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#05080c",
-  "theme_color": "#0d141d",
+  "start_url": "/",
   "icons": [
     {
-      "src": "/kolibri.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/favicon.ico",
-      "sizes": "48x48",
-      "type": "image/x-icon",
-      "purpose": "any"
+      "src": "/g-logo.svg",
+      "sizes": "32x32",
+      "type": "image/svg+xml"
     }
   ]
 }
