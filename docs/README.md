@@ -9,9 +9,16 @@
 ### Официальный публичный набор
 
 - [PUBLIC_ARCHITECTURE.md](PUBLIC_ARCHITECTURE.md) — главный публичный архитектурный документ Kolibri.
+- [PRODUCT_SPEC_V2.md](PRODUCT_SPEC_V2.md) — каноническая продуктовая спецификация chat-first приложения.
 - [FORMULA_API_DSL.md](FORMULA_API_DSL.md) — публичный Formula API и честный DSL, который реально исполняется в C-core.
 - [KPACK_FORMAT.md](KPACK_FORMAT.md) — пакетный формат знаний `.kpack` как продуктовая единица.
 - [DEMO_PATH.md](DEMO_PATH.md) — один стабильный demo-path Kolibri.
+- [API_REFERENCE.md](API_REFERENCE.md) — боевые API-контракты.
+- [SWARM_50_ARCHITECTURE.md](SWARM_50_ARCHITECTURE.md) — целевая архитектура production-сворма из 50 узлов.
+- [NUMERIC_VOTING_MODEL.md](NUMERIC_VOTING_MODEL.md) — модель голосования цифр `0..9`.
+- [MORPHOLOGY_SEMANTICS_SPEC.md](MORPHOLOGY_SEMANTICS_SPEC.md) — спецификация морфологии и семантики.
+- [QA_ACCEPTANCE.md](QA_ACCEPTANCE.md) — обязательные acceptance gates.
+- [DEPLOY_RUNBOOK.md](DEPLOY_RUNBOOK.md) — единый runbook для home server и production.
 - [public_interfaces.md](public_interfaces.md) — стабильные публичные интерфейсы.
 
 ### Глубокие внутренние справочники
@@ -37,9 +44,16 @@ This directory aggregates every documentation artifact required for the Kolibri 
 ### Official public set
 
 - [PUBLIC_ARCHITECTURE.md](PUBLIC_ARCHITECTURE.md) — official public architecture for Kolibri.
+- [PRODUCT_SPEC_V2.md](PRODUCT_SPEC_V2.md) — canonical product specification for the chat-first application.
 - [FORMULA_API_DSL.md](FORMULA_API_DSL.md) — public Formula API and the actual DSL executed by the C core.
 - [KPACK_FORMAT.md](KPACK_FORMAT.md) — `.kpack` knowledge-pack format as a product unit.
 - [DEMO_PATH.md](DEMO_PATH.md) — one stable Kolibri demo-path.
+- [API_REFERENCE.md](API_REFERENCE.md) — production API contracts.
+- [SWARM_50_ARCHITECTURE.md](SWARM_50_ARCHITECTURE.md) — target production swarm architecture with 50 nodes.
+- [NUMERIC_VOTING_MODEL.md](NUMERIC_VOTING_MODEL.md) — the `0..9` numeric voting model.
+- [MORPHOLOGY_SEMANTICS_SPEC.md](MORPHOLOGY_SEMANTICS_SPEC.md) — morphology and semantics specification.
+- [QA_ACCEPTANCE.md](QA_ACCEPTANCE.md) — release acceptance gates.
+- [DEPLOY_RUNBOOK.md](DEPLOY_RUNBOOK.md) — home-server and production deploy runbook.
 - [public_interfaces.md](public_interfaces.md) — stable public interfaces.
 
 ### Deep internal references
@@ -63,9 +77,16 @@ This directory aggregates every documentation artifact required for the Kolibri 
 此目录收录 Kolibri 原型所需的全部文档，并提供快速导航：
 
 - [PUBLIC_ARCHITECTURE.md](PUBLIC_ARCHITECTURE.md) —— 官方公开架构文档。
+- [PRODUCT_SPEC_V2.md](PRODUCT_SPEC_V2.md) —— 官方产品规格说明。
 - [FORMULA_API_DSL.md](FORMULA_API_DSL.md) —— 公开 Formula API 与实际可执行 DSL。
 - [KPACK_FORMAT.md](KPACK_FORMAT.md) —— `.kpack` 知识包格式。
 - [DEMO_PATH.md](DEMO_PATH.md) —— 官方稳定演示路径。
+- [API_REFERENCE.md](API_REFERENCE.md) —— 当前生产 API 合同。
+- [SWARM_50_ARCHITECTURE.md](SWARM_50_ARCHITECTURE.md) —— 50 节点群体架构。
+- [NUMERIC_VOTING_MODEL.md](NUMERIC_VOTING_MODEL.md) —— `0..9` 数字投票模型。
+- [MORPHOLOGY_SEMANTICS_SPEC.md](MORPHOLOGY_SEMANTICS_SPEC.md) —— 形态学与语义规格。
+- [QA_ACCEPTANCE.md](QA_ACCEPTANCE.md) —— 发布验收标准。
+- [DEPLOY_RUNBOOK.md](DEPLOY_RUNBOOK.md) —— 家庭服务器与生产部署手册。
 - [public_interfaces.md](public_interfaces.md) —— 稳定公开接口。
 
 - [kolibri_integrated_prototype.md](kolibri_integrated_prototype.md) —— 论文式综述，涵盖方法论与实验。

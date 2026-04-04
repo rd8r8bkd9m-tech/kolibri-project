@@ -8,6 +8,7 @@ from email.utils import parsedate_to_datetime
 import html
 import json
 import re
+import socket
 import threading
 import time
 from typing import Any
@@ -16,6 +17,7 @@ from urllib.parse import parse_qs, quote, urlparse
 import xml.etree.ElementTree as ET
 
 import requests
+from urllib3.util import connection as urllib3_connection
 
 try:
     from zoneinfo import ZoneInfo
@@ -90,6 +92,10 @@ _NEWS_DIGEST_CACHE_LOCK = threading.Lock()
 _REFERENCE_CACHE_TTL_SECONDS = 43200.0
 _REFERENCE_CACHE: dict[str, tuple[float, str]] = {}
 _REFERENCE_CACHE_LOCK = threading.Lock()
+_REQUESTS_IPV4_LOCK = threading.Lock()
+_NETWORK_HEALTH_CACHE_TTL_SECONDS = 30.0
+_NETWORK_HEALTH_CACHE: tuple[float, bool] | None = None
+_NETWORK_HEALTH_LOCK = threading.Lock()
 
 _CURRENCY_ALIASES: dict[str, tuple[str, ...]] = {
     "USD": ("usd", "доллар", "доллара", "долларов", "бакс", "бакса", "баксов", "$"),
@@ -147,6 +153,99 @@ _NEWS_DIVERSITY_STOPWORDS = {
     "news",
     "latest",
     "global",
+}
+
+_STATIC_WEATHER_PLACES: dict[str, dict[str, Any]] = {
+    "москва": {
+        "name": "Москва",
+        "latitude": 55.7558,
+        "longitude": 37.6176,
+        "country_code": "RU",
+        "country": "Россия",
+        "admin1": "Москва",
+        "population": 12655050,
+    },
+    "санкт петербург": {
+        "name": "Санкт-Петербург",
+        "latitude": 59.9343,
+        "longitude": 30.3351,
+        "country_code": "RU",
+        "country": "Россия",
+        "admin1": "Санкт-Петербург",
+        "population": 5601911,
+    },
+    "спб": {
+        "name": "Санкт-Петербург",
+        "latitude": 59.9343,
+        "longitude": 30.3351,
+        "country_code": "RU",
+        "country": "Россия",
+        "admin1": "Санкт-Петербург",
+        "population": 5601911,
+    },
+    "питер": {
+        "name": "Санкт-Петербург",
+        "latitude": 59.9343,
+        "longitude": 30.3351,
+        "country_code": "RU",
+        "country": "Россия",
+        "admin1": "Санкт-Петербург",
+        "population": 5601911,
+    },
+    "казань": {
+        "name": "Казань",
+        "latitude": 55.7961,
+        "longitude": 49.1064,
+        "country_code": "RU",
+        "country": "Россия",
+        "admin1": "Татарстан",
+        "population": 1318604,
+    },
+    "альметьевск": {
+        "name": "Альметьевск",
+        "latitude": 54.9014,
+        "longitude": 52.2971,
+        "country_code": "RU",
+        "country": "Россия",
+        "admin1": "Татарстан",
+        "population": 151400,
+    },
+    "лениногорск": {
+        "name": "Лениногорск",
+        "latitude": 54.6026,
+        "longitude": 52.4609,
+        "country_code": "RU",
+        "country": "Россия",
+        "admin1": "Татарстан",
+        "population": 62000,
+    },
+    "сургут": {
+        "name": "Сургут",
+        "latitude": 61.2540,
+        "longitude": 73.3962,
+        "country_code": "RU",
+        "country": "Россия",
+        "admin1": "Ханты-Мансийский автономный округ — Югра",
+        "population": 420000,
+    },
+    "екатеринбург": {
+        "name": "Екатеринбург",
+        "latitude": 56.8389,
+        "longitude": 60.6057,
+        "country_code": "RU",
+        "country": "Россия",
+        "admin1": "Свердловская область",
+        "population": 1539000,
+    },
+    "новосибирск": {
+        "name": "Новосибирск",
+        "latitude": 55.0084,
+        "longitude": 82.9357,
+        "country_code": "RU",
+        "country": "Россия",
+        "admin1": "Новосибирская область",
+        "population": 1634000,
+    },
 }
 
 
@@ -218,14 +317,66 @@ def _weather_label(code: Any) -> str:
         return "неуточнённая погода"
 
 
+def _requests_get(url: str, **kwargs: Any) -> requests.Response:
+    with _REQUESTS_IPV4_LOCK:
+        original_allowed_gai_family = urllib3_connection.allowed_gai_family
+        urllib3_connection.allowed_gai_family = lambda: socket.AF_INET
+        try:
+            return requests.get(url, **kwargs)
+        finally:
+            urllib3_connection.allowed_gai_family = original_allowed_gai_family
+
+
+def external_network_available(*, timeout: float = 0.35, force_refresh: bool = False) -> bool:
+    global _NETWORK_HEALTH_CACHE
+    now = time.monotonic()
+    with _NETWORK_HEALTH_LOCK:
+        if not force_refresh and _NETWORK_HEALTH_CACHE and (now - _NETWORK_HEALTH_CACHE[0]) <= _NETWORK_HEALTH_CACHE_TTL_SECONDS:
+            return bool(_NETWORK_HEALTH_CACHE[1])
+    targets = [
+        ("1.1.1.1", 443),
+        ("8.8.8.8", 443),
+    ]
+    ok = False
+    for host, port in targets:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            sock.settimeout(max(0.1, timeout))
+            sock.connect((host, port))
+            ok = True
+            break
+        except OSError:
+            continue
+        finally:
+            try:
+                sock.close()
+            except OSError:
+                pass
+    with _NETWORK_HEALTH_LOCK:
+        _NETWORK_HEALTH_CACHE = (now, ok)
+    return ok
+
+
+def _resolve_static_place(location_hint: str) -> dict[str, Any] | None:
+    for variant in _location_variants(location_hint):
+        key = _normalize_key(variant)
+        place = _STATIC_WEATHER_PLACES.get(key)
+        if place:
+            return dict(place)
+    return None
+
+
 def _resolve_place(location_hint: str, *, timeout: float = 5.5, language: str = "ru") -> dict[str, Any] | None:
+    static_place = _resolve_static_place(location_hint)
+    if static_place:
+        return static_place
     variants = _location_variants(location_hint)
     if not variants:
         return None
 
     for variant in variants:
         try:
-            resp = requests.get(
+            resp = _requests_get(
                 "https://geocoding-api.open-meteo.com/v1/search",
                 params={
                     "name": variant,
@@ -250,6 +401,10 @@ def _resolve_place(location_hint: str, *, timeout: float = 5.5, language: str = 
             ),
         )
         return results[0]
+    for variant in variants:
+        place = _resolve_place_via_nominatim(variant, timeout=timeout, language=language)
+        if place:
+            return place
     return None
 
 
@@ -265,6 +420,76 @@ def _place_label(place: dict[str, Any], fallback: str) -> str:
     return ", ".join(parts)
 
 
+def _resolve_place_via_nominatim(variant: str, *, timeout: float = 5.5, language: str = "ru") -> dict[str, Any] | None:
+    try:
+        resp = _requests_get(
+            "https://nominatim.openstreetmap.org/search",
+            params={
+                "q": variant,
+                "format": "jsonv2",
+                "limit": 5,
+                "addressdetails": 1,
+                "accept-language": language,
+            },
+            headers=_HEADERS,
+            timeout=max(2.0, timeout * 0.55),
+        )
+        resp.raise_for_status()
+        results = list(resp.json() or [])
+    except Exception:
+        return None
+    if not results:
+        return None
+
+    def _rank(item: dict[str, Any]) -> tuple[Any, ...]:
+        address = dict(item.get("address") or {})
+        country_code = str(address.get("country_code") or "").upper()
+        addresstype = str(item.get("addresstype") or "")
+        importance = float(item.get("importance") or 0.0)
+        preferred_kind = addresstype not in {"country", "state", "region"}
+        return (
+            country_code != "RU",
+            not preferred_kind,
+            -importance,
+        )
+
+    results.sort(key=_rank)
+    best = dict(results[0])
+    address = dict(best.get("address") or {})
+    city = _collapse_spaces(
+        address.get("city")
+        or address.get("town")
+        or address.get("village")
+        or address.get("municipality")
+        or address.get("county")
+        or best.get("name")
+        or variant
+    )
+    admin1 = _collapse_spaces(
+        address.get("state")
+        or address.get("region")
+        or address.get("state_district")
+        or address.get("county")
+        or ""
+    )
+    country = _collapse_spaces(address.get("country") or "")
+    country_code = str(address.get("country_code") or "").upper()
+    try:
+        latitude = float(best.get("lat"))
+        longitude = float(best.get("lon"))
+    except Exception:
+        return None
+    return {
+        "name": city or variant,
+        "latitude": latitude,
+        "longitude": longitude,
+        "country_code": country_code,
+        "country": country,
+        "admin1": admin1,
+        "population": int(best.get("place_rank") or 0),
+    }
+
+
 def fetch_weather_answer(
     location_hint: str,
     *,
@@ -276,7 +501,7 @@ def fetch_weather_answer(
         return None
 
     try:
-        forecast = requests.get(
+        forecast = _requests_get(
             "https://api.open-meteo.com/v1/forecast",
             params={
                 "latitude": place["latitude"],
@@ -390,7 +615,7 @@ def _http_get_text_cached(
         if cached and (now - cached[0]) <= _RSS_HTTP_CACHE_TTL_SECONDS:
             return cached[1]
     try:
-        resp = requests.get(
+        resp = _requests_get(
             url,
             params=params,
             headers=_HEADERS,
@@ -1212,7 +1437,7 @@ def fetch_exchange_rate_answer(query: str, *, timeout: float = 5.0) -> str | Non
         return None
     amount, from_code, to_code = parsed
     try:
-        resp = requests.get(
+        resp = _requests_get(
             f"https://open.er-api.com/v6/latest/{from_code}",
             headers=_HEADERS,
             timeout=max(2.0, timeout),
@@ -1270,7 +1495,7 @@ def looks_like_reference_query(query: str) -> bool:
 
 def _wiki_api_json(lang: str, params: dict[str, Any], *, timeout: float) -> dict[str, Any] | None:
     try:
-        resp = requests.get(
+        resp = _requests_get(
             f"https://{lang}.wikipedia.org/w/api.php",
             params=params,
             headers=_HEADERS,
@@ -1486,3 +1711,83 @@ def fetch_reference_answer(query: str, *, timeout: float = 6.0) -> str | None:
                             _REFERENCE_CACHE.pop(stale_key, None)
                 return answer
     return None
+
+
+def fetch_full_article(topic: str, *, timeout: float = 15.0) -> str | None:
+    """#Фаза A1: Полноценная статья из веб-поиска.
+
+    Ищет несколько статей в Wikipedia, получает полные тексты
+    и комбинирует их в развёрнутую статью.
+    """
+    q = _collapse_spaces(topic)
+    if not q:
+        return None
+
+    # Нормализуем тему для поиска
+    search_query = q
+    # Убираем падежные окончания для лучшего поиска
+    search_query = re.sub(r'^(войну|статью|заметку|доклад)\s+(про|о|об|на тему)\s+', '', search_query)
+    search_query = search_query.strip()
+
+    languages = ["ru", "en"] if _contains_cyrillic(q) else ["en", "ru"]
+    article_sections = []
+    sources_used = []
+
+    for lang in languages:
+        # 1. Ищем заголовки статей
+        titles = _wiki_search_titles(search_query, lang, timeout=max(3.0, timeout / 3))
+
+        if not titles:
+            continue
+
+        # 2. Для каждого заголовка получаем полный текст
+        for i, title in enumerate(titles[:5]):  # Максимум 5 статей
+            try:
+                # Получаем полный текст статьи (не только summary)
+                full_text = _wiki_extract(title, lang, timeout=max(3.0, timeout / 5))
+                if full_text and len(full_text) > 200:
+                    article_sections.append({
+                        "title": title,
+                        "text": full_text[:2000],  # Ограничиваем длину
+                        "lang": lang,
+                    })
+                    sources_used.append(title)
+            except Exception:
+                continue
+
+        if article_sections:
+            break
+
+    if not article_sections:
+        return None
+
+    # 3. Формируем статью
+    parts = []
+
+    # Заголовок
+    parts.append(f"# {search_query}")
+    parts.append("")
+
+    # Введение из первой статьи
+    if article_sections:
+        first = article_sections[0]
+        parts.append(f"## Введение")
+        parts.append(first["text"][:800])
+        parts.append("")
+
+    # Дополнительные разделы из остальных статей
+    if len(article_sections) > 1:
+        parts.append(f"## Дополнительная информация")
+        for section in article_sections[1:4]:
+            parts.append(f"### {section['title']}")
+            parts.append(section["text"][:600])
+            parts.append("")
+
+    # Источники
+    if sources_used:
+        parts.append("## Источники")
+        for src in sources_used:
+            lang_label = "рус." if any(s["title"] == src and s["lang"] == "ru" for s in article_sections) else "англ."
+            parts.append(f"- {src} ({lang_label}) Wikipedia")
+
+    return "\n".join(parts)

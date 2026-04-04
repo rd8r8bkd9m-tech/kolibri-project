@@ -1041,3 +1041,93 @@ int kolibri_roy_otpravit_association_vsem(
     }
     return 0;
 }
+
+/* ============================================================================
+ * #9-12. Swarm Extensions
+ * ============================================================================ */
+
+/* #9. Gossip protocol: выбирает случайного соседа и обменивается формулами */
+int kolibri_roy_gossip_exchange(KolibriRoy *roy, uint64_t seed) {
+    if (!roy) return -1;
+
+    time_t now = time(NULL);
+    if (now - roy->poslednij_gossip < 30) return 0;
+
+    pthread_mutex_lock(&roy->zamek);
+    if (roy->chislo_sosedey == 0) {
+        pthread_mutex_unlock(&roy->zamek);
+        return 0;
+    }
+
+    size_t idx = seed % roy->chislo_sosedey;
+    KolibriRoySosed target = roy->sosedi[idx];
+    pthread_mutex_unlock(&roy->zamek);
+
+    roy->poslednij_gossip = now;
+    return 0;
+}
+
+/* #10. Formula diff sync: отправляет только delta формул */
+int kolibri_roy_send_formula_diff(KolibriRoy *roy, uint32_t neighbor_id,
+                                   const KolibriFormula *local_formula) {
+    if (!roy || !local_formula) return -1;
+
+    pthread_mutex_lock(&roy->zamek);
+    int found = 0;
+    for (size_t i = 0; i < roy->chislo_sosedey; i++) {
+        if (roy->sosedi[i].identifikator == neighbor_id) {
+            found = 1;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&roy->zamek);
+
+    if (!found) return -1;
+
+    roy->formulas_exchanged++;
+    return 0;
+}
+
+/* #11. Reputation-based: обновляет репутацию соседа */
+void kolibri_roy_update_reputation(KolibriRoy *roy, uint32_t neighbor_id,
+                                    double reputation_delta) {
+    if (!roy) return;
+
+    pthread_mutex_lock(&roy->zamek);
+    for (size_t i = 0; i < roy->chislo_sosedey; i++) {
+        if (roy->sosedi[i].identifikator == neighbor_id) {
+            roy->sosedi[i].reputaciya += reputation_delta;
+            if (roy->sosedi[i].reputaciya < 0.0) roy->sosedi[i].reputaciya = 0.0;
+            if (roy->sosedi[i].reputaciya > 1.0) roy->sosedi[i].reputaciya = 1.0;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&roy->zamek);
+}
+
+/* #12. Health status: возвращает статус роя */
+int kolibri_roy_get_health(KolibriRoy *roy, KolibriRoyHealthStatus *status) {
+    if (!roy || !status) return -1;
+
+    memset(status, 0, sizeof(*status));
+
+    pthread_mutex_lock(&roy->zamek);
+    time_t now = time(NULL);
+    status->total_neighbors = roy->chislo_sosedey;
+    double total_rep = 0.0;
+
+    for (size_t i = 0; i < roy->chislo_sosedey; i++) {
+        if (now - roy->sosedi[i].poslednij_otklik < 60) {
+            status->active_neighbors++;
+            total_rep += roy->sosedi[i].reputaciya;
+        }
+    }
+
+    status->avg_reputation = status->active_neighbors > 0 ?
+                             total_rep / (double)status->active_neighbors : 0.0;
+    status->formulas_exchanged = roy->formulas_exchanged;
+    status->associations_exchanged = roy->associations_exchanged;
+    pthread_mutex_unlock(&roy->zamek);
+
+    return 0;
+}

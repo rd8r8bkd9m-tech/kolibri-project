@@ -82,11 +82,14 @@ class TestAuthEndpoints:
         )
         assert resp.status_code in (401, 403)
 
-    def test_auth_status_requires_auth(self, client: TestClient) -> None:
-        """Статус auth требует аутентификации."""
+    def test_auth_status_is_public(self, client: TestClient) -> None:
+        """Статус auth публичный и нужен фронтенду до логина."""
         resp = client.get("/api/v1/auth/status")
-        # Без токена — должен вернуть 401 или 403
-        assert resp.status_code in (401, 403)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "auth_enabled" in data
+        assert "authenticated" in data
+        assert "account_id" in data
 
     def test_auth_status_with_token(self, client: TestClient) -> None:
         """Статус auth с валидным токеном."""
@@ -98,4 +101,6 @@ class TestAuthEndpoints:
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert "enabled" in data or "username" in data or isinstance(data, dict)
+        assert data["authenticated"] is True
+        assert data["user"] == "admin"
+        assert data["role"] == "admin"

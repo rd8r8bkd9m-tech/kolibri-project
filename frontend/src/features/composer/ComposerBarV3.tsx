@@ -3,12 +3,14 @@ import TextareaAutosize from "react-textarea-autosize";
 import {
   BrainCircuit,
   Camera,
+  CircleX,
   FileText,
   ImagePlus,
   Mic,
   PackageOpen,
   Paperclip,
   SendHorizontal,
+  Square,
   Sparkles,
   Wand2,
 } from "lucide-react";
@@ -20,21 +22,25 @@ import { useChatStore } from "@/store/useChatStore";
 import { useComposerStore } from "@/store/useComposerStore";
 import { useShellStore } from "@/store/useShellStore";
 
-export function ComposerBarV3() {
+export function ComposerBarV3({ mobile = false }: { mobile?: boolean }) {
   const currentSessionId = useChatStore((s) => s.currentSessionId);
   const model = useChatStore((s) => s.model);
   const persona = useChatStore((s) => s.persona);
+  const thinking = useChatStore((s) => s.thinking);
   const setVoiceMode = useChatStore((s) => s.setVoiceMode);
   const setImagineOpen = useChatStore((s) => s.setImagineOpen);
   const setPrimarySurface = useShellStore((s) => s.setPrimarySurface);
   const draft = useComposerStore((s) => s.drafts[currentSessionId] ?? "");
+  const pendingAttachment = useComposerStore((s) => s.pendingAttachments[currentSessionId] ?? null);
   const setDraft = useComposerStore((s) => s.setDraft);
   const clearDraft = useComposerStore((s) => s.clearDraft);
+  const setPendingAttachment = useComposerStore((s) => s.setPendingAttachment);
+  const clearPendingAttachment = useComposerStore((s) => s.clearPendingAttachment);
   const activeAction = useComposerStore((s) => s.activeAction);
   const openAction = useComposerStore((s) => s.openAction);
   const closeAction = useComposerStore((s) => s.closeAction);
   const setFocused = useComposerStore((s) => s.setFocused);
-  const { analyzeAttachment, exportKnowledgePack, importKnowledgePack, learnFromTextDemo, send } = useStreaming();
+  const { analyzeAttachment, exportKnowledgePack, importKnowledgePack, learnFromTextDemo, send, stop } = useStreaming();
   const [learnTitle, setLearnTitle] = useState("");
   const [learnCategory, setLearnCategory] = useState("manual");
   const [learnQuestion, setLearnQuestion] = useState("что это за знание");
@@ -74,11 +80,37 @@ export function ComposerBarV3() {
   }, []);
 
   const submit = async () => {
+    if (thinking) {
+      stop();
+      return;
+    }
     const prompt = draft.trim();
-    if (!prompt) return;
+    if (!prompt && !pendingAttachment) return;
     clearDraft(currentSessionId);
     setPrimarySurface("thread");
+
+    if (pendingAttachment) {
+      const file = pendingAttachment.file;
+      clearPendingAttachment(currentSessionId);
+      await analyzeAttachment(
+        file,
+        prompt || undefined,
+        prompt ? `${prompt}\n\nВложение: «${pendingAttachment.name}».` : undefined,
+      );
+      return;
+    }
+
     await send(prompt);
+  };
+
+  const focusComposer = () => {
+    setFocused(true);
+    if (mobile) {
+      setPrimarySurface("thread");
+      window.requestAnimationFrame(() => {
+        composerRef.current?.scrollIntoView({ block: "nearest" });
+      });
+    }
   };
 
   const onSubmit = async (event: FormEvent) => {
@@ -98,7 +130,36 @@ export function ComposerBarV3() {
     if (!file) return;
     try {
       closeAction();
-      await analyzeAttachment(file);
+      const lowerName = file.name.toLowerCase();
+      const isImage = file.type.startsWith("image/");
+      const isTextLike =
+        file.type.startsWith("text/") ||
+        [".txt", ".md", ".json", ".js", ".ts", ".tsx", ".py", ".csv", ".log"].some((ext) => lowerName.endsWith(ext));
+
+      if (!isImage && !isTextLike) {
+        throw new Error("Сейчас поддерживаются изображения и текстовые файлы");
+      }
+
+      const attachment = isImage
+        ? {
+            file,
+            kind: "image" as const,
+            name: file.name,
+            mimeType: file.type,
+            size: file.size,
+            objectUrl: URL.createObjectURL(file),
+          }
+        : {
+            file,
+            kind: "text" as const,
+            name: file.name,
+            mimeType: file.type,
+            size: file.size,
+            textPreview: (await file.text()).trim().slice(0, 800),
+          };
+
+      setPendingAttachment(currentSessionId, attachment);
+      setPrimarySurface("thread");
     } finally {
       event.target.value = "";
     }
@@ -110,7 +171,15 @@ export function ComposerBarV3() {
     const file = imageItem.getAsFile();
     if (!file) return;
     event.preventDefault();
-    await analyzeAttachment(file);
+    setPendingAttachment(currentSessionId, {
+      file,
+      kind: "image",
+      name: file.name || "image.png",
+      mimeType: file.type,
+      size: file.size,
+      objectUrl: URL.createObjectURL(file),
+    });
+    setPrimarySurface("thread");
   };
 
   const submitLearnDemo = async () => {
@@ -171,8 +240,55 @@ export function ComposerBarV3() {
 
   return (
     <>
-      <form onSubmit={onSubmit} className="shrink-0 border-t border-foreground/6 bg-background/96 px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-sm lg:px-6 lg:pb-5">
-        <div className="mx-auto max-w-3xl">
+      <form
+        onSubmit={onSubmit}
+        className={cn(
+          "shrink-0 border-t border-foreground/6 bg-background/98 px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 supports-[backdrop-filter]:backdrop-blur-xl",
+          mobile ? "" : "px-8 pb-5 pt-4",
+        )}
+      >
+        <div className="mx-auto max-w-[52rem]">
+          {pendingAttachment ? (
+            <div className="mb-3 rounded-[1.4rem] border border-foreground/8 bg-card p-3 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-foreground/8 bg-background">
+                  {pendingAttachment.kind === "image" ? <ImagePlus className="h-4.5 w-4.5" /> : <FileText className="h-4.5 w-4.5" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-foreground">{pendingAttachment.name}</p>
+                      <p className="mt-0.5 text-xs text-muted">
+                        {pendingAttachment.kind === "image" ? "Изображение" : "Текстовый файл"} • {Math.max(1, Math.round(pendingAttachment.size / 1024))} KB
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="Убрать вложение"
+                      onClick={() => clearPendingAttachment(currentSessionId)}
+                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-foreground/5 hover:text-foreground"
+                    >
+                      <CircleX className="h-4.5 w-4.5" />
+                    </button>
+                  </div>
+                  {pendingAttachment.kind === "image" && pendingAttachment.objectUrl ? (
+                    <img
+                      src={pendingAttachment.objectUrl}
+                      alt={pendingAttachment.name}
+                      className="mt-3 max-h-40 w-full rounded-2xl border border-foreground/8 object-cover"
+                    />
+                  ) : pendingAttachment.textPreview ? (
+                    <p className="mt-3 line-clamp-4 rounded-2xl border border-foreground/8 bg-background px-3 py-2 text-xs leading-6 text-muted">
+                      {pendingAttachment.textPreview}
+                    </p>
+                  ) : null}
+                  <p className="mt-2 text-xs text-muted">
+                    Добавь вопрос в поле ниже или сразу отправь вложение в анализ.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
           <div className="v3-composer-shell">
             <div className="flex items-center gap-2 border-b border-foreground/6 px-3 pb-2.5 pt-1">
               <Button type="button" variant="ghost" size="icon" aria-label="Вложения" className="h-9 w-9 rounded-full" onClick={() => openAction("attach")}>
@@ -201,24 +317,28 @@ export function ComposerBarV3() {
                 maxRows={8}
                 value={draft}
                 onChange={(event) => setDraft(currentSessionId, event.target.value)}
-                onFocus={() => setFocused(true)}
+                onFocus={focusComposer}
                 onBlur={() => setFocused(false)}
                 onKeyDown={onKeyDown}
                 onPaste={(event) => void onPaste(event)}
                 placeholder="Спроси Kolibri"
                 aria-label="Поле ввода запроса"
-                className="max-h-56 min-h-[2.75rem] w-full resize-none bg-transparent px-3 py-2 text-[16px] leading-[1.45] text-foreground outline-none placeholder:text-muted"
+                className="max-h-56 min-h-[2.75rem] w-full resize-none bg-transparent px-3 py-2 text-[16px] leading-[1.5] text-foreground outline-none placeholder:text-muted lg:text-[15px]"
               />
               <Button
-                type="submit"
+                type={thinking ? "button" : "submit"}
                 size="icon"
-                aria-label="Отправить сообщение"
+                aria-label={thinking ? "Остановить ответ" : "Отправить сообщение"}
+                onClick={thinking ? stop : undefined}
+                disabled={thinking ? false : !draft.trim() && !pendingAttachment}
                 className={cn(
                   "h-11 w-11 shrink-0 rounded-full",
-                  draft.trim() ? "v3-accent-solid hover:opacity-95" : "bg-foreground/10 text-muted shadow-none",
+                  thinking || draft.trim() || pendingAttachment
+                    ? "v3-accent-solid hover:opacity-95"
+                    : "bg-foreground/10 text-muted shadow-none",
                 )}
               >
-                <SendHorizontal className="h-4.5 w-4.5" />
+                {thinking ? <Square className="h-4.5 w-4.5" /> : <SendHorizontal className="h-4.5 w-4.5" />}
               </Button>
             </div>
           </div>

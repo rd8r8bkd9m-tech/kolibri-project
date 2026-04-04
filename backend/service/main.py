@@ -11,8 +11,11 @@ from pydantic import BaseModel, Field
 from .ai_chat import router as ai_router
 from .ai_engine import pre_init_engine
 from .auth import router as auth_router
+from .account import router as account_router
 from .rate_limiter import RateLimitMiddleware
 from .health import router as health_router
+from .background_learning import maybe_autostart_background_learning
+from .continuous_learning_daemon import get_continuous_learning_daemon
 from .swarm_runtime_api import router as swarm_runtime_router, maybe_autostart_swarm_runtime
 from .common import Settings, get_settings, InferenceRequest, perform_upstream_call
 
@@ -43,9 +46,27 @@ async def lifespan(application: FastAPI):
     """Lifespan: предзагрузка AI-движка при старте."""
     import threading
     threading.Thread(target=pre_init_engine, daemon=True, name="engine-init").start()
-    threading.Thread(target=maybe_autostart_swarm_runtime, daemon=True, name="swarm-runtime-init").start()
+    if _env_flag("KOLIBRI_ENABLE_SWARM_RUNTIME", default=False):
+        threading.Thread(target=maybe_autostart_swarm_runtime, daemon=True, name="swarm-runtime-init").start()
+    if _env_flag("KOLIBRI_ENABLE_BACKGROUND_LEARNING", default=False):
+        threading.Thread(target=maybe_autostart_background_learning, daemon=True, name="background-learning-init").start()
+    # Непрерывное фоновое обучение — автостарт
+    if _env_flag("KOLIBRI_ENABLE_CONTINUOUS_LEARNING", default=True):
+        def _start_continuous_learning():
+            import time
+            time.sleep(10)  # Ждём инициализации движка
+            daemon = get_continuous_learning_daemon()
+            daemon.start()
+        threading.Thread(target=_start_continuous_learning, daemon=True, name="continuous-learning-init").start()
     yield
     get_settings.cache_clear()
+    # Останавливаем демон при shutdown
+    if _daemon := getattr(globals().get('_daemon_instance'), 'instance', None) or True:
+        try:
+            daemon = get_continuous_learning_daemon()
+            daemon.stop()
+        except Exception:
+            pass
 
 
 app = FastAPI(title="Kolibri AI backend", version="0.2.0", lifespan=lifespan)
@@ -73,8 +94,74 @@ app.add_middleware(RateLimitMiddleware)
 
 app.include_router(ai_router)
 app.include_router(auth_router)
+app.include_router(account_router)
 app.include_router(health_router)
 app.include_router(swarm_runtime_router)
+
+# #Фаза A1+A3: RAG Pipeline + Streaming
+from .streaming_chat import router as streaming_router
+app.include_router(streaming_router)
+
+# --- Continuous Learning API Router ---
+from fastapi import APIRouter as _CL_APIRouter
+from pydantic import BaseModel as _CL_BaseModel
+
+_cl_router = _CL_APIRouter(prefix="/api/v1/learning", tags=["continuous-learning"])
+
+
+class _LearningStatusResponse(_CL_BaseModel):
+    enabled: bool
+    running: bool
+    cycle_interval_sec: int
+    curriculum_level: int
+    tasks_registered: int
+    tasks: list
+    metrics: dict
+
+
+class _LearningControlResponse(_CL_BaseModel):
+    status: str
+    metrics: dict
+
+
+@_cl_router.get("/status", response_model=_LearningStatusResponse)
+async def learning_status():
+    """Статус демона непрерывного обучения."""
+    daemon = get_continuous_learning_daemon()
+    return daemon.status()
+
+
+@_cl_router.post("/start", response_model=_LearningControlResponse)
+async def learning_start():
+    """Запуск демона непрерывного обучения."""
+    daemon = get_continuous_learning_daemon()
+    result = daemon.start(force=True)
+    return _LearningControlResponse(status=result["status"], metrics=result.get("metrics", {}))
+
+
+@_cl_router.post("/stop", response_model=_LearningControlResponse)
+async def learning_stop():
+    """Остановка демона непрерывного обучения."""
+    daemon = get_continuous_learning_daemon()
+    result = daemon.stop()
+    return _LearningControlResponse(status=result["status"], metrics=result.get("metrics", {}))
+
+
+@_cl_router.post("/curriculum/advance")
+async def learning_advance_curriculum():
+    """Повышение уровня curriculum learning."""
+    daemon = get_continuous_learning_daemon()
+    return daemon.advance_curriculum()
+
+
+@_cl_router.get("/metrics")
+async def learning_metrics():
+    """Полные метрики обучения."""
+    daemon = get_continuous_learning_daemon()
+    return daemon.metrics.to_dict()
+
+
+app.include_router(_cl_router)
 
 if not _env_flag("KOLIBRI_CHAT_ONLY_MODE", default=True):
     from .gpu_store import router as gpu_router

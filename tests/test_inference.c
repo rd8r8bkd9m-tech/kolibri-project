@@ -144,6 +144,26 @@ static void test_run_formula_russian_memory(void) {
     TEST_PASS();
 }
 
+static void test_numeric_vote_summary(void) {
+    TEST_BEGIN("numeric voting summary in FORMULA inference"); tests_run++;
+
+    KolibriInferenceContext *ctx = kolibri_inference_create();
+    kolibri_inference_set_strategy(ctx, KOLIBRI_INF_FORMULA);
+
+    KolibriInferenceResult result;
+    int rc = kolibri_inference_run(ctx, "что такое математика", &result);
+    assert(rc == 0);
+    assert(result.formulas_applied >= 1);
+    assert(result.numeric_vote.winner_digit < KOLIBRI_INF_DIGIT_VOTERS);
+    assert(result.numeric_vote.winner_score >= result.numeric_vote.runner_up_score);
+    assert(result.numeric_vote.consensus > 0.2);
+    assert(result.numeric_vote.channels[1] > 0.0); /* fact anchor */
+    assert(result.numeric_vote.channels[5] > 0.0); /* semantic similarity */
+
+    kolibri_inference_destroy(ctx);
+    TEST_PASS();
+}
+
 static void test_run_null_safety(void) {
     TEST_BEGIN("run NULL safety"); tests_run++;
 
@@ -256,6 +276,7 @@ int main(void) {
     test_run_hybrid();
     test_run_formula();
     test_run_formula_russian_memory();
+    test_numeric_vote_summary();
     test_run_null_safety();
     test_stats_accumulation();
     test_stats_reset();

@@ -12,7 +12,16 @@ Swagger UI: `http://localhost:8001/docs`
 
 ## Аутентификация
 
-API не требует аутентификации по умолчанию. Для LLM-прокси необходимо установить переменные окружения:
+Обычный chat/runtime API может работать без логина, но product shell использует auth/account endpoints для server-backed профиля, настроек и conversation metadata.
+
+Боевые auth endpoints:
+
+- `GET /api/v1/auth/status`
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/logout`
+- `POST /api/v1/auth/register` (admin flow)
+
+Для LLM-прокси необходимо установить переменные окружения:
 
 ```bash
 export KOLIBRI_RESPONSE_MODE=llm
@@ -47,6 +56,61 @@ Health-check базы знаний.
   "response_mode": "script"
 }
 ```
+
+---
+
+## Account — `/api/v1/account`
+
+- `GET /api/v1/account/profile`
+- `PUT /api/v1/account/profile`
+- `GET /api/v1/account/preferences`
+- `PUT /api/v1/account/preferences`
+
+Эти endpoints дают server-backed профиль пользователя/клиента и runtime preferences (`theme`, `persona`, `memory_enabled`, `model`).
+
+---
+
+## Swarm Runtime & Background Learning — `/api/v1/swarm/runtime`
+
+Основные runtime endpoints:
+
+- `GET /api/v1/swarm/runtime/status`
+- `POST /api/v1/swarm/runtime/start`
+- `POST /api/v1/swarm/runtime/run`
+- `POST /api/v1/swarm/runtime/refresh`
+- `POST /api/v1/swarm/runtime/ingest/text`
+- `POST /api/v1/swarm/runtime/ingest/url`
+- `POST /api/v1/swarm/runtime/kpack/export`
+- `GET /api/v1/swarm/runtime/kpack/download/{filename}`
+- `POST /api/v1/swarm/runtime/kpack/import`
+
+Continuous background learning endpoints:
+
+- `GET /api/v1/swarm/runtime/learning/status`
+- `POST /api/v1/swarm/runtime/learning/start`
+- `POST /api/v1/swarm/runtime/learning/run`
+- `GET /api/v1/swarm/runtime/learning/history`
+- `GET /api/v1/swarm/runtime/learning/sources`
+- `PUT /api/v1/swarm/runtime/learning/sources`
+
+`learning/status` возвращает:
+
+- включён ли background learning
+- работает ли daemon сейчас
+- честный `internet_runtime` со статусом daemon/source path
+- интервал цикла
+- количество источников
+- количество `eligible/backoff/failing/no-change` источников
+- количество recent-success источников, чтобы статус не врал при успешных недавних циклах и деградировавшем probe
+- последний успешный цикл
+- последний error
+- latest result по web-ingest
+- history count
+- source health с `consecutive_failures`, `consecutive_no_change`, `next_eligible_at`
+
+`learning/sources` хранит список постоянных URL-источников для фонового internet-ingest. После успешного background cycle ingest пишет delta в live formula memory и ставит swarm refresh в очередь.
+
+`learning/history` возвращает недавние циклы фонового обучения и health по каждому источнику. Ручной `POST /learning/run` выполняется в режиме operator override: он игнорирует временный backoff, чтобы можно было сразу перепроверить восстановившийся источник.
 
 ---
 
@@ -93,6 +157,18 @@ Health-check базы знаний.
   }
 }
 ```
+
+### Conversation metadata
+
+- `GET /api/v1/ai/conversations`
+- `POST /api/v1/ai/conversations`
+- `PATCH /api/v1/ai/conversations/{conversation_id}`
+- `DELETE /api/v1/ai/conversations/{conversation_id}`
+- `GET /api/v1/ai/conversations/{conversation_id}/turns`
+
+Эти endpoints хранят список диалогов, title/pinned state и историю сообщений. Они служат серверной правдой для V3 sidebar и V3 thread.
+
+`GET /api/v1/ai/conversations/{conversation_id}/turns` возвращает хронологический список turns и может резолвить raw client conversation id в server-scoped conversation id.
 
 ---
 

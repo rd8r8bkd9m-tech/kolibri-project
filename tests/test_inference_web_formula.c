@@ -15,6 +15,9 @@ static void test_web_formula_cleanup(void) {
     assert(result.formulas_applied >= 1);
     assert(strstr(result.response, "точная формальная наука") != NULL);
     assert(strstr(result.response, "Википедия") == NULL);
+    assert(result.numeric_vote.winner_digit == 1U);
+    assert(result.numeric_vote.consensus > 0.2);
+    assert(result.numeric_vote.channels[1] > result.numeric_vote.channels[0]);
 
     memset(&result, 0, sizeof(result));
     assert(kolibri_inference_run(ctx, "что такое география", &result) == 0);
@@ -117,6 +120,9 @@ static void test_web_formula_cleanup(void) {
            strstr(result.response, "естественная наука") != NULL);
     assert(strstr(result.response, "химические элементы") != NULL ||
            strstr(result.response, "реакции") != NULL);
+    assert(strcmp(result.query_semantics.query_kind, "tell") == 0);
+    assert(strcmp(result.query_semantics.canonical_topic, "химия") == 0);
+    assert(strcmp(result.query_semantics.definition_entity, "химия") == 0);
 
     memset(&result, 0, sizeof(result));
     assert(kolibri_inference_run(ctx, "что ты знаешь о химии", &result) == 0);
@@ -172,6 +178,9 @@ static void test_web_formula_cleanup(void) {
     assert(strstr(result.response, "общеобязательных норм") != NULL ||
            strstr(result.response, "отношения") != NULL ||
            strstr(result.response, "обязанности") != NULL);
+    assert(result.numeric_vote.channels[3] > 2.0);
+    assert(strcmp(result.query_semantics.query_kind, "importance") == 0);
+    assert(strcmp(result.query_semantics.canonical_topic, "право") == 0);
 
     memset(&result, 0, sizeof(result));
     assert(kolibri_inference_run(ctx, "почему важна математика", &result) == 0);

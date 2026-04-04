@@ -695,9 +695,22 @@ int k_gen_beam_search(KolibriGenerationContext *ctx, KolibriGenerationCandidate 
     /* 2. Поиск Top-K кандидатов с учетом рекомендаций формул */
     size_t k_found = 0;
     double global_max_sim = -1.0;
+
+    /* Предвычисляем контекстные паттерны для boost */
+    KolibriSemanticPattern context_patterns[32];
+    size_t n_context_patterns = 0;
+    if (ctx->context && ctx->context->token_count > 0) {
+        size_t start_t = ctx->context->token_count > 6 ? ctx->context->token_count - 6 : 0;
+        for (size_t j = start_t; j < ctx->context->token_count; j++) {
+            if (n_context_patterns < 32) {
+                context_patterns[n_context_patterns++] = ctx->context->tokens[j].pattern;
+            }
+        }
+    }
+
     for (size_t i = 0; i < ctx->corpus->store.count; i++) {
         double sim = k_semantic_similarity(&context_pattern, &ctx->corpus->store.patterns[i]);
-        
+
         /* Numerical Boost: если хеш слова совпал с прогнозом формулы */
         if (prediction_count > 0) {
             int word_hash = kf_hash_from_text(ctx->corpus->store.words[i]);
@@ -709,8 +722,18 @@ int k_gen_beam_search(KolibriGenerationContext *ctx, KolibriGenerationCandidate 
             }
         }
 
+        /* Context Boost: boost за семантическую близость к контекстным паттернам */
+        if (n_context_patterns > 0) {
+            double ctx_sim = 0.0;
+            for (size_t ct = 0; ct < n_context_patterns; ct++) {
+                double s = k_semantic_similarity(&ctx->corpus->store.patterns[i], &context_patterns[ct]);
+                if (s > ctx_sim) ctx_sim = s;
+            }
+            sim += ctx_sim * 0.2;
+        }
+
         if (sim > global_max_sim) global_max_sim = sim;
-        
+
         /* Штраф за повторение */
         if (ctx->context) {
             size_t start_check = ctx->context->token_count > 8 ? ctx->context->token_count - 8 : 0;

@@ -60,6 +60,18 @@ int kolibri_knowledge_search(const KolibriKnowledgeIndex *index,
 int kolibri_knowledge_index_write_json(const KolibriKnowledgeIndex *index,
                                        const char *output_dir);
 
+/* #2. Bloom filter для быстрого отсечения запросов */
+typedef struct {
+    unsigned char *bits;
+    size_t bit_count;
+    size_t hash_count;
+} KolibriBloomFilter;
+
+int kolibri_bloom_filter_create(KolibriBloomFilter *bf, size_t expected_items);
+void kolibri_bloom_filter_destroy(KolibriBloomFilter *bf);
+int kolibri_bloom_filter_add(KolibriBloomFilter *bf, const char *key);
+int kolibri_bloom_filter_might_contain(const KolibriBloomFilter *bf, const char *key);
+
 #ifdef __cplusplus
 }
 #endif

@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include <time.h>
 
 #define KOLIBRI_HMAC_INPUT_SIZE                                                \
@@ -30,6 +31,11 @@ static void reset_context(KolibriGenome *ctx) {
   memset(ctx->path, 0, sizeof(ctx->path));
   ctx->next_index = 0;
   ctx->has_last_block = 0;
+  /* WAL fields */
+  ctx->wal_file = NULL;
+  memset(ctx->wal_path, 0, sizeof(ctx->wal_path));
+  ctx->wal_enabled = 0;
+  ctx->wal_entries = 0;
 }
 
 static void encode_u64_be(uint64_t value, unsigned char *out) {
@@ -329,6 +335,11 @@ int kg_append(KolibriGenome *ctx, const char *event_type, const char *payload,
 
   if (fflush(ctx->file) != 0) {
     return -1;
+  }
+
+  /* #5. Incremental checkpoint: автосохранение каждые 10 блоков */
+  if (ctx->next_index > 0 && ctx->next_index % 10 == 0) {
+    fsync(fileno(ctx->file));
   }
 
   memcpy(ctx->last_hash, block.hmac, KOLIBRI_HASH_SIZE);

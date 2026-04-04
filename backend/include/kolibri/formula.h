@@ -7,8 +7,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* #Фаза 1.1: Расширенный геном — 16384 цифры (4× больше ёмкость) */
+#define KOLIBRI_GENE_DIGITS_MAX 16384
+#define KOLIBRI_GENE_DIGITS_DEFAULT 4000  /* Обратная совместимость */
+
 typedef struct {
-    uint8_t digits[4000];
+    uint8_t digits[KOLIBRI_GENE_DIGITS_MAX];
     size_t length;
 } KolibriGene;
 
@@ -153,6 +157,47 @@ int kf_pool_import_association(KolibriFormulaPool *pool,
                                const KolibriAssociation *association);
 void kf_pool_tick(KolibriFormulaPool *pool, size_t generations);
 const KolibriFormula *kf_pool_best(const KolibriFormulaPool *pool);
+
+/* ============================================================================
+ * #Фаза 1.1: Иерархический пул формул — доменная специализация
+ * ============================================================================ */
+
+#define KOLIBRI_HIERARCHICAL_MAX_DOMAINS 32
+#define KOLIBRI_HIERARCHICAL_MAX_FORMULAS_PER_DOMAIN 100000
+
+/* Подпул для каждого домена */
+typedef struct {
+    KolibriDomainType domain_type;
+    char domain_name[KOLIBRI_DOMAIN_NAME_MAX];
+    KolibriFormula *formulas;
+    size_t count;
+    size_t capacity;
+    double avg_fitness;
+    uint64_t last_accessed;
+} KolibriDomainSubPool;
+
+/* Иерархический пул: главный роутер + подпулы по доменам */
+typedef struct {
+    KolibriDomainSubPool domains[KOLIBRI_HIERARCHICAL_MAX_DOMAINS];
+    size_t domain_count;
+    KolibriFormulaPool *default_pool;  /* Fallback для общих запросов */
+    uint64_t total_formulas;
+    uint64_t total_queries;
+    uint64_t cache_hits;
+} KolibriHierarchicalPool;
+
+int kf_hierarchical_pool_init(KolibriHierarchicalPool *hpool, uint64_t seed);
+void kf_hierarchical_pool_destroy(KolibriHierarchicalPool *hpool);
+int kf_hierarchical_pool_add_formula(KolibriHierarchicalPool *hpool,
+                                      KolibriDomainType domain,
+                                      const KolibriFormula *formula);
+const KolibriFormula *kf_hierarchical_pool_query(KolibriHierarchicalPool *hpool,
+                                                  const char *query,
+                                                  KolibriDomainType *out_domain);
+size_t kf_hierarchical_pool_total_count(const KolibriHierarchicalPool *hpool);
+int kf_hierarchical_pool_train_domain(KolibriHierarchicalPool *hpool,
+                                       KolibriDomainType domain,
+                                       size_t generations);
 int kf_formula_apply(const KolibriFormula *formula, int input, int *output);
 size_t kf_formula_digits(const KolibriFormula *formula, uint8_t *out, size_t out_len);
 int kf_formula_describe(const KolibriFormula *formula, char *buffer, size_t buffer_len);

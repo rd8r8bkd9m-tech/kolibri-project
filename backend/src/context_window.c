@@ -14,62 +14,108 @@
 
 int k_context_window_init(KolibriContextWindow *ctx) {
     if (!ctx) return -1;
-    
-    memset(ctx->tokens, 0, sizeof(ctx->tokens));
+
+    /* #Фаза 1.2: Динамическое выделение для 64K контекста */
+    ctx->token_capacity = KOLIBRI_CONTEXT_WINDOW_SIZE;
+    ctx->tokens = (KolibriContextToken *)calloc(ctx->token_capacity,
+                                                 sizeof(KolibriContextToken));
+    if (!ctx->tokens) return -1;
+
     ctx->token_count = 0;
     ctx->current_position = 0;
     ctx->attention_matrix = NULL;
     ctx->attention_matrix_size = 0;
-    
+
+    /* #Фаза 1.2: Summarization buffer */
+    ctx->summary_buffer = (char *)calloc(8192, 1);
+    ctx->summary_length = 0;
+
+    /* #Фаза 1.2: Sparse attention — ключевые токены */
+    ctx->key_token_indices = (size_t *)calloc(1024, sizeof(size_t));
+    ctx->key_token_count = 0;
+
     return 0;
 }
 
 void k_context_window_free(KolibriContextWindow *ctx) {
     if (!ctx) return;
-    
+
+    if (ctx->tokens) {
+        free(ctx->tokens);
+        ctx->tokens = NULL;
+    }
     if (ctx->attention_matrix) {
         free(ctx->attention_matrix);
         ctx->attention_matrix = NULL;
     }
-    
+    if (ctx->summary_buffer) {
+        free(ctx->summary_buffer);
+        ctx->summary_buffer = NULL;
+    }
+    if (ctx->key_token_indices) {
+        free(ctx->key_token_indices);
+        ctx->key_token_indices = NULL;
+    }
+
     ctx->token_count = 0;
+    ctx->token_capacity = 0;
     ctx->attention_matrix_size = 0;
+    ctx->summary_length = 0;
+    ctx->key_token_count = 0;
 }
 
 int k_context_window_add_token(KolibriContextWindow *ctx,
                                const char *text,
                                const KolibriSemanticPattern *pattern) {
     if (!ctx || !text) return -1;
-    if (ctx->token_count >= KOLIBRI_CONTEXT_WINDOW_SIZE) return -1;
-    
+
+    /* #Фаза 1.2: Resize если нужно */
+    if (ctx->token_count >= ctx->token_capacity) {
+        size_t new_capacity = ctx->token_capacity * 2;
+        KolibriContextToken *new_tokens = (KolibriContextToken *)realloc(ctx->tokens,
+                                                                          new_capacity * sizeof(KolibriContextToken));
+        if (!new_tokens) return -1;
+        ctx->tokens = new_tokens;
+        ctx->token_capacity = new_capacity;
+    }
+
     /* Кодируем токен в цифры */
     size_t text_len = strlen(text);
     uint8_t buffer[1024];
     kolibri_potok_cifr stream;
-    
+
     if (kolibri_potok_cifr_init(&stream, buffer, sizeof(buffer)) != 0) {
         return -1;
     }
-    
+
     if (kolibri_transducirovat_utf8(&stream, (const uint8_t *)text, text_len) != 0) {
         return -1;
     }
-    
+
     /* Добавляем токен */
     size_t idx = ctx->token_count;
     ctx->tokens[idx].digits = stream;
-    
+
     if (pattern) {
         ctx->tokens[idx].pattern = *pattern;
     } else {
         k_semantic_pattern_init(&ctx->tokens[idx].pattern);
     }
-    
+
     ctx->tokens[idx].attention_weight = 0.0;
     ctx->tokens[idx].position = idx;
-    
+
+    /* #Фаза 1.2: Хеш токена для быстрого поиска */
+    ctx->tokens[idx].token_hash = 0;
+    for (size_t i = 0; i < text_len && i < 64; i++) {
+        ctx->tokens[idx].token_hash = ctx->tokens[idx].token_hash * 31 + (unsigned char)text[i];
+    }
+
+    /* #Фаза 1.2: Определяем домен токена */
+    ctx->tokens[idx].domain = 0; /* Default: general */
+
     ctx->token_count++;
-    
+
     return 0;
 }
 
@@ -335,6 +381,133 @@ int k_context_window_deserialize(KolibriContextWindow *ctx,
     }
     
     ctx->token_count = count;
-    
+
     return 0;
+}
+
+/* ============================================================================
+ * #Фаза 1.2: Summarization и Sparse Attention
+ * ============================================================================ */
+
+/* Суммаризация старого контекста: сжимаем первые N токенов в краткое содержание */
+int k_context_window_summarize(KolibriContextWindow *ctx, size_t keep_recent) {
+    if (!ctx || !ctx->summary_buffer) return -1;
+    if (ctx->token_count <= keep_recent) return 0;
+
+    size_t summarize_count = ctx->token_count - keep_recent;
+
+    /* Простая суммаризация: берём ключевые слова из старых токенов */
+    size_t pos = 0;
+    pos += snprintf(ctx->summary_buffer + pos, 8192 - pos,
+                    "[Контекст: %zu токенов суммаризировано] ", summarize_count);
+
+    /* Выбираем топ-10 токенов по attention weight */
+    typedef struct {
+        size_t idx;
+        double weight;
+    } WeightedToken;
+
+    WeightedToken weighted[256];
+    size_t w_count = 0;
+
+    for (size_t i = 0; i < summarize_count && w_count < 256; i++) {
+        if (ctx->tokens[i].attention_weight > 0.1) {
+            weighted[w_count].idx = i;
+            weighted[w_count].weight = ctx->tokens[i].attention_weight;
+            w_count++;
+        }
+    }
+
+    /* Сортируем по весу */
+    for (size_t i = 0; i < w_count; i++) {
+        for (size_t j = i + 1; j < w_count; j++) {
+            if (weighted[j].weight > weighted[i].weight) {
+                WeightedToken tmp = weighted[i];
+                weighted[i] = weighted[j];
+                weighted[j] = tmp;
+            }
+        }
+    }
+
+    /* Добавляем топ-5 ключевых токенов в суммаризацию */
+    size_t top = w_count < 5 ? w_count : 5;
+    for (size_t i = 0; i < top; i++) {
+        /* В реальной реализации: декодирование токена в текст */
+        pos += snprintf(ctx->summary_buffer + pos, 8192 - pos, "токен#%zu ", weighted[i].idx);
+    }
+
+    ctx->summary_length = pos;
+
+    /* Сдвигаем токены: удаляем суммаризированные */
+    memmove(&ctx->tokens[0], &ctx->tokens[summarize_count],
+            (ctx->token_count - summarize_count) * sizeof(KolibriContextToken));
+    ctx->token_count -= summarize_count;
+
+    /* Обновляем позиции */
+    for (size_t i = 0; i < ctx->token_count; i++) {
+        ctx->tokens[i].position = i;
+    }
+
+    return 0;
+}
+
+/* #Фаза 1.2: Sparse attention — выбираем только ключевые токены */
+int k_context_window_select_key_tokens(KolibriContextWindow *ctx, size_t max_key_tokens) {
+    if (!ctx || !ctx->key_token_indices) return -1;
+    if (max_key_tokens == 0 || max_key_tokens > 1024) return -1;
+
+    /* Выбираем токены с highest attention weight */
+    typedef struct {
+        size_t idx;
+        double weight;
+    } WeightedIdx;
+
+    /* Выделяем временный массив */
+    size_t alloc_size = ctx->token_count < 1024 ? ctx->token_count : 1024;
+    WeightedIdx *weighted = (WeightedIdx *)calloc(alloc_size, sizeof(WeightedIdx));
+    if (!weighted) return -1;
+
+    size_t w_count = 0;
+    for (size_t i = 0; i < ctx->token_count && w_count < alloc_size; i++) {
+        weighted[w_count].idx = i;
+        weighted[w_count].weight = ctx->tokens[i].attention_weight;
+        w_count++;
+    }
+
+    /* Сортируем по весу (частичная сортировка — только топ-N) */
+    for (size_t i = 0; i < max_key_tokens && i < w_count; i++) {
+        size_t best = i;
+        for (size_t j = i + 1; j < w_count; j++) {
+            if (weighted[j].weight > weighted[best].weight) {
+                best = j;
+            }
+        }
+        if (best != i) {
+            WeightedIdx tmp = weighted[i];
+            weighted[i] = weighted[best];
+            weighted[best] = tmp;
+        }
+        ctx->key_token_indices[i] = weighted[i].idx;
+    }
+
+    ctx->key_token_count = max_key_tokens < w_count ? max_key_tokens : w_count;
+
+    free(weighted);
+    return 0;
+}
+
+/* Быстрый поиск токена по хешу */
+int k_context_window_find_token_by_hash(KolibriContextWindow *ctx,
+                                         uint32_t token_hash,
+                                         size_t *out_idx) {
+    if (!ctx || !out_idx) return -1;
+
+    for (size_t i = 0; i < ctx->token_count; i++) {
+        if (ctx->tokens[i].token_hash == token_hash) {
+            *out_idx = i;
+            return 0;
+        }
+    }
+
+    return -1;
 }

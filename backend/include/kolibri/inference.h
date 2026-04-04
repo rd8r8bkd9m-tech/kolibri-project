@@ -31,6 +31,7 @@ extern "C" {
 #define KOLIBRI_INF_MAX_RESPONSE   8192
 #define KOLIBRI_INF_MAX_CONTEXT    16
 #define KOLIBRI_INF_MAX_STEPS      64
+#define KOLIBRI_INF_DIGIT_VOTERS   10
 
 /* ========== ТИПЫ ========== */
 
@@ -51,6 +52,23 @@ typedef struct {
     double duration_ms;        /* Время выполнения (мс) */
 } KolibriInferenceStep;
 
+/* Сводка числового голосования 0..9 */
+typedef struct {
+    double channels[KOLIBRI_INF_DIGIT_VOTERS]; /* Сырые баллы по каналам 0..9 */
+    uint8_t winner_digit;                      /* Канал-победитель */
+    double winner_score;                       /* Балл победителя */
+    double runner_up_score;                    /* Балл второго канала */
+    double consensus;                          /* Степень консенсуса 0.0–1.0 */
+} KolibriNumericVoteSummary;
+
+/* Канонический морфо-семантический профиль запроса */
+typedef struct {
+    char query_kind[32];         /* what_is | explain | tell | knowledge | studies | ... */
+    char canonical_topic[128];   /* Каноническая тема */
+    char definition_entity[128]; /* Явно выделенная сущность */
+    size_t topic_token_count;    /* Число предметных токенов */
+} KolibriQuerySemanticSummary;
+
 /* Результат инференса */
 typedef struct {
     char response[KOLIBRI_INF_MAX_RESPONSE];  /* Сгенерированный ответ */
@@ -66,6 +84,9 @@ typedef struct {
     size_t knowledge_hits;      /* Найдено релевантных документов */
     size_t formulas_applied;    /* Применено формул */
     size_t logic_rules_fired;   /* Сработало логических правил */
+    KolibriNumericVoteSummary numeric_vote; /* Голосование цифр 0..9 */
+    uint8_t digit_winner;      /* Победившая цифра консенсуса */
+    KolibriQuerySemanticSummary query_semantics; /* Морфология/семантика запроса */
 
     /* Источники */
     char sources[KOLIBRI_INF_MAX_CONTEXT][256];

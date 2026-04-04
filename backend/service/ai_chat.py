@@ -24,13 +24,15 @@ import uuid
 from typing import Any, Optional, Literal
 
 import httpx
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from .ai_engine import get_engine
+from .auth import resolve_request_actor
 from .common import extract_text, get_settings, InferenceRequest, perform_upstream_call
 from .local_vision import analyze_local_image
+from .persistence import get_db
 from .swarm_runtime_api import run_text_ingest_demo
 from .number_mind import (
     KLM_PATTERN_SIZE,
@@ -49,6 +51,7 @@ from .number_mind import (
 
 router = APIRouter(prefix="/api/v1/ai", tags=["ai-chat"])
 _SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+_DB = get_db()
 
 
 def _env_int(name: str, default: int) -> int:
@@ -100,6 +103,37 @@ class ChatResponse(BaseModel):
     cognitive: Optional[dict] = None
     self_check: Optional[dict] = None
     client_id: Optional[str] = None
+
+
+class ConversationSummary(BaseModel):
+    conversation_id: str
+    title: str
+    pinned: bool = False
+    created_at: float
+    updated_at: float
+
+
+class ConversationListResponse(BaseModel):
+    account_id: str
+    items: list[ConversationSummary] = Field(default_factory=list)
+
+
+class ConversationTurnItem(BaseModel):
+    role: Literal["user", "assistant", "system"]
+    content: str
+    created_at: float
+
+
+class ConversationTurnsResponse(BaseModel):
+    account_id: str
+    conversation_id: str
+    items: list[ConversationTurnItem] = Field(default_factory=list)
+
+
+class ConversationUpsertRequest(BaseModel):
+    conversation_id: Optional[str] = Field(default=None, min_length=1, max_length=220)
+    title: Optional[str] = Field(default=None, max_length=240)
+    pinned: Optional[bool] = None
 
 
 class ImagineRequest(BaseModel):
@@ -833,6 +867,33 @@ async def _run_engine_chat(req: ChatRequest) -> ChatResponse:
     )
 
 
+def _session_title_from_message(message: str) -> str:
+    text = re.sub(r"\s+", " ", str(message or "").strip())
+    if not text:
+        return "Новый чат"
+    return text[:48]
+
+
+def _upsert_conversation_session(
+    client_id: str,
+    conversation_id: str,
+    *,
+    title: str | None = None,
+    pinned: bool | None = None,
+) -> None:
+    try:
+        _DB.upsert_conversation_session(
+            client_id=client_id,
+            conversation_id=conversation_id,
+            title=title,
+            pinned=pinned,
+            updated_at=time.time(),
+        )
+    except Exception:
+        # Session metadata must not break ordinary chat.
+        return
+
+
 def _format_domain_delta_line(items: list[dict[str, Any]]) -> str:
     if not items:
         return "Новый документ сохранён в живую формульную память."
@@ -1019,7 +1080,7 @@ def _build_demo_grounded_chat(req: LearnTextDemoRequest, chat: ChatResponse) -> 
 # ---------------------------------------------------------------------------
 
 @router.post("/chat", response_model=ChatResponse)
-async def ai_chat(req: ChatRequest) -> ChatResponse:
+async def ai_chat(req: ChatRequest, request: Request) -> ChatResponse:
     """
     Главный AI чат — Числовое Формульное Мышление.
     
@@ -1030,54 +1091,63 @@ async def ai_chat(req: ChatRequest) -> ChatResponse:
     - Статистику графа знаний
     """
     settings = get_settings()
+    actor = resolve_request_actor(request, req.client_id)
+    effective_req = req.model_copy(
+        update={"client_id": str(actor.get("account_key", req.client_id or "global") or "global")}
+    )
 
     # LLM режим: /api/v1/ai/chat отвечает через upstream модель.
     if settings.response_mode == "llm":
         engine = get_engine()
-        if req.client_id:
-            client_key = engine._sanitize_client_id(req.client_id)
-        elif req.conversation_id:
-            client_key = engine._sanitize_client_id(f"conv:{req.conversation_id}")
+        if effective_req.client_id:
+            client_key = engine._sanitize_client_id(effective_req.client_id)
+        elif effective_req.conversation_id:
+            client_key = engine._sanitize_client_id(f"conv:{effective_req.conversation_id}")
         else:
             client_key = engine._sanitize_client_id(None)
-        scoped_conversation_id = engine._scoped_conversation_id(req.conversation_id, client_key)
+        scoped_conversation_id = engine._scoped_conversation_id(effective_req.conversation_id, client_key)
         conversation = engine.get_or_create_conversation(scoped_conversation_id, client_id=client_key)
         context_text = conversation.context_text(last_n=8)
         prompt = _build_llm_chat_prompt(
-            req.message,
+            effective_req.message,
             context_text,
-            persona=req.persona,
-            memory_enabled=req.memory_enabled,
-            model_name=req.model,
+            persona=effective_req.persona,
+            memory_enabled=effective_req.memory_enabled,
+            model_name=effective_req.model,
         )
         infer_req = InferenceRequest(
             prompt=prompt,
-            mode=req.profile,
-            temperature=req.temperature,
-            max_tokens=_chat_max_tokens(req.profile),
+            mode=effective_req.profile,
+            temperature=effective_req.temperature,
+            max_tokens=_chat_max_tokens(effective_req.profile),
         )
 
         try:
             text, latency_ms, provider = await perform_upstream_call(infer_req, settings)
         except HTTPException:
             if settings.llm_fallback_engine:
-                return await _run_engine_chat(req)
+                return await _run_engine_chat(effective_req)
             raise
         except Exception as e:
             if settings.llm_fallback_engine:
-                return await _run_engine_chat(req)
+                return await _run_engine_chat(effective_req)
             raise HTTPException(status_code=502, detail=f"LLM call failed: {e}")
 
         answer = (text or "").strip()
         if not answer:
             if settings.llm_fallback_engine:
-                return await _run_engine_chat(req)
+                return await _run_engine_chat(effective_req)
             raise HTTPException(status_code=502, detail="LLM returned empty response")
 
-        conversation.add("user", req.message)
+        conversation.add("user", effective_req.message)
         conversation.add("assistant", answer)
-        engine._persist_conversation_turn(client_key, conversation.id, "user", req.message)
+        engine._persist_conversation_turn(client_key, conversation.id, "user", effective_req.message)
         engine._persist_conversation_turn(client_key, conversation.id, "assistant", answer)
+        _upsert_conversation_session(
+            client_key,
+            conversation.id,
+            title=_session_title_from_message(effective_req.message),
+        )
 
         method = f"llm:{provider}" if provider else "llm"
         return ChatResponse(
@@ -1096,11 +1166,17 @@ async def ai_chat(req: ChatRequest) -> ChatResponse:
             client_id=client_key,
         )
 
-    return await _run_engine_chat(req)
+    result = await _run_engine_chat(effective_req)
+    _upsert_conversation_session(
+        str(result.client_id or effective_req.client_id or "global"),
+        result.conversation_id,
+        title=_session_title_from_message(effective_req.message),
+    )
+    return result
 
 
 @router.post("/demo/learn/text", response_model=LearnTextDemoResponse)
-async def ai_demo_learn_text(req: LearnTextDemoRequest) -> LearnTextDemoResponse:
+async def ai_demo_learn_text(req: LearnTextDemoRequest, request: Request) -> LearnTextDemoResponse:
     demo_payload = await asyncio.to_thread(
         run_text_ingest_demo,
         text=req.text,
@@ -1114,7 +1190,7 @@ async def ai_demo_learn_text(req: LearnTextDemoRequest) -> LearnTextDemoResponse
         ChatRequest(
             message=req.question,
             conversation_id=req.conversation_id,
-            client_id=req.client_id,
+            client_id=str(resolve_request_actor(request, req.client_id).get("account_key", req.client_id or "global")),
             temperature=req.temperature,
             profile=req.profile,
             time_budget_ms=req.time_budget_ms,
@@ -1131,7 +1207,7 @@ async def ai_demo_learn_text(req: LearnTextDemoRequest) -> LearnTextDemoResponse
 
 
 @router.post("/chat/stream")
-async def ai_chat_stream(req: ChatRequest) -> StreamingResponse:
+async def ai_chat_stream(req: ChatRequest, request: Request) -> StreamingResponse:
     """
     SSE-стриминг AI ответа — слова передаются по мере генерации.
 
@@ -1141,10 +1217,13 @@ async def ai_chat_stream(req: ChatRequest) -> StreamingResponse:
     - event: done     — полный результат (JSON)
     """
     settings = get_settings()
+    effective_req = req.model_copy(
+        update={"client_id": str(resolve_request_actor(request, req.client_id).get("account_key", req.client_id or "global"))}
+    )
     if settings.response_mode == "llm":
         async def llm_stream_generator():
             try:
-                result = await ai_chat(req)
+                result = await ai_chat(effective_req, request)
             except Exception as e:
                 yield f"event: error\ndata: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
                 return
@@ -1181,7 +1260,7 @@ async def ai_chat_stream(req: ChatRequest) -> StreamingResponse:
     async def stream_generator():
         # Фаза 1: CoT thinking
         try:
-            thinking_steps = engine._chain_of_thought.analyze_query(req.message)
+            thinking_steps = engine._chain_of_thought.analyze_query(effective_req.message)
             for step in thinking_steps:
                 payload = {
                     "type": step.step_type.name,
@@ -1198,15 +1277,15 @@ async def ai_chat_stream(req: ChatRequest) -> StreamingResponse:
         chat_task = asyncio.create_task(
             asyncio.to_thread(
                 engine.chat,
-                message=req.message,
-                conversation_id=req.conversation_id,
-                client_id=req.client_id,
-                temperature=req.temperature,
-                response_profile=req.profile,
-                time_budget_ms=req.time_budget_ms,
-                persona=req.persona,
-                memory_enabled=req.memory_enabled,
-                model_name=req.model,
+                message=effective_req.message,
+                conversation_id=effective_req.conversation_id,
+                client_id=effective_req.client_id,
+                temperature=effective_req.temperature,
+                response_profile=effective_req.profile,
+                time_budget_ms=effective_req.time_budget_ms,
+                persona=effective_req.persona,
+                memory_enabled=effective_req.memory_enabled,
+                model_name=effective_req.model,
             )
         )
         while True:
@@ -1219,6 +1298,12 @@ async def ai_chat_stream(req: ChatRequest) -> StreamingResponse:
             except Exception as e:
                 yield f"event: error\ndata: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
                 return
+
+        _upsert_conversation_session(
+            str(result.get("client_id") or effective_req.client_id or "global"),
+            str(result.get("conversation_id", "") or ""),
+            title=_session_title_from_message(effective_req.message),
+        )
 
         # Фаза 3: стриминг ответа по словам
         response_text = result.get("response", "")
@@ -2356,12 +2441,194 @@ async def train_embeddings() -> EmbeddingTrainResponse:
     )
 
 
+@router.get("/conversations", response_model=ConversationListResponse)
+async def list_conversations(
+    request: Request,
+    client_id: Optional[str] = Query(default=None, max_length=120),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> ConversationListResponse:
+    actor = resolve_request_actor(request, client_id)
+    account_id = str(actor.get("account_key", "global") or "global")
+    items = [
+        ConversationSummary(**item)
+        for item in _DB.list_conversation_sessions(account_id, limit=limit)
+    ]
+    return ConversationListResponse(account_id=account_id, items=items)
+
+
+@router.post("/conversations", response_model=ConversationSummary)
+async def upsert_conversation(
+    req: ConversationUpsertRequest,
+    request: Request,
+    client_id: Optional[str] = Query(default=None, max_length=120),
+) -> ConversationSummary:
+    if not req.conversation_id:
+        raise HTTPException(status_code=422, detail="conversation_id is required")
+    actor = resolve_request_actor(request, client_id)
+    account_id = str(actor.get("account_key", "global") or "global")
+    _upsert_conversation_session(
+        account_id,
+        req.conversation_id,
+        title=req.title,
+        pinned=req.pinned,
+    )
+    rows = _DB.list_conversation_sessions(account_id, limit=500)
+    row = next((item for item in rows if item.get("conversation_id") == req.conversation_id), None)
+    if row is None:
+        row = {
+            "conversation_id": req.conversation_id,
+            "title": req.title or "Новый чат",
+            "pinned": bool(req.pinned),
+            "created_at": time.time(),
+            "updated_at": time.time(),
+        }
+    return ConversationSummary(**row)
+
+
+@router.get("/conversations/{conv_id}/turns", response_model=ConversationTurnsResponse)
+async def list_conversation_turns(
+    conv_id: str,
+    request: Request,
+    client_id: Optional[str] = Query(default=None, max_length=120),
+    limit: int = Query(default=120, ge=1, le=400),
+) -> ConversationTurnsResponse:
+    engine = get_engine()
+    actor = resolve_request_actor(request, client_id)
+    account_id = str(actor.get("account_key", "global") or "global")
+    resolved_conversation_id, items = engine.get_conversation_turns(
+        conv_id,
+        client_id=account_id,
+        limit=limit,
+    )
+    return ConversationTurnsResponse(
+        account_id=account_id,
+        conversation_id=resolved_conversation_id or conv_id,
+        items=[ConversationTurnItem(**item) for item in items],
+    )
+
+
+@router.patch("/conversations/{conv_id}", response_model=ConversationSummary)
+async def patch_conversation(
+    conv_id: str,
+    req: ConversationUpsertRequest,
+    request: Request,
+    client_id: Optional[str] = Query(default=None, max_length=120),
+) -> ConversationSummary:
+    actor = resolve_request_actor(request, client_id)
+    account_id = str(actor.get("account_key", "global") or "global")
+    _upsert_conversation_session(
+        account_id,
+        conv_id,
+        title=req.title,
+        pinned=req.pinned,
+    )
+    rows = _DB.list_conversation_sessions(account_id, limit=500)
+    row = next((item for item in rows if item.get("conversation_id") == conv_id), None)
+    if row is None:
+        row = {
+            "conversation_id": conv_id,
+            "title": req.title or "Новый чат",
+            "pinned": bool(req.pinned),
+            "created_at": time.time(),
+            "updated_at": time.time(),
+        }
+    return ConversationSummary(**row)
+
+
 @router.delete("/conversations/{conv_id}")
 async def delete_conversation(
     conv_id: str,
+    request: Request,
     client_id: Optional[str] = Query(default=None, max_length=120),
 ) -> dict:
     engine = get_engine()
-    if engine.delete_conversation(conv_id, client_id=client_id):
+    actor = resolve_request_actor(request, client_id)
+    account_id = str(actor.get("account_key", client_id or "global") or "global")
+    _DB.delete_conversation_session(account_id, conv_id)
+    if engine.delete_conversation(conv_id, client_id=account_id):
         return {"status": "deleted", "conversation_id": conv_id}
-    raise HTTPException(status_code=404, detail="Conversation not found")
+
+
+# ============================================================================
+# Unified Knowledge Hub API
+# ============================================================================
+
+class KnowledgeQueryRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=500)
+    top_k: int = Field(default=5, ge=1, le=20)
+
+
+class KnowledgeSourceItem(BaseModel):
+    name: str
+    score: float
+    content: str
+    metadata: dict = Field(default_factory=dict)
+
+
+class KnowledgeQueryResponse(BaseModel):
+    query: str
+    sources: list[KnowledgeSourceItem]
+    best_answer: str
+    confidence: float
+    total_sources: int
+    fusion_method: str
+    duration_ms: float
+
+
+class KnowledgeAnalyticsResponse(BaseModel):
+    knowledge_graph: dict
+    formula_pool: dict
+    embeddings: dict
+
+
+@router.post("/knowledge/query", response_model=KnowledgeQueryResponse)
+async def knowledge_query(req: KnowledgeQueryRequest):
+    """
+    Запрос к Unified Knowledge Hub: «что мы знаем о X?»
+
+    Объединяет результаты из:
+    - .klm паттерны
+    - Граф знаний
+    - Формулы
+    - Embeddings
+    - Sentence Store
+    """
+    from .unified_knowledge_hub import get_unified_knowledge_hub
+
+    hub = get_unified_knowledge_hub()
+    result = hub.query(req.query, top_k=req.top_k)
+
+    return KnowledgeQueryResponse(
+        query=result.query,
+        sources=[
+            KnowledgeSourceItem(
+                name=s.name,
+                score=s.score,
+                content=s.content,
+                metadata=s.metadata,
+            )
+            for s in result.sources
+        ],
+        best_answer=result.best_answer,
+        confidence=result.confidence,
+        total_sources=result.total_sources,
+        fusion_method=result.fusion_method,
+        duration_ms=result.duration_ms,
+    )
+
+
+@router.get("/knowledge/analytics", response_model=KnowledgeAnalyticsResponse)
+async def knowledge_analytics():
+    """
+    Аналитика по всем подсистемам знаний.
+
+    Возвращает статистику:
+    - Knowledge Graph (паттерны, рёбра, документы)
+    - Formula Pool (размер, поколение, fitness)
+    - Embeddings (словарь, пары, эпохи)
+    - Sentence Store (размер, память)
+    """
+    from .unified_knowledge_hub import get_unified_knowledge_hub
+
+    hub = get_unified_knowledge_hub()
+    return hub.get_analytics()

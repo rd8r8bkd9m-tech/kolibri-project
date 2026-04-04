@@ -1,5 +1,6 @@
 import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { MessageSquareText, MoreHorizontal, Pin, Plus, Search, Settings2, Trash2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { MessageSquareText, MoreHorizontal, Pin, Plus, Search, Settings2, Trash2, UserRound } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,6 +9,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { deleteConversationSession, patchConversationSession, syncConversationSession } from "@/api";
+import { useAccountBootstrap } from "@/features/account/useAccountBootstrap";
+import { accountQueryKeys, useConversationSessionsQuery } from "@/features/account/query";
 import { AppPanel, SectionTitle } from "@/features/ui-system/surface";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/store/useChatStore";
@@ -144,10 +148,13 @@ function SessionRow({
 }
 
 export function ThreadSidebarV3({ mobile = false }: { mobile?: boolean }) {
+  const queryClient = useQueryClient();
+  const { authStatus, profileQuery } = useAccountBootstrap();
   const sessions = useChatStore((s) => s.sessions);
   const messages = useChatStore((s) => s.messages);
   const currentSessionId = useChatStore((s) => s.currentSessionId);
   const addSession = useChatStore((s) => s.addSession);
+  const hydrateSessions = useChatStore((s) => s.hydrateSessions);
   const selectSession = useChatStore((s) => s.selectSession);
   const renameSession = useChatStore((s) => s.renameSession);
   const pinSession = useChatStore((s) => s.pinSession);
@@ -160,6 +167,7 @@ export function ThreadSidebarV3({ mobile = false }: { mobile?: boolean }) {
   const [deleteTarget, setDeleteTarget] = useState<ChatSession | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const deferredQuery = useDeferredValue(query.trim().toLowerCase());
+  const conversationSessionsQuery = useConversationSessionsQuery();
 
   useEffect(() => {
     const handleKeydown = (event: KeyboardEvent) => {
@@ -186,6 +194,20 @@ export function ThreadSidebarV3({ mobile = false }: { mobile?: boolean }) {
     return () => window.removeEventListener("keydown", handleKeydown);
   }, [mobile, sessions.length]);
 
+  useEffect(() => {
+    const items = conversationSessionsQuery.data?.items ?? [];
+    if (!items.length) return;
+    hydrateSessions(
+      items.map((item) => ({
+        id: item.conversation_id,
+        title: item.title || "Новый чат",
+        pinned: item.pinned,
+        updatedAt: item.updated_at,
+        customTitle: Boolean(item.title?.trim()),
+      })),
+    );
+  }, [conversationSessionsQuery.data?.items, hydrateSessions]);
+
   const sortedSessions = useMemo(() => {
     const base = [...sessions].sort((left, right) => {
       if (Boolean(right.pinned) !== Boolean(left.pinned)) {
@@ -206,6 +228,20 @@ export function ThreadSidebarV3({ mobile = false }: { mobile?: boolean }) {
   }, [deferredQuery, messages, sessions]);
 
   const pinned = sortedSessions.filter((session) => session.pinned);
+  const accountTitle = authStatus.isLoading
+    ? "Загружаю аккаунт"
+    : authStatus.data?.authenticated
+      ? profileQuery.data?.name?.trim() || authStatus.data?.user || "Аккаунт"
+      : authStatus.data?.auth_enabled
+        ? "Гостевой режим"
+        : "Локальный режим";
+  const accountMeta = authStatus.isLoading
+    ? "Проверяю серверный профиль и настройки…"
+    : authStatus.data?.authenticated
+      ? `${authStatus.data?.role || "user"} • ${profileQuery.data?.documents_count ?? 0} документов в памяти`
+      : authStatus.data?.auth_enabled
+        ? "Профиль и настройки сохраняются на сервере по client_id браузера."
+        : "Профиль и настройки работают локально.";
   const recentGroups = useMemo(() => {
     const grouped = new Map<string, ChatSession[]>();
     for (const session of sortedSessions.filter((item) => !item.pinned)) {
@@ -226,6 +262,10 @@ export function ThreadSidebarV3({ mobile = false }: { mobile?: boolean }) {
 
   const handleCreate = () => {
     addSession();
+    const createdId = useChatStore.getState().currentSessionId;
+    void syncConversationSession({ conversation_id: createdId, title: "Новый чат", pinned: true }).finally(() => {
+      void queryClient.invalidateQueries({ queryKey: accountQueryKeys.conversationSessions });
+    });
     if (mobile) {
       startTransition(() => setPrimarySurface("thread"));
     }
@@ -248,13 +288,23 @@ export function ThreadSidebarV3({ mobile = false }: { mobile?: boolean }) {
         }}
         onCommitEdit={() => {
           if (editingId === session.id) {
-            renameSession(session.id, draftTitle.trim() || "Новый чат");
+            const nextTitle = draftTitle.trim() || "Новый чат";
+            renameSession(session.id, nextTitle);
+            void patchConversationSession(session.id, { title: nextTitle }).finally(() => {
+              void queryClient.invalidateQueries({ queryKey: accountQueryKeys.conversationSessions });
+            });
           }
           setEditingId(null);
           setDraftTitle("");
         }}
         onDraftChange={setDraftTitle}
-        onPin={() => pinSession(session.id)}
+        onPin={() => {
+          const nextPinned = !Boolean(session.pinned);
+          pinSession(session.id);
+          void patchConversationSession(session.id, { pinned: nextPinned }).finally(() => {
+            void queryClient.invalidateQueries({ queryKey: accountQueryKeys.conversationSessions });
+          });
+        }}
         onDelete={() => setDeleteTarget(session)}
       />
     );
@@ -272,7 +322,7 @@ export function ThreadSidebarV3({ mobile = false }: { mobile?: boolean }) {
           <SectionTitle
             eyebrow="Kolibri"
             title="Чаты"
-            description={mobile ? "Главный вход в диалог. Память, обучение и инструменты живут во вторичных surfaces." : undefined}
+            description={mobile ? "Главный вход в диалог. Память, обучение и инструменты живут во вторичных панелях." : undefined}
           />
           <div className="flex items-center gap-2">
             <Button type="button" variant="ghost" size="icon" className="h-10 w-10 rounded-full" onClick={openSettings}>
@@ -320,6 +370,24 @@ export function ThreadSidebarV3({ mobile = false }: { mobile?: boolean }) {
           ) : null}
         </div>
       </div>
+
+      <div className={cn("shrink-0", mobile ? "px-3 pb-4" : "px-2.5 pb-3")}>
+        <AppPanel className="px-4 py-4">
+          <div className="flex items-start gap-3">
+            <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-foreground/8 bg-background text-muted">
+              <UserRound className="h-4.5 w-4.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-foreground">{accountTitle}</p>
+              <p className="mt-1 text-xs leading-5 text-muted">{accountMeta}</p>
+            </div>
+          </div>
+          <Button type="button" variant="outline" className="mt-4 w-full justify-start rounded-2xl" onClick={openSettings}>
+            <Settings2 className="mr-2 h-4 w-4" />
+            Аккаунт и настройки
+          </Button>
+        </AppPanel>
+      </div>
     </div>
   );
 
@@ -350,7 +418,11 @@ export function ThreadSidebarV3({ mobile = false }: { mobile?: boolean }) {
               className="rounded-2xl bg-red-600 text-white hover:bg-red-500"
               onClick={() => {
                 if (!deleteTarget) return;
-                deleteSession(deleteTarget.id);
+                const targetId = deleteTarget.id;
+                deleteSession(targetId);
+                void deleteConversationSession(targetId).finally(() => {
+                  void queryClient.invalidateQueries({ queryKey: accountQueryKeys.conversationSessions });
+                });
                 setDeleteTarget(null);
               }}
             >
@@ -369,7 +441,7 @@ export function ThreadSidebarV3({ mobile = false }: { mobile?: boolean }) {
     </section>
   ) : (
     <>
-      <aside className="hidden min-h-0 w-[18.75rem] shrink-0 border-r border-foreground/6 bg-sidebar lg:flex lg:flex-col">
+      <aside className="hidden min-h-0 min-w-0 shrink-0 overflow-hidden rounded-[1.75rem] border border-foreground/8 bg-sidebar/92 shadow-[0_20px_45px_rgba(15,23,42,0.05)] lg:flex lg:w-[20rem] lg:flex-col">
         {body}
       </aside>
       {deleteConfirmation}

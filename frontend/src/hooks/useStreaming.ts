@@ -8,6 +8,7 @@ import {
   learnTextWithSwarmDemo,
   streamChat,
 } from "@/api";
+import { accountQueryKeys } from "@/features/account/query";
 import { appQueryKeys } from "@/features/workspace/query";
 import { uid } from "@/lib/utils";
 import { useChatStore } from "@/store/useChatStore";
@@ -19,20 +20,27 @@ function formatSigned(value: number | null | undefined): string {
   return `${num >= 0 ? "+" : ""}${num.toFixed(3)}`;
 }
 
+function getDemoSwarmNodeCount(result: LearnTextDemoResponse): number {
+  const after = result.demo.after as { swarm_topology?: { target_node_count?: number } } | undefined;
+  const count = Number(after?.swarm_topology?.target_node_count ?? 0);
+  return Number.isFinite(count) && count > 0 ? count : 50;
+}
+
 function formatDemoAssistantMessage(result: LearnTextDemoResponse): string {
   const lines: string[] = ["Рой обновлён."];
   const summary = result.demo.comparison_summary;
+  const swarmNodeCount = getDemoSwarmNodeCount(result);
 
   if (summary) {
     lines.push("");
-    lines.push("Сравнение 1 vs 10:");
+    lines.push(`Сравнение 1 vs ${swarmNodeCount}:`);
     lines.push(
       `1 узел: ${summary.single_hit_before.toFixed(3)} -> ${summary.single_hit_after.toFixed(3)} (${formatSigned(
         summary.single_hit_after - summary.single_hit_before,
       )})`,
     );
     lines.push(
-      `10 узлов: ${summary.swarm_hit_before.toFixed(3)} -> ${summary.swarm_hit_after.toFixed(3)} (${formatSigned(
+      `${swarmNodeCount} узлов: ${summary.swarm_hit_before.toFixed(3)} -> ${summary.swarm_hit_after.toFixed(3)} (${formatSigned(
         summary.swarm_hit_after - summary.swarm_hit_before,
       )})`,
     );
@@ -134,7 +142,7 @@ export function useStreaming() {
     abortRef.current = new AbortController();
 
     try {
-      await streamChat(
+      const streamResult = await streamChat(
         {
           prompt,
           model: state.model,
@@ -154,11 +162,23 @@ export function useStreaming() {
         },
         abortRef.current.signal,
       );
+      const finalState = useChatStore.getState();
+      const finalConversationId = streamResult.conversationId?.trim();
+      if (finalConversationId && finalConversationId !== sessionId) {
+        finalState.adoptSessionId(sessionId, finalConversationId);
+      }
 
       if (!assistantInserted) {
         ensureAssistantMessage(partial || "Ответ сформирован.");
       }
-      useChatStore.getState().replaceLastAssistant(sessionId, partial || "Ответ сформирован.", false);
+      const persistedSessionId = finalConversationId && finalConversationId !== sessionId ? finalConversationId : sessionId;
+      useChatStore.getState().replaceLastAssistant(persistedSessionId, partial || "Ответ сформирован.", false);
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: accountQueryKeys.conversationTurnsRoot(sessionId) }),
+        queryClient.invalidateQueries({
+          queryKey: accountQueryKeys.conversationTurnsRoot(persistedSessionId),
+        }),
+      ]);
     } catch (error) {
       const isAbort = error instanceof DOMException && error.name === "AbortError";
       if (!assistantInserted) {
@@ -173,7 +193,13 @@ export function useStreaming() {
       }
     } finally {
       useChatStore.getState().setThinking(false);
+      void queryClient.invalidateQueries({ queryKey: accountQueryKeys.conversationSessions });
     }
+  }, [queryClient]);
+
+  const stop = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
   }, []);
 
   const resendEditedMessage = useCallback(async (messageId: string, content: string) => {
@@ -182,21 +208,35 @@ export function useStreaming() {
     await send(normalized, { displayContent: normalized, replaceMessageId: messageId });
   }, [send]);
 
-  const analyzeAttachment = useCallback(async (file: File) => {
+  const analyzeAttachment = useCallback(async (
+    file: File,
+    promptOverride?: string,
+    displayContentOverride?: string,
+  ) => {
     const lowerName = file.name.toLowerCase();
     const isImage = file.type.startsWith("image/");
     const isTextLike =
       file.type.startsWith("text/") ||
       [".txt", ".md", ".json", ".js", ".ts", ".tsx", ".py", ".csv", ".log"].some((ext) => lowerName.endsWith(ext));
+    const requestedPrompt = promptOverride?.trim();
 
     if (isTextLike) {
       const text = await file.text();
       const normalized = text.trim();
       if (!normalized) throw new Error("Файл пустой");
       const safeText = normalized.slice(0, 24000);
+      const instruction = requestedPrompt
+        ? `Проанализируй содержимое файла «${file.name}» с учётом запроса пользователя: ${requestedPrompt}\n\n${safeText}`
+        : `Проанализируй содержимое файла «${file.name}» и кратко выдели главное:\n\n${safeText}`;
       await send(
-        `Проанализируй содержимое файла «${file.name}» и кратко выдели главное:\n\n${safeText}`,
-        { displayContent: `Загружен файл «${file.name}». Проанализируй его.` },
+        instruction,
+        {
+          displayContent:
+            displayContentOverride ??
+            (requestedPrompt
+              ? `${requestedPrompt}\n\nВложение: «${file.name}».`
+              : `Загружен файл «${file.name}». Проанализируй его.`),
+        },
       );
       return;
     }
@@ -211,7 +251,11 @@ export function useStreaming() {
     const userMessage: ChatMessage = {
       id: uid("msg"),
       role: "user",
-      content: `Изображение «${file.name}». Проанализируй, что на нём изображено.`,
+      content:
+        displayContentOverride ??
+        (requestedPrompt
+          ? `${requestedPrompt}\n\nВложение: изображение «${file.name}».`
+          : `Изображение «${file.name}». Проанализируй, что на нём изображено.`),
       createdAt: Date.now(),
       imageUrl,
     };
@@ -228,7 +272,10 @@ export function useStreaming() {
     });
 
     try {
-      const result = await analyzeImageAttachment(file);
+      const result = await analyzeImageAttachment(
+        file,
+        requestedPrompt || "Опиши изображение и выдели главное по-русски.",
+      );
       useChatStore.getState().replaceLastAssistant(sessionId, result.response, false);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Не удалось проанализировать изображение.";
@@ -395,6 +442,7 @@ export function useStreaming() {
 
   return {
     send,
+    stop,
     analyzeAttachment,
     resendEditedMessage,
     learnFromTextDemo,

@@ -34,31 +34,12 @@ def _clear_realtime_http_cache():
 def test_fetch_weather_answer_normalizes_russian_city_case(monkeypatch):
     from backend.service.realtime_lookup import fetch_weather_answer
 
-    geocode_names: list[str] = []
+    seen_urls: list[str] = []
 
     def fake_get(url, params=None, headers=None, timeout=None):
-        if "geocoding-api.open-meteo.com" in url:
-            name = str((params or {}).get("name") or "")
-            geocode_names.append(name)
-            if name == "лениногорске":
-                return _FakeResponse({"results": []})
-            if name == "лениногорск":
-                return _FakeResponse(
-                    {
-                        "results": [
-                            {
-                                "name": "Лениногорск",
-                                "latitude": 54.60256,
-                                "longitude": 52.46087,
-                                "country_code": "RU",
-                                "country": "Россия",
-                                "admin1": "Татарстан",
-                                "population": 66263,
-                            }
-                        ]
-                    }
-                )
-            raise AssertionError(f"Unexpected geocode variant: {name}")
+        seen_urls.append(url)
+        if "geocoding-api.open-meteo.com" in url or "nominatim.openstreetmap.org" in url:
+            raise AssertionError("static city lookup should skip geocoders for Лениногорск")
         if "api.open-meteo.com" in url:
             return _FakeResponse(
                 {
@@ -86,7 +67,100 @@ def test_fetch_weather_answer_normalizes_russian_city_case(monkeypatch):
     assert answer is not None
     assert "Лениногорск" in answer
     assert "ощущается как -11.5" in answer
-    assert geocode_names[:2] == ["лениногорске", "лениногорск"]
+    assert any("api.open-meteo.com" in item for item in seen_urls)
+
+
+def test_fetch_weather_answer_uses_nominatim_fallback_when_open_meteo_geocoder_is_empty(monkeypatch):
+    from backend.service.realtime_lookup import fetch_weather_answer
+
+    seen_urls: list[str] = []
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        seen_urls.append(url)
+        if "geocoding-api.open-meteo.com" in url:
+            return _FakeResponse({"results": []})
+        if "nominatim.openstreetmap.org" in url:
+            return _FakeResponse(
+                [
+                    {
+                        "lat": "54.3158",
+                        "lon": "48.4031",
+                        "importance": 0.71,
+                        "addresstype": "city",
+                        "address": {
+                            "city": "Ульяновск",
+                            "state": "Ульяновская область",
+                            "country": "Россия",
+                            "country_code": "ru",
+                        },
+                    }
+                ]
+            )
+        if "api.open-meteo.com" in url:
+            return _FakeResponse(
+                {
+                    "current": {
+                        "temperature_2m": -2.0,
+                        "apparent_temperature": -5.1,
+                        "precipitation": 0.0,
+                        "weather_code": 3,
+                        "wind_speed_10m": 9.0,
+                    },
+                    "daily": {
+                        "weather_code": [3],
+                        "temperature_2m_max": [1.0],
+                        "temperature_2m_min": [-6.0],
+                        "precipitation_probability_max": [10],
+                    },
+                }
+            )
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr("backend.service.realtime_lookup.requests.get", fake_get)
+
+    answer = fetch_weather_answer("ульяновске")
+
+    assert answer is not None
+    assert "Ульяновск" in answer
+    assert any("nominatim.openstreetmap.org" in item for item in seen_urls)
+
+
+def test_fetch_weather_answer_uses_static_city_coordinates_before_geocoder(monkeypatch):
+    from backend.service.realtime_lookup import fetch_weather_answer
+
+    seen_urls: list[str] = []
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        seen_urls.append(url)
+        if "geocoding-api.open-meteo.com" in url or "nominatim.openstreetmap.org" in url:
+            raise AssertionError("static city lookup should skip geocoders")
+        if "api.open-meteo.com" in url:
+            return _FakeResponse(
+                {
+                    "current": {
+                        "temperature_2m": -4.0,
+                        "apparent_temperature": -7.2,
+                        "precipitation": 0.0,
+                        "weather_code": 1,
+                        "wind_speed_10m": 12.0,
+                    },
+                    "daily": {
+                        "weather_code": [3],
+                        "temperature_2m_max": [0.0],
+                        "temperature_2m_min": [-9.0],
+                        "precipitation_probability_max": [15],
+                    },
+                }
+            )
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr("backend.service.realtime_lookup.requests.get", fake_get)
+
+    answer = fetch_weather_answer("сургуте")
+
+    assert answer is not None
+    assert "Сургут" in answer
+    assert any("api.open-meteo.com" in item for item in seen_urls)
 
 
 def test_fetch_news_digest_parses_bing_rss(monkeypatch):

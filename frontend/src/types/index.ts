@@ -1,7 +1,7 @@
 export type ModelOption = "Колибри 4.1 • Быстрая" | "Колибри 4 • Тяжёлая" | "Колибри 5 • Превью";
 export type PrimarySurface = "thread" | "chats";
 export type ComposerAction = "attach" | "voice" | "teach" | "imagine" | "pack";
-export type WorkspaceSurface = "swarm" | "packs" | "teach" | "quality";
+export type WorkspaceSurface = "swarm" | "packs" | "teach" | "quality" | "knowledge" | "learning";
 
 export type MessageRole = "user" | "assistant";
 
@@ -21,6 +21,62 @@ export interface ChatSession {
   pinned?: boolean;
   customTitle?: boolean;
   updatedAt: number;
+}
+
+export interface AuthStatusResponse {
+  auth_enabled: boolean;
+  authenticated: boolean;
+  user: string | null;
+  role: string | null;
+  account_id: string | null;
+}
+
+export interface AccountProfileResponse {
+  account_id: string;
+  authenticated: boolean;
+  user: string | null;
+  role: string | null;
+  name: string;
+  facts: string[];
+  documents_count: number;
+  updated_at: number;
+}
+
+export interface AccountPreferencesResponse {
+  account_id: string;
+  authenticated: boolean;
+  user: string | null;
+  role: string | null;
+  theme: "system" | "light" | "dark";
+  persona: "assistant" | "romantic" | "storyteller";
+  memory_enabled: boolean;
+  model: string | null;
+  updated_at: number;
+}
+
+export interface ConversationSummary {
+  conversation_id: string;
+  title: string;
+  pinned: boolean;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ConversationListResponse {
+  account_id: string;
+  items: ConversationSummary[];
+}
+
+export interface ConversationTurnItem {
+  role: MessageRole | "system";
+  content: string;
+  created_at: number;
+}
+
+export interface ConversationTurnsResponse {
+  account_id: string;
+  conversation_id: string;
+  items: ConversationTurnItem[];
 }
 
 export interface ModelStatus {
@@ -145,6 +201,41 @@ export interface SwarmLatestReport {
   swarm_rounds: SwarmRoundPoint[];
 }
 
+export interface SwarmComparisonTarget {
+  node_count: number;
+  label: string;
+  available: boolean;
+  consensus_score?: number;
+}
+
+export interface SwarmNodeStatus {
+  node_id: number;
+  name: string;
+  role: "anchor" | "learner" | "validator" | string;
+  active: boolean;
+  healthy: boolean;
+  weight: number;
+  state: string;
+  last_activity_at: number;
+}
+
+export interface SwarmTopologyStatus {
+  target_node_count: number;
+  anchor_node_count: number;
+  learner_node_count: number;
+  validator_node_count: number;
+  active_node_count: number;
+  healthy_node_count: number;
+  validator_quorum: number;
+  validator_active_count: number;
+  validator_disagreement_count: number;
+  consensus_score: number;
+  last_propagation_at?: number;
+  comparison_targets?: SwarmComparisonTarget[];
+  nodes?: SwarmNodeStatus[];
+  network_available?: boolean;
+}
+
 export interface SwarmRuntimeStatusResponse {
   binary_available: boolean;
   binary_path: string;
@@ -219,6 +310,8 @@ export interface SwarmRuntimeStatusResponse {
   last_refresh_finished_at?: number;
   last_refresh_reason?: string;
   last_error?: string;
+  swarm_topology?: SwarmTopologyStatus | null;
+  swarm_nodes?: SwarmNodeStatus[];
   latest: SwarmLatestReport | null;
   latest_knowledge?: {
     timestamp: number;

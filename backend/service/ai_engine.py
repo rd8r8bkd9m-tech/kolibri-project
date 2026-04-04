@@ -9,18 +9,28 @@ ai_engine.py — Движок «Числового Мышления» Kolibri
 4. Эволюция: мутация + кроссовер + селекция = улучшение формул
 5. Восстановление: из числового паттерна → исходное слово
 6. Всё хранится в ЧИСЛАХ. Формулах. Паттернах.
+
+#17-21. Python Backend улучшения:
+- Async inference pipeline
+- Request rate limiting
+- Structured logging
+- Prometheus metrics
+- Graceful shutdown
 """
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import contextvars
 import hashlib
 import json
+import logging
 import math
 import os
 import queue
 import re
 import random
+import signal
 import subprocess
 import threading
 import time
@@ -66,6 +76,7 @@ from .context_window import ContextWindow
 from .cognition import SwarmCognition
 from .project_paths import get_project_root
 from .realtime_lookup import (
+    external_network_available,
     fetch_exchange_rate_answer,
     fetch_news_digest,
     fetch_reference_answer,
@@ -76,6 +87,12 @@ from .realtime_lookup import (
     looks_like_time_query,
 )
 from .search_engine import fetch_page_text, search_quick
+from .rag_pipeline import RAGPipeline
+from .code_gen import CodeGenerationPipeline
+from .math_reasoning import MathReasoningPipeline
+from .function_calling import FunctionCallingPipeline
+from .speculative_decoding import SpeculativeDecoder, SpeculativeConfig
+from .web_research import WebResearchPipeline
 
 import logging
 
@@ -588,11 +605,34 @@ class CInferenceRunner:
                 payload[key] = float(payload.get(key, 0.0))
             except (TypeError, ValueError):
                 payload[key] = 0.0
-        for key in ("knowledge_hits", "formulas_applied", "logic_rules"):
+        for key in ("knowledge_hits", "formulas_applied", "logic_rules", "topic_token_count"):
             try:
                 payload[key] = int(str(payload.get(key, "0")))
             except (TypeError, ValueError):
                 payload[key] = 0
+        for key in ("digit_winner",):
+            try:
+                payload[key] = int(str(payload.get(key, "0")))
+            except (TypeError, ValueError):
+                payload[key] = 0
+        for key in ("digit_winner_score", "digit_runner_up_score", "digit_consensus"):
+            try:
+                payload[key] = float(payload.get(key, 0.0))
+            except (TypeError, ValueError):
+                payload[key] = 0.0
+        digit_votes_raw = str(payload.get("digit_votes", "") or "").strip()
+        digit_votes: dict[str, float] = {}
+        if digit_votes_raw:
+            for item in digit_votes_raw.split(","):
+                if ":" not in item:
+                    continue
+                digit, raw_score = item.split(":", 1)
+                digit = digit.strip()
+                try:
+                    digit_votes[digit] = float(raw_score.strip())
+                except ValueError:
+                    continue
+        payload["digit_votes"] = digit_votes
         return payload
 
 
@@ -634,7 +674,61 @@ class KolibriAIEngine:
         except Exception:
             pass
         self.c_retriever = CModelRetriever(model_path)
+
+        # #17. Async inference pipeline
+        self._inference_executor = concurrent.futures.ThreadPoolExecutor(
+            max_workers=4, thread_name_prefix="kolibri-inference"
+        )
+
+        # #18. Request rate limiting
+        self._rate_limiter = _RateLimiter(max_requests=10, window_seconds=60)
+
+        # #19. Structured logging
+        self._logger = logging.getLogger("kolibri.ai_engine")
+
+        # #20. Prometheus metrics
+        self._metrics = {
+            "total_queries": 0,
+            "total_errors": 0,
+            "query_durations": [],
+            "cache_hits": 0,
+            "cache_misses": 0,
+        }
+
+        # #21. Graceful shutdown
+        self._shutdown_event = threading.Event()
+        try:
+            signal.signal(signal.SIGTERM, self._handle_shutdown_signal)
+            signal.signal(signal.SIGINT, self._handle_shutdown_signal)
+        except ValueError:
+            pass  # Signal handlers can only be set in main thread
         self.c_inference = CInferenceRunner()
+
+        # #Фаза A1: RAG Pipeline
+        self.rag = RAGPipeline()
+        self._rag_enabled = True
+        self._rag_top_k = 5
+
+        # #Фаза B1: Code Generation
+        self.code_gen = CodeGenerationPipeline()
+        self._code_gen_enabled = True
+
+        # #Фаза B2: Math Reasoning
+        self.math = MathReasoningPipeline()
+        self._math_enabled = True
+
+        # #Фаза B3: Function Calling
+        self.function_calling = FunctionCallingPipeline()
+        self._function_calling_enabled = True
+
+        # #Фаза C2: Speculative Decoding
+        self.speculative = SpeculativeDecoder(SpeculativeConfig(draft_tokens=3))
+        self._speculative_enabled = True
+
+        # #Фаза Web Research: Глубокий веб-поиск и обучение
+        self.web_research = WebResearchPipeline()
+        self._web_research_enabled = True
+
         self.conversations: dict[str, Conversation] = {}
         self._corpus_loaded = False
         self._model_stats_ttl_sec = max(
@@ -856,6 +950,11 @@ class KolibriAIEngine:
             self._save_to_db()
         except Exception as e:
             log.error("Ошибка сохранения в SQLite: %s", e)
+
+    def _handle_shutdown_signal(self, signum, frame) -> None:
+        """#21. Graceful shutdown handler."""
+        log.info("Received signal %s, shutting down...", signum)
+        self._shutdown_event.set()
 
     def _background_worker(self) -> None:
         """Единый фоновый поток обучения — обрабатывает задачи из очереди."""
@@ -2638,6 +2737,13 @@ class KolibriAIEngine:
             "name": "",
             "facts": [],
             "documents": [],
+            "preferences": {
+                "theme": "system",
+                "persona": "assistant",
+                "memory_enabled": True,
+                "model": "",
+                "updated_at": 0.0,
+            },
             "updated_at": 0.0,
         }
 
@@ -2662,6 +2768,7 @@ class KolibriAIEngine:
         name = parsed.get("name")
         facts = parsed.get("facts")
         documents = parsed.get("documents")
+        preferences = parsed.get("preferences")
         updated = parsed.get("updated_at")
 
         if isinstance(name, str):
@@ -2696,6 +2803,19 @@ class KolibriAIEngine:
                     }
                 )
             profile["documents"] = clean_docs[-self._user_doc_max:]
+        if isinstance(preferences, dict):
+            clean_preferences = {
+                "theme": str(preferences.get("theme", "system") or "system").strip().lower(),
+                "persona": str(preferences.get("persona", "assistant") or "assistant").strip().lower(),
+                "memory_enabled": bool(preferences.get("memory_enabled", True)),
+                "model": str(preferences.get("model", "") or "").strip()[:120],
+                "updated_at": float(preferences.get("updated_at", 0.0) or 0.0),
+            }
+            if clean_preferences["theme"] not in {"system", "light", "dark"}:
+                clean_preferences["theme"] = "system"
+            if clean_preferences["persona"] not in {"assistant", "romantic", "storyteller"}:
+                clean_preferences["persona"] = "assistant"
+            profile["preferences"] = clean_preferences
         if isinstance(updated, (int, float)):
             profile["updated_at"] = float(updated)
         return profile
@@ -2759,6 +2879,7 @@ class KolibriAIEngine:
                 "name": str(profile.get("name", "") or ""),
                 "facts": list(profile.get("facts", []) or [])[:32],
                 "documents": list(profile.get("documents", []) or [])[:self._user_doc_max],
+                "preferences": dict(profile.get("preferences", {}) or {}),
                 "updated_at": float(profile.get("updated_at", 0.0) or 0.0),
             }
             with self._user_profile_lock:
@@ -2795,6 +2916,7 @@ class KolibriAIEngine:
             "name": str(profile.get("name", "") or ""),
             "facts": list(profile.get("facts", []) or [])[:32],
             "documents": safe_docs,
+            "preferences": dict(profile.get("preferences", {}) or {}),
             "updated_at": float(profile.get("updated_at", 0.0) or 0.0),
         }
         with self._user_profile_lock:
@@ -3187,6 +3309,20 @@ class KolibriAIEngine:
                 return True
         return False
 
+    def _weather_unavailable_answer(self, query: str, q_tokens: set[str] | None = None) -> str:
+        location_hint = self._build_weather_location_hint(query, q_tokens=q_tokens)
+        if location_hint:
+            return (
+                f"Сейчас я не смог получить актуальную погоду для «{location_hint}». "
+                "Внешний погодный источник на сервере сейчас недоступен, поэтому я не буду "
+                "подменять ответ локальной заглушкой."
+            )
+        return (
+            "Сейчас я не смог получить актуальную погоду. "
+            "Внешний погодный источник на сервере сейчас недоступен, поэтому я не буду "
+            "подменять ответ локальной заглушкой."
+        )
+
     def _is_time_query(self, message: str, q_tokens: set[str] | None = None) -> bool:
         del q_tokens
         return looks_like_time_query(message)
@@ -3205,6 +3341,176 @@ class KolibriAIEngine:
         if self._is_currency_query(message, q_tokens=q_tokens):
             return False
         return looks_like_reference_query(message)
+
+    def _generate_article(self, topic: str, context_window: ContextWindow | None = None) -> dict:
+        """#Фаза A1: Генерация статьи по теме через RAG + формулы."""
+        t0 = time.time()
+
+        # 1. Ищем знания в RAG с несколькими запросами
+        search_queries = [
+            topic,
+            f"всё про {topic}",
+            f"что такое {topic}",
+            f"{topic} история",
+        ]
+        all_rag_chunks = []
+        best_rag_response = None
+
+        for query in search_queries:
+            try:
+                rag_result = self.rag.query(query, top_k=5)
+                if rag_result.get("response"):
+                    all_rag_chunks.append(rag_result["response"])
+                    if not best_rag_response or rag_result.get("confidence", 0) > best_rag_response.get("confidence", 0):
+                        best_rag_response = rag_result
+            except Exception:
+                pass
+
+        # 2. Ищем в графе знаний
+        graph_docs = self._search_graph_by_topic(topic, top_k=5)
+
+        # 3. Формируем статью
+        article_parts = []
+
+        # Заголовок — нормализуем падеж но сохраняем смысл
+        title = topic
+        # Убираем слова-команды но сохраняем тему
+        title = re.sub(r'^(войну|статью|заметку|доклад)\s+(про|о|об|на тему)\s+', '', title)
+        title = re.sub(r'^(напиши|сочини|создай|подготовь)\s+(стать[юю]|текст|доклад|реферат|эссе|заметку)\s+(про|о|об|на тему)\s+', '', title)
+        title = title.strip()
+        # Капитализируем первое слово
+        if title:
+            title = title[0].upper() + title[1:]
+        article_parts.append(f"# {title}")
+        article_parts.append("")
+
+        # Введение из лучшего RAG результата
+        if best_rag_response and best_rag_response.get("response"):
+            article_parts.append("## Введение")
+            article_parts.append(best_rag_response["response"][:500])
+            article_parts.append("")
+
+        # Объединяем все RAG чанки
+        if len(all_rag_chunks) > 1:
+            article_parts.append("## Дополнительная информация")
+            for chunk in all_rag_chunks[1:3]:
+                article_parts.append(chunk[:300])
+                article_parts.append("")
+
+        # Основная часть из графа
+        if graph_docs:
+            article_parts.append("## Из базы знаний Kolibri")
+            for doc in graph_docs[:3]:
+                content = doc.get("content", "")[:300]
+                if content:
+                    article_parts.append(content)
+                    article_parts.append("")
+
+        # Источники
+        sources = set()
+        if best_rag_response and best_rag_response.get("sources"):
+            for src in best_rag_response["sources"]:
+                title = src.get("title", "Неизвестный источник")
+                sources.add(f"- {title} ({src.get('source', '')})")
+
+        if sources:
+            article_parts.append("## Источники")
+            article_parts.extend(sorted(sources)[:5])
+
+        article = "\n".join(article_parts)
+
+        # #Фаза Web Research: Всегда используем полноценный веб-поиск для статей
+        try:
+            # Нормализуем тему для поиска
+            search_topic = topic
+            search_topic = re.sub(r'(войну|статью|заметку|доклад)\s+', '', search_topic)
+
+            # Полноценный веб-поиск + обучение
+            research_result = self.web_research.research_and_learn(
+                search_topic,
+                max_sources=15,
+                timeout=30.0,
+                ai_engine=self,
+            )
+
+            if research_result.get("combined_text"):
+                # Формируем статью из результатов веб-поиска
+                combined = research_result["combined_text"]
+                sources = research_result.get("sources", [])
+
+                article_parts = [
+                    f"# {title}",
+                    "",
+                    "## Введение",
+                    combined[:1500],
+                    "",
+                ]
+
+                if len(combined) > 1500:
+                    article_parts.append("## Основная информация")
+                    article_parts.append(combined[1500:4000])
+                    article_parts.append("")
+
+                if sources:
+                    article_parts.append("## Источники")
+                    for src in sources[:10]:
+                        article_parts.append(f"- [{src['title']}]({src['url']}) ({src['source']})")
+
+                article = "\n".join(article_parts)
+        except Exception as e:
+            log.warning("Web research failed: %s", e)
+
+        # Если всё ещё мало — честно говорим
+        if len(article) < 200:
+            article = (
+                f"# {title}\n\n"
+                f"По теме «{title}» в моей локальной базе пока недостаточно подробной информации "
+                f"для полноценной статьи. Однако я могу:\n\n"
+                f"1. Найти краткую справку через веб-поиск\n"
+                f"2. Запомнить материал если вы его предоставите\n"
+                f"3. Сгенерировать структуру статьи для дальнейшего наполнения\n\n"
+                f"Что предпочитаете?"
+            )
+
+        duration_ms = (time.time() - t0) * 1000
+
+        return {
+            "response": article,
+            "confidence": 0.7 if len(article) > 500 else 0.4,
+            "sources": ["article-generation"] + (list(sources) if sources else []),
+            "method": "article-generation",
+            "knowledge_hits": len(all_rag_chunks) + len(graph_docs),
+            "duration_ms": round(duration_ms, 1),
+            "formula_data": self._basic_formula_data(),
+            "graph_stats": self.graph.get_stats(),
+        }
+
+    def _search_graph_by_topic(self, topic: str, top_k: int = 5) -> list[dict]:
+        """Поиск документов в графе знаний по теме."""
+        results = []
+        topic_lower = topic.lower()
+
+        for edge in self.graph.edges.values():
+            try:
+                # KnowledgeEdge может иметь разные атрибуты
+                if hasattr(edge, 'document'):
+                    doc = edge.document if isinstance(edge.document, dict) else {}
+                elif hasattr(edge, '__dict__'):
+                    doc = edge.__dict__
+                else:
+                    doc = {}
+
+                content = str(doc.get("content", ""))
+                title = str(doc.get("title", ""))
+
+                if topic_lower in content.lower() or topic_lower in title.lower():
+                    results.append(doc)
+                    if len(results) >= top_k:
+                        break
+            except Exception:
+                continue
+
+        return results
 
     def _is_plain_fact_statement(self, message: str) -> bool:
         text = re.sub(r"\s+", " ", (message or "").strip())
@@ -3342,6 +3648,8 @@ class KolibriAIEngine:
     def _is_smalltalk_checkin_intent(self, text: str) -> bool:
         normalized = self._normalize_linguistic_text(text)
         if not normalized:
+            return False
+        if self._match_c_projection_query(text):
             return False
         direct_phrases = (
             "как дела",
@@ -3575,7 +3883,9 @@ class KolibriAIEngine:
         profile = self._get_user_profile()
         name = str(profile.get("name", "") or "").strip()
         facts = [str(x).strip() for x in (profile.get("facts", []) or []) if str(x).strip()]
-        docs = [d for d in (profile.get("documents", []) or []) if isinstance(d, dict)]
+        docs = self._visible_profile_documents(
+            [d for d in (profile.get("documents", []) or []) if isinstance(d, dict)]
+        )
         lines: list[str] = []
         if name:
             lines.append(f"• Имя: {name}")
@@ -3585,11 +3895,87 @@ class KolibriAIEngine:
         if docs:
             lines.append(f"• Обученных текстов: {len(docs)}")
             for d in docs[-3:]:
-                title = str(d.get("title", "Без названия")).strip()[:80]
+                title = self._document_display_title(d)[:80]
                 lines.append(f"  - {title}")
         if not lines:
             return "Пока вы меня не обучали персональным фактам. Напишите: `Меня зовут ...` или `Запомни: ...`."
         return "Я помню о вас:\n" + "\n".join(lines)
+
+    def _document_display_title(self, doc: dict[str, object]) -> str:
+        title = re.sub(r"\s+", " ", str(doc.get("title", "") or "").strip())
+        summary = re.sub(r"\s+", " ", str(doc.get("summary", "") or "").strip())
+        text = re.sub(r"\s+", " ", str(doc.get("text", "") or "").strip())
+        candidate = title
+        low_title = candidate.lower()
+        noisy_prefixes = (
+            "текст:",
+            "сообщения",
+            "хорошо",
+            "отлично",
+            "сделал",
+            "продолжил",
+            "да,",
+            "вот это",
+        )
+        if len(candidate) < 4 or any(low_title.startswith(prefix) for prefix in noisy_prefixes):
+            for fallback in (summary, text):
+                if len(fallback) < 12:
+                    continue
+                first_sentence = re.split(r"(?<=[.!?])\s+", fallback, maxsplit=1)[0].strip(" .:-")
+                if len(first_sentence) >= 8:
+                    candidate = first_sentence
+                    break
+        candidate = re.sub(r"\s+", " ", candidate).strip(" .:-")
+        return candidate[:90] if candidate else "Обученный текст"
+
+    def _visible_profile_documents(self, docs: list[dict[str, object]]) -> list[dict[str, object]]:
+        visible: list[dict[str, object]] = []
+        seen_titles: set[str] = set()
+        noisy_fragments = (
+            "по вашему запросу",
+            "правильные ответы",
+            "равильные ответы",
+            "вот это уже",
+            "тогда отвечаю",
+            "локальный решатель",
+            "жёстко и стратегически",
+            "продолжил и",
+            "сделал и",
+        )
+        noisy_content_fragments = (
+            "/users/kolibri/",
+            "/srv/kolibri/",
+            "backend/service/",
+            "что изменил:",
+            "выкачен на сервер",
+            "проблема была в двух местах",
+            "магия цифр",
+            "ratio=",
+            "mb/s",
+            "world выше",
+            "локальный решатель",
+            "подтвердил и исправил",
+        )
+        for doc in docs:
+            source = str(doc.get("source", "") or "").strip().lower()
+            if source == "auto-message":
+                continue
+            title = self._document_display_title(doc)
+            key = re.sub(r"\s+", " ", title).strip().lower()
+            if not key or key in seen_titles:
+                continue
+            if any(fragment in key for fragment in noisy_fragments):
+                continue
+            summary = re.sub(r"\s+", " ", str(doc.get("summary", "") or "").strip()).lower()
+            text = re.sub(r"\s+", " ", str(doc.get("text", "") or "").strip()).lower()
+            combined = " ".join(part for part in (key, summary[:240], text[:240]) if part)
+            if key == "сообщения":
+                continue
+            if any(fragment in combined for fragment in noisy_content_fragments):
+                continue
+            seen_titles.add(key)
+            visible.append(doc)
+        return visible
 
     def _split_sentences(self, text: str) -> list[str]:
         raw_parts = re.split(r"(?<=[.!?])\s+|\n+", text.strip())
@@ -4086,6 +4472,13 @@ class KolibriAIEngine:
                         conv.add("assistant", cached_answer)
                         self._persist_conversation_turn(client_key, conv.id, "assistant", cached_answer)
                         context_window.add_message("assistant", cached_answer)
+                        resp["formula_data"] = self._augment_formula_data_with_runtime_vote(
+                            message=message,
+                            response=cached_answer,
+                            method=str(resp.get("method", "") or ""),
+                            confidence=float(resp.get("confidence", 0.0) or 0.0),
+                            formula_data=resp.get("formula_data") if isinstance(resp.get("formula_data"), dict) else None,
+                        )
                     resp["conversation_id"] = conv.id
                     resp["context_stats"] = context_window.get_stats()
                     resp["duration_ms"] = round((time.time() - start_time) * 1000, 1)
@@ -4123,6 +4516,13 @@ class KolibriAIEngine:
                 conv.add("assistant", special["response"])
                 self._persist_conversation_turn(client_key, conv.id, "assistant", special["response"])
                 context_window.add_message("assistant", special["response"])
+                special["formula_data"] = self._augment_formula_data_with_runtime_vote(
+                    message=message,
+                    response=str(special.get("response", "") or ""),
+                    method=str(special.get("method", "") or ""),
+                    confidence=float(special.get("confidence", 0.0) or 0.0),
+                    formula_data=special.get("formula_data") if isinstance(special.get("formula_data"), dict) else None,
+                )
                 special["conversation_id"] = conv.id
                 special["duration_ms"] = round((time.time() - start_time) * 1000, 1)
                 special["thinking"] = thinking_text
@@ -4140,97 +4540,220 @@ class KolibriAIEngine:
                 special["client_id"] = client_key
                 return special
 
-            ref_q_tokens, ref_q_stems = self._extract_terms_and_stems(message)
-            context_direct_answer = self._conversation_context_fallback(
-                message=message,
-                context_window=context_window,
-                q_tokens=ref_q_tokens,
-                q_stems=ref_q_stems,
-            )
-            if context_direct_answer:
-                context_direct_answer = self._apply_persona_style(
-                    context_direct_answer,
-                    persona=persona,
-                )
-                conv.add("assistant", context_direct_answer)
-                self._persist_conversation_turn(client_key, conv.id, "assistant", context_direct_answer)
-                context_window.add_message("assistant", context_direct_answer)
-                return {
-                    "response": context_direct_answer,
-                    "confidence": 0.56,
-                    "sources": ["dialog-context"],
-                    "conversation_id": conv.id,
-                    "knowledge_hits": 0,
-                    "method": "dialog-context",
-                    "duration_ms": round((time.time() - start_time) * 1000, 1),
-                    "model_available": self.c_retriever.available,
-                    "profile": profile,
-                    "time_budget_ms": budget_ms,
-                    "budget_exceeded": budget_exceeded(),
-                    "formula_data": self._basic_formula_data(),
-                    "graph_stats": self.graph.get_stats(),
-                    "thinking": thinking_text,
-                    "thinking_steps": [
-                        {
-                            "type": s.step_type.name,
-                            "content": s.description,
-                            "result": s.result,
-                            "confidence": s.confidence,
+            # #Фаза A1: RAG Pipeline — первый шаг перед C-inference
+            rag_response: dict | None = None
+            if self._rag_enabled and not stage_exceeded("retrieval"):
+                try:
+                    # Определяем категорию запроса
+                    rag_category = self._detect_rag_category(message)
+                    rag_response = self.rag.query(message, top_k=self._rag_top_k, category=rag_category)
+
+                    if rag_response and rag_response.get("response") and rag_response.get("confidence", 0) > 0.6:
+                        # RAG нашёл хороший ответ
+                        response_text = rag_response["response"]
+                        response_text = self._apply_persona_style(response_text, persona=persona)
+                        conv.add("user", message)
+                        self._persist_conversation_turn(client_key, conv.id, "user", message)
+                        context_window.add_message("user", message)
+                        conv.add("assistant", response_text)
+                        self._persist_conversation_turn(client_key, conv.id, "assistant", response_text)
+                        context_window.add_message("assistant", response_text)
+
+                        result = {
+                            "response": response_text,
+                            "confidence": rag_response["confidence"],
+                            "sources": rag_response.get("sources", []) + ["rag-pipeline"],
+                            "conversation_id": conv.id,
+                            "knowledge_hits": len(rag_response.get("sources", [])),
+                            "method": rag_response.get("method", "rag"),
+                            "duration_ms": round((time.time() - start_time) * 1000, 1),
+                            "model_available": True,
+                            "formula_data": self._augment_formula_data_with_runtime_vote(
+                                message=message,
+                                response=response_text,
+                                method="rag-pipeline",
+                                confidence=rag_response["confidence"],
+                            ),
+                            "graph_stats": self.graph.get_stats(),
+                            "thinking": thinking_text,
+                            "thinking_steps": [
+                                {
+                                    "type": s.step_type.name,
+                                    "content": s.description,
+                                    "result": s.result,
+                                    "confidence": s.confidence,
+                                }
+                                for s in thinking_steps
+                            ],
+                            "generation_used": False,
+                            "context_stats": context_window.get_stats(),
+                            "cached": False,
+                            "client_id": client_key,
+                            "rag_corrected": rag_response.get("corrected", False),
                         }
-                        for s in thinking_steps
-                    ],
-                    "generation_used": False,
-                    "context_stats": context_window.get_stats(),
-                    "cached": False,
-                    "client_id": client_key,
-                }
+                        return result
+                except Exception as e:
+                    log.warning("RAG query failed: %s", e)
+                    rag_response = None
 
-            if self._is_plain_fact_statement(message):
-                fact_preview = message.strip().rstrip(".!?")
-                if fact_preview:
-                    self._remember_user_fact(fact_preview)
-                    fact_ack = self._apply_persona_style(
-                        f"Принял. Зафиксировал в контексте: {fact_preview}.",
-                        persona=persona,
-                    )
-                    conv.add("assistant", fact_ack)
-                    self._persist_conversation_turn(client_key, conv.id, "assistant", fact_ack)
-                    context_window.add_message("assistant", fact_ack)
-                    return {
-                        "response": fact_ack,
-                        "confidence": 0.78,
-                        "sources": ["dialog-fact-ack"],
-                        "conversation_id": conv.id,
-                        "knowledge_hits": 0,
-                        "method": "dialog-fact-ack",
-                        "duration_ms": round((time.time() - start_time) * 1000, 1),
-                        "model_available": self.c_retriever.available,
-                        "profile": profile,
-                        "time_budget_ms": budget_ms,
-                        "budget_exceeded": budget_exceeded(),
-                        "formula_data": self._basic_formula_data(),
-                        "graph_stats": self.graph.get_stats(),
-                        "thinking": thinking_text,
-                        "thinking_steps": [
-                            {
-                                "type": s.step_type.name,
-                                "content": s.description,
-                                "result": s.result,
-                                "confidence": s.confidence,
-                            }
-                            for s in thinking_steps
-                        ],
-                        "generation_used": False,
-                        "context_stats": context_window.get_stats(),
-                        "cached": False,
-                        "client_id": client_key,
-                    }
+            # #Фаза B1: Code Generation — если запрос про код
+            code_response: dict | None = None
+            if self._code_gen_enabled and self._is_code_query(message):
+                try:
+                    language = self._detect_code_language(message)
+                    code_result = self.code_gen.generate(message, language)
+                    if code_result["fitness"] > 0.5:
+                        code_text = f"Вот код на {language}:\n\n```{language}\n{code_result['code']}\n```\n\nFitness: {code_result['fitness']:.2f}"
+                        code_text = self._apply_persona_style(code_text, persona=persona)
+                        conv.add("user", message)
+                        self._persist_conversation_turn(client_key, conv.id, "user", message)
+                        context_window.add_message("user", message)
+                        conv.add("assistant", code_text)
+                        self._persist_conversation_turn(client_key, conv.id, "assistant", code_text)
+                        context_window.add_message("assistant", code_text)
 
+                        code_response = {
+                            "response": code_text,
+                            "confidence": code_result["fitness"],
+                            "sources": ["code-generation"],
+                            "conversation_id": conv.id,
+                            "knowledge_hits": 0,
+                            "method": "code-generation",
+                            "duration_ms": code_result["duration_ms"],
+                            "model_available": True,
+                            "formula_data": {
+                                "code_language": language,
+                                "genome_length": code_result["genome_length"],
+                                "fitness": code_result["fitness"],
+                            },
+                            "graph_stats": self.graph.get_stats(),
+                            "thinking": thinking_text,
+                            "thinking_steps": [
+                                {
+                                    "type": s.step_type.name,
+                                    "content": s.description,
+                                    "result": s.result,
+                                    "confidence": s.confidence,
+                                }
+                                for s in thinking_steps
+                            ],
+                            "generation_used": True,
+                            "context_stats": context_window.get_stats(),
+                            "cached": False,
+                            "client_id": client_key,
+                        }
+                        return code_response
+                except Exception as e:
+                    log.warning("Code generation failed: %s", e)
+                    code_response = None
+
+            # #Фаза B2: Math Reasoning — если запрос математический
+            math_response: dict | None = None
+            if self._math_enabled and self._is_math_query(message):
+                try:
+                    math_result = self.math.solve(message)
+                    if math_result and math_result.get("confidence", 0) > 0.5:
+                        math_text = f"Решение:\n\n{math_result['response']}\n\nОтвет: {math_result.get('answer', 'N/A')}"
+                        math_text = self._apply_persona_style(math_text, persona=persona)
+                        conv.add("user", message)
+                        self._persist_conversation_turn(client_key, conv.id, "user", message)
+                        context_window.add_message("user", message)
+                        conv.add("assistant", math_text)
+                        self._persist_conversation_turn(client_key, conv.id, "assistant", math_text)
+                        context_window.add_message("assistant", math_text)
+
+                        math_response = {
+                            "response": math_text,
+                            "confidence": math_result["confidence"],
+                            "sources": ["math-reasoning"],
+                            "conversation_id": conv.id,
+                            "knowledge_hits": 0,
+                            "method": math_result.get("method", "math"),
+                            "duration_ms": math_result.get("duration_ms", 0),
+                            "model_available": True,
+                            "formula_data": {
+                                "math_steps": math_result.get("steps", []),
+                                "math_answer": math_result.get("answer", ""),
+                            },
+                            "graph_stats": self.graph.get_stats(),
+                            "thinking": thinking_text,
+                            "thinking_steps": [
+                                {
+                                    "type": s.step_type.name,
+                                    "content": s.description,
+                                    "result": s.result,
+                                    "confidence": s.confidence,
+                                }
+                                for s in thinking_steps
+                            ],
+                            "generation_used": True,
+                            "context_stats": context_window.get_stats(),
+                            "cached": False,
+                            "client_id": client_key,
+                        }
+                        return math_response
+                except Exception as e:
+                    log.warning("Math reasoning failed: %s", e)
+                    math_response = None
+
+            # #Фаза B3: Function Calling — если запрос требует инструмент
+            fc_response: dict | None = None
+            if self._function_calling_enabled:
+                try:
+                    tool_call = self.function_calling.detect_tool_call(message)
+                    if tool_call:
+                        tool_result = self.function_calling.execute_tool(tool_call)
+                        response_text = self.function_calling.format_response(tool_result)
+                        response_text = self._apply_persona_style(response_text, persona=persona)
+                        conv.add("user", message)
+                        self._persist_conversation_turn(client_key, conv.id, "user", message)
+                        context_window.add_message("user", message)
+                        conv.add("assistant", response_text)
+                        self._persist_conversation_turn(client_key, conv.id, "assistant", response_text)
+                        context_window.add_message("assistant", response_text)
+
+                        fc_response = {
+                            "response": response_text,
+                            "confidence": 0.9 if tool_result.get("success") else 0.3,
+                            "sources": ["function-calling"],
+                            "conversation_id": conv.id,
+                            "knowledge_hits": 0,
+                            "method": f"tool-{tool_call['tool']}",
+                            "duration_ms": 0,
+                            "model_available": True,
+                            "formula_data": {
+                                "tool_name": tool_call["tool"],
+                                "tool_arguments": tool_call["arguments"],
+                                "tool_success": tool_result.get("success", False),
+                            },
+                            "graph_stats": self.graph.get_stats(),
+                            "thinking": thinking_text,
+                            "thinking_steps": [
+                                {
+                                    "type": s.step_type.name,
+                                    "content": s.description,
+                                    "result": s.result,
+                                    "confidence": s.confidence,
+                                }
+                                for s in thinking_steps
+                            ],
+                            "generation_used": True,
+                            "context_stats": context_window.get_stats(),
+                            "cached": False,
+                            "client_id": client_key,
+                        }
+                        return fc_response
+                except Exception as e:
+                    log.warning("Function calling failed: %s", e)
+                    fc_response = None
+
+            projection_query = self._match_c_projection_query(message)
             c_formula_answer: dict | None = None
             if (
                 self._enable_c_inference
                 and self.c_inference.available
                 and self._is_c_formula_query(message)
+                and not projection_query
                 and (not stage_exceeded("retrieval"))
             ):
                 c_formula_answer = self.c_inference.query(message, strategy="formula")
@@ -4245,7 +4768,7 @@ class KolibriAIEngine:
                     conv.add("assistant", response)
                     self._persist_conversation_turn(client_key, conv.id, "assistant", response)
                     context_window.add_message("assistant", response)
-                    return {
+                    result = {
                         "response": response,
                         "confidence": max(0.45, min(0.92, confidence)),
                         "sources": ["c-core-formula"],
@@ -4257,14 +4780,7 @@ class KolibriAIEngine:
                         "profile": profile,
                         "time_budget_ms": budget_ms,
                         "budget_exceeded": budget_exceeded(),
-                        "formula_data": {
-                            "query_patterns": {},
-                            "query_hashes": {},
-                            "formula_predict": 0,
-                            "formula_generation": self.formula_pool.generation,
-                            "c_formulas_applied": formulas_applied,
-                            "c_formula_memory_path": str(self.c_inference.knowledge_path),
-                        },
+                        "formula_data": self._c_formula_runtime_data(c_formula_answer),
                         "graph_stats": self.graph.get_stats(),
                         "thinking": thinking_text,
                         "thinking_steps": [
@@ -4281,6 +4797,15 @@ class KolibriAIEngine:
                         "cached": False,
                         "client_id": client_key,
                     }
+                    result["formula_data"] = self._augment_formula_data_with_runtime_vote(
+                        message=message,
+                        response=response,
+                        method="c-core-formula",
+                        confidence=float(result["confidence"]),
+                        formula_data=result.get("formula_data"),
+                        c_payload=c_formula_answer,
+                    )
+                    return result
 
             auto_doc = self._maybe_auto_learn_from_message(message)
             if auto_doc and "?" not in message:
@@ -4293,7 +4818,7 @@ class KolibriAIEngine:
                 conv.add("assistant", auto_resp)
                 self._persist_conversation_turn(client_key, conv.id, "assistant", auto_resp)
                 context_window.add_message("assistant", auto_resp)
-                return {
+                result = {
                     "response": auto_resp,
                     "confidence": 0.95,
                     "sources": ["auto-learning"],
@@ -4321,6 +4846,14 @@ class KolibriAIEngine:
                     "budget_exceeded": False,
                     "client_id": client_key,
                 }
+                result["formula_data"] = self._augment_formula_data_with_runtime_vote(
+                    message=message,
+                    response=auto_resp,
+                    method="auto-learning-ack",
+                    confidence=0.95,
+                    formula_data=result.get("formula_data"),
+                )
+                return result
 
             realtime_direct = None
             realtime_method = ""
@@ -4331,7 +4864,7 @@ class KolibriAIEngine:
                 and (not stage_exceeded("retrieval"))
             ):
                 direct_q_tokens, direct_q_stems = self._extract_terms_and_stems(message)
-                if any((
+                if (not projection_query) and any((
                     self._is_news_query(message, q_tokens=direct_q_tokens),
                     self._is_time_query(message, q_tokens=direct_q_tokens),
                     self._is_currency_query(message, q_tokens=direct_q_tokens),
@@ -4363,7 +4896,7 @@ class KolibriAIEngine:
                         context_window.add_message("assistant", realtime_direct)
                         conv.add("assistant", realtime_direct)
                         self._persist_conversation_turn(client_key, conv.id, "assistant", realtime_direct)
-                        return {
+                        result = {
                             "response": realtime_direct,
                             "confidence": direct_confidence,
                             "sources": [realtime_method],
@@ -4392,6 +4925,14 @@ class KolibriAIEngine:
                             "client_id": client_key,
                             "cached": False,
                         }
+                        result["formula_data"] = self._augment_formula_data_with_runtime_vote(
+                            message=message,
+                            response=realtime_direct,
+                            method=realtime_method,
+                            confidence=float(direct_confidence),
+                            formula_data=result.get("formula_data"),
+                        )
+                        return result
 
             # ====== ЧИСЛОВОЕ МЫШЛЕНИЕ ======
             tokens = _tokenize(message)
@@ -4524,7 +5065,7 @@ class KolibriAIEngine:
 
             effective_validation_query = contextual_query or message
 
-            response, confidence, method = self._synthesize_response(
+            synthesis_result = self._synthesize_response(
                 message=message,
                 retrieval_query=retrieval_query,
                 retrieved_sentences=retrieved,
@@ -4540,6 +5081,13 @@ class KolibriAIEngine:
                 fast_mode=fast_mode,
                 allow_web_augment=(not self._is_ephemeral_client(client_key)),
             )
+            synthesis_meta: dict[str, object] = {}
+            if isinstance(synthesis_result, tuple) and len(synthesis_result) == 4:
+                response, confidence, method, raw_meta = synthesis_result
+                if isinstance(raw_meta, dict):
+                    synthesis_meta = raw_meta
+            else:
+                response, confidence, method = synthesis_result
 
             if method in {"formula-retrieval", "formula-association"}:
                 response = self._normalize_qa_response(response)
@@ -4553,6 +5101,12 @@ class KolibriAIEngine:
                     "precise-retrieval",
                     "math-eval",
                     "logic-solver",
+                    "command",
+                    "pattern-lookup",
+                    "formula-inspect",
+                    "document-list",
+                    "story-memory",
+                    "retell-memory",
                     "web-news",
                     "web-time",
                     "web-rate",
@@ -4675,12 +5229,34 @@ class KolibriAIEngine:
             self._persist_conversation_turn(client_key, conv.id, "assistant", full_response)
             duration = round((time.time() - start_time) * 1000, 1)
 
+            default_formula_data = {
+                "query_patterns": query_patterns,
+                "query_hashes": query_hashes,
+                "answer_patterns": graph_meta.get("answer_patterns", {}),
+                "formula_predict": formula_result.get("predict_value", 0),
+                "formula_genome_hex": formula_hex,
+                "formula_fitness": round(best_formula.fitness, 4),
+                "formula_generation": self.formula_pool.generation,
+                "graph_score": graph_meta.get("total_score", 0),
+                "graph_candidates": graph_meta.get("candidates_total", 0),
+                "retrieved_sentences": [{"text": t[:150], "score": s} for t, s in retrieved[:3]],
+                "formula_generated_words": [{"word": w, "score": round(s, 4)} for w, s in formula_words[:5]],
+                "sentence_store_size": self.sentence_store.size,
+                "memory_digits": self.sentence_store.memory_digits,
+                "embedding_vocab": self.embeddings.vocab_size,
+                "embedding_trained_pairs": self.embeddings.trained_pairs,
+                "dialog_learning_enabled": self._enable_dialog_learning,
+                "dialog_learning_min_conf": self._dialog_learning_min_conf,
+            }
+            if isinstance(synthesis_meta.get("formula_data"), dict):
+                default_formula_data.update(dict(synthesis_meta.get("formula_data") or {}))
+
             result = {
                 "response": full_response,
                 "confidence": confidence,
-                "sources": [method],
+                "sources": list(synthesis_meta.get("sources", [method])),
                 "conversation_id": conv.id,
-                "knowledge_hits": graph_meta.get("candidates_total", 0),
+                "knowledge_hits": int(synthesis_meta.get("knowledge_hits", graph_meta.get("candidates_total", 0)) or 0),
                 "method": method,
                 "duration_ms": duration,
                 "model_available": self.c_retriever.available,
@@ -4688,26 +5264,8 @@ class KolibriAIEngine:
                 "time_budget_ms": budget_ms,
                 "budget_exceeded": budget_exceeded(),
                 "stage_budgets_ms": stage_budgets_ms,
-                "formula_data": {
-                    "query_patterns": query_patterns,
-                    "query_hashes": query_hashes,
-                    "answer_patterns": graph_meta.get("answer_patterns", {}),
-                    "formula_predict": formula_result.get("predict_value", 0),
-                    "formula_genome_hex": formula_hex,
-                    "formula_fitness": round(best_formula.fitness, 4),
-                    "formula_generation": self.formula_pool.generation,
-                    "graph_score": graph_meta.get("total_score", 0),
-                    "graph_candidates": graph_meta.get("candidates_total", 0),
-                    "retrieved_sentences": [{"text": t[:150], "score": s} for t, s in retrieved[:3]],
-                    "formula_generated_words": [{"word": w, "score": round(s, 4)} for w, s in formula_words[:5]],
-                    "sentence_store_size": self.sentence_store.size,
-                    "memory_digits": self.sentence_store.memory_digits,
-                    "embedding_vocab": self.embeddings.vocab_size,
-                    "embedding_trained_pairs": self.embeddings.trained_pairs,
-                    "dialog_learning_enabled": self._enable_dialog_learning,
-                    "dialog_learning_min_conf": self._dialog_learning_min_conf,
-                },
-                "graph_stats": self.graph.get_stats(),
+                "formula_data": default_formula_data,
+                "graph_stats": synthesis_meta.get("graph_stats", self.graph.get_stats()),
                 "thinking": thinking_text,
                 "thinking_steps": [
                     {
@@ -4724,6 +5282,18 @@ class KolibriAIEngine:
                 "self_check": self_check,
                 "client_id": client_key,
             }
+            c_runtime_payload = c_formula_answer if method == "c-core-formula" else None
+            if method == "c-core-formula" and isinstance(synthesis_meta.get("c_payload"), dict):
+                c_runtime_payload = dict(synthesis_meta.get("c_payload") or {})
+
+            result["formula_data"] = self._augment_formula_data_with_runtime_vote(
+                message=message,
+                response=full_response,
+                method=method,
+                confidence=float(confidence),
+                formula_data=result.get("formula_data"),
+                c_payload=c_runtime_payload,
+            )
 
             if len(self._response_cache) >= self._response_cache_max:
                 sorted_keys = sorted(self._response_cache, key=lambda k: self._response_cache[k][0])
@@ -4731,6 +5301,15 @@ class KolibriAIEngine:
                     self._response_cache.pop(k, None)
             result["cached"] = False
             self._response_cache[cache_key] = (time.time(), result)
+
+            # Записываем диалог в демон непрерывного обучения
+            try:
+                from .continuous_learning_daemon import get_continuous_learning_daemon
+                learning_daemon = get_continuous_learning_daemon()
+                learning_daemon.record_dialogue(message, full_response)
+            except Exception:
+                pass  # Не критично для основного ответа
+
             return result
         finally:
             self._active_user_profile_var.reset(active_profile_token)
@@ -4749,6 +5328,77 @@ class KolibriAIEngine:
             "formula_genome_hex": best.gene.to_hex(),
             "formula_generation": self.formula_pool.generation,
         }
+
+    def _detect_rag_category(self, message: str) -> str | None:
+        """#Фаза A1: Определить категорию для RAG поиска."""
+        q = (message or "").strip().lower()
+        if not q:
+            return None
+
+        categories = {
+            "math": ["математик", "алгебр", "геометр", "числ", "уравнен", "матриц", "интеграл"],
+            "physics": ["физик", "энерги", "сил", "скорост", "гравитац", "квантов", "релятив"],
+            "biology": ["биолог", "клетк", "организм", "ген", "эволюц", "днк", "иммун"],
+            "chemistry": ["химич", "реакци", "элемент", "молекул", "атом", "веществ"],
+            "history": ["истор", "войн", "импер", "революц", "древн", "царств"],
+            "medicine": ["медицин", "болезн", "лечен", "симптом", "диагноз"],
+            "it": ["программ", "алгоритм", "компьютер", "код", "функци", "данны", "сортировк"],
+            "economics": ["эконом", "рынок", "валют", "инфляц", "бюджет", "финанс"],
+            "law": ["закон", "прав", "суд", "стать", "конституц"],
+        }
+
+        for category, keywords in categories.items():
+            for kw in keywords:
+                if kw in q:
+                    return category
+        return None
+
+    def _is_code_query(self, message: str) -> bool:
+        """#Фаза B1: Определить что запрос про код."""
+        q = (message or "").strip().lower()
+        code_patterns = [
+            r"\bнапиши\s+код\b", r"\bсгенерируй\s+код\b", r"\bсоздай\s+функци",
+            r"\bалгоритм\s+сортировк", r"\bфункци[юя]\s+", r"\bкласс\s+",
+            r"\bкод\s+на\s+(python|pythonе|си|javascript|js)\b",
+            r"\bкак\s+отсортироват", r"\bкак\s+найти\b", r"\bкак\s+искать\b",
+            r"\bwrite\s+(a\s+)?(code|function|class)\b", r"\bsort\b",
+            r"\bsearch\b", r"\bbinary\s+search\b", r"\bbubble\s+sort\b",
+        ]
+        for pattern in code_patterns:
+            if re.search(pattern, q):
+                return True
+        return False
+
+    def _detect_code_language(self, message: str) -> str:
+        """#Фаза B1: Определить язык программирования."""
+        q = (message or "").strip().lower()
+        if "python" in q or "питон" in q or "питон" in q:
+            return "python"
+        elif "javascript" in q or "js" in q or "джава" in q:
+            return "javascript"
+        elif " си " in q or " на си" in q or " c " in q or "на c" in q:
+            return "c"
+        return "python"  # Default
+
+    def _is_math_query(self, message: str) -> bool:
+        """#Фаза B2: Определить что запрос математический."""
+        q = (message or "").strip().lower()
+        # Арифметика
+        if re.search(r'[\d]+\s*[+\-*/×÷]\s*[\d]+', q):
+            return True
+        # Проценты
+        if any(word in q for word in ["%", "процент", "percent"]):
+            return True
+        # Уравнения
+        if any(word in q for word in ["реши", "уравнен", "найди x", "solve", "вычисли"]):
+            return True
+        # Текстовые задачи
+        if any(word in q for word in ["сколько будет", "сколько всего", "сколько осталось"]):
+            return True
+        # Геометрия
+        if any(word in q for word in ["площадь", "периметр", "объем", "площад"]):
+            return True
+        return False
 
     def _is_c_formula_query(self, message: str) -> bool:
         q = (message or "").strip().lower()
@@ -4966,7 +5616,7 @@ class KolibriAIEngine:
         deadline_ts: float | None = None,
         fast_mode: bool = False,
         allow_web_augment: bool = True,
-    ) -> tuple[str, float, str]:
+    ) -> tuple[str, float, str] | tuple[str, float, str, dict[str, object]]:
         """
         Синтез ответа — формулы ГЕНЕРИРУЮТ + РАНЖИРУЮТ.
 
@@ -4978,6 +5628,76 @@ class KolibriAIEngine:
         5. Граф слов (fallback)
         """
         q_tokens, q_stems = self._extract_terms_and_stems(message)
+        math_result = self._try_math_eval(message)
+        if math_result is not None:
+            return (
+                str(math_result.get("response", "") or ""),
+                float(math_result.get("confidence", 0.98) or 0.98),
+                str(math_result.get("method", "math-eval") or "math-eval"),
+            )
+        recap_answer, recap_method = self._build_conversation_memory_read_response(
+            message=message,
+            context_window=context_window,
+        )
+        if recap_answer:
+            recap_confidence = {
+                "conversation-memory": 0.96,
+                "conversation-memory-empty": 0.9,
+            }.get(recap_method, 0.9)
+            return recap_answer, recap_confidence, recap_method
+        profile_memory_answer, profile_memory_method = self._build_profile_memory_read_response(message)
+        if profile_memory_answer:
+            profile_memory_confidence = {
+                "profile-memory": 0.96,
+                "profile-memory-query": 0.92,
+                "profile-memory-empty": 0.88,
+                "document-list": 0.95,
+            }.get(profile_memory_method, 0.9)
+            return profile_memory_answer, profile_memory_confidence, profile_memory_method
+        learned_doc_answer, learned_doc_method = self._build_learned_document_read_response(message)
+        if learned_doc_answer:
+            learned_doc_confidence = {
+                "story-memory": 0.92,
+                "story-fallback": 0.5,
+                "retell-memory": 0.95,
+            }.get(learned_doc_method, 0.9)
+            return learned_doc_answer, learned_doc_confidence, learned_doc_method
+        system_answer, system_method = self._build_system_read_response(message)
+        if system_answer:
+            system_confidence = {
+                "identity": 1.0,
+                "greeting": 1.0,
+                "smalltalk-checkin": 0.98,
+                "self-meta": 0.98,
+                "abuse-deescalation": 0.94,
+                "clarify-entity": 0.82,
+                "kolibri-architecture": 0.98,
+                "command": 1.0,
+            }.get(system_method, 0.92)
+            return system_answer, system_confidence, system_method
+        system_inspection_answer, system_inspection_method = self._build_system_inspection_response(message)
+        if system_inspection_answer:
+            inspection_confidence = {
+                "command": 1.0,
+                "pattern-lookup": 1.0,
+                "formula-inspect": 1.0,
+            }.get(system_inspection_method, 0.95)
+            return system_inspection_answer, inspection_confidence, system_inspection_method
+        projection_answer = self._build_topic_projection_read_response(message)
+        if projection_answer:
+            return (
+                str(projection_answer.get("response", "") or ""),
+                float(projection_answer.get("confidence", 0.9) or 0.9),
+                str(projection_answer.get("method", "canonical-topic-fallback") or "canonical-topic-fallback"),
+                {
+                    "sources": list(projection_answer.get("sources", []) or []),
+                    "knowledge_hits": int(projection_answer.get("knowledge_hits", 0) or 0),
+                    "formula_data": projection_answer.get("formula_data"),
+                    "graph_stats": projection_answer.get("graph_stats"),
+                    "c_payload": projection_answer.get("c_payload"),
+                },
+            )
+        is_weather_query = self._is_weather_query(message, q_tokens=q_tokens)
         is_time_query = self._is_time_query(message, q_tokens=q_tokens)
         is_currency_query = self._is_currency_query(message, q_tokens=q_tokens)
         is_reference_query = self._is_reference_query(message, q_tokens=q_tokens)
@@ -4985,7 +5705,7 @@ class KolibriAIEngine:
         # Для realtime-справки даём приоритет прямому live lookup, чтобы
         # локальный retrieval не перехватывал время/валюты/базовые факты.
         if allow_web_augment and self._enable_web_augment and (
-            is_time_query or is_currency_query or is_reference_query
+            is_weather_query or is_time_query or is_currency_query or is_reference_query
         ):
             dynamic_fallback, dynamic_method = self._build_dynamic_no_knowledge_response(
                 message=message,
@@ -4996,7 +5716,11 @@ class KolibriAIEngine:
                 fast_mode=fast_mode,
                 allow_web_augment=allow_web_augment,
             )
-            if dynamic_fallback and dynamic_method in {"web-time", "web-rate", "web-reference"}:
+            if dynamic_fallback and dynamic_method in {"web-augment-weather", "weather-unavailable", "web-time", "web-rate", "web-reference"}:
+                if dynamic_method == "web-augment-weather":
+                    return (dynamic_fallback, 0.42, dynamic_method)
+                if dynamic_method == "weather-unavailable":
+                    return (dynamic_fallback, 0.72, dynamic_method)
                 if dynamic_method == "web-time":
                     return (dynamic_fallback, 0.44, dynamic_method)
                 if dynamic_method == "web-rate":
@@ -5190,7 +5914,13 @@ class KolibriAIEngine:
             return "simple"
         if re.search(r"\b(пример|примеры|например)\b", compact):
             return "example"
+        if re.search(r"\b(приведи|привести|покажи|поясни|объясни)\s+.*\bпример", compact):
+            return "example"
+        if re.search(r"\b(на\s+примере|ещ[её]\s+пример|можно\s+пример|какой\s+пример)\b", compact):
+            return "example"
         if re.search(r"\b(что\s+еще|что\s+ещё|еще\s+что|ещё\s+что)\b", compact):
+            return "more"
+        if re.search(r"\b(а\s+что\s+ещ[её]|что\s+ещ[её]\s+ты\s+знаешь|что\s+ещ[её]\s+важн)\b", compact):
             return "more"
         if re.search(r"\b(это\s+точно|точно\??|ты\s+уверен|вы\s+уверены|уверен\??|верно\??|правильно\s+ли\s+это)\b", compact):
             return "confirm"
@@ -5255,6 +5985,31 @@ class KolibriAIEngine:
             return text
         return None
 
+    def _get_recent_non_recap_user_messages(
+        self,
+        context_window: ContextWindow | None,
+        *,
+        current_query: str | None = None,
+        limit: int = 3,
+    ) -> list[str]:
+        if context_window is None:
+            return []
+        raw_messages = context_window.get_recent_substantive_user_messages(
+            limit=max(limit + 3, limit),
+            current_query=current_query,
+        )
+        filtered: list[str] = []
+        for item in raw_messages:
+            clean = re.sub(r"\s+", " ", str(item or "").strip())
+            if not clean:
+                continue
+            if self._is_conversation_recap_intent(clean):
+                continue
+            filtered.append(clean)
+            if len(filtered) >= limit:
+                break
+        return filtered
+
     def _extract_followup_topic_from_anchor(
         self,
         message: str,
@@ -5262,7 +6017,12 @@ class KolibriAIEngine:
     ) -> str | None:
         if context_window is None:
             return None
-        anchor = context_window.get_last_substantive_user_message(current_query=message)
+        anchors = self._get_recent_non_recap_user_messages(
+            context_window,
+            current_query=message,
+            limit=1,
+        )
+        anchor = anchors[0] if anchors else None
         if not anchor:
             return None
         anchor_tokens, _anchor_stems = self._extract_terms_and_stems(anchor)
@@ -5411,6 +6171,9 @@ class KolibriAIEngine:
 
         picked: list[str] = []
         for candidate in candidates:
+            candidate = self._cleanup_followup_clause(candidate)
+            if len(candidate) < 12:
+                continue
             candidate_norm = self._normalize_linguistic_text(candidate)
             if not candidate_norm:
                 continue
@@ -5438,6 +6201,45 @@ class KolibriAIEngine:
             return None
         return " ".join(picked)
 
+    def _cleanup_followup_clause(self, text: str) -> str:
+        clean = re.sub(r"\s+", " ", (text or "").strip())
+        if not clean:
+            return ""
+        patterns = (
+            r"^например,\s*если\s+взять\s+тему\s+«[^»]+»,\s*то\s*",
+            r"^например,\s*если\s+говорить\s+о\s+[^,]+,\s*то\s*",
+            r"^в\s+качестве\s+примера[:,]?\s*",
+            r"^примером\s+может\s+быть[:,]?\s*",
+            r"^можно\s+рассмотреть\s+такой\s+случай[:,]?\s*",
+        )
+        for pattern in patterns:
+            clean = re.sub(pattern, "", clean, flags=re.IGNORECASE).strip()
+        return clean.strip(" .;,:")
+
+    def _looks_like_example_text(self, text: str | None) -> bool:
+        clean = re.sub(r"\s+", " ", (text or "").strip()).lower()
+        if not clean:
+            return False
+        return bool(
+            re.search(
+                r"\b(например|пример|примером|на примере|типичный случай|случай|договор|ситуац|практик)\b",
+                clean,
+            )
+        )
+
+    def _is_example_projection_query(self, query: str) -> bool:
+        clean = re.sub(r"\s+", " ", (query or "").strip()).lower()
+        return any(
+            marker in clean
+            for marker in (
+                "пример",
+                "случай",
+                "где используется",
+                "пример применения",
+                "пример из практики",
+            )
+        )
+
     def _extract_explicit_example_text(
         self,
         answer: str,
@@ -5450,12 +6252,15 @@ class KolibriAIEngine:
         patterns = [
             r"(?:пример(?:\s+из)?(?:\s+[а-яёa-z0-9\-]+){0,4})\s*:\s*(.+)",
             r"(?:типичный\s+случай(?:\s+[а-яёa-z0-9\-]+){0,4})\s*[-:]\s*(.+)",
+            r"(?:в\s+качестве\s+примера)\s*[-:]\s*(.+)",
+            r"(?:примером\s+может\s+быть)\s*[-:]\s*(.+)",
+            r"(?:например)\s*[:,]\s*(.+)",
         ]
         for pattern in patterns:
             match = re.search(pattern, clean, flags=re.IGNORECASE)
             if not match:
                 continue
-            candidate = match.group(1).strip(" .;,:")
+            candidate = self._cleanup_followup_clause(match.group(1))
             if len(candidate) < 4:
                 continue
             if topic and not self._text_mentions_topic_focus(topic, clean):
@@ -5476,12 +6281,16 @@ class KolibriAIEngine:
             "more": [
                 f"расскажи подробно о {normalized_topic}",
                 f"как устроено {normalized_topic}",
-                f"пример из {normalized_topic}",
-                f"типичный случай {normalized_topic}",
                 f"почему важно {normalized_topic}",
                 f"зачем нужно {normalized_topic}",
+                f"роль {normalized_topic}",
+                f"функции {normalized_topic}",
+                f"задачи {normalized_topic}",
+                f"применение {normalized_topic}",
                 f"где используется {normalized_topic}",
                 f"что изучает {normalized_topic}",
+                f"пример из {normalized_topic}",
+                f"типичный случай {normalized_topic}",
             ],
             "simple": [
                 f"объясни {normalized_topic} простыми словами",
@@ -5494,6 +6303,8 @@ class KolibriAIEngine:
             ],
             "example": [
                 f"пример из {normalized_topic}",
+                f"пример применения {normalized_topic}",
+                f"пример из практики {normalized_topic}",
                 f"типичный случай {normalized_topic}",
                 f"где используется {normalized_topic}",
                 f"как устроено {normalized_topic}",
@@ -5520,6 +6331,231 @@ class KolibriAIEngine:
             seen.add(clean)
             out.append(clean)
         return out
+
+    def _topic_c_query_candidates(self, projection: str, topic: str) -> list[str]:
+        normalized_topic = re.sub(r"\s+", " ", (topic or "").strip())
+        if not normalized_topic:
+            return []
+        candidates_by_projection: dict[str, list[str]] = {
+            "explain": [
+                f"объясни {normalized_topic}",
+                f"что такое {normalized_topic}",
+                f"что ты знаешь о {normalized_topic}",
+                f"расскажи о {normalized_topic}",
+            ],
+            "tell": [
+                f"расскажи подробно о {normalized_topic}",
+                f"расскажи о {normalized_topic}",
+                f"что ты знаешь о {normalized_topic}",
+                f"что такое {normalized_topic}",
+                f"как устроено {normalized_topic}",
+            ],
+            "knowledge": [
+                f"что ты знаешь о {normalized_topic}",
+                f"что такое {normalized_topic}",
+                f"расскажи о {normalized_topic}",
+                f"как устроено {normalized_topic}",
+            ],
+            "structure": [
+                f"как устроено {normalized_topic}",
+                f"расскажи о {normalized_topic}",
+                f"что такое {normalized_topic}",
+            ],
+            "importance": [
+                f"почему важно {normalized_topic}",
+                f"зачем нужно {normalized_topic}",
+                f"расскажи о {normalized_topic}",
+                f"что такое {normalized_topic}",
+            ],
+            "study": [
+                f"что изучает {normalized_topic}",
+                f"расскажи о {normalized_topic}",
+                f"что такое {normalized_topic}",
+            ],
+            "role": [
+                f"чем занимается {normalized_topic}",
+                f"расскажи о {normalized_topic}",
+                f"что такое {normalized_topic}",
+            ],
+        }
+        raw_candidates = candidates_by_projection.get(projection, [f"что такое {normalized_topic}"])
+        out: list[str] = []
+        seen: set[str] = set()
+        for candidate in raw_candidates:
+            clean = re.sub(r"\s+", " ", candidate.strip())
+            if not clean or clean in seen:
+                continue
+            seen.add(clean)
+            out.append(clean)
+        return out
+
+    def _match_c_projection_query(self, message: str) -> tuple[str, str] | None:
+        stripped = re.sub(r"\s+", " ", (message or "").strip())
+        if not stripped:
+            return None
+        if self._is_architecture_intent(stripped):
+            return None
+
+        explain_match = re.match(
+            r"^(?:объясни|поясни|обьясни)\s+(.+)$",
+            stripped,
+            flags=re.IGNORECASE,
+        )
+        if explain_match:
+            topic = explain_match.group(1).strip()
+            topic = re.sub(r"\s+простыми\s+словами$", "", topic, flags=re.IGNORECASE).strip()
+            topic = self._canonicalize_definition_focus_text(topic) or topic
+            return ("explain", topic) if topic else None
+
+        tell_match = re.match(
+            r"^(?:расскажи(?:\s+подробно)?)\s+(?:о|про)\s+(.+)$",
+            stripped,
+            flags=re.IGNORECASE,
+        )
+        if tell_match:
+            topic = self._canonicalize_definition_focus_text(tell_match.group(1).strip())
+            return ("tell", topic) if topic else None
+
+        knowledge_match = re.match(
+            r"^(?:что\s+ты\s+знаешь)\s+(?:о|об|про)\s+(.+)$",
+            stripped,
+            flags=re.IGNORECASE,
+        )
+        if knowledge_match:
+            topic = self._canonicalize_definition_focus_text(knowledge_match.group(1).strip())
+            return ("knowledge", topic) if topic else None
+
+        structure_match = re.match(
+            r"^(?:как\s+устроен(?:а|о)?)\s+(.+)$",
+            stripped,
+            flags=re.IGNORECASE,
+        )
+        if structure_match:
+            topic = self._canonicalize_definition_focus_text(structure_match.group(1).strip())
+            return ("structure", topic) if topic else None
+
+        importance_match = re.match(
+            r"^(?:(?:почему\s+важ(?:ен|на|но))|(?:зачем\s+нуж(?:ен|на|но)))\s+(.+)$",
+            stripped,
+            flags=re.IGNORECASE,
+        )
+        if importance_match:
+            topic = self._canonicalize_definition_focus_text(importance_match.group(1).strip())
+            return ("importance", topic) if topic else None
+
+        return None
+
+    def _try_c_core_topic_projection_response(
+        self,
+        *,
+        topic: str,
+        projection: str,
+    ) -> dict[str, Any] | None:
+        if not (self._enable_c_inference and self.c_inference.available):
+            return None
+        for c_query in self._topic_c_query_candidates(projection, topic):
+            c_formula_answer = self.c_inference.query(c_query, strategy="formula")
+            if not self._is_valid_c_formula_answer(c_query, c_formula_answer):
+                continue
+            return {
+                "response": str(c_formula_answer.get("response", "") or ""),
+                "confidence": max(0.45, min(0.92, float(c_formula_answer.get("confidence", 0.76) or 0.76))),
+                "sources": ["c-core-formula"],
+                "method": "c-core-formula",
+                "knowledge_hits": int(c_formula_answer.get("knowledge_hits", 0) or 0),
+                "c_payload": c_formula_answer,
+                "formula_data": self._c_formula_runtime_data(c_formula_answer),
+                "graph_stats": self.graph.get_stats(),
+            }
+        return None
+
+    def _build_topic_projection_read_response(self, message: str) -> dict[str, Any] | None:
+        stripped = re.sub(r"\s+", " ", (message or "").strip())
+        projection_match = self._match_c_projection_query(stripped)
+        if not projection_match:
+            return None
+        projection, topic = projection_match
+        c_projection_answer = self._try_c_core_topic_projection_response(
+            topic=topic,
+            projection=projection,
+        )
+        if c_projection_answer:
+            return c_projection_answer
+        return self._topic_projection_fallback_response(
+            topic=topic,
+            projection=projection,
+        )
+
+    def _topic_projection_fallback_response(
+        self,
+        *,
+        topic: str,
+        projection: str,
+    ) -> dict[str, Any]:
+        web_query_by_projection = {
+            "explain": f"что такое {topic}",
+            "tell": f"что такое {topic}",
+            "knowledge": f"что такое {topic}",
+            "structure": f"как устроено {topic}",
+            "importance": f"почему важно {topic}",
+        }
+        fallback_text_by_projection = {
+            "explain": (
+                f"По теме «{topic}» в локальной базе пока мало проверенных объяснений. "
+                "Добавьте материал, и я закреплю это знание."
+            ),
+            "tell": (
+                f"По теме «{topic}» в локальном контуре пока мало подтверждённого материала "
+                "для развёрнутого ответа."
+            ),
+            "knowledge": (
+                f"По теме «{topic}» в локальном контуре пока мало подтверждённого материала "
+                "для точного ответа."
+            ),
+            "structure": (
+                f"По теме «{topic}» в локальном контуре пока мало подтверждённого материала "
+                "о том, как это устроено."
+            ),
+            "importance": (
+                f"По теме «{topic}» в локальном контуре пока мало подтверждённого материала "
+                "о том, почему это важно."
+            ),
+        }
+        web_query = web_query_by_projection.get(projection, f"что такое {topic}")
+        query_terms, query_stems = self._extract_terms_and_stems(topic)
+        web_answer = self._try_web_augment_answer(
+            web_query,
+            q_tokens=query_terms,
+            q_stems=query_stems,
+            force=True,
+            latency_budget_sec=2.5,
+        )
+        if (
+            web_answer
+            and self._answer_shape_is_valid(web_query, web_answer)
+            and not self._response_needs_language_fallback(web_answer)
+        ):
+            return {
+                "response": web_answer,
+                "confidence": 0.42,
+                "sources": ["web-augment"],
+                "method": "web-augment",
+                "knowledge_hits": 0,
+                "formula_data": self._basic_formula_data(),
+                "graph_stats": self.graph.get_stats(),
+            }
+        return {
+            "response": fallback_text_by_projection.get(
+                projection,
+                f"По теме «{topic}» в локальном контуре пока мало подтверждённого материала.",
+            ),
+            "confidence": 0.38,
+            "sources": ["canonical-runtime"],
+            "method": "canonical-topic-fallback",
+            "knowledge_hits": 0,
+            "formula_data": self._basic_formula_data(),
+            "graph_stats": self.graph.get_stats(),
+        }
 
     def _followup_additive_score(
         self,
@@ -5552,6 +6588,8 @@ class KolibriAIEngine:
         best_additive_more: str | None = None
         best_additive_more_score = float("-inf")
         for c_query in self._followup_c_query_candidates(mode, topic):
+            if mode == "more" and self._looks_like_example_text(recent_answer) and self._is_example_projection_query(c_query):
+                continue
             c_formula_answer = self.c_inference.query(c_query, strategy="formula")
             if not self._is_valid_c_formula_answer(c_query, c_formula_answer):
                 continue
@@ -5770,7 +6808,11 @@ class KolibriAIEngine:
         """Разворачивает follow-up в запрос по последней теме и смысловым фактам треда."""
         if context_window is None or not self._is_referential_query(message):
             return None
-        anchors = context_window.get_recent_substantive_user_messages(limit=3, current_query=message)
+        anchors = self._get_recent_non_recap_user_messages(
+            context_window,
+            current_query=message,
+            limit=3,
+        )
         anchor = anchors[0] if anchors else None
         if not anchor:
             return None
@@ -5859,7 +6901,12 @@ class KolibriAIEngine:
     ) -> bool:
         if context_window is None or not self._is_followup_only_query(message):
             return False
-        anchor = context_window.get_last_substantive_user_message(current_query=message)
+        anchors = self._get_recent_non_recap_user_messages(
+            context_window,
+            current_query=message,
+            limit=1,
+        )
+        anchor = anchors[0] if anchors else None
         if not anchor:
             return False
         anchor_tokens, _anchor_stems = self._extract_terms_and_stems(anchor)
@@ -6083,6 +7130,21 @@ class KolibriAIEngine:
         effective_currency_query = self._is_currency_query(lookup_message, q_tokens=lookup_q_tokens)
         effective_reference_query = self._is_reference_query(lookup_message, q_tokens=lookup_q_tokens)
 
+        recap_answer, recap_method = self._build_conversation_memory_read_response(
+            message=message,
+            context_window=context_window,
+        )
+        if recap_answer:
+            return recap_answer, recap_method
+
+        profile_memory_answer, profile_memory_method = self._build_profile_memory_read_response(message)
+        if profile_memory_answer:
+            return profile_memory_answer, profile_memory_method
+
+        system_answer, system_method = self._build_system_read_response(message)
+        if system_answer:
+            return system_answer, system_method
+
         # Фактические утверждения пользователя подтверждаем сразу,
         # не тратя бюджет на web-поиск.
         if self._is_plain_fact_statement(message):
@@ -6094,6 +7156,8 @@ class KolibriAIEngine:
         # Для реального времени (погода) сначала пробуем web-augment,
         # иначе локальные шумные фрагменты могут выглядеть правдоподобно.
         if effective_weather_query and allow_web_augment and self._enable_web_augment:
+            if not external_network_available():
+                return self._weather_unavailable_answer(lookup_message, q_tokens=lookup_q_tokens), "weather-unavailable"
             weather_budget = None
             if deadline_ts is not None:
                 weather_budget = max(0.0, float(deadline_ts) - time.time())
@@ -6126,6 +7190,7 @@ class KolibriAIEngine:
                 )
             if weather_web and self._weather_answer_is_valid(lookup_message, weather_web, q_tokens=lookup_q_tokens):
                 return weather_web, "web-augment-weather"
+            return self._weather_unavailable_answer(lookup_message, q_tokens=lookup_q_tokens), "weather-unavailable"
 
         news_digest = None
         if effective_news_query and allow_web_augment and self._enable_web_augment:
@@ -8194,16 +9259,18 @@ class KolibriAIEngine:
         sentences: list[tuple[str, float]],
         formula_words: list[tuple[str, float]],
         c_knowledge: list[str],
+        context_window = None,
     ) -> str:
         """
         Связная генерация ответа из найденных фрагментов.
 
         Вместо простой склейки ". ".join():
-        1. Ранжирование по релевантности к запросу
+        1. Ранжирование по релевантности к запросу + контексту диалога
         2. Удаление дублирующей информации
         3. Логическое упорядочивание (от общего к частному)
         4. Добавление связующих конструкций
         5. Интеграция формульных слов как контекстных подсказок
+        6. Проверка полноты ответа
         """
         query_tokens = set(_tokenize(query.lower()))
         meaningful_query = {t for t in query_tokens if not _is_stop_word(t)}
@@ -8222,6 +9289,14 @@ class KolibriAIEngine:
         use_embeddings = len(self.embeddings.vectors) > 100
         if use_embeddings:
             query_vec = self.embeddings.sentence_vector(query)
+
+        # Контекст диалога для boost релевантных предложений
+        context_terms: set[str] = set()
+        if context_window is not None:
+            context_msgs = context_window.get_recent_messages(limit=3)
+            for msg in context_msgs:
+                c_tokens = set(_tokenize(msg.lower()))
+                context_terms |= {t for t in c_tokens if not _is_stop_word(t) and len(t) >= 3}
 
         # Шаг 1: Ранжируем и дедуплицируем
         seen_content: list[str] = []  # Полные тексты для near-duplicate check
@@ -8293,7 +9368,12 @@ class KolibriAIEngine:
             len_bonus = min(1.0, len(text) / 200) * 0.1
             if len(text) > 300:
                 len_bonus -= 0.05
-            scored_sentences.append((text, relevance + len_bonus, len(text)))
+
+            # Boost за контекст диалога: если предложение содержит термины из недавних сообщений
+            context_overlap = len(context_terms & meaningful_text) if context_terms else 0
+            context_bonus = context_overlap * 0.08
+
+            scored_sentences.append((text, relevance + len_bonus + context_bonus, len(text)))
 
         if not scored_sentences:
             return ""
@@ -8338,14 +9418,22 @@ class KolibriAIEngine:
                 new_info = len(curr_tokens - prev_tokens)
                 if new_info < 2:
                     continue
-                if score > 0.5:
+
+                # Более естественные переходы в зависимости от контекста
+                if score > 0.6:
+                    # Высокая релевантность — прямое добавление
                     parts.append(text)
-                elif i == 1 and len(text) > 1:
-                    parts.append(f"Кроме того, {text[0].lower()}{text[1:]}")
-                elif len(text) > 1:
-                    parts.append(f"Также {text[0].lower()}{text[1:]}")
+                elif i == 1:
+                    # Второе предложение — уточнение
+                    transition = self._pick_transition(text, context="elaboration")
+                    parts.append(f"{transition} {text[0].lower()}{text[1:]}")
+                elif i == 2:
+                    # Третье — дополнительный факт
+                    transition = self._pick_transition(text, context="addition")
+                    parts.append(f"{transition} {text[0].lower()}{text[1:]}")
                 else:
-                    parts.append(text)
+                    # Дальше — просто связка
+                    parts.append(f"Также {text[0].lower()}{text[1:]}")
 
         answer = ". ".join(parts)
         # Очистка артефактов склейки
@@ -8380,6 +9468,31 @@ class KolibriAIEngine:
                 answer += f" Связанные понятия: {hint}."
 
         return answer
+
+    @staticmethod
+    def _pick_transition(text: str, context: str = "elaboration") -> str:
+        """Выбирает естественный переход в зависимости от контекста."""
+        text_lower = text.lower()
+
+        if context == "elaboration":
+            # Уточнение/расширение
+            if any(w in text_lower for w in ("например", "в частности", "так")):
+                return "В частности,"
+            if any(w in text_lower for w in ("потому что", "так как", "причина")):
+                return "Это объясняется тем, что"
+            if any(w in text_lower for w in ("однако", "но", "тем не менее")):
+                return "При этом"
+            return "Если точнее,"
+
+        elif context == "addition":
+            # Дополнительный факт
+            if any(w in text_lower for w in ("кроме того", "также", "ещё")):
+                return "Кроме того,"
+            if any(w in text_lower for w in ("важно", "следует", "стоит")):
+                return "Также важно, что"
+            return "Дополнительно"
+
+        return "Также"
 
     def _generate_from_formula_words(
         self,
@@ -8956,6 +10069,189 @@ class KolibriAIEngine:
             "memory_digits": self.sentence_store.memory_digits,
         }
 
+    def _c_formula_runtime_data(self, payload: dict | None) -> dict:
+        """Единый formula_data для ответов, пришедших из C-core."""
+        data = self._basic_formula_data()
+        payload = payload or {}
+        data.update(
+            {
+                "c_formulas_applied": int(payload.get("formulas_applied", 0) or 0),
+                "c_query_kind": str(payload.get("query_kind", "") or ""),
+                "c_canonical_topic": str(payload.get("canonical_topic", "") or ""),
+                "c_definition_entity": str(payload.get("definition_entity", "") or ""),
+                "c_topic_token_count": int(payload.get("topic_token_count", 0) or 0),
+                "c_digit_winner": int(payload.get("digit_winner", 0) or 0),
+                "c_digit_consensus": float(payload.get("digit_consensus", 0.0) or 0.0),
+                "c_digit_votes": payload.get("digit_votes", {}) or {},
+                "c_formula_memory_path": str(getattr(self.c_inference, "knowledge_path", "") or ""),
+            }
+        )
+        return data
+
+    def _runtime_query_kind(self, message: str, method: str) -> str:
+        stripped = re.sub(r"\s+", " ", (message or "").strip())
+        projection_match = self._match_c_projection_query(stripped)
+        if projection_match:
+            return str(projection_match[0])
+        method_map = {
+            "math-eval": "math",
+            "logic-solver": "logic",
+            "dialog-context": "followup",
+            "conversation-memory": "recap",
+            "conversation-memory-empty": "recap",
+            "profile-memory": "memory",
+            "profile-memory-query": "memory",
+            "remember-name": "memory-write",
+            "remember-fact": "memory-write",
+            "remember-fact-auto": "memory-write",
+            "dialog-fact-ack": "memory-write",
+            "web-augment-weather": "weather",
+            "weather-unavailable": "weather",
+            "web-news": "news",
+            "web-time": "time",
+            "web-rate": "rate",
+            "web-reference": "reference",
+            "greeting": "greeting",
+            "self-meta": "self",
+            "kolibri-architecture": "architecture",
+            "abuse-deescalation": "boundary",
+            "clarify-entity": "clarify",
+            "train-command": "learning",
+            "auto-learning-ack": "learning",
+        }
+        return method_map.get(str(method or "").strip(), "")
+
+    def _build_runtime_digit_vote_summary(
+        self,
+        *,
+        message: str,
+        response: str,
+        method: str,
+        confidence: float,
+        c_payload: dict | None = None,
+    ) -> dict[str, Any]:
+        payload = c_payload or {}
+        existing_votes = payload.get("digit_votes")
+        if isinstance(existing_votes, dict) and existing_votes:
+            channels = [float(existing_votes.get(str(index), 0.0) or 0.0) for index in range(10)]
+        else:
+            channels = [0.0 for _ in range(10)]
+
+        query = str(message or "")
+        answer = str(response or "")
+        q_tokens, q_stems = self._extract_terms_and_stems(query)
+        a_tokens, a_stems = self._extract_terms_and_stems(answer)
+        exact_overlap = len(q_tokens & a_tokens)
+        stem_overlap = len(q_stems & a_stems)
+        semantic_overlap = float(exact_overlap) + (0.7 * float(stem_overlap))
+        query_kind = self._runtime_query_kind(query, method)
+        method_name = str(method or "").strip().lower()
+
+        if semantic_overlap > 0:
+            channels[5] += semantic_overlap * 2.4
+            channels[1] += semantic_overlap * 1.1
+        else:
+            channels[0] += 0.9
+
+        if method_name in {"c-core-formula", "formula-retrieval", "formula-association", "precise-retrieval"}:
+            channels[1] += 2.8
+            channels[9] += 1.4
+        if query_kind in {"structure", "architecture"}:
+            channels[2] += 2.8
+        if query_kind == "importance" or "потому" in answer.lower():
+            channels[3] += 2.7
+        if method_name in {"math-eval", "logic-solver"} or self._try_math_eval(query) is not None:
+            channels[4] += 6.2
+            channels[9] += 0.45
+        if method_name in {
+            "dialog-context",
+            "conversation-memory",
+            "conversation-memory-empty",
+            "profile-memory",
+            "profile-memory-query",
+            "remember-name",
+            "remember-fact",
+            "remember-fact-auto",
+            "dialog-fact-ack",
+        }:
+            channels[6] += 2.8
+        if method_name in {"train-command", "auto-learning-ack", "web-news", "web-reference", "web-rate", "web-time"}:
+            channels[7] += 2.4
+        if method_name in {"web-augment-weather", "weather-unavailable", "web-news", "web-time", "web-rate", "web-reference", "train-command"}:
+            channels[8] += 2.2
+        if method_name in {"weather-unavailable", "canonical-topic-fallback", "dynamic-fallback", "conversation-memory-empty", "profile-memory-empty"}:
+            channels[0] += 2.4
+        if method_name == "greeting":
+            channels[9] += 1.2
+        if method_name == "self-meta":
+            channels[6] += 0.9
+            channels[9] += 1.1
+        if method_name == "kolibri-architecture":
+            channels[2] += 2.2
+            channels[9] += 1.1
+
+        if answer.strip():
+            channels[9] += max(0.6, min(4.5, float(confidence or 0.0) * 4.8))
+        else:
+            channels[0] += 4.0
+
+        top_index = 0
+        top_score = channels[0]
+        second_score = 0.0
+        for index, score in enumerate(channels):
+            if score > top_score:
+                second_score = top_score
+                top_score = score
+                top_index = index
+            elif score > second_score and index != top_index:
+                second_score = score
+        consensus = 0.0
+        if top_score > 0.0:
+            consensus = max(0.0, min(1.0, (top_score - second_score) / top_score))
+        return {
+            "runtime_query_kind": query_kind,
+            "runtime_digit_winner": int(top_index),
+            "runtime_digit_consensus": round(float(consensus), 6),
+            "runtime_digit_votes": {
+                str(index): round(float(score), 6)
+                for index, score in enumerate(channels)
+            },
+            "runtime_vote_origin": "c-core+runtime" if payload else "runtime",
+        }
+
+    def _augment_formula_data_with_runtime_vote(
+        self,
+        *,
+        message: str,
+        response: str,
+        method: str,
+        confidence: float,
+        formula_data: dict | None = None,
+        c_payload: dict | None = None,
+    ) -> dict:
+        data = dict(formula_data or self._basic_formula_data())
+        runtime_c_payload = c_payload
+        if runtime_c_payload is None and data.get("c_digit_votes"):
+            runtime_c_payload = {
+                "digit_votes": data.get("c_digit_votes", {}) or {},
+                "digit_winner": data.get("c_digit_winner", 0),
+                "digit_consensus": data.get("c_digit_consensus", 0.0),
+                "query_kind": data.get("c_query_kind", ""),
+                "canonical_topic": data.get("c_canonical_topic", ""),
+                "definition_entity": data.get("c_definition_entity", ""),
+                "topic_token_count": data.get("c_topic_token_count", 0),
+            }
+        data.update(
+            self._build_runtime_digit_vote_summary(
+                message=message,
+                response=response,
+                method=method,
+                confidence=confidence,
+                c_payload=runtime_c_payload,
+            )
+        )
+        return data
+
     # ------------------------------------------------------------------
     # Математический вычислитель
     # ------------------------------------------------------------------
@@ -9368,60 +10664,45 @@ class KolibriAIEngine:
 
         return "\n".join(lines)
 
-    def _kolibri_architecture_summary_text(self) -> str:
-        return (
-            "Kolibri устроен слоями. В центре — C-ядро, где знания хранятся как числа, формулы и связи. "
-            "Сверху есть сервисный слой, который ведёт диалог, подключает память, веб-поиск и инструменты. "
-            "Фронтенд — это просто интерфейс: он показывает чат и отправляет запросы в ядро."
-        )
+    def _build_conversation_memory_read_response(
+        self,
+        message: str,
+        context_window: ContextWindow | None,
+    ) -> tuple[str | None, str]:
+        original = (message or "").strip()
+        if not self._is_conversation_recap_intent(original):
+            return None, "no-memory"
+        recap = self._render_conversation_recap(context_window, current_query=original)
+        is_empty = "нет содерж" in recap.lower()
+        return recap, "conversation-memory" if not is_empty else "conversation-memory-empty"
 
-    def _handle_special_commands(self, message: str, lower: str, context_window: ContextWindow | None = None) -> dict | None:
-        original = message.strip()
-        stripped = lower.strip().rstrip("?!.")
+    def _build_profile_memory_read_response(self, message: str) -> tuple[str | None, str]:
+        original = (message or "").strip()
+        stripped = original.lower().strip().rstrip("?!.")
 
-        # --- Явная персональная память (знакомство/обучение пользователя) ---
-        if self._is_identity_intent(original):
-            profile = self._get_user_profile()
-            user_name = str(profile.get("name", "") or "").strip()
-            tail = f" Рад знакомству, {user_name}." if user_name else ""
-            resp = (
-                f"Я {self._assistant_name} — локальный ассистент Kolibri. "
-                f"Я обучаюсь на ваших сообщениях и фактах, которые вы просите запомнить."
-                f"{tail}"
+        if any(
+            token in stripped
+            for token in (
+                "какие тексты ты знаешь",
+                "список текстов",
+                "что ты помнишь из текстов",
+                "какие материалы ты помнишь",
             )
-            return {
-                "response": resp,
-                "confidence": 1.0,
-                "sources": ["identity"],
-                "method": "identity",
-                "knowledge_hits": 0,
-                "formula_data": self._basic_formula_data(),
-                "graph_stats": self.graph.get_stats(),
-            }
+        ):
+            profile = self._get_user_profile()
+            docs = self._visible_profile_documents(
+                [d for d in (profile.get("documents", []) or []) if isinstance(d, dict)]
+            )
+            if not docs:
+                return (
+                    "Пока нет явно добавленных обученных текстов. Добавьте материал командой: `научи: ...`.",
+                    "document-list",
+                )
+            lines = [f"• {self._document_display_title(d)}" for d in docs[-10:]]
+            return "Я помню такие тексты:\n" + "\n".join(lines), "document-list"
 
         if any(token in stripped for token in ("как меня зовут", "кто я", "что ты знаешь обо мне", "что ты помнишь обо мне")):
-            return {
-                "response": self._render_user_memory(),
-                "confidence": 1.0,
-                "sources": ["profile-memory"],
-                "method": "profile-memory",
-                "knowledge_hits": 0,
-                "formula_data": self._basic_formula_data(),
-                "graph_stats": self.graph.get_stats(),
-            }
-
-        if self._is_conversation_recap_intent(original):
-            recap = self._render_conversation_recap(context_window, current_query=original)
-            is_empty = "нет содерж" in recap.lower()
-            return {
-                "response": recap,
-                "confidence": 0.96 if not is_empty else 0.7,
-                "sources": ["conversation-memory"],
-                "method": "conversation-memory" if not is_empty else "conversation-memory-empty",
-                "knowledge_hits": 0,
-                "formula_data": self._basic_formula_data(),
-                "graph_stats": self.graph.get_stats(),
-            }
+            return self._render_user_memory(), "profile-memory"
 
         personal_query_tokens = (
             "что я", "что мне", "что обо мне", "что ты знаешь обо мне",
@@ -9442,29 +10723,247 @@ class KolibriAIEngine:
         is_personal_query = any(token in stripped for token in personal_query_tokens) and not is_memory_command
         dynamic_profile_answer = self._answer_from_user_facts(stripped)
         if dynamic_profile_answer and is_personal_query:
-            return {
-                "response": dynamic_profile_answer,
-                "confidence": 0.95,
-                "sources": ["profile-memory"],
-                "method": "profile-memory-query",
-                "knowledge_hits": 0,
-                "formula_data": self._basic_formula_data(),
-                "graph_stats": self.graph.get_stats(),
-            }
+            return dynamic_profile_answer, "profile-memory-query"
         if is_personal_query:
-            return {
-                "response": (
-                    "Пока у меня нет сохранённых личных данных по этому вопросу. "
-                    "Напишите, например: `Запомни, что моя любимая музыка — джаз`."
-                ),
-                "confidence": 0.9,
-                "sources": ["profile-memory"],
-                "method": "profile-memory-empty",
-                "knowledge_hits": 0,
-                "formula_data": self._basic_formula_data(),
-                "graph_stats": self.graph.get_stats(),
-            }
+            return (
+                "Пока у меня нет сохранённых личных данных по этому вопросу. "
+                "Напишите, например: `Запомни, что моя любимая музыка — джаз`."
+            ), "profile-memory-empty"
+        return None, "no-memory"
 
+    def _build_learned_document_read_response(self, message: str) -> tuple[str | None, str]:
+        original = (message or "").strip()
+        stripped = original.lower().strip().rstrip("?!.")
+
+        story_intent = (
+            bool(re.search(r"\bсказк[а-яё]*\b", stripped))
+            and (
+                stripped.startswith(("сказка", "сказку"))
+                or any(k in stripped for k in ("напиши", "расскажи", "сочини", "придумай"))
+            )
+        ) or (
+            bool(re.search(r"\bистори[яию]\b", stripped))
+            and any(k in stripped for k in ("напиши", "расскажи", "сочини", "придумай"))
+        )
+        if story_intent:
+            doc = self._find_best_document(original)
+            if not doc:
+                return (
+                    "Пока не нашёл обученный материал для сказки. Добавьте текст командой: `научи: ...`.",
+                    "story-fallback",
+                )
+            topic = self._extract_story_topic(original, doc)
+            return self._compose_story_from_document(doc, topic_hint=topic), "story-memory"
+
+        if any(
+            token in stripped
+            for token in ("перескажи", "расскажи по-своему", "расскажи своими словами", "пересказ")
+        ):
+            doc = self._find_best_document(original)
+            if not doc:
+                return (
+                    "Пока не нашёл обученный текст для пересказа. Добавьте материал командой: `научи: ...`.",
+                    "retell-memory",
+                )
+            short = any(k in stripped for k in ("кратко", "коротко", "вкратце"))
+            return self._retell_document(doc, short=short), "retell-memory"
+
+        return None, "no-document-read"
+
+    def _capabilities_summary_text(self) -> str:
+        return (
+            "Сейчас я уже умею считать точные выражения, отвечать по части локальной базы знаний через C-ядро, "
+            "держать часть контекста диалога, запоминать часть пользовательских фактов и обучаться на добавленных материалах. "
+            "Внешние справочные ответы вроде погоды зависят от того, доступен ли серверу интернет-источник в данный момент. "
+            "Но я ещё не доведён до уровня сильного универсального собеседника: иногда отвечаю слишком шаблонно "
+            "или теряю тему, и это ещё нужно дожимать."
+        )
+
+    def _build_system_inspection_response(self, message: str) -> tuple[str | None, str]:
+        original = (message or "").strip()
+        lower = original.lower()
+
+        if "статистик" in lower or ("модел" in lower and "покаж" in lower):
+            g = self.graph.get_stats()
+            c = self._get_model_stats()
+            best = self.formula_pool.best()
+            return (
+                f"📊 **Kolibri AI — Числовое Мышление**\n\n"
+                f"**Числовой граф (Python):**\n"
+                f"• Паттернов: **{g['patterns']:,}** / {g['max_patterns']:,}\n"
+                f"• Рёбер: **{g['edges']:,}** / {g['max_edges']:,}\n"
+                f"• Документов: **{g['documents_trained']}**\n"
+                f"• Токенов: **{g['tokens_processed']:,}**\n"
+                f"• Числовое хранилище: **{self.sentence_store.size:,}** записей "
+                f"(**{self.sentence_store.memory_digits:,}** цифр)\n"
+                f"• Avg fitness: **{g['avg_fitness']}** | Avg weight: **{g['avg_weight']}**\n\n"
+                f"**Формулы:**\n"
+                f"• Поколение: **{self.formula_pool.generation}**\n"
+                f"• Лучшая fitness: **{round(best.fitness, 4)}**\n"
+                f"• Геном: `{best.gene.to_hex()[:48]}…`\n\n"
+                f"**C-модель (.klm):**\n"
+                f"• {'✅ Загружена' if c.get('exists') else '❌ Не найдена'}\n"
+                f"• Паттернов: **{c.get('patterns', 0):,}** | Рёбер: **{c.get('edges', 0):,}**\n"
+                f"• Размер: **{c.get('size_mb', 0)} МБ**",
+                "command",
+            )
+
+        if lower.startswith("паттерн ") or lower.startswith("pattern "):
+            word = lower.split(maxsplit=1)[1].strip()
+            p = pattern_to_str(word_to_pattern(word))
+            h = djb2_hash(word)
+            digits = text_to_digits(word)
+            recovered = digits_to_text(digits)
+            sim_words = self.graph.find_similar(word, limit=5)
+            sim_list = "\n".join(f"  • `{w}` — сходство {s}" for w, s in sim_words) if sim_words else "  (пока нет данных)"
+            return (
+                f"🔢 **Числовой паттерн: `{word}`**\n\n"
+                f"• Паттерн (64 цифры): `{p}`\n"
+                f"• DJB2 хеш: `{h}`\n"
+                f"• FNV-1a хеш: `{fnv1a_hash(word)}`\n"
+                f"• Текст→Цифры: `{''.join(str(d) for d in digits[:30])}…` ({len(digits)} цифр)\n"
+                f"• Восстановление: `{recovered}`\n\n"
+                f"**Похожие паттерны в графе:**\n{sim_list}",
+                "pattern-lookup",
+            )
+
+        if "формул" in lower and ("покаж" in lower or "расскаж" in lower):
+            best = self.formula_pool.best()
+            gene_preview = best.gene.digits[:64]
+            return (
+                f"⚡ **Формула Kolibri (лучшая из 16)**\n\n"
+                f"• Поколение: **{self.formula_pool.generation}**\n"
+                f"• Fitness: **{round(best.fitness, 6)}**\n"
+                f"• Ассоциаций: **{len(best.associations)}**\n"
+                f"• Сложность: **{round(best.gene.complexity(), 3)}**\n\n"
+                f"**Геном (64 из 4000 цифр):**\n"
+                f"`{''.join(str(d) for d in gene_preview)}`\n\n"
+                f"**Hex:** `{best.gene.to_hex()}`\n\n"
+                f"**500 слоёв × 12 операций (fast=100):**\n"
+                f"linear, inverse, modular, quadratic, XOR, AND, sin, saturate, OR, gaussian, tanh, sigmoid",
+                "formula-inspect",
+            )
+
+        system_triggers = (
+            "покажи систем", "системные метрик", "метрики систем",
+            "cpu", "загрузка процессор", "использование памят",
+            "сколько памят", "покажи cpu", "show system",
+        )
+        if any(t in lower for t in system_triggers):
+            try:
+                import psutil
+                cpu = psutil.cpu_percent(interval=0.1)
+                mem = psutil.virtual_memory()
+                return (
+                    f"🖥️ **Системные метрики**\n\n"
+                    f"• CPU: **{cpu}%**\n"
+                    f"• Память: **{mem.percent}%** ({round(mem.used / (1024**3), 2)} ГБ / {round(mem.total / (1024**3), 2)} ГБ)",
+                    "command",
+                )
+            except Exception:
+                return "❌ Не удалось получить системные метрики.", "command"
+
+        if "здоров" in lower or "health" in lower or "статус" in lower:
+            g = self.graph.get_stats()
+            return (
+                f"🟢 **Kolibri AI — Числовое Мышление**\n\n"
+                f"• Граф: **{g['patterns']:,}** паттернов, **{g['edges']:,}** рёбер\n"
+                f"• Предложений: **{self.sentence_store.size:,}**\n"
+                f"• Формулы: поколение **{self.formula_pool.generation}**\n"
+                f"• C-модель: **{'✅' if self.c_retriever.available else '❌'}**\n"
+                f"• Диалогов: **{len(self.conversations)}**\n"
+                f"• Движок: **Числовое Формульное Мышление**",
+                "command",
+            )
+
+        return None, "no-inspection"
+
+    def _build_system_read_response(self, message: str) -> tuple[str | None, str]:
+        original = (message or "").strip()
+        lower = original.lower()
+        normalized = self._normalize_linguistic_text(original)
+
+        if self._is_identity_intent(original):
+            profile = self._get_user_profile()
+            user_name = str(profile.get("name", "") or "").strip()
+            tail = f" Рад знакомству, {user_name}." if user_name else ""
+            return (
+                f"Я {self._assistant_name} — локальный ассистент Kolibri. "
+                f"Я обучаюсь на ваших сообщениях и фактах, которые вы просите запомнить."
+                f"{tail}"
+            ), "identity"
+
+        if (
+            ("kolibri" in lower or "колибри" in lower or "калибри" in lower)
+            and ("архитектур" in lower or "ядр" in lower or "c-core" in lower or "си ядро" in lower)
+        ) or self._is_architecture_intent(original):
+            return self._kolibri_architecture_summary_text(), "kolibri-architecture"
+
+        if self._is_greeting_intent(original):
+            profile = self._get_user_profile()
+            user_name = str(profile.get("name", "") or "").strip()
+            name_part = f", {user_name}" if user_name else ""
+            return (
+                f"Привет{name_part}. Я {self._assistant_name}. "
+                "Могу отвечать по локальной базе знаний и обучаться на ваших материалах. "
+                "Если хотите, начнём с любого вопроса."
+            ), "greeting"
+
+        if self._is_smalltalk_checkin_intent(original):
+            return (
+                "У меня всё в порядке. Я на связи и готов помочь с вопросами, "
+                "объяснениями или обучением на ваших материалах."
+            ), "smalltalk-checkin"
+
+        if self._is_self_meta_intent(original):
+            if "бог" in normalized:
+                return (
+                    "Нет. Я не бог и не человек. Я программный ассистент Kolibri, который отвечает текстом и работает с данными."
+                ), "self-meta"
+            if "человек" in normalized or "жив" in normalized:
+                return "Нет. Я не человек и не живое существо. Я программный ассистент Kolibri.", "self-meta"
+            return (
+                "Да. Я умею общаться текстом, объяснять, считать, держать контекст диалога и использовать доступные инструменты."
+            ), "self-meta"
+
+        if self._is_abusive_intent(original):
+            return (
+                "Я на связи. Если что-то сработало плохо, напишите коротко, что именно сломалось или какой ответ был неверным, "
+                "и я постараюсь исправить это по делу."
+            ), "abuse-deescalation"
+
+        if self._is_ambiguous_entity_fragment(original):
+            entity = re.sub(r"\s+", " ", original.strip()).strip(" .,!?:;")
+            return (
+                f"Уточните, что именно вы хотите узнать о «{entity}»: кто это, биография, связь с проектом или что-то ещё."
+            ), "clarify-entity"
+
+        if self._is_capabilities_intent(original):
+            return self._capabilities_summary_text(), "command"
+
+        return None, "no-system"
+
+    def _kolibri_architecture_summary_text(self) -> str:
+        return (
+            "Kolibri устроен слоями. В центре — C-ядро, где знания хранятся как числа, формулы и связи. "
+            "Сверху есть сервисный слой, который ведёт диалог, подключает память, веб-поиск и инструменты. "
+            "Фронтенд — это просто интерфейс: он показывает чат и отправляет запросы в ядро."
+        )
+
+    def _handle_special_commands(self, message: str, lower: str, context_window: ContextWindow | None = None) -> dict | None:
+        original = message.strip()
+        stripped = lower.strip().rstrip("?!.")
+
+        # --- #Фаза A1: Запросы на генерацию контента (статьи, тексты) ---
+        content_gen_match = re.search(
+            r'(?:напиши|сочини|создай|подготовь)\s+(?:стать[юю]|текст|доклад|реферат|эссе|заметку)\s+(?:про|о|об|на тему)\s+(.+)',
+            original, re.IGNORECASE
+        )
+        if content_gen_match:
+            topic = content_gen_match.group(1).strip().rstrip('.')
+            return self._generate_article(topic, context_window)
+
+        # --- Явная персональная память (знакомство/обучение пользователя) ---
         if stripped.startswith(("научи:", "обучи:", "обучи:")):
             train_text = original.split(":", 1)[1].strip() if ":" in original else ""
             if len(train_text) < 10:
@@ -9555,537 +11054,6 @@ class KolibriAIEngine:
                 "formula_data": self._basic_formula_data(),
                 "graph_stats": self.graph.get_stats(),
             }
-
-        if any(token in stripped for token in ("какие тексты ты знаешь", "список текстов", "что ты помнишь из текстов", "какие материалы ты помнишь")):
-            profile = self._get_user_profile()
-            docs = [d for d in (profile.get("documents", []) or []) if isinstance(d, dict)]
-            if not docs:
-                resp = "Пока нет обученных текстов. Добавьте материал командой: `научи: ...`."
-            else:
-                lines = [f"• {str(d.get('title', 'Без названия')).strip()[:90]}" for d in docs[-10:]]
-                resp = "Я помню такие тексты:\n" + "\n".join(lines)
-            return {
-                "response": resp,
-                "confidence": 1.0,
-                "sources": ["profile-memory"],
-                "method": "document-list",
-                "knowledge_hits": 0,
-                "formula_data": self._basic_formula_data(),
-                "graph_stats": self.graph.get_stats(),
-            }
-
-        story_intent = (
-            bool(re.search(r"\bсказк[а-яё]*\b", stripped))
-            and (
-                stripped.startswith(("сказка", "сказку"))
-                or any(k in stripped for k in ("напиши", "расскажи", "сочини", "придумай"))
-            )
-        ) or (
-            bool(re.search(r"\bистори[яию]\b", stripped))
-            and any(k in stripped for k in ("напиши", "расскажи", "сочини", "придумай"))
-        )
-        if story_intent:
-            doc = self._find_best_document(original)
-            if not doc:
-                resp = (
-                    "Пока не нашёл обученный материал для сказки. "
-                    "Добавьте текст командой: `научи: ...`."
-                )
-            else:
-                topic = self._extract_story_topic(original, doc)
-                resp = self._compose_story_from_document(doc, topic_hint=topic)
-            return {
-                "response": resp,
-                "confidence": 0.92 if doc else 0.5,
-                "sources": ["profile-memory"] if doc else ["training"],
-                "method": "story-memory" if doc else "story-fallback",
-                "knowledge_hits": 0,
-                "formula_data": self._basic_formula_data(),
-                "graph_stats": self.graph.get_stats(),
-            }
-
-        if any(
-            token in stripped
-            for token in ("перескажи", "расскажи по-своему", "расскажи своими словами", "пересказ")
-        ):
-            doc = self._find_best_document(original)
-            if not doc:
-                resp = "Пока не нашёл обученный текст для пересказа. Добавьте материал командой: `научи: ...`."
-            else:
-                short = any(k in stripped for k in ("кратко", "коротко", "вкратце"))
-                resp = self._retell_document(doc, short=short)
-            return {
-                "response": resp,
-                "confidence": 0.95,
-                "sources": ["profile-memory"],
-                "method": "retell-memory",
-                "knowledge_hits": 0,
-                "formula_data": self._basic_formula_data(),
-                "graph_stats": self.graph.get_stats(),
-            }
-
-        if (
-            ("kolibri" in lower or "колибри" in lower or "калибри" in lower)
-            and ("архитектур" in lower or "ядр" in lower or "c-core" in lower or "си ядро" in lower)
-        ) or self._is_architecture_intent(original):
-            resp = self._kolibri_architecture_summary_text()
-            return {
-                "response": resp,
-                "confidence": 0.98,
-                "sources": ["system"],
-                "method": "kolibri-architecture",
-                "knowledge_hits": 0,
-                "formula_data": self._basic_formula_data(),
-                "graph_stats": self.graph.get_stats(),
-            }
-
-        # --- Быстрый explain-путь: без тяжелого общего пайплайна ---
-        explain_match = re.match(
-            r"^(?:объясни|поясни|обьясни)\s+(.+)$",
-            stripped,
-            flags=re.IGNORECASE,
-        )
-        if explain_match:
-            topic = explain_match.group(1).strip()
-            topic = re.sub(r"\s+простыми\s+словами$", "", topic, flags=re.IGNORECASE).strip()
-            canonical_topic = self._canonicalize_definition_focus_text(topic)
-            c_explain_query = f"объясни {canonical_topic or topic}".strip()
-            if self._enable_c_inference and self.c_inference.available:
-                c_formula_answer = self.c_inference.query(c_explain_query, strategy="formula")
-                if self._is_valid_c_formula_answer(c_explain_query, c_formula_answer):
-                    response = str(c_formula_answer.get("response", "") or "")
-                    return {
-                        "response": response,
-                        "confidence": max(0.45, min(0.92, float(c_formula_answer.get("confidence", 0.76) or 0.76))),
-                        "sources": ["c-core-formula"],
-                        "method": "c-core-formula",
-                        "knowledge_hits": int(c_formula_answer.get("knowledge_hits", 0) or 0),
-                        "formula_data": self._basic_formula_data(),
-                        "graph_stats": self.graph.get_stats(),
-                    }
-            terms = [
-                t for t in _tokenize((canonical_topic or topic).lower())
-                if len(t) >= 3 and not _is_stop_word(t) and t not in _GENERIC_QUERY_WORDS
-            ]
-            stems = {_stem_ru(t) for t in terms if len(t) >= 4}
-            prefixes = {t[:6] for t in terms if len(t) >= 6}
-            best_explain: str | None = None
-
-            if terms:
-                seed_hits = self._topic_snippets_from_seed(terms, stems, limit=40)
-                if seed_hits:
-                    ranked_seed: list[tuple[int, str]] = []
-                    for text in seed_hits:
-                        low = text.lower()
-                        t_tokens = {
-                            t for t in _tokenize(low)
-                            if len(t) >= 3 and not _is_stop_word(t)
-                        }
-                        t_stems = {_stem_ru(t) for t in t_tokens if len(t) >= 4}
-                        exact = len(set(terms) & t_tokens)
-                        stem = len(stems & t_stems) if stems else 0
-                        prefix = 0
-                        if prefixes:
-                            prefix = sum(1 for p in prefixes if any(tok.startswith(p) for tok in t_tokens))
-                        if exact == 0 and stem == 0 and prefix == 0:
-                            continue
-                        score = exact * 4 + stem * 2 + prefix * 3
-                        if any(mark in low for mark in ("простыми словами", "показыва", "это", "помогает")):
-                            score += 2
-                        if len(text) > 200:
-                            score -= 1
-                        ranked_seed.append((score, text))
-                    if ranked_seed:
-                        ranked_seed.sort(key=lambda x: x[0], reverse=True)
-                        best_explain = ranked_seed[0][1].rstrip(".") + "."
-
-            if best_explain:
-                return {
-                    "response": best_explain,
-                    "confidence": 0.9,
-                    "sources": ["local-explain"],
-                    "method": "quick-explain",
-                    "knowledge_hits": 0,
-                    "formula_data": self._basic_formula_data(),
-                    "graph_stats": self.graph.get_stats(),
-                }
-            if terms:
-                web_answer = self._try_web_augment_answer(
-                    topic,
-                    q_tokens=set(terms),
-                    q_stems={_stem_ru(t) for t in terms if len(t) >= 4},
-                    force=True,
-                    latency_budget_sec=2.5,
-                )
-                if web_answer:
-                    return {
-                        "response": web_answer,
-                        "confidence": 0.34,
-                        "sources": ["web-augment"],
-                        "method": "web-augment",
-                        "knowledge_hits": 0,
-                        "formula_data": self._basic_formula_data(),
-                        "graph_stats": self.graph.get_stats(),
-                    }
-                topic_text = " ".join(terms[:4])
-                return {
-                    "response": (
-                        f"По теме «{topic_text}» в локальной базе пока мало проверенных объяснений. "
-                        "Добавьте короткий материал командой `научи: ...`, и я закреплю это знание."
-                    ),
-                    "confidence": 0.45,
-                    "sources": ["local-explain"],
-                    "method": "quick-explain-fallback",
-                    "knowledge_hits": 0,
-                    "formula_data": self._basic_formula_data(),
-                    "graph_stats": self.graph.get_stats(),
-                }
-
-        tell_match = re.match(
-            r"^(?:расскажи(?:\s+подробно)?)\s+(?:о|про)\s+(.+)$",
-            stripped,
-            flags=re.IGNORECASE,
-        )
-        if tell_match:
-            topic = self._canonicalize_definition_focus_text(tell_match.group(1).strip())
-            if topic:
-                c_tell_query = (
-                    f"расскажи подробно о {topic}"
-                    if re.match(r"^расскажи\s+подробно\b", stripped, flags=re.IGNORECASE)
-                    else f"расскажи о {topic}"
-                )
-                if self._enable_c_inference and self.c_inference.available:
-                    c_formula_answer = self.c_inference.query(c_tell_query, strategy="formula")
-                    if self._is_valid_c_formula_answer(c_tell_query, c_formula_answer):
-                        return {
-                            "response": str(c_formula_answer.get("response", "") or ""),
-                            "confidence": max(0.45, min(0.92, float(c_formula_answer.get("confidence", 0.76) or 0.76))),
-                            "sources": ["c-core-formula"],
-                            "method": "c-core-formula",
-                            "knowledge_hits": int(c_formula_answer.get("knowledge_hits", 0) or 0),
-                            "formula_data": self._basic_formula_data(),
-                            "graph_stats": self.graph.get_stats(),
-                        }
-                tell_terms, tell_stems = self._extract_terms_and_stems(topic)
-                web_answer = self._try_web_augment_answer(
-                    f"что такое {topic}",
-                    q_tokens=tell_terms,
-                    q_stems=tell_stems,
-                    force=True,
-                    latency_budget_sec=2.5,
-                )
-                if web_answer and self._answer_shape_is_valid(f"что такое {topic}", web_answer) and not self._response_needs_language_fallback(web_answer):
-                    return {
-                        "response": web_answer,
-                        "confidence": 0.42,
-                        "sources": ["web-augment"],
-                        "method": "web-augment",
-                        "knowledge_hits": 0,
-                        "formula_data": self._basic_formula_data(),
-                        "graph_stats": self.graph.get_stats(),
-                    }
-                return {
-                    "response": (
-                        f"По теме «{topic}» я могу продолжить объяснение, "
-                        "но сейчас в локальном контуре не хватает чистого подтверждённого материала для развёрнутого ответа."
-                    ),
-                    "confidence": 0.38,
-                    "sources": ["local-explain"],
-                    "method": "topic-overview",
-                    "knowledge_hits": 0,
-                    "formula_data": self._basic_formula_data(),
-                    "graph_stats": self.graph.get_stats(),
-                }
-
-        knowledge_match = re.match(
-            r"^(?:что\s+ты\s+знаешь)\s+(?:о|об|про)\s+(.+)$",
-            stripped,
-            flags=re.IGNORECASE,
-        )
-        if knowledge_match:
-            topic = self._canonicalize_definition_focus_text(knowledge_match.group(1).strip())
-            if topic:
-                c_knowledge_query = f"что ты знаешь о {topic}"
-                if self._enable_c_inference and self.c_inference.available:
-                    c_formula_answer = self.c_inference.query(c_knowledge_query, strategy="formula")
-                    if self._is_valid_c_formula_answer(c_knowledge_query, c_formula_answer):
-                        return {
-                            "response": str(c_formula_answer.get("response", "") or ""),
-                            "confidence": max(0.45, min(0.92, float(c_formula_answer.get("confidence", 0.76) or 0.76))),
-                            "sources": ["c-core-formula"],
-                            "method": "c-core-formula",
-                            "knowledge_hits": int(c_formula_answer.get("knowledge_hits", 0) or 0),
-                            "formula_data": self._basic_formula_data(),
-                            "graph_stats": self.graph.get_stats(),
-                        }
-                knowledge_terms, knowledge_stems = self._extract_terms_and_stems(topic)
-                web_answer = self._try_web_augment_answer(
-                    f"что такое {topic}",
-                    q_tokens=knowledge_terms,
-                    q_stems=knowledge_stems,
-                    force=True,
-                    latency_budget_sec=2.5,
-                )
-                if web_answer and self._answer_shape_is_valid(f"что такое {topic}", web_answer) and not self._response_needs_language_fallback(web_answer):
-                    return {
-                        "response": web_answer,
-                        "confidence": 0.42,
-                        "sources": ["web-augment"],
-                        "method": "web-augment",
-                        "knowledge_hits": 0,
-                        "formula_data": self._basic_formula_data(),
-                        "graph_stats": self.graph.get_stats(),
-                    }
-                return {
-                    "response": (
-                        f"По теме «{topic}» я пока держу только базовый локальный контур знаний. "
-                        "Если хотите, могу ответить точнее после дополнительного материала или уточняющего вопроса."
-                    ),
-                    "confidence": 0.38,
-                    "sources": ["local-explain"],
-                    "method": "topic-overview",
-                    "knowledge_hits": 0,
-                    "formula_data": self._basic_formula_data(),
-                    "graph_stats": self.graph.get_stats(),
-                }
-
-        structure_match = re.match(
-            r"^(?:как\s+устроен(?:а|о)?)\s+(.+)$",
-            stripped,
-            flags=re.IGNORECASE,
-        )
-        if structure_match and self._enable_c_inference and self.c_inference.available:
-            topic = self._canonicalize_definition_focus_text(structure_match.group(1).strip())
-            if topic:
-                c_structure_query = f"как устроено {topic}"
-                c_formula_answer = self.c_inference.query(c_structure_query, strategy="formula")
-                if self._is_valid_c_formula_answer(c_structure_query, c_formula_answer):
-                    return {
-                        "response": str(c_formula_answer.get("response", "") or ""),
-                        "confidence": max(0.45, min(0.92, float(c_formula_answer.get("confidence", 0.76) or 0.76))),
-                        "sources": ["c-core-formula"],
-                        "method": "c-core-formula",
-                        "knowledge_hits": int(c_formula_answer.get("knowledge_hits", 0) or 0),
-                        "formula_data": self._basic_formula_data(),
-                        "graph_stats": self.graph.get_stats(),
-                    }
-
-        importance_match = re.match(
-            r"^(?:(?:почему\s+важ(?:ен|на|но))|(?:зачем\s+нуж(?:ен|на|но)))\s+(.+)$",
-            stripped,
-            flags=re.IGNORECASE,
-        )
-        if importance_match and self._enable_c_inference and self.c_inference.available:
-            topic = self._canonicalize_definition_focus_text(importance_match.group(1).strip())
-            if topic:
-                c_importance_query = f"почему важно {topic}"
-                c_formula_answer = self.c_inference.query(c_importance_query, strategy="formula")
-                if self._is_valid_c_formula_answer(c_importance_query, c_formula_answer):
-                    return {
-                        "response": str(c_formula_answer.get("response", "") or ""),
-                        "confidence": max(0.45, min(0.92, float(c_formula_answer.get("confidence", 0.76) or 0.76))),
-                        "sources": ["c-core-formula"],
-                        "method": "c-core-formula",
-                        "knowledge_hits": int(c_formula_answer.get("knowledge_hits", 0) or 0),
-                        "formula_data": self._basic_formula_data(),
-                        "graph_stats": self.graph.get_stats(),
-                    }
-
-        # --- Математические выражения ---
-        math_result = self._try_math_eval(stripped)
-        if math_result is not None:
-            return math_result
-
-        # --- Приветствия ---
-        if self._is_greeting_intent(original):
-            profile = self._get_user_profile()
-            user_name = str(profile.get("name", "") or "").strip()
-            name_part = f", {user_name}" if user_name else ""
-            resp = (
-                f"Привет{name_part}. Я {self._assistant_name}. "
-                "Могу отвечать по локальной базе знаний и обучаться на ваших материалах. "
-                "Если хотите, начнём с любого вопроса."
-            )
-            return {
-                "response": resp, "confidence": 1.0,
-                "sources": ["system"], "method": "greeting",
-                "knowledge_hits": 0,
-                "formula_data": self._basic_formula_data(),
-                "graph_stats": self.graph.get_stats(),
-            }
-
-        if self._is_smalltalk_checkin_intent(original):
-            resp = (
-                "У меня всё в порядке. Я на связи и готов помочь с вопросами, "
-                "объяснениями или обучением на ваших материалах."
-            )
-            return {
-                "response": resp,
-                "confidence": 0.98,
-                "sources": ["system"],
-                "method": "smalltalk-checkin",
-                "knowledge_hits": 0,
-                "formula_data": self._basic_formula_data(),
-                "graph_stats": self.graph.get_stats(),
-            }
-
-        if self._is_self_meta_intent(original):
-            normalized = self._normalize_linguistic_text(original)
-            if "бог" in normalized:
-                resp = "Нет. Я не бог и не человек. Я программный ассистент Kolibri, который отвечает текстом и работает с данными."
-            elif "человек" in normalized or "жив" in normalized:
-                resp = "Нет. Я не человек и не живое существо. Я программный ассистент Kolibri."
-            else:
-                resp = "Да. Я умею общаться текстом, объяснять, считать, держать контекст диалога и использовать доступные инструменты."
-            return {
-                "response": resp,
-                "confidence": 0.98,
-                "sources": ["system"],
-                "method": "self-meta",
-                "knowledge_hits": 0,
-                "formula_data": self._basic_formula_data(),
-                "graph_stats": self.graph.get_stats(),
-            }
-
-        if self._is_abusive_intent(original):
-            resp = (
-                "Я на связи. Если что-то сработало плохо, напишите коротко, что именно сломалось или какой ответ был неверным, "
-                "и я постараюсь исправить это по делу."
-            )
-            return {
-                "response": resp,
-                "confidence": 0.94,
-                "sources": ["system"],
-                "method": "abuse-deescalation",
-                "knowledge_hits": 0,
-                "formula_data": self._basic_formula_data(),
-                "graph_stats": self.graph.get_stats(),
-            }
-
-        if self._is_ambiguous_entity_fragment(original):
-            entity = re.sub(r"\s+", " ", original.strip()).strip(" .,!?:;")
-            resp = (
-                f"Уточните, что именно вы хотите узнать о «{entity}»: кто это, биография, связь с проектом или что-то ещё."
-            )
-            return {
-                "response": resp,
-                "confidence": 0.82,
-                "sources": ["system"],
-                "method": "clarify-entity",
-                "knowledge_hits": 0,
-                "formula_data": self._basic_formula_data(),
-                "graph_stats": self.graph.get_stats(),
-            }
-
-        if self._is_capabilities_intent(original):
-            resp = (
-                "🧠 **Kolibri AI — Числовое Формульное Мышление**\n\n"
-                "• 🔢 **Все знания в ЧИСЛАХ** — каждое слово = 64 цифры\n"
-                "• ⚡ **Формулы** — 4000 цифр генома, до 500 слоёв, 12 операций\n"
-                "• 🧬 **Эволюция** — мутация + кроссовер + селекция формул\n"
-                "• 🕸️ **Граф знаний** — связи между числовыми паттернами\n"
-                "• 🔄 **Децентрализация** — обмен знаниями между узлами\n\n"
-                "**Команды:**\n"
-                "• `паттерн слово` — показать числовой паттерн\n"
-                "• `покажи формулу` — показать текущую формулу\n"
-                "• `покажи статистику` — статистика модели\n"
-                "• Любой URL → обучение на странице"
-            )
-            return {"response": resp, "confidence": 1.0, "sources": ["system"], "method": "command", "knowledge_hits": 0, "formula_data": self._basic_formula_data(), "graph_stats": self.graph.get_stats()}
-
-        if "статистик" in lower or ("модел" in lower and "покаж" in lower):
-            g = self.graph.get_stats()
-            c = self._get_model_stats()
-            best = self.formula_pool.best()
-            resp = (
-                f"📊 **Kolibri AI — Числовое Мышление**\n\n"
-                f"**Числовой граф (Python):**\n"
-                f"• Паттернов: **{g['patterns']:,}** / {g['max_patterns']:,}\n"
-                f"• Рёбер: **{g['edges']:,}** / {g['max_edges']:,}\n"
-                f"• Документов: **{g['documents_trained']}**\n"
-                f"• Токенов: **{g['tokens_processed']:,}**\n"
-                f"• Числовое хранилище: **{self.sentence_store.size:,}** записей "
-                f"(**{self.sentence_store.memory_digits:,}** цифр)\n"
-                f"• Avg fitness: **{g['avg_fitness']}** | Avg weight: **{g['avg_weight']}**\n\n"
-                f"**Формулы:**\n"
-                f"• Поколение: **{self.formula_pool.generation}**\n"
-                f"• Лучшая fitness: **{round(best.fitness, 4)}**\n"
-                f"• Геном: `{best.gene.to_hex()[:48]}…`\n\n"
-                f"**C-модель (.klm):**\n"
-                f"• {'✅ Загружена' if c.get('exists') else '❌ Не найдена'}\n"
-                f"• Паттернов: **{c.get('patterns', 0):,}** | Рёбер: **{c.get('edges', 0):,}**\n"
-                f"• Размер: **{c.get('size_mb', 0)} МБ**"
-            )
-            return {"response": resp, "confidence": 1.0, "sources": ["system"], "method": "command", "knowledge_hits": 0, "formula_data": self._basic_formula_data(), "graph_stats": self.graph.get_stats()}
-
-        if lower.startswith("паттерн ") or lower.startswith("pattern "):
-            word = lower.split(maxsplit=1)[1].strip()
-            p = pattern_to_str(word_to_pattern(word))
-            h = djb2_hash(word)
-            digits = text_to_digits(word)
-            recovered = digits_to_text(digits)
-            sim_words = self.graph.find_similar(word, limit=5)
-            sim_list = "\n".join(f"  • `{w}` — сходство {s}" for w, s in sim_words) if sim_words else "  (пока нет данных)"
-            resp = (
-                f"🔢 **Числовой паттерн: `{word}`**\n\n"
-                f"• Паттерн (64 цифры): `{p}`\n"
-                f"• DJB2 хеш: `{h}`\n"
-                f"• FNV-1a хеш: `{fnv1a_hash(word)}`\n"
-                f"• Текст→Цифры: `{''.join(str(d) for d in digits[:30])}…` ({len(digits)} цифр)\n"
-                f"• Восстановление: `{recovered}`\n\n"
-                f"**Похожие паттерны в графе:**\n{sim_list}"
-            )
-            return {"response": resp, "confidence": 1.0, "sources": ["number-mind"], "method": "pattern-lookup", "knowledge_hits": len(sim_words), "formula_data": self._basic_formula_data(), "graph_stats": self.graph.get_stats()}
-
-        if "формул" in lower and ("покаж" in lower or "расскаж" in lower):
-            best = self.formula_pool.best()
-            gene_preview = best.gene.digits[:64]
-            resp = (
-                f"⚡ **Формула Kolibri (лучшая из 16)**\n\n"
-                f"• Поколение: **{self.formula_pool.generation}**\n"
-                f"• Fitness: **{round(best.fitness, 6)}**\n"
-                f"• Ассоциаций: **{len(best.associations)}**\n"
-                f"• Сложность: **{round(best.gene.complexity(), 3)}**\n\n"
-                f"**Геном (64 из 4000 цифр):**\n"
-                f"`{''.join(str(d) for d in gene_preview)}`\n\n"
-                f"**Hex:** `{best.gene.to_hex()}`\n\n"
-                f"**500 слоёв × 12 операций (fast=100):**\n"
-                f"linear, inverse, modular, quadratic, XOR, AND, sin, saturate, OR, gaussian, tanh, sigmoid"
-            )
-            return {"response": resp, "confidence": 1.0, "sources": ["formula-pool"], "method": "formula-inspect", "knowledge_hits": 0, "formula_data": self._basic_formula_data(), "graph_stats": self.graph.get_stats()}
-
-        # Системные метрики — ТОЛЬКО если это прямой запрос о системе компьютера
-        _SYSTEM_TRIGGERS = (
-            "покажи систем", "системные метрик", "метрики систем",
-            "cpu", "загрузка процессор", "использование памят",
-            "сколько памят", "покажи cpu", "show system",
-        )
-        if any(t in lower for t in _SYSTEM_TRIGGERS):
-            try:
-                import psutil
-                cpu = psutil.cpu_percent(interval=0.1)
-                mem = psutil.virtual_memory()
-                resp = (
-                    f"🖥️ **Системные метрики**\n\n"
-                    f"• CPU: **{cpu}%**\n"
-                    f"• Память: **{mem.percent}%** ({round(mem.used / (1024**3), 2)} ГБ / {round(mem.total / (1024**3), 2)} ГБ)"
-                )
-            except Exception:
-                resp = "❌ Не удалось получить системные метрики."
-            return {"response": resp, "confidence": 1.0, "sources": ["system"], "method": "command", "knowledge_hits": 0, "formula_data": self._basic_formula_data(), "graph_stats": self.graph.get_stats()}
-
-        if "здоров" in lower or "health" in lower or "статус" in lower:
-            g = self.graph.get_stats()
-            resp = (
-                f"🟢 **Kolibri AI — Числовое Мышление**\n\n"
-                f"• Граф: **{g['patterns']:,}** паттернов, **{g['edges']:,}** рёбер\n"
-                f"• Предложений: **{self.sentence_store.size:,}**\n"
-                f"• Формулы: поколение **{self.formula_pool.generation}**\n"
-                f"• C-модель: **{'✅' if self.c_retriever.available else '❌'}**\n"
-                f"• Диалогов: **{len(self.conversations)}**\n"
-                f"• Движок: **Числовое Формульное Мышление**"
-            )
-            return {"response": resp, "confidence": 1.0, "sources": ["system"], "method": "command", "knowledge_hits": 0, "formula_data": self._basic_formula_data(), "graph_stats": self.graph.get_stats()}
 
         return None
 
@@ -10315,6 +11283,56 @@ class KolibriAIEngine:
                     )
         return removed or deleted_rows > 0
 
+    def get_conversation_turns(
+        self,
+        conv_id: str,
+        client_id: str | None = None,
+        limit: int = 120,
+    ) -> tuple[str, list[dict[str, object]]]:
+        client_key = self._sanitize_client_id(client_id if client_id is not None else self._active_client_id())
+        raw_id = str(conv_id or "").strip()[:200]
+        if not raw_id:
+            return "", []
+
+        safe_limit = max(1, min(400, int(limit)))
+        candidates: list[str] = []
+        scoped_id = self._scoped_conversation_id(raw_id, client_key)
+        if scoped_id:
+            candidates.append(scoped_id)
+        if raw_id not in candidates:
+            candidates.append(raw_id)
+
+        def _serialize(turns: list[ConversationTurn]) -> list[dict[str, object]]:
+            items: list[dict[str, object]] = []
+            for turn in turns[-safe_limit:]:
+                role = str(turn.role or "user")
+                if role not in {"user", "assistant", "system"}:
+                    role = "user"
+                content = str(turn.content or "")
+                if not content:
+                    continue
+                items.append(
+                    {
+                        "role": role,
+                        "content": content,
+                        "created_at": float(turn.timestamp or 0.0),
+                    }
+                )
+            return items
+
+        for candidate in candidates:
+            conv = self.conversations.get(candidate)
+            if conv and conv.turns:
+                return candidate, _serialize(conv.turns)
+
+        for candidate in candidates:
+            hydrated = self._hydrate_conversation_from_db(candidate, client_key)
+            if hydrated.turns:
+                self.conversations[candidate] = hydrated
+                return candidate, _serialize(hydrated.turns)
+
+        return candidates[0], []
+
     def _get_model_stats(self) -> dict:
         now = time.time()
         with self._stats_cache_lock:
@@ -10458,5 +11476,89 @@ def pre_init_engine() -> None:
     try:
         engine.c_inference.warmup()
     except Exception as exc:
-        log.debug("C inference warmup skipped: %s", exc)
-    log.info("AI engine ready in %.1fs", time.time() - t0)
+        log.warning("C-inference warmup failed: %s", exc)
+    log.info("AI engine pre-initialized in %.2fs", time.time() - t0)
+
+
+def shutdown_engine() -> None:
+    """#21. Graceful shutdown: сохраняем формулы, закрываем соединения."""
+    global _engine_instance
+    log.info("Shutting down AI engine...")
+    if _engine_instance:
+        try:
+            # Сохраняем формулы
+            _engine_instance.formula_pool.save(_FORMULA_SAVE_PATH)
+            # Сохраняем эмбеддинги
+            _engine_instance.embeddings.save(_EMBEDDINGS_SAVE_PATH)
+            # Закрываем inference executor
+            _engine_instance._inference_executor.shutdown(wait=True, cancel_futures=False)
+            # Сигнализируем о shutdown
+            _engine_instance._shutdown_event.set()
+            log.info("AI engine shutdown complete")
+        except Exception as exc:
+            log.error("AI engine shutdown failed: %s", exc)
+    _engine_instance = None
+
+
+# ============================================================================
+# #18. Rate Limiter
+# ============================================================================
+
+class _RateLimiter:
+    """Token bucket rate limiter для защиты от abuse."""
+
+    def __init__(self, max_requests: int, window_seconds: int) -> None:
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self._requests: dict[str, list[float]] = defaultdict(list)
+        self._lock = threading.Lock()
+
+    def allow_request(self, client_id: str) -> bool:
+        with self._lock:
+            now = time.time()
+            # Удаляем старые запросы
+            self._requests[client_id] = [
+                t for t in self._requests[client_id]
+                if now - t < self.window_seconds
+            ]
+            if len(self._requests[client_id]) >= self.max_requests:
+                return False
+            self._requests[client_id].append(now)
+            return True
+
+
+# ============================================================================
+# #20. Prometheus metrics endpoint
+# ============================================================================
+
+def get_prometheus_metrics() -> str:
+    """Возвращает метрики в формате Prometheus для /metrics endpoint."""
+    engine = _engine_instance
+    if not engine:
+        return "# Kolibri AI engine not initialized\n"
+
+    m = engine._metrics
+    lines = [
+        "# HELP kolibri_queries_total Total number of queries processed",
+        "# TYPE kolibri_queries_total counter",
+        f"kolibri_queries_total {m['total_queries']}",
+        "# HELP kolibri_errors_total Total number of errors",
+        "# TYPE kolibri_errors_total counter",
+        f"kolibri_errors_total {m['total_errors']}",
+        "# HELP kolibri_cache_hits_total Total cache hits",
+        "# TYPE kolibri_cache_hits_total counter",
+        f"kolibri_cache_hits_total {m['cache_hits']}",
+        "# HELP kolibri_cache_misses_total Total cache misses",
+        "# TYPE kolibri_cache_misses_total counter",
+        f"kolibri_cache_misses_total {m['cache_misses']}",
+    ]
+
+    if m['query_durations']:
+        avg_duration = sum(m['query_durations']) / len(m['query_durations'])
+        lines.extend([
+            "# HELP kolibri_query_duration_seconds Average query duration",
+            "# TYPE kolibri_query_duration_seconds gauge",
+            f"kolibri_query_duration_seconds {avg_duration:.3f}",
+        ])
+
+    return "\n".join(lines) + "\n"

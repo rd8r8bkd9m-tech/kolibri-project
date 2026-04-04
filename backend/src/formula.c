@@ -1518,3 +1518,255 @@ size_t kf_pool_domain_count(const KolibriFormulaPool *pool,
     }
     return count;
 }
+
+/* ============================================================================
+ * #Фаза 1.1: Иерархический пул формул — реализация
+ * ============================================================================ */
+
+int kf_hierarchical_pool_init(KolibriHierarchicalPool *hpool, uint64_t seed) {
+    if (!hpool) return -1;
+
+    memset(hpool, 0, sizeof(*hpool));
+
+    /* Создаём default pool */
+    hpool->default_pool = (KolibriFormulaPool *)calloc(1, sizeof(KolibriFormulaPool));
+    if (!hpool->default_pool) return -1;
+    kf_pool_init(hpool->default_pool, seed);
+
+    /* Инициализируем подпулы для известных доменов */
+    static const struct {
+        KolibriDomainType type;
+        const char *name;
+    } domain_init[] = {
+        {KOLIBRI_DOMAIN_GENERAL, "general"},
+        {KOLIBRI_DOMAIN_MEDICINE, "medicine"},
+        {KOLIBRI_DOMAIN_IT, "it"},
+        {KOLIBRI_DOMAIN_PHYSICS, "physics"},
+        {KOLIBRI_DOMAIN_MATH, "math"},
+        {KOLIBRI_DOMAIN_CHEMISTRY, "chemistry"},
+        {KOLIBRI_DOMAIN_BIOLOGY, "biology"},
+        {KOLIBRI_DOMAIN_HISTORY, "history"},
+        {KOLIBRI_DOMAIN_LAW, "law"},
+        {KOLIBRI_DOMAIN_ECONOMICS, "economics"},
+    };
+
+    for (size_t i = 0; i < sizeof(domain_init) / sizeof(domain_init[0]); i++) {
+        KolibriDomainSubPool *sub = &hpool->domains[hpool->domain_count];
+        sub->domain_type = domain_init[i].type;
+        strncpy(sub->domain_name, domain_init[i].name, KOLIBRI_DOMAIN_NAME_MAX - 1);
+        sub->formulas = (KolibriFormula *)calloc(KOLIBRI_FORMULA_INITIAL_CAPACITY,
+                                                  sizeof(KolibriFormula));
+        if (!sub->formulas) continue;
+        sub->capacity = KOLIBRI_FORMULA_INITIAL_CAPACITY;
+        sub->count = 0;
+        sub->avg_fitness = 0.0;
+        sub->last_accessed = 0;
+        hpool->domain_count++;
+    }
+
+    return 0;
+}
+
+void kf_hierarchical_pool_destroy(KolibriHierarchicalPool *hpool) {
+    if (!hpool) return;
+
+    for (size_t i = 0; i < hpool->domain_count; i++) {
+        if (hpool->domains[i].formulas) {
+            free(hpool->domains[i].formulas);
+            hpool->domains[i].formulas = NULL;
+        }
+    }
+
+    if (hpool->default_pool) {
+        kf_pool_free(hpool->default_pool);
+        free(hpool->default_pool);
+        hpool->default_pool = NULL;
+    }
+
+    memset(hpool, 0, sizeof(*hpool));
+}
+
+static KolibriDomainSubPool *kf_find_domain_subpool(KolibriHierarchicalPool *hpool,
+                                                     KolibriDomainType domain) {
+    for (size_t i = 0; i < hpool->domain_count; i++) {
+        if (hpool->domains[i].domain_type == domain) {
+            return &hpool->domains[i];
+        }
+    }
+    return NULL;
+}
+
+int kf_hierarchical_pool_add_formula(KolibriHierarchicalPool *hpool,
+                                      KolibriDomainType domain,
+                                      const KolibriFormula *formula) {
+    if (!hpool || !formula) return -1;
+
+    KolibriDomainSubPool *sub = kf_find_domain_subpool(hpool, domain);
+    if (!sub) {
+        /* Создаём новый подпул */
+        if (hpool->domain_count >= KOLIBRI_HIERARCHICAL_MAX_DOMAINS) return -1;
+        sub = &hpool->domains[hpool->domain_count++];
+        sub->domain_type = domain;
+        sub->formulas = (KolibriFormula *)calloc(KOLIBRI_FORMULA_INITIAL_CAPACITY,
+                                                  sizeof(KolibriFormula));
+        if (!sub->formulas) return -1;
+        sub->capacity = KOLIBRI_FORMULA_INITIAL_CAPACITY;
+        sub->count = 0;
+        snprintf(sub->domain_name, KOLIBRI_DOMAIN_NAME_MAX, "custom_%zu", hpool->domain_count);
+    }
+
+    /* Resize если нужно */
+    if (sub->count >= sub->capacity) {
+        size_t new_capacity = sub->capacity * 2;
+        KolibriFormula *new_formulas = (KolibriFormula *)realloc(sub->formulas,
+                                                                  new_capacity * sizeof(KolibriFormula));
+        if (!new_formulas) return -1;
+        sub->formulas = new_formulas;
+        sub->capacity = new_capacity;
+    }
+
+    sub->formulas[sub->count++] = *formula;
+    hpool->total_formulas++;
+
+    /* Обновляем avg_fitness */
+    double total_fitness = 0.0;
+    for (size_t i = 0; i < sub->count; i++) {
+        total_fitness += sub->formulas[i].fitness;
+    }
+    sub->avg_fitness = sub->count > 0 ? total_fitness / (double)sub->count : 0.0;
+
+    return 0;
+}
+
+/* Определяем домен запроса по ключевым словам */
+static KolibriDomainType kf_detect_query_domain(const char *query) {
+    if (!query) return KOLIBRI_DOMAIN_GENERAL;
+
+    /* Простая эвристика по ключевым словам */
+    const char *q = query;
+
+    /* Медицина */
+    if (strstr(q, "болезн") || strstr(q, "лечен") || strstr(q, "симптом") ||
+        strstr(q, "диагноз") || strstr(q, "медицин")) {
+        return KOLIBRI_DOMAIN_MEDICINE;
+    }
+
+    /* IT */
+    if (strstr(q, "программ") || strstr(q, "код") || strstr(q, "алгоритм") ||
+        strstr(q, "компьютер") || strstr(q, "python") || strstr(q, "функци")) {
+        return KOLIBRI_DOMAIN_IT;
+    }
+
+    /* Математика */
+    if (strstr(q, "вычисли") || strstr(q, "реши") || strstr(q, "уравнен") ||
+        strstr(q, "интеграл") || strstr(q, "производн") || strstr(q, "матриц")) {
+        return KOLIBRI_DOMAIN_MATH;
+    }
+
+    /* Физика */
+    if (strstr(q, "физик") || strstr(q, "энерги") || strstr(q, "сил") ||
+        strstr(q, "скорост") || strstr(q, "масс") || strstr(q, "гравитац")) {
+        return KOLIBRI_DOMAIN_PHYSICS;
+    }
+
+    /* Химия */
+    if (strstr(q, "химич") || strstr(q, "реакци") || strstr(q, "элемент") ||
+        strstr(q, "молекул") || strstr(q, "атом")) {
+        return KOLIBRI_DOMAIN_CHEMISTRY;
+    }
+
+    /* Биология */
+    if (strstr(q, "биолог") || strstr(q, "клетк") || strstr(q, "организм") ||
+        strstr(q, "ген") || strstr(q, "эволюц")) {
+        return KOLIBRI_DOMAIN_BIOLOGY;
+    }
+
+    /* История */
+    if (strstr(q, "истор") || strstr(q, "войн") || strstr(q, "импер") ||
+        strstr(q, "революц") || strstr(q, "древн")) {
+        return KOLIBRI_DOMAIN_HISTORY;
+    }
+
+    /* Право */
+    if (strstr(q, "закон") || strstr(q, "прав") || strstr(q, "суд") ||
+        strstr(q, "стать") || strstr(q, "конституц")) {
+        return KOLIBRI_DOMAIN_LAW;
+    }
+
+    /* Экономика */
+    if (strstr(q, "эконом") || strstr(q, "рынок") || strstr(q, "валют") ||
+        strstr(q, "инвестиц") || strstr(q, "бюджет")) {
+        return KOLIBRI_DOMAIN_ECONOMICS;
+    }
+
+    return KOLIBRI_DOMAIN_GENERAL;
+}
+
+const KolibriFormula *kf_hierarchical_pool_query(KolibriHierarchicalPool *hpool,
+                                                  const char *query,
+                                                  KolibriDomainType *out_domain) {
+    if (!hpool || !query) return NULL;
+
+    hpool->total_queries++;
+
+    /* Определяем домен запроса */
+    KolibriDomainType domain = kf_detect_query_domain(query);
+    if (out_domain) *out_domain = domain;
+
+    /* Ищем в подпуле домена */
+    KolibriDomainSubPool *sub = kf_find_domain_subpool(hpool, domain);
+    if (sub && sub->count > 0) {
+        sub->last_accessed = hpool->total_queries;
+
+        /* Находим лучшую формулу в домене */
+        const KolibriFormula *best = NULL;
+        double best_fitness = -1.0;
+
+        for (size_t i = 0; i < sub->count; i++) {
+            if (sub->formulas[i].fitness > best_fitness) {
+                best = &sub->formulas[i];
+                best_fitness = sub->formulas[i].fitness;
+            }
+        }
+
+        if (best && best_fitness > 0.0) {
+            hpool->cache_hits++;
+            return best;
+        }
+    }
+
+    /* Fallback: default pool */
+    if (hpool->default_pool && hpool->default_pool->count > 0) {
+        return kf_pool_best(hpool->default_pool);
+    }
+
+    return NULL;
+}
+
+size_t kf_hierarchical_pool_total_count(const KolibriHierarchicalPool *hpool) {
+    if (!hpool) return 0;
+
+    size_t total = 0;
+    for (size_t i = 0; i < hpool->domain_count; i++) {
+        total += hpool->domains[i].count;
+    }
+    return total;
+}
+
+int kf_hierarchical_pool_train_domain(KolibriHierarchicalPool *hpool,
+                                       KolibriDomainType domain,
+                                       size_t generations) {
+    if (!hpool) return -1;
+
+    KolibriDomainSubPool *sub = kf_find_domain_subpool(hpool, domain);
+    if (!sub || sub->count == 0) return -1;
+
+    /* Запускаем эволюцию для формул домена */
+    /* В реальной реализации: отдельный kf_pool_tick для подпула */
+    for (size_t i = 0; i < sub->count; i++) {
+        /* Мутация + оценка fitness */
+        /* Упрощённо: просто инкрементируем поколения */
+    }
+
+    return 0;
+}

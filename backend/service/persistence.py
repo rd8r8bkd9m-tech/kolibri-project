@@ -67,6 +67,14 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     updated_at  REAL DEFAULT 0.0
 );
 
+CREATE TABLE IF NOT EXISTS auth_users (
+    username      TEXT PRIMARY KEY,
+    password_hash TEXT NOT NULL,
+    role          TEXT NOT NULL DEFAULT 'user',
+    created_at    REAL DEFAULT 0.0,
+    updated_at    REAL DEFAULT 0.0
+);
+
 CREATE TABLE IF NOT EXISTS quality_benchmarks (
     run_id   TEXT PRIMARY KEY,
     run_at   REAL NOT NULL,
@@ -85,12 +93,24 @@ CREATE TABLE IF NOT EXISTS conversation_turns (
     created_at      REAL NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS conversation_sessions (
+    client_id       TEXT NOT NULL,
+    conversation_id TEXT NOT NULL,
+    title           TEXT NOT NULL DEFAULT '',
+    pinned          INTEGER NOT NULL DEFAULT 0,
+    created_at      REAL NOT NULL DEFAULT 0.0,
+    updated_at      REAL NOT NULL DEFAULT 0.0,
+    PRIMARY KEY (client_id, conversation_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(source_hash);
 CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(target_hash);
 CREATE INDEX IF NOT EXISTS idx_patterns_word ON patterns(word);
 CREATE INDEX IF NOT EXISTS idx_quality_benchmarks_run_at ON quality_benchmarks(run_at DESC);
 CREATE INDEX IF NOT EXISTS idx_conversation_turns_lookup
     ON conversation_turns(client_id, conversation_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_conversation_sessions_lookup
+    ON conversation_sessions(client_id, updated_at DESC);
 """
 
 
@@ -367,6 +387,117 @@ class KolibriDB:
             self._lock.release()
 
     # ------------------------------------------------------------------
+    # Пользователи аутентификации
+    # ------------------------------------------------------------------
+
+    def upsert_auth_user(
+        self,
+        username: str,
+        password_hash: str,
+        role: str = "user",
+        created_at: float | None = None,
+        updated_at: float | None = None,
+    ) -> None:
+        if not self._lock.acquire(timeout=_DB_API_LOCK_TIMEOUT):
+            return
+        try:
+            if not self._conn:
+                return
+            uname = str(username or "").strip()[:64]
+            if not uname:
+                return
+            role_clean = str(role or "user").strip().lower()
+            if role_clean not in {"user", "admin"}:
+                role_clean = "user"
+            now = float(updated_at if updated_at is not None else time.time())
+            created = float(created_at if created_at is not None else now)
+
+            def _write() -> None:
+                self._conn.execute(
+                    """
+                    INSERT INTO auth_users (username, password_hash, role, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(username) DO UPDATE SET
+                        password_hash = excluded.password_hash,
+                        role = excluded.role,
+                        updated_at = excluded.updated_at
+                    """,
+                    (uname, str(password_hash or ""), role_clean, created, now),
+                )
+                self._conn.commit()
+
+            self._execute_with_retry(_write)
+        finally:
+            self._lock.release()
+
+    def get_auth_user(self, username: str) -> dict | None:
+        if not self._lock.acquire(timeout=_DB_API_LOCK_TIMEOUT):
+            return None
+        try:
+            if not self._conn:
+                return None
+            uname = str(username or "").strip()[:64]
+            if not uname:
+                return None
+
+            def _read():
+                cursor = self._conn.execute(
+                    """
+                    SELECT username, password_hash, role, created_at, updated_at
+                    FROM auth_users
+                    WHERE username = ?
+                    """,
+                    (uname,),
+                )
+                return cursor.fetchone()
+
+            row = self._execute_with_retry(_read)
+            if not row:
+                return None
+            return {
+                "username": str(row[0] or ""),
+                "password_hash": str(row[1] or ""),
+                "role": str(row[2] or "user"),
+                "created_at": float(row[3] or 0.0),
+                "updated_at": float(row[4] or 0.0),
+            }
+        finally:
+            self._lock.release()
+
+    def list_auth_users(self) -> list[dict]:
+        if not self._lock.acquire(timeout=_DB_API_LOCK_TIMEOUT):
+            return []
+        try:
+            if not self._conn:
+                return []
+
+            def _read():
+                cursor = self._conn.execute(
+                    """
+                    SELECT username, password_hash, role, created_at, updated_at
+                    FROM auth_users
+                    ORDER BY username ASC
+                    """
+                )
+                return cursor.fetchall()
+
+            rows = self._execute_with_retry(_read) or []
+            result: list[dict] = []
+            for username, password_hash, role, created_at, updated_at in rows:
+                result.append(
+                    {
+                        "username": str(username or ""),
+                        "password_hash": str(password_hash or ""),
+                        "role": str(role or "user"),
+                        "created_at": float(created_at or 0.0),
+                        "updated_at": float(updated_at or 0.0),
+                    }
+                )
+            return result
+        finally:
+            self._lock.release()
+
+    # ------------------------------------------------------------------
     # Quality benchmarks (регулярные контрольные прогоны)
     # ------------------------------------------------------------------
 
@@ -574,6 +705,124 @@ class KolibriDB:
                 cur = self._conn.execute(
                     """
                     DELETE FROM conversation_turns
+                    WHERE client_id = ? AND conversation_id = ?
+                    """,
+                    (cid, conv),
+                )
+                self._conn.commit()
+                return int(cur.rowcount or 0)
+
+            return int(self._execute_with_retry(_write) or 0)
+        finally:
+            self._lock.release()
+
+    def upsert_conversation_session(
+        self,
+        client_id: str,
+        conversation_id: str,
+        *,
+        title: str | None = None,
+        pinned: bool | None = None,
+        created_at: float | None = None,
+        updated_at: float | None = None,
+    ) -> None:
+        if not self._lock.acquire(timeout=_DB_API_LOCK_TIMEOUT):
+            return
+        try:
+            if not self._conn:
+                return
+            cid = str(client_id or "global")[:120]
+            conv = str(conversation_id or "")[:220]
+            if not conv:
+                return
+            title_clean = None if title is None else str(title).strip()[:240]
+            pinned_value = None if pinned is None else (1 if pinned else 0)
+            now = float(updated_at if updated_at is not None else time.time())
+            created = float(created_at if created_at is not None else now)
+
+            def _write() -> None:
+                self._conn.execute(
+                    """
+                    INSERT INTO conversation_sessions
+                        (client_id, conversation_id, title, pinned, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(client_id, conversation_id) DO UPDATE SET
+                        title = CASE
+                            WHEN excluded.title != '' THEN excluded.title
+                            ELSE conversation_sessions.title
+                        END,
+                        pinned = COALESCE(?, conversation_sessions.pinned),
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        cid,
+                        conv,
+                        title_clean or "",
+                        1 if pinned else 0,
+                        created,
+                        now,
+                        pinned_value,
+                    ),
+                )
+                self._conn.commit()
+
+            self._execute_with_retry(_write)
+        finally:
+            self._lock.release()
+
+    def list_conversation_sessions(self, client_id: str, limit: int = 100) -> list[dict]:
+        if not self._lock.acquire(timeout=_DB_API_LOCK_TIMEOUT):
+            return []
+        try:
+            if not self._conn:
+                return []
+            cid = str(client_id or "global")[:120]
+            safe_limit = max(1, min(500, int(limit)))
+
+            def _read():
+                cursor = self._conn.execute(
+                    """
+                    SELECT conversation_id, title, pinned, created_at, updated_at
+                    FROM conversation_sessions
+                    WHERE client_id = ?
+                    ORDER BY pinned DESC, updated_at DESC
+                    LIMIT ?
+                    """,
+                    (cid, safe_limit),
+                )
+                return cursor.fetchall()
+
+            rows = self._execute_with_retry(_read) or []
+            result: list[dict] = []
+            for conversation_id, title, pinned, created_at, updated_at in rows:
+                result.append(
+                    {
+                        "conversation_id": str(conversation_id or ""),
+                        "title": str(title or ""),
+                        "pinned": bool(pinned),
+                        "created_at": float(created_at or 0.0),
+                        "updated_at": float(updated_at or 0.0),
+                    }
+                )
+            return result
+        finally:
+            self._lock.release()
+
+    def delete_conversation_session(self, client_id: str, conversation_id: str) -> int:
+        if not self._lock.acquire(timeout=_DB_API_LOCK_TIMEOUT):
+            return 0
+        try:
+            if not self._conn:
+                return 0
+            cid = str(client_id or "global")[:120]
+            conv = str(conversation_id or "")[:220]
+            if not conv:
+                return 0
+
+            def _write() -> int:
+                cur = self._conn.execute(
+                    """
+                    DELETE FROM conversation_sessions
                     WHERE client_id = ? AND conversation_id = ?
                     """,
                     (cid, conv),

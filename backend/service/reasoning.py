@@ -106,8 +106,14 @@ class ChainOfThought:
             self._add_explain_step(entities)
         elif intent == "create":
             self._add_create_step(query)
+        elif intent == "list":
+            self._add_list_step(entities)
         else:
-            self._add_reason_step(query)
+            # Для general — проверяем multi-hop (вопросы с несколькими связями)
+            if self._is_multi_hop(query):
+                self._add_multi_hop_step(query, entities)
+            else:
+                self._add_reason_step(query)
 
         # Шаг N: Синтез
         t_syn = time.monotonic()
@@ -307,6 +313,79 @@ class ChainOfThought:
             step_type=StepType.REASON,
             description=f"Логический вывод по запросу: {query[:60]}",
             confidence=0.55,
+        )
+        step.elapsed_ms = (time.monotonic() - t) * 1000
+        self.steps.append(step)
+
+    def _add_list_step(self, entities: list[str]) -> None:
+        """Шаг для перечислений — ищем максимум кандидатов."""
+        t = time.monotonic()
+        topic = entities[0] if entities else "запрос"
+        step = ThinkingStep(
+            step_type=StepType.RETRIEVE,
+            description=f"Поиск полного списка по теме: {topic}",
+            result="pending — расширенный поиск",
+            confidence=0.6,
+        )
+        step.elapsed_ms = (time.monotonic() - t) * 1000
+        self.steps.append(step)
+
+    def _is_multi_hop(self, query: str) -> bool:
+        """Проверяет, требует ли запрос multi-hop reasoning.
+
+        Multi-hop = вопрос, где нужно связать несколько фактов.
+        Примеры:
+        - "Какая столица страны, где находится Эйфелева башня?"
+        - "Кто написал книгу, по которой сняли фильм 'Матрица'?"
+        """
+        q_lower = query.lower()
+
+        # Паттерны multi-hop вопросов
+        multi_hop_patterns = [
+            r"стран[аыуе].*где\b",           # "страна, где..."
+            r"город.*где\b",                  # "город, где..."
+            r"человек.*котор\b",              # "человек, который..."
+            r"книг[ауе].*котор\b",            # "книга, которая..."
+            r"фильм.*котор\b",                # "фильм, который..."
+            r"кто.*создал.*что\b",            # "кто создал что..."
+            r"почему.*потому что\b",          # "почему... потому что..."
+            r"если.*то\b",                    # "если... то..."
+            r"какой.*из\b",                   # "какой из..."
+            r"связ[ья].*между\b",             # "связь между..."
+            r"влияет.*на\b",                  # "влияет на..."
+            r"следстви[ея].*причин\b",        # "следствие причины..."
+        ]
+
+        import re
+        for pattern in multi_hop_patterns:
+            if re.search(pattern, q_lower):
+                return True
+
+        # Вопросы с несколькими сущностями (2+ заглавных слова)
+        words = query.split()
+        capitalized = [w for w in words if len(w) > 2 and w[0].isupper()]
+        if len(capitalized) >= 2:
+            return True
+
+        return False
+
+    def _add_multi_hop_step(self, query: str, entities: list[str]) -> None:
+        """Multi-hop reasoning — разбиваем на подзадачи."""
+        t = time.monotonic()
+
+        # Определяем подзадачи
+        sub_tasks = []
+        if entities:
+            sub_tasks.append(f"1. Найти информацию о: {entities[0]}")
+        if len(entities) >= 2:
+            sub_tasks.append(f"2. Связать с: {entities[1]}")
+        sub_tasks.append(f"3. Сформировать связный ответ")
+
+        step = ThinkingStep(
+            step_type=StepType.REASON,
+            description=f"Multi-hop рассуждение: {' → '.join(sub_tasks[:2])}",
+            result="; ".join(sub_tasks),
+            confidence=0.5,
         )
         step.elapsed_ms = (time.monotonic() - t) * 1000
         self.steps.append(step)

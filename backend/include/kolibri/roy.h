@@ -31,6 +31,7 @@ typedef struct {
     struct sockaddr_in adres;
     time_t poslednij_otklik;
     uint32_t neudachi;
+    double reputaciya;  /* #11. Reputation-based */
 } KolibriRoySosed;
 
 typedef enum {
@@ -88,6 +89,10 @@ typedef struct {
     KolibriRoySborFormula sborki[KOLIBRI_ROY_MAX_SOSSEDI];
     KolibriRoySborAssociation sborki_association[KOLIBRI_ROY_MAX_SOSSEDI];
     time_t poslednij_privet;
+    /* #9-12. Swarm extensions */
+    uint64_t formulas_exchanged;
+    uint64_t associations_exchanged;
+    time_t poslednij_gossip;
 } KolibriRoy;
 
 /* Инициализирует и запускает модуль роя на указанном UDP-порту. */
@@ -121,6 +126,28 @@ int kolibri_roy_otpravit_vsem(KolibriRoy *roy, const KolibriFormula *formula);
 /* Рассылает ассоциацию знаний всем соседям и широковещательно. */
 int kolibri_roy_otpravit_association_vsem(KolibriRoy *roy,
                                           const KolibriAssociation *association);
+
+/* #9. Gossip protocol: выбирает случайного соседа и обменивается формулами */
+int kolibri_roy_gossip_exchange(KolibriRoy *roy, uint64_t seed);
+
+/* #10. Formula diff sync: отправляет только delta формул */
+int kolibri_roy_send_formula_diff(KolibriRoy *roy, uint32_t neighbor_id,
+                                   const KolibriFormula *local_formula);
+
+/* #11. Reputation-based: обновляет репутацию соседа */
+void kolibri_roy_update_reputation(KolibriRoy *roy, uint32_t neighbor_id,
+                                    double reputation_delta);
+
+/* #12. Health status: возвращает статус роя */
+typedef struct {
+    size_t total_neighbors;
+    size_t active_neighbors;
+    double avg_reputation;
+    uint64_t formulas_exchanged;
+    uint64_t associations_exchanged;
+} KolibriRoyHealthStatus;
+
+int kolibri_roy_get_health(KolibriRoy *roy, KolibriRoyHealthStatus *status);
 
 #ifdef __cplusplus
 }

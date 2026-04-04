@@ -92,9 +92,8 @@ int kolibri_digit_text_assign_utf8(KolibriDigitText *text, const char *utf8) {
     k_digit_stream stream;
     k_digit_stream_init(&stream, text->digits, text->capacity);
     k_digit_stream_reset(&stream);
-    if (k_transduce_utf8(&stream, (const unsigned char *)utf8, len) != 0) {
-        return -1;
-    }
+    int rc = k_transduce_utf8(&stream, (const unsigned char *)utf8, len);
+    if (rc != 0) return -1;
     if (kolibri_digit_text_validate_digits(stream.digits, stream.length) != 0) {
         return -1;
     }

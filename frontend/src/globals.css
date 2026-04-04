@@ -7,61 +7,62 @@
   --font-ui: "Manrope", "Segoe UI", -apple-system, sans-serif;
   --font-title: "Manrope", "Segoe UI", -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --background: 249 250 251;
-  --foreground: 17 24 39;
+  --app-height: 100vh;
+  --background: 248 250 252;
+  --foreground: 15 23 42;
   --card: 255 255 255;
-  --sidebar: 244 246 248;
-  --muted: 107 114 128;
+  --sidebar: 245 247 250;
+  --muted: 100 116 139;
   --border: 24 28 38;
   --overlay: 255 255 255;
-  --bg: #f9fafb;
-  --bg-nebula: linear-gradient(to bottom, rgba(250, 251, 252, 1) 0%, rgba(246, 248, 250, 1) 100%);
+  --bg: #f8fafc;
+  --bg-nebula: linear-gradient(to bottom, rgba(248, 250, 252, 1) 0%, rgba(241, 245, 249, 1) 100%);
   --text-primary: rgb(var(--foreground));
   --text-muted: rgb(var(--muted));
   --accent: #111827;
   --surface-0: rgba(255, 255, 255, 0.98);
   --surface-1: rgba(255, 255, 255, 0.94);
   --surface-2: rgba(255, 255, 255, 1);
-  --shadow-soft: 0 16px 32px rgba(15, 23, 42, 0.08);
-  --shadow-card: 0 6px 18px rgba(15, 23, 42, 0.05);
+  --shadow-soft: 0 18px 42px rgba(15, 23, 42, 0.08);
+  --shadow-card: 0 8px 22px rgba(15, 23, 42, 0.06);
   --radius-xl: 1.25rem;
   --radius-2xl: 1.5rem;
 }
 
 .theme-light {
-  --background: 249 250 251;
-  --foreground: 17 24 39;
+  --background: 248 250 252;
+  --foreground: 15 23 42;
   --card: 255 255 255;
-  --sidebar: 244 246 248;
-  --muted: 107 114 128;
+  --sidebar: 245 247 250;
+  --muted: 100 116 139;
   --border: 24 28 38;
   --overlay: 255 255 255;
-  --bg: #f9fafb;
-  --bg-nebula: linear-gradient(to bottom, rgba(250, 251, 252, 1) 0%, rgba(246, 248, 250, 1) 100%);
+  --bg: #f8fafc;
+  --bg-nebula: linear-gradient(to bottom, rgba(248, 250, 252, 1) 0%, rgba(241, 245, 249, 1) 100%);
   --accent: #111827;
   --surface-0: rgba(255, 255, 255, 0.98);
   --surface-1: rgba(255, 255, 255, 0.94);
   --surface-2: rgba(255, 255, 255, 1);
-  --shadow-soft: 0 16px 32px rgba(15, 23, 42, 0.08);
-  --shadow-card: 0 6px 18px rgba(15, 23, 42, 0.05);
+  --shadow-soft: 0 18px 42px rgba(15, 23, 42, 0.08);
+  --shadow-card: 0 8px 22px rgba(15, 23, 42, 0.06);
 }
 
 .theme-dark {
-  --background: 10 13 18;
-  --foreground: 244 247 250;
-  --card: 16 20 27;
-  --sidebar: 13 17 23;
+  --background: 9 13 19;
+  --foreground: 241 245 249;
+  --card: 15 23 34;
+  --sidebar: 11 18 27;
   --muted: 148 163 184;
   --border: 255 255 255;
   --overlay: 10 13 18;
-  --bg: #0a0d12;
-  --bg-nebula: linear-gradient(to bottom, rgba(12, 16, 22, 1) 0%, rgba(10, 13, 18, 1) 100%);
+  --bg: #090d13;
+  --bg-nebula: linear-gradient(to bottom, rgba(13, 18, 26, 1) 0%, rgba(9, 13, 19, 1) 100%);
   --accent: #38bdf8;
   --surface-0: rgba(16, 20, 27, 0.98);
   --surface-1: rgba(19, 24, 31, 0.96);
-  --surface-2: rgba(22, 28, 36, 1);
-  --shadow-soft: 0 16px 32px rgba(0, 0, 0, 0.34);
-  --shadow-card: 0 8px 20px rgba(0, 0, 0, 0.24);
+  --surface-2: rgba(20, 29, 40, 1);
+  --shadow-soft: 0 18px 42px rgba(0, 0, 0, 0.34);
+  --shadow-card: 0 10px 24px rgba(0, 0, 0, 0.28);
 }
 
 * {
@@ -73,6 +74,7 @@ body,
 #root {
   width: 100%;
   height: 100%;
+  min-height: 100%;
   max-width: 100%;
 }
 
@@ -93,6 +95,11 @@ body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  overflow: hidden;
+  isolation: isolate;
 }
 
 ::selection {
@@ -199,11 +206,15 @@ body {
 }
 
 .v3-shell {
-  background: linear-gradient(180deg, rgba(251, 252, 253, 1), rgba(246, 248, 250, 1));
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.96) 28%, rgba(240, 244, 248, 1) 100%),
+    linear-gradient(180deg, rgba(248, 250, 252, 1), rgba(241, 245, 249, 1));
 }
 
 .theme-dark .v3-shell {
-  background: linear-gradient(180deg, rgba(12, 16, 22, 1), rgba(10, 13, 18, 1));
+  background:
+    radial-gradient(circle at top, rgba(18, 24, 33, 0.82), rgba(11, 15, 22, 0.94) 34%, rgba(9, 13, 19, 1) 100%),
+    linear-gradient(180deg, rgba(13, 18, 26, 1), rgba(9, 13, 19, 1));
 }
 
 .v3-panel {

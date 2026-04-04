@@ -21,6 +21,7 @@ from typing import Optional
 import jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from .persistence import get_db
 
 log = logging.getLogger("kolibri.auth")
 
@@ -52,6 +53,9 @@ class User:
     role: str = "user"  # "user" | "admin"
 
 
+_db = get_db()
+
+
 def _hash_password(password: str) -> str:
     """Простой хеш пароля через SHA-256 + salt (для MVP)."""
     salt = secrets.token_hex(16)
@@ -77,13 +81,60 @@ if not _ADMIN_PASSWORD:
         "KOLIBRI_ADMIN_PASSWORD не задан! Сгенерирован временный: %s",
         _ADMIN_PASSWORD,
     )
-_users: dict[str, User] = {
-    "admin": User(
-        username="admin",
-        password_hash=_hash_password(_ADMIN_PASSWORD),
-        role="admin",
-    ),
-}
+_users: dict[str, User] = {}
+
+
+def _sanitize_account_key(value: str | None) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return "global"
+    safe = "".join(ch if ch.isalnum() or ch in "._:-" else "-" for ch in raw).strip("-._:")
+    return (safe or "global")[:96]
+
+
+def _load_users_from_db() -> None:
+    try:
+        rows = _db.list_auth_users()
+    except Exception as exc:
+        log.warning("Не удалось загрузить пользователей из SQLite: %s", exc)
+        rows = []
+    for row in rows:
+        username = str(row.get("username", "") or "").strip()
+        password_hash = str(row.get("password_hash", "") or "").strip()
+        if not username or not password_hash:
+            continue
+        _users[username] = User(
+            username=username,
+            password_hash=password_hash,
+            role=str(row.get("role", "user") or "user"),
+        )
+
+
+def _persist_user(user: User) -> None:
+    try:
+        _db.upsert_auth_user(
+            username=user.username,
+            password_hash=user.password_hash,
+            role=user.role,
+        )
+    except Exception as exc:
+        log.warning("Не удалось сохранить пользователя %s: %s", user.username, exc)
+
+
+def _ensure_admin_user() -> None:
+    admin = _users.get("admin")
+    if admin is None:
+        admin = User(
+            username="admin",
+            password_hash=_hash_password(_ADMIN_PASSWORD),
+            role="admin",
+        )
+        _users["admin"] = admin
+        _persist_user(admin)
+
+
+_load_users_from_db()
+_ensure_admin_user()
 
 # ---------------------------------------------------------------------------
 # JWT операции
@@ -122,6 +173,50 @@ def decode_token(token: str) -> dict:
 # ---------------------------------------------------------------------------
 
 _bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def try_get_request_user(request: Request) -> Optional[dict]:
+    """Попытаться распознать пользователя без жёсткой ошибки 401."""
+    if not _AUTH_ENABLED:
+        return {"sub": "anonymous", "role": "admin"}
+
+    api_key = request.headers.get("X-API-Key", "")
+    if api_key and api_key in _API_KEYS:
+        return {"sub": f"apikey:{api_key[:8]}...", "role": "admin"}
+
+    auth_header = request.headers.get("Authorization", "").strip()
+    if not auth_header.lower().startswith("bearer "):
+        return None
+    token = auth_header.split(" ", 1)[1].strip()
+    if not token:
+        return None
+    try:
+        return decode_token(token)
+    except HTTPException:
+        return None
+
+
+def resolve_request_actor(request: Request, explicit_client_id: str | None = None) -> dict[str, object]:
+    user = try_get_request_user(request)
+    if user and str(user.get("sub", "")).strip() and not str(user.get("sub", "")).startswith("apikey:"):
+        account_key = _sanitize_account_key(f"user:{user['sub']}")
+        return {
+            "authenticated": True,
+            "user": str(user.get("sub", "") or ""),
+            "role": str(user.get("role", "user") or "user"),
+            "account_key": account_key,
+        }
+    requested_client_id = (
+        str(explicit_client_id or "").strip()
+        or str(request.headers.get("X-Kolibri-Client-Id", "") or "").strip()
+    )
+    account_key = _sanitize_account_key(requested_client_id)
+    return {
+        "authenticated": False,
+        "user": None,
+        "role": None,
+        "account_key": account_key,
+    }
 
 
 async def get_current_user(
@@ -192,8 +287,10 @@ class RegisterRequest(BaseModel):
 
 class AuthStatusResponse(BaseModel):
     auth_enabled: bool
+    authenticated: bool = False
     user: Optional[str] = None
     role: Optional[str] = None
+    account_id: Optional[str] = None
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -228,6 +325,7 @@ async def register(
         username=req.username,
         password_hash=_hash_password(req.password),
     )
+    _persist_user(_users[req.username])
     token = create_token(req.username, "user")
     log.info("Зарегистрирован пользователь: %s", req.username)
     return TokenResponse(
@@ -239,11 +337,20 @@ async def register(
 
 @router.get("/status", response_model=AuthStatusResponse)
 async def auth_status(
-    user: Optional[dict] = Depends(get_current_user),
+    request: Request,
 ) -> AuthStatusResponse:
     """Проверить статус аутентификации."""
+    actor = resolve_request_actor(request)
     return AuthStatusResponse(
         auth_enabled=_AUTH_ENABLED,
-        user=user.get("sub") if user else None,
-        role=user.get("role") if user else None,
+        authenticated=bool(actor["authenticated"]),
+        user=actor["user"] if actor["authenticated"] else None,
+        role=actor["role"] if actor["authenticated"] else None,
+        account_id=str(actor["account_key"]),
     )
+
+
+@router.post("/logout")
+async def logout() -> dict:
+    """Logout на backend не хранит серверную сессию, но даёт продуктовый endpoint."""
+    return {"status": "ok"}

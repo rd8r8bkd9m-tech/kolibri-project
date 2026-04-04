@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect } from "react";
+import { AppErrorBoundary } from "@/features/app-shell/AppErrorBoundary";
 import { useChatStore } from "@/store/useChatStore";
 
 const AppShellV3 = lazy(() =>
@@ -28,9 +29,43 @@ export default function App() {
     return () => media.removeListener(applyTheme);
   }, [theme]);
 
+  useEffect(() => {
+    const root = document.documentElement;
+    const viewport = window.visualViewport;
+
+    const applyAppHeight = () => {
+      const nextHeight = viewport?.height ?? window.innerHeight;
+      root.style.setProperty("--app-height", `${Math.round(nextHeight)}px`);
+    };
+
+    applyAppHeight();
+
+    if (viewport) {
+      viewport.addEventListener("resize", applyAppHeight);
+      viewport.addEventListener("scroll", applyAppHeight);
+      window.addEventListener("orientationchange", applyAppHeight);
+      window.addEventListener("resize", applyAppHeight);
+      return () => {
+        viewport.removeEventListener("resize", applyAppHeight);
+        viewport.removeEventListener("scroll", applyAppHeight);
+        window.removeEventListener("orientationchange", applyAppHeight);
+        window.removeEventListener("resize", applyAppHeight);
+      };
+    }
+
+    window.addEventListener("resize", applyAppHeight);
+    window.addEventListener("orientationchange", applyAppHeight);
+    return () => {
+      window.removeEventListener("resize", applyAppHeight);
+      window.removeEventListener("orientationchange", applyAppHeight);
+    };
+  }, []);
+
   return (
-    <Suspense fallback={<div className="h-dvh w-full bg-background" />}>
-      <AppShellV3 />
-    </Suspense>
+    <AppErrorBoundary>
+      <Suspense fallback={<div className="h-dvh w-full bg-background" />}>
+        <AppShellV3 />
+      </Suspense>
+    </AppErrorBoundary>
   );
 }

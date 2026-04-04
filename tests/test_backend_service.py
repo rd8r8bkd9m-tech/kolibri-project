@@ -12,6 +12,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from backend.service.main import app, get_settings
+from backend.service.ai_engine import get_engine
+from backend.service.persistence import get_db
 
 
 @pytest.fixture(autouse=True)
@@ -74,6 +76,91 @@ def test_infer_blocked_in_local_only(monkeypatch: pytest.MonkeyPatch, client: Te
     response = client.post("/api/v1/infer", json={"prompt": "ping"})
     assert response.status_code == 503
     assert "local-only" in response.json()["detail"]
+
+
+def test_account_profile_and_preferences_roundtrip(client: TestClient) -> None:
+    profile = client.get("/api/v1/account/profile", params={"client_id": "test-client-account"})
+    assert profile.status_code == 200
+    initial = profile.json()
+    assert initial["account_id"] == "test-client-account"
+
+    updated_profile = client.put(
+        "/api/v1/account/profile",
+        params={"client_id": "test-client-account"},
+        json={"name": "Владислав", "facts": ["Люблю Kolibri", "Тестирую продукт"]},
+    )
+    assert updated_profile.status_code == 200
+    payload = updated_profile.json()
+    assert payload["name"] == "Владислав"
+    assert "Люблю Kolibri" in payload["facts"]
+
+    updated_preferences = client.put(
+        "/api/v1/account/preferences",
+        params={"client_id": "test-client-account"},
+        json={"theme": "dark", "persona": "storyteller", "memory_enabled": False},
+    )
+    assert updated_preferences.status_code == 200
+    prefs = updated_preferences.json()
+    assert prefs["theme"] == "dark"
+    assert prefs["persona"] == "storyteller"
+    assert prefs["memory_enabled"] is False
+
+    fetched_preferences = client.get("/api/v1/account/preferences", params={"client_id": "test-client-account"})
+    assert fetched_preferences.status_code == 200
+    fetched = fetched_preferences.json()
+    assert fetched["theme"] == "dark"
+    assert fetched["persona"] == "storyteller"
+    assert fetched["memory_enabled"] is False
+
+
+def test_conversation_sessions_crud(client: TestClient) -> None:
+    created = client.post(
+        "/api/v1/ai/conversations",
+        params={"client_id": "test-client-conversations"},
+        json={"conversation_id": "conv-001", "title": "Первый чат", "pinned": True},
+    )
+    assert created.status_code == 200
+    assert created.json()["conversation_id"] == "conv-001"
+
+    listing = client.get("/api/v1/ai/conversations", params={"client_id": "test-client-conversations"})
+    assert listing.status_code == 200
+    items = listing.json()["items"]
+    assert any(item["conversation_id"] == "conv-001" for item in items)
+
+    patched = client.patch(
+        "/api/v1/ai/conversations/conv-001",
+        params={"client_id": "test-client-conversations"},
+        json={"title": "Переименованный чат", "pinned": False},
+    )
+    assert patched.status_code == 200
+    assert patched.json()["title"] == "Переименованный чат"
+    assert patched.json()["pinned"] is False
+
+
+def test_conversation_turns_endpoint_reads_scoped_history(client: TestClient) -> None:
+    engine = get_engine()
+    db = get_db()
+    account_id = "test-client-conversation-turns"
+    raw_conversation_id = "conv-raw-001"
+    scoped_conversation_id = engine._scoped_conversation_id(raw_conversation_id, account_id)
+    assert scoped_conversation_id
+
+    db.delete_conversation(account_id, scoped_conversation_id)
+    db.delete_conversation_session(account_id, scoped_conversation_id)
+    db.append_conversation_turn(account_id, scoped_conversation_id, "user", "Что такое право?", created_at=100.0)
+    db.append_conversation_turn(account_id, scoped_conversation_id, "assistant", "Право — система норм.", created_at=101.0)
+
+    response = client.get(
+        f"/api/v1/ai/conversations/{raw_conversation_id}/turns",
+        params={"client_id": account_id},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["account_id"] == account_id
+    assert payload["conversation_id"] == scoped_conversation_id
+    assert [item["role"] for item in payload["items"]] == ["user", "assistant"]
+    assert payload["items"][0]["content"] == "Что такое право?"
+    assert payload["items"][1]["content"] == "Право — система норм."
 
 
 class _DummyResponse:

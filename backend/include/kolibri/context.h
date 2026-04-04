@@ -19,10 +19,11 @@ extern "C" {
 #endif
 
 /* Размер контекстного окна (в токенах) */
-#define KOLIBRI_CONTEXT_WINDOW_SIZE 2048
+#define KOLIBRI_CONTEXT_WINDOW_SIZE 65536  /* #Фаза 1.2: 64K контекст */
+#define KOLIBRI_CONTEXT_WINDOW_SIZE_LEGACY 2048  /* Обратная совместимость */
 
 /* Максимальное количество паттернов в окне */
-#define KOLIBRI_CONTEXT_MAX_PATTERNS 128
+#define KOLIBRI_CONTEXT_MAX_PATTERNS 512  /* Увеличено для 64K контекста */
 
 /**
  * Токен в контекстном окне
@@ -32,17 +33,26 @@ typedef struct {
     KolibriSemanticPattern pattern;   /* Семантический паттерн */
     double attention_weight;          /* Вес внимания (0.0 - 1.0) */
     size_t position;                  /* Позиция в окне */
+    uint32_t token_hash;              /* Хеш токена для быстрого поиска */
+    uint8_t domain;                   /* Домен токена (для иерархического внимания) */
 } KolibriContextToken;
 
 /**
- * Контекстное окно
+ * Контекстное окно — #Фаза 1.2: динамическое выделение для 64K
  */
 typedef struct {
-    KolibriContextToken tokens[KOLIBRI_CONTEXT_WINDOW_SIZE]; /* Токены */
-    size_t token_count;                   /* Текущее количество токенов */
-    size_t current_position;              /* Текущая позиция */
-    double *attention_matrix;             /* Матрица внимания (token_count x token_count) */
-    size_t attention_matrix_size;         /* Размер выделенной матрицы */
+    KolibriContextToken *tokens;      /* Динамический массив (64K токенов) */
+    size_t token_count;               /* Текущее количество токенов */
+    size_t token_capacity;            /* Ёмкость массива */
+    size_t current_position;          /* Текущая позиция */
+    double *attention_matrix;         /* Матрица внимания (sparse для 64K) */
+    size_t attention_matrix_size;     /* Размер выделенной матрицы */
+    /* #Фаза 1.2: Summarization для сжатия старого контекста */
+    char *summary_buffer;             /* Суммаризация старых сообщений */
+    size_t summary_length;
+    /* #Фаза 1.2: Sparse attention — только ключевые токены */
+    size_t *key_token_indices;        /* Индексы ключевых токенов */
+    size_t key_token_count;
 } KolibriContextWindow;
 
 /**

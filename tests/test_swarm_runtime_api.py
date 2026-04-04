@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -20,13 +21,18 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> TestClient:
     live_dir = tmp_path / "live-memory"
     latest_demo_path = tmp_path / "swarm" / "latest_demo.json"
     monkeypatch.setenv("KOLIBRI_ENABLE_SWARM_RUNTIME", "0")
+    monkeypatch.setenv("KOLIBRI_ENABLE_BACKGROUND_LEARNING", "0")
     monkeypatch.setenv("KOLIBRI_LIVE_FORMULA_MEMORY_PATH", str(live_dir))
     monkeypatch.setenv("KOLIBRI_SWARM_LATEST_DEMO_PATH", str(latest_demo_path))
+    monkeypatch.setenv("KOLIBRI_BACKGROUND_LEARNING_SOURCES_PATH", str(tmp_path / "swarm" / "background_sources.json"))
+    monkeypatch.setenv("KOLIBRI_BACKGROUND_LEARNING_STATUS_PATH", str(tmp_path / "swarm" / "background_status.json"))
 
+    import backend.service.background_learning as background_learning
     import backend.service.swarm_live_memory as swarm_live_memory
     import backend.service.swarm_runtime_api as swarm_runtime_api
 
     monkeypatch.setattr(swarm_live_memory, "get_seed_formula_memory_dir", lambda: seed_dir)
+    background_learning._manager = None
     swarm_runtime_api._manager = None
 
     from backend.service.main import app
@@ -34,6 +40,7 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> TestClient:
     with TestClient(app) as test_client:
         yield test_client
 
+    background_learning._manager = None
     swarm_runtime_api._manager = None
 
 
@@ -49,6 +56,286 @@ def test_swarm_runtime_status_exposes_live_memory(client: TestClient) -> None:
     assert payload["last_ingest_domain_delta"] == []
     assert payload["last_knowledge_refresh_delta"] is None
     assert payload["latest_demo"] is None
+    assert payload["background_learning"]["source_count"] == 0
+    assert payload["swarm_topology"]["target_node_count"] == 50
+    assert payload["swarm_topology"]["anchor_node_count"] == 10
+    assert payload["swarm_topology"]["learner_node_count"] == 30
+    assert payload["swarm_topology"]["validator_node_count"] == 10
+    assert payload["swarm_topology"]["validator_quorum"] == 6
+    assert len(payload["swarm_nodes"]) == 50
+    assert payload["swarm_nodes"][0]["role"] == "anchor"
+    assert payload["swarm_nodes"][-1]["role"] == "validator"
+
+
+def test_background_learning_sources_roundtrip(client: TestClient) -> None:
+    response = client.put(
+        "/api/v1/swarm/runtime/learning/sources",
+        json={
+            "sources": [
+                {
+                    "url": "https://example.org/knowledge",
+                    "title": "Example Knowledge",
+                    "domain": "reference",
+                    "enabled": True,
+                    "crawl": False,
+                }
+            ]
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["source_count"] == 1
+    assert payload["sources"][0]["url"] == "https://example.org/knowledge"
+
+    fetched = client.get("/api/v1/swarm/runtime/learning/sources")
+    assert fetched.status_code == 200
+    body = fetched.json()
+    assert body["source_count"] == 1
+    assert body["sources"][0]["title"] == "Example Knowledge"
+
+
+def test_background_learning_status_reports_source_aware_runtime_state(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import backend.service.background_learning as background_learning
+
+    manager = background_learning.get_background_learning_manager()
+    manager.replace_sources(
+        [
+            {
+                "id": "physics-src",
+                "url": "https://example.org/physics",
+                "title": "Physics Source",
+                "domain": "physics",
+                "enabled": True,
+            }
+        ]
+    )
+
+    monkeypatch.setattr(background_learning, "external_network_available", lambda **kwargs: False)
+    degraded = client.get("/api/v1/swarm/runtime/learning/status")
+    assert degraded.status_code == 200
+    degraded_payload = degraded.json()
+    degraded_runtime = degraded_payload["internet_runtime"]
+    assert degraded_payload["network_available"] is False
+    assert degraded_runtime["daemon_state"] == "disabled"
+    assert degraded_runtime["source_state"] == "degraded-no-network"
+    assert degraded_runtime["configured_source_count"] == 1
+    assert degraded_runtime["enabled_source_count"] == 1
+    assert degraded_runtime["eligible_source_count"] == 1
+    assert degraded_runtime["backoff_source_count"] == 0
+    assert degraded_runtime["failing_source_count"] == 0
+
+    manager._source_health["physics-src"] = {  # noqa: SLF001 - targeted runtime-state regression
+        "source_id": "physics-src",
+        "next_eligible_at": time.time() + 120.0,
+        "last_success_at": time.time(),
+        "consecutive_failures": 2,
+        "consecutive_no_change": 1,
+    }
+    monkeypatch.setattr(background_learning, "external_network_available", lambda **kwargs: True)
+    backoff = client.get("/api/v1/swarm/runtime/learning/status")
+    assert backoff.status_code == 200
+    backoff_runtime = backoff.json()["internet_runtime"]
+    assert backoff_runtime["source_state"] == "backoff"
+    assert backoff_runtime["eligible_source_count"] == 0
+    assert backoff_runtime["backoff_source_count"] == 1
+    assert backoff_runtime["failing_source_count"] == 1
+    assert backoff_runtime["no_change_source_count"] == 1
+    assert backoff_runtime["recent_success_source_count"] == 1
+    assert backoff_runtime["next_attempt_at"] > 0.0
+
+    monkeypatch.setattr(background_learning, "external_network_available", lambda **kwargs: False)
+    probe_degraded = client.get("/api/v1/swarm/runtime/learning/status")
+    assert probe_degraded.status_code == 200
+    probe_runtime = probe_degraded.json()["internet_runtime"]
+    assert probe_runtime["source_state"] == "backoff"
+    assert probe_runtime["recent_success_source_count"] == 1
+
+
+def test_swarm_topology_activates_learners_after_ingest(client: TestClient) -> None:
+    import backend.service.swarm_runtime_api as swarm_runtime_api
+
+    manager = swarm_runtime_api.get_swarm_runtime_manager()
+    manager.record_ingest_delta("text", [{"domain": "physics", "before": 0, "after": 1, "delta": 1}])
+
+    payload = client.get("/api/v1/swarm/runtime/status").json()
+    topology = payload["swarm_topology"]
+    assert topology["active_node_count"] >= 40
+    learner_nodes = [node for node in payload["swarm_nodes"] if node["role"] == "learner"]
+    assert learner_nodes
+    assert all(node["active"] for node in learner_nodes)
+
+
+def test_background_learning_run_ingests_urls_and_schedules_refresh(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import backend.service.background_learning as background_learning
+
+    manager = background_learning.get_background_learning_manager()
+    manager.replace_sources(
+        [
+            {
+                "url": "https://example.org/physics",
+                "title": "Physics Source",
+                "domain": "physics",
+                "enabled": True,
+            }
+        ]
+    )
+
+    called: dict[str, object] = {"record": None, "schedule": 0}
+
+    class _SwarmManager:
+        def record_ingest_delta(self, kind: str, domain_delta: list[dict[str, object]]) -> None:
+            called["record"] = {"kind": kind, "domain_delta": domain_delta}
+
+        def schedule_refresh(self, timeout_sec: int = 180) -> dict[str, object]:
+            called["schedule"] = int(called["schedule"]) + 1
+            return {"scheduled": True, "timeout_sec": timeout_sec}
+
+    monkeypatch.setattr(
+        background_learning,
+        "_get_swarm_manager",
+        lambda: _SwarmManager(),
+    )
+    monkeypatch.setattr(
+        background_learning,
+        "ingest_urls_via_trainer",
+        lambda urls, **kwargs: {
+            "saved_documents": len(urls),
+            "domain_delta": [{"domain": "physics", "before": 1, "after": 2, "delta": 1}],
+        },
+    )
+
+    response = client.post("/api/v1/swarm/runtime/learning/run")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["latest_result"]["sources_attempted"] == 1
+    assert payload["latest_result"]["sources_succeeded"] == 1
+    assert payload["latest_result"]["saved_documents"] == 1
+    assert payload["latest_result"]["domain_delta"][0]["domain"] == "physics"
+    assert called["record"] == {
+        "kind": "background-url",
+        "domain_delta": [{"domain": "physics", "before": 1, "after": 2, "delta": 1}],
+    }
+    assert called["schedule"] == 1
+
+
+def test_background_learning_history_and_manual_run_override_backoff(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import backend.service.background_learning as background_learning
+
+    manager = background_learning.get_background_learning_manager()
+    manager.replace_sources(
+        [
+            {
+                "id": "physics-src",
+                "url": "https://example.org/physics",
+                "title": "Physics Source",
+                "domain": "physics",
+                "enabled": True,
+            }
+        ]
+    )
+
+    class _SwarmManager:
+        def record_ingest_delta(self, kind: str, domain_delta: list[dict[str, object]]) -> None:
+            return None
+
+        def schedule_refresh(self, timeout_sec: int = 180) -> dict[str, object]:
+            return {"scheduled": True, "timeout_sec": timeout_sec}
+
+    monkeypatch.setattr(background_learning, "_get_swarm_manager", lambda: _SwarmManager())
+
+    def _raise_error(urls, **kwargs):
+        raise RuntimeError("upstream timeout")
+
+    monkeypatch.setattr(background_learning, "ingest_urls_via_trainer", _raise_error)
+    first = client.post("/api/v1/swarm/runtime/learning/run")
+    assert first.status_code == 200
+    first_payload = first.json()
+    assert first_payload["latest_result"]["sources_attempted"] == 1
+    assert first_payload["latest_result"]["sources_succeeded"] == 0
+    assert first_payload["source_health"]["physics-src"]["consecutive_failures"] == 1
+    assert first_payload["source_health"]["physics-src"]["last_error"] == "upstream timeout"
+    assert first_payload["source_health"]["physics-src"]["next_eligible_at"] >= first_payload["source_health"]["physics-src"]["last_attempt_at"]
+
+    monkeypatch.setattr(
+        background_learning,
+        "ingest_urls_via_trainer",
+        lambda urls, **kwargs: {
+            "saved_documents": 1,
+            "domain_delta": [{"domain": "physics", "before": 0, "after": 1, "delta": 1}],
+        },
+    )
+    second = client.post("/api/v1/swarm/runtime/learning/run")
+    assert second.status_code == 200
+    second_payload = second.json()
+    assert second_payload["latest_result"]["sources_attempted"] == 1
+    assert second_payload["latest_result"]["sources_succeeded"] == 1
+    assert second_payload["source_health"]["physics-src"]["consecutive_failures"] == 0
+    assert second_payload["source_health"]["physics-src"]["total_successes"] == 1
+    assert second_payload["source_health"]["physics-src"]["total_failures"] == 1
+
+    history = client.get("/api/v1/swarm/runtime/learning/history")
+    assert history.status_code == 200
+    body = history.json()
+    assert body["history_count"] == 2
+    assert body["recent_runs"][0]["sources_succeeded"] == 1
+    assert body["recent_runs"][1]["sources_succeeded"] == 0
+    assert body["source_health"]["physics-src"]["total_runs"] == 2
+
+
+def test_background_learning_treats_failed_fetch_stderr_as_error(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import backend.service.background_learning as background_learning
+
+    manager = background_learning.get_background_learning_manager()
+    manager.replace_sources(
+        [
+            {
+                "id": "physics-src",
+                "url": "https://example.org/physics",
+                "title": "Physics Source",
+                "domain": "physics",
+                "enabled": True,
+            }
+        ]
+    )
+
+    class _SwarmManager:
+        def record_ingest_delta(self, kind: str, domain_delta: list[dict[str, object]]) -> None:
+            return None
+
+        def schedule_refresh(self, timeout_sec: int = 180) -> dict[str, object]:
+            return {"scheduled": True, "timeout_sec": timeout_sec}
+
+    monkeypatch.setattr(background_learning, "_get_swarm_manager", lambda: _SwarmManager())
+    monkeypatch.setattr(
+        background_learning,
+        "ingest_urls_via_trainer",
+        lambda urls, **kwargs: {
+            "saved_documents": 0,
+            "domain_delta": [],
+            "stdout": "",
+            "stderr": "[formula-trainer] failed to fetch https://example.org/physics",
+        },
+    )
+
+    response = client.post("/api/v1/swarm/runtime/learning/run")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["latest_result"]["sources_attempted"] == 1
+    assert payload["latest_result"]["sources_succeeded"] == 0
+    assert payload["source_health"]["physics-src"]["consecutive_failures"] == 1
+    assert "failed to fetch" in payload["source_health"]["physics-src"]["last_error"].lower()
 
 
 def test_swarm_runtime_ingest_text_updates_live_memory(client: TestClient) -> None:

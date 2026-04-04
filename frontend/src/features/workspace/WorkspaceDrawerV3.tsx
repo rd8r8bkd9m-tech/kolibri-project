@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Activity, Download, Link2, PackageOpen, RefreshCcw, Rocket, Upload } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Activity, Download, Link2, PackageOpen, RefreshCcw, Rocket, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
@@ -11,18 +11,24 @@ import {
   ingestSwarmUrl,
   runSwarmComparison,
   startSwarmRuntime,
+  getKnowledgeAnalytics,
+  getKnowledgeGraphData,
 } from "@/api";
 import { appQueryKeys, useQualityHistoryQuery, useSwarmStatusQuery } from "@/features/workspace/query";
 import { AppPanel, SectionTitle } from "@/features/ui-system/surface";
 import { cn } from "@/lib/utils";
 import { useShellStore } from "@/store/useShellStore";
 import type { WorkspaceSurface } from "@/types";
+import { KnowledgeGraphViz } from "@/features/workspace/KnowledgeGraphViz";
+import { LearningDashboard } from "@/features/workspace/LearningDashboard";
 
 const surfaces: Array<{ value: WorkspaceSurface; label: string }> = [
   { value: "swarm", label: "Рой" },
   { value: "packs", label: "Пакеты" },
   { value: "teach", label: "Обучение" },
   { value: "quality", label: "Качество" },
+  { value: "knowledge", label: "Граф знаний" },
+  { value: "learning", label: "Обучение ИИ" },
 ];
 
 export function WorkspaceDrawerV3() {
@@ -51,22 +57,22 @@ export function WorkspaceDrawerV3() {
   const startMutation = useMutation({
     mutationFn: startSwarmRuntime,
     onSuccess: async () => {
-      setWorkspaceMessage("Swarm runtime запущен.");
+      setWorkspaceMessage("Роевой контур запущен.");
       await refreshQueries();
     },
     onError: (error) => {
-      setWorkspaceMessage(error instanceof Error ? error.message : "Не удалось запустить runtime.");
+      setWorkspaceMessage(error instanceof Error ? error.message : "Не удалось запустить роевой контур.");
     },
   });
 
   const refreshMutation = useMutation({
     mutationFn: runSwarmComparison,
     onSuccess: async () => {
-      setWorkspaceMessage("Сравнение 1 vs 10 обновлено.");
+      setWorkspaceMessage("Сравнение роевого контура обновлено.");
       await refreshQueries();
     },
     onError: (error) => {
-      setWorkspaceMessage(error instanceof Error ? error.message : "Не удалось пересчитать swarm.");
+      setWorkspaceMessage(error instanceof Error ? error.message : "Не удалось пересчитать рой.");
     },
   });
 
@@ -141,6 +147,17 @@ export function WorkspaceDrawerV3() {
   });
 
   const latestDemo = swarmQuery.data?.latest_demo;
+  const topology = swarmQuery.data?.swarm_topology;
+  const swarmNodes = swarmQuery.data?.swarm_nodes ?? topology?.nodes ?? [];
+  const comparisonTargets = topology?.comparison_targets ?? [];
+  const targetNodeCount = topology?.target_node_count ?? swarmQuery.data?.latest_knowledge?.node_count ?? 10;
+  const anchorNodeCount = topology?.anchor_node_count ?? swarmNodes.filter((node) => node.role === "anchor").length;
+  const learnerNodeCount = topology?.learner_node_count ?? swarmNodes.filter((node) => node.role === "learner").length;
+  const validatorNodeCount = topology?.validator_node_count ?? swarmNodes.filter((node) => node.role === "validator").length;
+  const comparisonLabel = useMemo(() => {
+    if (!comparisonTargets.length) return `1 vs ${targetNodeCount}`;
+    return comparisonTargets.map((target) => target.node_count).join(" vs ");
+  }, [comparisonTargets, targetNodeCount]);
   const qualityTrend = qualityQuery.data?.trend;
   const workspaceBusy =
     startMutation.isPending ||
@@ -160,18 +177,18 @@ export function WorkspaceDrawerV3() {
     <Sheet open={open} onOpenChange={(next) => (!next ? closeWorkspace() : undefined)}>
       <SheetContent
         title="Рабочая область"
-        description="Рой, качество, пакеты знаний и обучение как вторичные surfaces"
-        className="left-auto right-0 z-50 w-full max-w-[34rem] border-l border-r-0 bg-background px-5 pb-5 pt-5 max-lg:inset-x-0 max-lg:left-0 max-lg:right-0 max-lg:top-auto max-lg:h-[88dvh] max-lg:max-w-none max-lg:rounded-t-[1.9rem] max-lg:border-l-0 max-lg:border-t max-lg:pb-[calc(env(safe-area-inset-bottom)+1rem)]"
+        description="Рой, качество, пакеты знаний и обучение как вторичные рабочие поверхности"
+        className="left-auto right-0 z-50 w-full max-w-[34rem] border-l border-r-0 bg-background px-5 pb-5 pt-5 max-lg:inset-x-0 max-lg:left-0 max-lg:right-0 max-lg:top-auto max-lg:h-[88dvh] max-lg:max-h-[88svh] max-lg:max-w-none max-lg:rounded-t-[1.9rem] max-lg:border-l-0 max-lg:border-t max-lg:px-4 max-lg:pb-[calc(env(safe-area-inset-bottom)+1rem)]"
       >
         <div className="flex h-full min-h-0 flex-col gap-5">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start justify-between gap-4 border-b border-foreground/6 pb-4">
             <SectionTitle
               eyebrow="Рабочая область"
               title="Вторичные инструменты"
-              description="Рой, пакеты знаний, обучение и качество убраны из primary navigation и живут как отдельные инструменты."
+              description="Рой, пакеты знаний, обучение и качество убраны из основной навигации и живут как отдельные инструменты."
             />
             <Button type="button" variant="ghost" size="icon" className="h-10 w-10 rounded-full" onClick={closeWorkspace}>
-              ×
+              <X className="h-4.5 w-4.5" />
             </Button>
           </div>
 
@@ -205,28 +222,47 @@ export function WorkspaceDrawerV3() {
               <>
                 <div className="grid grid-cols-2 gap-3">
                   <AppPanel className="px-4 py-4">
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Runtime</p>
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Контур</p>
                     <p className="mt-2 text-2xl font-semibold">{swarmQuery.data?.running ? "ON" : "OFF"}</p>
-                    <p className="mt-1 text-xs text-muted">10-узловой роевой контур</p>
+                    <p className="mt-1 text-xs text-muted">{targetNodeCount}-узловой роевой контур</p>
                   </AppPanel>
                   <AppPanel className="px-4 py-4">
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Live memory</p>
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Память</p>
                     <p className="mt-2 text-2xl font-semibold">{swarmQuery.data?.live_memory_document_count ?? "—"}</p>
                     <p className="mt-1 text-xs text-muted">документов в live-memory</p>
                   </AppPanel>
                   <AppPanel className="px-4 py-4">
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Swarm hit</p>
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Consensus</p>
                     <p className="mt-2 text-2xl font-semibold">
-                      {swarmQuery.data?.latest_knowledge?.swarm_final.hit_ratio?.toFixed(3) ?? "—"}
+                      {topology?.consensus_score?.toFixed(3) ?? "—"}
                     </p>
-                    <p className="mt-1 text-xs text-muted">knowledge benchmark</p>
+                    <p className="mt-1 text-xs text-muted">
+                      quorum {topology?.validator_quorum ?? "—"} из {validatorNodeCount || "—"} validator-узлов
+                    </p>
                   </AppPanel>
                   <AppPanel className="px-4 py-4">
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Advantage</p>
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Преимущество</p>
                     <p className="mt-2 text-2xl font-semibold">
                       {swarmQuery.data?.latest_knowledge?.comparison?.swarm_vs_single_delta?.toFixed(3) ?? "—"}
                     </p>
-                    <p className="mt-1 text-xs text-muted">10 узлов vs 1 узел</p>
+                    <p className="mt-1 text-xs text-muted">{targetNodeCount} узлов против 1 узла</p>
+                  </AppPanel>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <AppPanel className="px-4 py-4">
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Топология</p>
+                    <p className="mt-2 text-2xl font-semibold">{targetNodeCount}</p>
+                    <p className="mt-1 text-xs text-muted">
+                      {anchorNodeCount} anchor • {learnerNodeCount} learner • {validatorNodeCount} validator
+                    </p>
+                  </AppPanel>
+                  <AppPanel className="px-4 py-4">
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Сравнение</p>
+                    <p className="mt-2 text-2xl font-semibold">{comparisonLabel}</p>
+                    <p className="mt-1 text-xs text-muted">
+                      active {topology?.active_node_count ?? swarmNodes.length} • healthy {topology?.healthy_node_count ?? "—"}
+                    </p>
                   </AppPanel>
                 </div>
 
@@ -267,7 +303,7 @@ export function WorkspaceDrawerV3() {
                           <p className="mt-1 font-semibold">{latestDemo.comparison_summary.single_hit_after.toFixed(3)}</p>
                         </div>
                         <div className="rounded-2xl border border-foreground/6 bg-background px-3 py-3">
-                          <p className="text-muted">10 узлов</p>
+                          <p className="text-muted">{targetNodeCount} узлов</p>
                           <p className="mt-1 font-semibold">{latestDemo.comparison_summary.swarm_hit_after.toFixed(3)}</p>
                         </div>
                       </div>
@@ -392,9 +428,99 @@ export function WorkspaceDrawerV3() {
                 </AppPanel>
               </>
             ) : null}
+
+            {workspaceSurface === "knowledge" ? (
+              <KnowledgeGraphTab />
+            ) : null}
+
+            {workspaceSurface === "learning" ? (
+              <LearningTab />
+            ) : null}
           </div>
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+// ============================================================================
+// Knowledge Graph Tab
+// ============================================================================
+
+function KnowledgeGraphTab() {
+  const analyticsQuery = useQuery({
+    queryKey: ["knowledge-analytics"],
+    queryFn: getKnowledgeAnalytics,
+  });
+
+  const graphDataQuery = useQuery({
+    queryKey: ["knowledge-graph"],
+    queryFn: () => getKnowledgeGraphData(),
+  });
+
+  return (
+    <>
+      <AppPanel className="px-4 py-4">
+        <SectionTitle
+          eyebrow="Knowledge Graph"
+          title="Граф знаний"
+          description="Интерактивная визуализация связей между концептами"
+        />
+        <div className="mt-4 h-[500px] rounded-2xl border border-foreground/6 bg-background overflow-hidden">
+          <KnowledgeGraphViz
+            data={graphDataQuery.data ?? { nodes: [], links: [] }}
+            loading={graphDataQuery.isLoading}
+          />
+        </div>
+      </AppPanel>
+
+      {analyticsQuery.data && (
+        <AppPanel className="px-4 py-4">
+          <SectionTitle
+            eyebrow="Analytics"
+            title="Аналитика"
+            description="Статистика по всем подсистемам знаний"
+          />
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-foreground/6 bg-background px-3 py-3">
+              <p className="text-muted">Паттерны</p>
+              <p className="mt-1 font-semibold">{analyticsQuery.data.knowledge_graph.patterns}</p>
+            </div>
+            <div className="rounded-2xl border border-foreground/6 bg-background px-3 py-3">
+              <p className="text-muted">Рёбра</p>
+              <p className="mt-1 font-semibold">{analyticsQuery.data.knowledge_graph.edges}</p>
+            </div>
+            <div className="rounded-2xl border border-foreground/6 bg-background px-3 py-3">
+              <p className="text-muted">Формулы</p>
+              <p className="mt-1 font-semibold">{analyticsQuery.data.formula_pool.size}</p>
+            </div>
+            <div className="rounded-2xl border border-foreground/6 bg-background px-3 py-3">
+              <p className="text-muted">Embeddings</p>
+              <p className="mt-1 font-semibold">{analyticsQuery.data.embeddings.vocab_size}</p>
+            </div>
+            <div className="rounded-2xl border border-foreground/6 bg-background px-3 py-3">
+              <p className="text-muted">Документы</p>
+              <p className="mt-1 font-semibold">{analyticsQuery.data.knowledge_graph.documents}</p>
+            </div>
+            <div className="rounded-2xl border border-foreground/6 bg-background px-3 py-3">
+              <p className="text-muted">Токены</p>
+              <p className="mt-1 font-semibold">{analyticsQuery.data.knowledge_graph.tokens}</p>
+            </div>
+          </div>
+        </AppPanel>
+      )}
+    </>
+  );
+}
+
+// ============================================================================
+// Learning Tab
+// ============================================================================
+
+function LearningTab() {
+  return (
+    <div className="h-full">
+      <LearningDashboard />
+    </div>
   );
 }

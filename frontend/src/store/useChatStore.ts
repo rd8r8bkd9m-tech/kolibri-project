@@ -35,6 +35,9 @@ interface ChatState {
   setPersona: (value: AssistantPersona) => void;
   setMemoryEnabled: (value: boolean) => void;
   setApiToken: (value: string) => void;
+  hydrateSessions: (sessions: ChatSession[]) => void;
+  hydrateMessages: (sessionId: string, messages: ChatMessage[]) => void;
+  adoptSessionId: (fromId: string, toId: string) => void;
 }
 
 const initialSessionId = uid("chat");
@@ -89,7 +92,7 @@ function trimPersistedMessages(
   return out;
 }
 
-function sanitizeConversation(list: ChatMessage[]): ChatMessage[] {
+export function normalizeConversationMessages(list: ChatMessage[]): ChatMessage[] {
   const out = [...list];
   for (let i = 0; i < out.length; i += 1) {
     const current = out[i];
@@ -270,6 +273,85 @@ export const useChatStore = create<ChatState>()(
     setPersona: (persona) => set({ persona }),
     setMemoryEnabled: (memoryEnabled) => set({ memoryEnabled }),
     setApiToken: (apiToken) => set({ apiToken }),
+    hydrateSessions: (incoming) =>
+      set((state) => {
+        const sanitized = incoming
+          .map(sanitizeSession)
+          .filter((session): session is ChatSession => session !== null)
+          .slice(0, MAX_PERSIST_SESSIONS);
+        if (!sanitized.length) return {};
+
+        const nextMessages = { ...state.messages };
+        for (const session of sanitized) {
+          if (!nextMessages[session.id]) {
+            nextMessages[session.id] = [];
+          }
+        }
+
+        return {
+          sessions: sanitized,
+          currentSessionId: sanitized.some((session) => session.id === state.currentSessionId)
+            ? state.currentSessionId
+            : sanitized[0].id,
+          messages: nextMessages,
+        };
+      }),
+    hydrateMessages: (sessionId, incoming) =>
+      set((state) => {
+        if (!sessionId) return {};
+        const sanitized = normalizeConversationMessages(
+          incoming
+            .map(sanitizeMessage)
+            .filter((message): message is ChatMessage => message !== null)
+            .slice(-MAX_PERSIST_MESSAGES_PER_SESSION),
+        );
+        return {
+          messages: {
+            ...state.messages,
+            [sessionId]: sanitized,
+          },
+        };
+      }),
+    adoptSessionId: (fromId, toId) =>
+      set((state) => {
+        const sourceId = String(fromId || "").trim();
+        const targetId = String(toId || "").trim();
+        if (!sourceId || !targetId || sourceId === targetId) return {};
+
+        const sourceSession = state.sessions.find((session) => session.id === sourceId);
+        if (!sourceSession) return {};
+
+        const existingTarget = state.sessions.find((session) => session.id === targetId);
+        const sourceMessages = state.messages[sourceId] ?? [];
+        const targetMessages = state.messages[targetId] ?? [];
+        const mergedMessages = normalizeConversationMessages(
+          (targetMessages.length ? targetMessages : sourceMessages)
+            .map(sanitizeMessage)
+            .filter((message): message is ChatMessage => message !== null)
+            .slice(-MAX_PERSIST_MESSAGES_PER_SESSION),
+        );
+
+        const nextMessages = { ...state.messages };
+        delete nextMessages[sourceId];
+        nextMessages[targetId] = mergedMessages;
+
+        const nextSessions = existingTarget
+          ? state.sessions.filter((session) => session.id !== sourceId)
+          : state.sessions.map((session) =>
+              session.id === sourceId
+                ? {
+                    ...session,
+                    id: targetId,
+                  }
+                : session,
+            );
+
+        return {
+          sessions: nextSessions,
+          currentSessionId: state.currentSessionId === sourceId ? targetId : state.currentSessionId,
+          messages: nextMessages,
+        };
+      }),
     })),
     {
       name: "kolibri-ui",
@@ -305,7 +387,7 @@ export const useChatStore = create<ChatState>()(
           const list = Array.isArray((persistedMessagesRaw as Record<string, unknown>)[session.id])
             ? ((persistedMessagesRaw as Record<string, unknown>)[session.id] as unknown[])
             : [];
-          messages[session.id] = sanitizeConversation(
+          messages[session.id] = normalizeConversationMessages(
             list
             .map(sanitizeMessage)
             .filter((m): m is ChatMessage => m !== null)

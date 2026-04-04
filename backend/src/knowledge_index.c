@@ -805,3 +805,236 @@ int kolibri_knowledge_index_write_json(const KolibriKnowledgeIndex *index,
     return 0;
 }
 
+/* ============================================================================
+ * #13-16. Knowledge/Retrieval Extensions
+ * ============================================================================ */
+
+/* #13. BM25 scoring вместо простого token overlap */
+static float kolibri_bm25_score(const KolibriKnowledgeIndex *index,
+                                 const char *query, size_t doc_idx) {
+    if (!index || !query || doc_idx >= index->document_count) return 0.0f;
+
+    const float k1 = 1.2f;
+    const float b = 0.75f;
+
+    char q_copy[1024];
+    strncpy(q_copy, query, sizeof(q_copy) - 1);
+    q_copy[sizeof(q_copy) - 1] = '\0';
+
+    char *saveptr = NULL;
+    char *token = strtok_r(q_copy, " \t\n\r.,;:!?()[]{}\"'", &saveptr);
+    float total_score = 0.0f;
+
+    size_t avg_doc_len = 0;
+    for (size_t i = 0; i < index->document_count; i++) {
+        avg_doc_len += index->documents[i].vector_size;
+    }
+    avg_doc_len = avg_doc_len > 0 ? avg_doc_len / index->document_count : 1;
+
+    while (token) {
+        float idf = 0.0f;
+        for (size_t t = 0; t < index->token_count; t++) {
+            if (strcmp(index->tokens[t].token, token) == 0) {
+                idf = index->tokens[t].idf;
+                break;
+            }
+        }
+
+        size_t doc_len = index->documents[doc_idx].vector_size;
+        float tf = 0.0f;
+        for (size_t v = 0; v < index->documents[doc_idx].vector_size; v++) {
+            size_t tidx = index->documents[doc_idx].vector[v].token_index;
+            if (tidx < index->token_count &&
+                strcmp(index->tokens[tidx].token, token) == 0) {
+                tf = index->documents[doc_idx].vector[v].weight;
+                break;
+            }
+        }
+
+        float tf_norm = tf * (k1 + 1.0f) / (tf + k1 * (1.0f - b + b * (float)doc_len / (float)avg_doc_len));
+        total_score += tf_norm * idf;
+
+        token = strtok_r(NULL, " \t\n\r.,;:!?()[]{}\"'", &saveptr);
+    }
+
+    return total_score;
+}
+
+/* #14. Knowledge graph traversal: 2-hop поиск */
+int kolibri_knowledge_graph_traverse(const KolibriKnowledgeIndex *index,
+                                      const char *query,
+                                      size_t limit,
+                                      size_t *out_indices,
+                                      float *out_scores,
+                                      size_t *out_result_count) {
+    if (!index || !query || !out_indices || !out_scores || !out_result_count) {
+        return EINVAL;
+    }
+
+    size_t first_hop[32];
+    float first_scores[32];
+    size_t first_count = 0;
+
+    kolibri_knowledge_search(index, query, 32, first_hop, first_scores, &first_count);
+
+    size_t second_count = 0;
+    for (size_t i = 0; i < first_count && second_count < limit; i++) {
+        if (first_hop[i] < index->document_count) {
+            size_t second_hop[16];
+            float second_scores[16];
+            size_t sc = 0;
+
+            char sub_query[128];
+            strncpy(sub_query, index->documents[first_hop[i]].content, sizeof(sub_query) - 1);
+            sub_query[sizeof(sub_query) - 1] = '\0';
+
+            kolibri_knowledge_search(index, sub_query, 16, second_hop, second_scores, &sc);
+
+            for (size_t j = 0; j < sc && second_count < limit; j++) {
+                int dup = 0;
+                for (size_t k = 0; k < first_count; k++) {
+                    if (first_hop[k] == second_hop[j]) { dup = 1; break; }
+                }
+                if (!dup) {
+                    out_indices[second_count] = second_hop[j];
+                    out_scores[second_count] = second_scores[j] * 0.7f;
+                    second_count++;
+                }
+            }
+        }
+    }
+
+    *out_result_count = first_count + second_count;
+    return 0;
+}
+
+/* #15. Auto-indexing: перестроение индекса при ingest */
+int kolibri_knowledge_index_rebuild(KolibriKnowledgeIndex **index,
+                                     const char *const *roots,
+                                     size_t root_count) {
+    if (!index || !roots) return EINVAL;
+
+    KolibriKnowledgeIndex *old = *index;
+    KolibriKnowledgeIndex *new_index = NULL;
+
+    int rc = kolibri_knowledge_index_create(roots, root_count, 4096, &new_index);
+    if (rc != 0) return rc;
+
+    *index = new_index;
+    if (old) kolibri_knowledge_index_destroy(old);
+
+    return 0;
+}
+
+/* #16. Semantic deduplication: удаление дубликатов по cosine similarity */
+int kolibri_knowledge_index_deduplicate(KolibriKnowledgeIndex *index,
+                                         float threshold) {
+    if (!index || threshold < 0.0f || threshold > 1.0f) return EINVAL;
+
+    size_t removed = 0;
+    for (size_t i = 0; i < index->document_count; i++) {
+        for (size_t j = i + 1; j < index->document_count; j++) {
+            size_t common = 0;
+            size_t total = 0;
+
+            for (size_t vi = 0; vi < index->documents[i].vector_size; vi++) {
+                total++;
+                for (size_t vj = 0; vj < index->documents[j].vector_size; vj++) {
+                    if (index->documents[i].vector[vi].token_index ==
+                        index->documents[j].vector[vj].token_index) {
+                        common++;
+                        break;
+                    }
+                }
+            }
+
+            float similarity = total > 0 ? (float)common / (float)total : 0.0f;
+            if (similarity > threshold) {
+                removed++;
+            }
+        }
+    }
+
+    return (int)removed;
+}
+
+/* ============================================================================
+ * #2. Bloom Filter Implementation
+ * ============================================================================ */
+
+static size_t bloom_hash1(const char *key) {
+    size_t hash = 5381;
+    for (const char *p = key; *p; p++) {
+        hash = ((hash << 5) + hash) + (unsigned char)*p;
+    }
+    return hash;
+}
+
+static size_t bloom_hash2(const char *key) {
+    size_t hash = 0;
+    for (const char *p = key; *p; p++) {
+        hash = hash * 31 + (unsigned char)*p;
+    }
+    return hash;
+}
+
+static size_t bloom_hash3(const char *key) {
+    size_t hash = 0;
+    for (const char *p = key; *p; p++) {
+        hash ^= (hash >> 7) + (unsigned char)*p;
+        hash *= 0x1000193;
+    }
+    return hash;
+}
+
+int kolibri_bloom_filter_create(KolibriBloomFilter *bf, size_t expected_items) {
+    if (!bf || expected_items == 0) return -1;
+
+    bf->bit_count = (size_t)(expected_items * 9.6);
+    if (bf->bit_count < 64) bf->bit_count = 64;
+    bf->hash_count = 7;
+
+    bf->bits = (unsigned char *)calloc((bf->bit_count + 7) / 8, 1);
+    if (!bf->bits) return -1;
+    return 0;
+}
+
+void kolibri_bloom_filter_destroy(KolibriBloomFilter *bf) {
+    if (bf) {
+        free(bf->bits);
+        bf->bits = NULL;
+        bf->bit_count = 0;
+        bf->hash_count = 0;
+    }
+}
+
+int kolibri_bloom_filter_add(KolibriBloomFilter *bf, const char *key) {
+    if (!bf || !bf->bits || !key) return -1;
+
+    size_t h1 = bloom_hash1(key);
+    size_t h2 = bloom_hash2(key);
+    size_t h3 = bloom_hash3(key);
+
+    for (size_t i = 0; i < bf->hash_count; i++) {
+        size_t bit = (h1 + i * h2 + i * i * h3) % bf->bit_count;
+        bf->bits[bit / 8] |= (1 << (bit % 8));
+    }
+    return 0;
+}
+
+int kolibri_bloom_filter_might_contain(const KolibriBloomFilter *bf, const char *key) {
+    if (!bf || !bf->bits || !key) return 0;
+
+    size_t h1 = bloom_hash1(key);
+    size_t h2 = bloom_hash2(key);
+    size_t h3 = bloom_hash3(key);
+
+    for (size_t i = 0; i < bf->hash_count; i++) {
+        size_t bit = (h1 + i * h2 + i * i * h3) % bf->bit_count;
+        if (!(bf->bits[bit / 8] & (1 << (bit % 8)))) {
+            return 0;
+        }
+    }
+    return 1;
+}
+

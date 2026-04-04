@@ -146,7 +146,14 @@ Kolibri — это не набор разрозненных фич, а одна 
 ## 8. Официальный набор публичных документов
 
 - [PUBLIC_ARCHITECTURE.md](PUBLIC_ARCHITECTURE.md) — главный публичный архитектурный документ
+- [PRODUCT_SPEC_V2.md](PRODUCT_SPEC_V2.md) — каноническая продуктовая спецификация
+- [API_REFERENCE.md](API_REFERENCE.md) — боевые API-контракты
 - [FORMULA_API_DSL.md](FORMULA_API_DSL.md) — публичный Formula API и честный DSL
 - [KPACK_FORMAT.md](KPACK_FORMAT.md) — пакетный формат знаний
 - [DEMO_PATH.md](DEMO_PATH.md) — один стабильный demo-path
+- [SWARM_50_ARCHITECTURE.md](SWARM_50_ARCHITECTURE.md) — целевая архитектура production swarm
+- [NUMERIC_VOTING_MODEL.md](NUMERIC_VOTING_MODEL.md) — decision layer `0..9`
+- [MORPHOLOGY_SEMANTICS_SPEC.md](MORPHOLOGY_SEMANTICS_SPEC.md) — морфология и семантика
+- [QA_ACCEPTANCE.md](QA_ACCEPTANCE.md) — release gates
+- [DEPLOY_RUNBOOK.md](DEPLOY_RUNBOOK.md) — runbook выкладки и rollback
 - [public_interfaces.md](public_interfaces.md) — перечень стабильных интерфейсов

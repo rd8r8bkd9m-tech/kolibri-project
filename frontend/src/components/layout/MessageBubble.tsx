@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { cva } from "class-variance-authority";
-import { Check, Copy, MoreHorizontal, PencilLine, RotateCcw, SendHorizontal } from "lucide-react";
+import { Check, Copy, MoreHorizontal, PencilLine, RotateCcw, SendHorizontal, RefreshCcw } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -16,9 +16,9 @@ const bubbleVariants = cva("rounded-[1.35rem] px-4 py-3 text-[15px] leading-[1.5
   variants: {
     role: {
       user:
-        "ml-auto max-w-[82%] border border-foreground/8 bg-foreground text-background shadow-[0_8px_22px_rgba(15,23,42,0.12)]",
+        "ml-auto max-w-[84%] border border-foreground/8 bg-foreground text-background shadow-[0_8px_22px_rgba(15,23,42,0.12)] lg:max-w-[78%]",
       assistant:
-        "mr-auto flex max-w-[98%] gap-3 border border-foreground/6 bg-card shadow-[0_8px_22px_rgba(15,23,42,0.05)] dark:border-white/8 md:max-w-[88%]",
+        "mr-auto flex max-w-[98%] gap-3 border border-foreground/6 bg-card shadow-[0_8px_22px_rgba(15,23,42,0.05)] dark:border-white/8 md:max-w-[88%] lg:max-w-[84%]",
     }
   },
 });
@@ -47,8 +47,14 @@ function renderCodeBlocks(content: string) {
   );
 }
 
-export const MessageBubble = memo(function MessageBubble({ message }: { message: ChatMessage }) {
-  const { resendEditedMessage } = useStreaming();
+export const MessageBubble = memo(function MessageBubble({
+  message,
+  previousUserPrompt,
+}: {
+  message: ChatMessage;
+  previousUserPrompt?: string;
+}) {
+  const { resendEditedMessage, send } = useStreaming();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -56,6 +62,7 @@ export const MessageBubble = memo(function MessageBubble({ message }: { message:
   const [draft, setDraft] = useState(message.content);
   const holdTimerRef = useRef<number | null>(null);
   const canEdit = message.role === "user" && !message.streaming && !message.imageUrl;
+  const canRetry = message.role === "assistant" && !message.streaming && Boolean(previousUserPrompt?.trim());
   const hasImage = Boolean(message.imageUrl);
   const normalizedContent = message.role === "assistant" ? sanitizeAssistantText(message.content) : message.content;
   const hasContent = normalizedContent.trim().length > 0;
@@ -97,6 +104,12 @@ export const MessageBubble = memo(function MessageBubble({ message }: { message:
     setSheetOpen(false);
   };
 
+  const retryMessage = async () => {
+    if (!previousUserPrompt?.trim()) return;
+    await send(previousUserPrompt.trim());
+    setSheetOpen(false);
+  };
+
   const clearHold = () => {
     if (holdTimerRef.current !== null) {
       window.clearTimeout(holdTimerRef.current);
@@ -106,7 +119,7 @@ export const MessageBubble = memo(function MessageBubble({ message }: { message:
 
   return (
     <article
-      className={cn("group mb-4 w-full", message.role === "user" ? "justify-end" : "justify-start")}
+      className={cn("group mb-3.5 w-full", message.role === "user" ? "justify-end" : "justify-start")}
       onContextMenu={(event) => {
         event.preventDefault();
         if (!editing) setSheetOpen(true);
@@ -191,6 +204,12 @@ export const MessageBubble = memo(function MessageBubble({ message }: { message:
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  {canRetry ? (
+                    <DropdownMenuItem onClick={() => void retryMessage()}>
+                      <RefreshCcw className="mr-2 h-4 w-4" />
+                      Повторить запрос
+                    </DropdownMenuItem>
+                  ) : null}
                   {canEdit ? (
                     <DropdownMenuItem
                       onClick={() => {
@@ -222,6 +241,19 @@ export const MessageBubble = memo(function MessageBubble({ message }: { message:
             <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-border/30" />
             <p className="text-base font-semibold">Действия с сообщением</p>
             <div className="mt-4 grid gap-2">
+              {canRetry ? (
+                <button
+                  type="button"
+                  onClick={() => void retryMessage()}
+                  className="flex items-center gap-3 rounded-[1.2rem] border border-border/10 bg-card/70 px-4 py-4 text-left"
+                >
+                  <RefreshCcw className="h-5 w-5 text-sky-500" />
+                  <span>
+                    <span className="block text-sm font-semibold">Повторить запрос</span>
+                    <span className="block text-xs text-muted">Снова отправить последний пользовательский запрос</span>
+                  </span>
+                </button>
+              ) : null}
               {canEdit ? (
                 <button
                   type="button"

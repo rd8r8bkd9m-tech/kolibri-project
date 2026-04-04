@@ -48,6 +48,10 @@ Thumbs.db
 
 # Logs & outputs
 logs/
+output/
+.playwright-cli/
+frontend/.playwright-cli/
+frontend/dev-dist/
 *.log
 npm-debug.log*
 yarn-debug.log*

@@ -50,6 +50,11 @@ for target in "$REMOTE_HOME_REPO" "$REMOTE_SRV_REPO"; do
   rsync -az \
     "$ROOT_DIR/CMakeLists.txt" \
     "$REMOTE_HOST:$target/CMakeLists.txt"
+  echo "  -> $target/data/swarm/background_learning_sources.json"
+  ssh "$REMOTE_HOST" "mkdir -p $target/data/swarm"
+  rsync -az \
+    "$ROOT_DIR/data/swarm/background_learning_sources.json" \
+    "$REMOTE_HOST:$target/data/swarm/background_learning_sources.json"
 done
 
 echo "[backend] sync manual domain docs into live formula memory"
@@ -118,6 +123,9 @@ wanted = {
     'KOLIBRI_KNOWLEDGE_PATH': formula_path,
     'KOLIBRI_ENABLE_SWARM_RUNTIME': '1',
     'KOLIBRI_SWARM_RUNTIME_INTERVAL_SEC': '300',
+    'KOLIBRI_ENABLE_BACKGROUND_LEARNING': '1',
+    'KOLIBRI_BACKGROUND_LEARNING_INTERVAL_SEC': '1800',
+    'KOLIBRI_BACKGROUND_LEARNING_MAX_SOURCES': '2',
 }
 seen = set()
 new_lines = []
@@ -140,28 +148,26 @@ done
 
 echo "[backend] restart backend service"
 ssh "$REMOTE_HOST" "set -euo pipefail
-pids_8001=\$(lsof -tiTCP:8001 -sTCP:LISTEN 2>/dev/null || true)
-pids_8102=\$(lsof -tiTCP:8102 -sTCP:LISTEN 2>/dev/null || true)
-for pid in \$pids_8001 \$pids_8102; do
-  [[ -n \"\$pid\" ]] || continue
-  kill \"\$pid\" 2>/dev/null || true
-done
-sleep 1
-
-pids_8001=\$(lsof -tiTCP:8001 -sTCP:LISTEN 2>/dev/null || true)
-pids_8102=\$(lsof -tiTCP:8102 -sTCP:LISTEN 2>/dev/null || true)
-for pid in \$pids_8001 \$pids_8102; do
-  [[ -n \"\$pid\" ]] || continue
-  kill -9 \"\$pid\" 2>/dev/null || true
-done
-
 if systemctl list-unit-files 2>/dev/null | grep -q '^kolibri-backend.service'; then
   manual_restart=0
 else
   manual_restart=1
 fi
 
-if [[ \"\${manual_restart:-0}\" -eq 1 ]]; then
+if [[ \"\${manual_restart:-0}\" -eq 0 ]]; then
+  main_pid=\$(systemctl show -p MainPID --value kolibri-backend.service 2>/dev/null || true)
+  listener_8001=\$(lsof -tiTCP:8001 -sTCP:LISTEN 2>/dev/null | head -n1 || true)
+  listener_8102=\$(lsof -tiTCP:8102 -sTCP:LISTEN 2>/dev/null | head -n1 || true)
+
+  if [[ -n \"\${listener_8001:-}\" && -n \"\${main_pid:-}\" && \"\$main_pid\" != \"0\" && \"\$listener_8001\" != \"\$main_pid\" ]]; then
+    kill \"\$listener_8001\" 2>/dev/null || true
+  elif [[ -n \"\${main_pid:-}\" && \"\$main_pid\" != \"0\" ]]; then
+    kill \"\$main_pid\" 2>/dev/null || true
+  fi
+  if [[ -n \"\${listener_8102:-}\" ]]; then
+    kill \"\$listener_8102\" 2>/dev/null || true
+  fi
+else
   for env_file in \
     $REMOTE_SRV_REPO/.env.backend \
     $REMOTE_SRV_REPO/.env \
@@ -180,6 +186,9 @@ if [[ \"\${manual_restart:-0}\" -eq 1 ]]; then
   export KOLIBRI_KNOWLEDGE_PATH=$REMOTE_LIVE_FORMULA_MEMORY
   export KOLIBRI_ENABLE_SWARM_RUNTIME=1
   export KOLIBRI_SWARM_RUNTIME_INTERVAL_SEC=300
+  export KOLIBRI_ENABLE_BACKGROUND_LEARNING=1
+  export KOLIBRI_BACKGROUND_LEARNING_INTERVAL_SEC=1800
+  export KOLIBRI_BACKGROUND_LEARNING_MAX_SOURCES=2
 
   pid_8001=\$(lsof -tiTCP:8001 -sTCP:LISTEN 2>/dev/null | head -n1 || true)
   if [[ -n \"\${pid_8001:-}\" ]]; then kill \"\$pid_8001\" || true; fi
@@ -237,6 +246,14 @@ truncate_print 220 \"\$resp\"
 
 echo '- /api/v1/swarm/runtime/status'
 resp=\$(curl -m 180 -sS http://127.0.0.1:8001/api/v1/swarm/runtime/status)
+truncate_print 260 \"\$resp\"
+
+echo '- /api/v1/swarm/runtime/learning/status'
+resp=\$(curl -m 180 -sS http://127.0.0.1:8001/api/v1/swarm/runtime/learning/status)
+truncate_print 260 \"\$resp\"
+
+echo '- /api/v1/swarm/runtime/learning/history'
+resp=\$(curl -m 180 -sS http://127.0.0.1:8001/api/v1/swarm/runtime/learning/history)
 truncate_print 260 \"\$resp\"
 
 echo '- /api/v1/swarm/runtime/ingest/text'

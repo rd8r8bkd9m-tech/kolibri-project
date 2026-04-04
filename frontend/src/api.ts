@@ -1,5 +1,11 @@
 import type {
+  AccountPreferencesResponse,
+  AccountProfileResponse,
+  AuthStatusResponse,
   ChatApiResponse,
+  ConversationListResponse,
+  ConversationSummary,
+  ConversationTurnsResponse,
   ImagineRequest,
   ImagineResponse,
   LearnTextDemoResponse,
@@ -9,8 +15,9 @@ import type {
   SwarmKpackExportResponse,
   SwarmRuntimeStatusResponse,
 } from "@/types";
-import { kolibriBridge, type KolibriContextTurn } from "@/lib/kolibriBridge";
+import { kolibriBridge, type KolibriContextTurn, type KolibriQueryResult, type KolibriProgressInfo, type KolibriHealthInfo } from "@/lib/kolibriBridge";
 import { analyzeImageLocally } from "@/lib/localImageAnalysis";
+import { useChatStore } from "@/store/useChatStore";
 
 export interface StreamRequest {
   prompt: string;
@@ -19,6 +26,96 @@ export interface StreamRequest {
   persona: "assistant" | "romantic" | "storyteller";
   memoryEnabled: boolean;
   context: KolibriContextTurn[];
+}
+
+export interface StreamChatResult {
+  conversationId: string | null;
+  method?: string;
+  durationMs?: number;
+  knowledgeHits?: number;
+  confidence?: number;
+  sources?: number;
+  thinking?: string;
+}
+
+/* #22. Markdown rendering support */
+export interface MarkdownRenderOptions {
+  codeHighlight?: boolean;
+  mathRendering?: boolean;
+}
+
+/* #23. Keyboard shortcuts */
+export const KEYBOARD_SHORTCUTS = {
+  SEND: "Ctrl+Enter",
+  CLEAR: "Escape",
+  LAST_MESSAGE: "ArrowUp",
+  SEARCH: "Ctrl+K",
+} as const;
+
+/* #24. Response diff view */
+export interface ResponseDiff {
+  oldResponse: string;
+  newResponse: string;
+  changes: Array<{ type: "added" | "removed"; text: string }>;
+}
+
+export function computeResponseDiff(oldResponse: string, newResponse: string): ResponseDiff {
+  const changes: Array<{ type: "added" | "removed"; text: string }> = [];
+  /* Simple diff: сравниваем по строкам */
+  const oldLines = oldResponse.split("\n");
+  const newLines = newResponse.split("\n");
+
+  for (const line of newLines) {
+    if (!oldLines.includes(line)) {
+      changes.push({ type: "added", text: line });
+    }
+  }
+  for (const line of oldLines) {
+    if (!newLines.includes(line)) {
+      changes.push({ type: "removed", text: line });
+    }
+  }
+
+  return { oldResponse, newResponse, changes };
+}
+
+/* #25. Offline PWA caching */
+const PWA_CACHE_NAME = "kolibri-responses-v1";
+const PWA_MAX_CACHED = 50;
+
+export async function cacheResponse(key: string, response: StreamChatResult): Promise<void> {
+  if (typeof caches === "undefined") return;
+  try {
+    const cache = await caches.open(PWA_CACHE_NAME);
+    const request = new Request(`/api/cache/${encodeURIComponent(key)}`);
+    const cacheResponse = new Response(JSON.stringify(response), {
+      headers: { "Content-Type": "application/json" },
+    });
+    await cache.put(request, cacheResponse);
+
+    /* Удаляем старые записи если > PWA_MAX_CACHED */
+    const keys = await cache.keys();
+    if (keys.length > PWA_MAX_CACHED) {
+      await cache.delete(keys[0]);
+    }
+  } catch {
+    /* Cache unavailable */
+  }
+}
+
+export async function getCachedResponse(key: string): Promise<StreamChatResult | null> {
+  if (typeof caches === "undefined") return null;
+  try {
+    const cache = await caches.open(PWA_CACHE_NAME);
+    const request = new Request(`/api/cache/${encodeURIComponent(key)}`);
+    const response = await cache.match(request);
+    if (response) {
+      return response.json() as Promise<StreamChatResult>;
+    }
+  } catch {
+    /* Cache unavailable */
+  }
+  return null;
 }
 
 export interface VisionAnalyzeResponse {
@@ -49,139 +146,37 @@ export interface LearnTextDemoRequest {
 }
 
 const KOLIBRI_CLIENT_ID_KEY = "kolibri_client_id";
+const JSON_HEADERS = { "Content-Type": "application/json" } as const;
 
-function isWeatherPrompt(prompt: string): boolean {
-  const normalized = prompt.trim().toLowerCase();
-  if (!normalized) return false;
-  return /(?:^|\s)(?:погода|погоде|погоду|погод|температур|ветер|осадк|дожд|снег)\b/u.test(normalized);
+function getAuthToken(): string {
+  return useChatStore.getState().apiToken?.trim() || "";
 }
 
-function looksLikeLocationOnlyPrompt(prompt: string): boolean {
-  const normalized = prompt.trim().toLowerCase();
-  if (!normalized || normalized.length > 40) return false;
-  if (/[0-9]/u.test(normalized)) return false;
-  const cleaned = normalized.replace(/[?!.,:;]/gu, " ").trim();
-
-  const tokens = cleaned
-    .split(/\s+/u)
-    .map((token) => token.trim())
-    .filter(Boolean);
-
-  if (!tokens.length || tokens.length > 4) return false;
-
-  const generic = new Set([
-    "а",
-    "и",
-    "ну",
-    "да",
-    "еще",
-    "ещё",
-    "подробнее",
-    "продолжай",
-    "погода",
-    "какая",
-    "какой",
-    "какие",
-    "в",
-    "во",
-    "на",
-  ]);
-
-  const content = tokens.filter((token) => !generic.has(token));
-  if (!content.length || content.length > 2) return false;
-  return content.every((token) => token.length >= 3);
-}
-
-function extractLocationOnlyPrompt(prompt: string): string | null {
-  if (!looksLikeLocationOnlyPrompt(prompt)) return null;
-  const normalized = prompt
-    .trim()
-    .toLowerCase()
-    .replace(/[?!.,:;]/gu, " ");
-  const tokens = normalized
-    .split(/\s+/u)
-    .map((token) => token.trim())
-    .filter(Boolean)
-    .filter((token) => !new Set(["а", "и", "ну", "да", "в", "во", "на"]).has(token));
-  if (!tokens.length) return null;
-  return tokens.join(" ");
-}
-
-function buildEffectivePrompt(prompt: string, context: KolibriContextTurn[]): string {
-  const trimmed = prompt.trim();
-  if (!trimmed) return trimmed;
-
-  if (isWeatherPrompt(trimmed)) {
-    return trimmed;
+function buildApiHeaders(headers?: HeadersInit): Headers {
+  const next = new Headers(headers);
+  const token = getAuthToken();
+  if (token && !next.has("Authorization")) {
+    next.set("Authorization", `Bearer ${token}`);
   }
-
-  const lastUserPrompt = context.length ? context[context.length - 1]?.prompt?.trim() ?? "" : "";
-  const followupLocation = extractLocationOnlyPrompt(trimmed);
-  if (lastUserPrompt && isWeatherPrompt(lastUserPrompt) && followupLocation) {
-    return `какая погода в ${followupLocation}`;
+  if (typeof window !== "undefined") {
+    next.set("X-Kolibri-Client-Id", getStableClientId());
   }
-
-  return trimmed;
+  return next;
 }
 
-function preferBackendForPrompt(prompt: string, context: KolibriContextTurn[]): boolean {
-  const normalized = prompt.trim().toLowerCase();
-  if (!normalized) return true;
-
-  if (isWeatherPrompt(normalized)) return true;
-  if (buildEffectivePrompt(prompt, context) !== prompt.trim()) return true;
-
-  const backendOnlyPatterns = [
-    /^(?:сколько\s+будет|посчитай|вычисли)\b/u,
-    /^[\d\s()+\-*/%.=^]+$/u,
-    /^что\s+ты\s+знаешь\s+(?:о|об|про)\b/u,
-    /^что\s+такое\b/u,
-    /^кто\s+так(?:ой|ая|ие)\b/u,
-    /^(?:объясни|поясни|обьясни)\b/u,
-    /^расскажи(?:\s+подробно)?\s+(?:о|об|про)\b/u,
-    /^что\s+изучает\b/u,
-    /^чем\s+занимается\b/u,
-    /^как\s+устроен(?:а|о)?\b/u,
-    /^(?:почему\s+важ(?:ен|на|но)|зачем\s+нуж(?:ен|на|но))\b/u,
-    /^как\s+меня\s+зовут\b/u,
-    /^что\s+ты\s+знаешь\s+обо\s+мне\b/u,
-    /^что\s+ты\s+помнишь\s+обо\s+мне\b/u,
-    /^о\s+ч[её]м\s+мы\s+говорили\b/u,
-    /^что\s+мы\s+обсуждали\b/u,
-    /^что\s+было\s+до\s+этого\b/u,
-    /^объясни\s+архитектур[ауы]\s+kolibri\b/u,
-    /^объясни\s+архитектур[ауы]\s+колибри\b/u,
-    /^ты\s+умеешь\b/u,
-    /^ты\s+бог\b/u,
-    /^ты\s+человек\b/u,
-    /^(?:дебил|идиот|дурак|тупой)\b/u,
-    /^а\s+подробнее\b/u,
-    /^подробнее\b/u,
-    /^продолжай\b/u,
-    /^а\s+проще\b/u,
-    /^проще\b/u,
-    /^а\s+если\s+проще\b/u,
-    /^короче\b/u,
-    /^а\s+по\s+пунктам\b/u,
-    /^по\s+пунктам\b/u,
-    /^а\s+что\s+еще\b/u,
-    /^а\s+что\s+ещё\b/u,
-    /^что\s+еще\b/u,
-    /^что\s+ещё\b/u,
-    /^а\s+почему\b/u,
-    /^почему\b/u,
-    /^зачем\b/u,
-    /^приведи\s+пример\b/u,
-    /^пример\b/u,
-    /^а\s+пример\b/u,
-    /^сравни\b/u,
-    /^(?:это\s+точно|точно|ты\s+уверен|правда)\b/u,
-  ];
-
-  return backendOnlyPatterns.some((pattern) => pattern.test(normalized));
+async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const next: RequestInit = {
+    ...init,
+    headers: buildApiHeaders(init.headers),
+  };
+  return fetch(input, next);
 }
 
-function getStableClientId(): string {
+function isExplicitWasmMode(): boolean {
+  return (import.meta.env.VITE_KOLIBRI_RESPONSE_MODE ?? "backend").toLowerCase() === "wasm";
+}
+
+export function getStableClientId(): string {
   try {
     const existing = window.localStorage.getItem(KOLIBRI_CLIENT_ID_KEY);
     if (existing && existing.trim().length >= 8) return existing.trim();
@@ -198,7 +193,7 @@ function getStableClientId(): string {
 
 export async function fetchModelStatus(): Promise<ModelStatus> {
   try {
-    const primary = await fetch("/api/v1/ai/models");
+    const primary = await apiFetch("/api/v1/ai/models");
     if (primary.ok) {
       return (await primary.json()) as ModelStatus;
     }
@@ -206,7 +201,7 @@ export async function fetchModelStatus(): Promise<ModelStatus> {
     // fallback below
   }
 
-  const fallback = await fetch("/api/v1/model/stats");
+  const fallback = await apiFetch("/api/v1/model/stats");
   if (!fallback.ok) throw new Error(`Не удалось загрузить модели: ${fallback.status}`);
   const data = (await fallback.json()) as { exists: boolean; path: string; size_mb: number; patterns: number; edges: number };
   const modelName = data.path?.split("/").pop() ?? "unknown";
@@ -230,8 +225,8 @@ export async function streamChat(
   payload: StreamRequest,
   onToken: (token: string) => void,
   signal?: AbortSignal,
-) {
-  const effectivePrompt = buildEffectivePrompt(payload.prompt, payload.context);
+): Promise<StreamChatResult> {
+  const effectivePrompt = payload.prompt.trim();
   const profile =
     payload.model === "Колибри 4 • Тяжёлая"
       ? "deep"
@@ -255,37 +250,44 @@ export async function streamChat(
     model: payload.model,
   };
 
-  const requestFallback = async (): Promise<string> => {
-    const fallback = await fetch("/api/v1/ai/chat", {
+  const requestFallback = async (): Promise<ChatApiResponse> => {
+    const fallback = await apiFetch("/api/v1/ai/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: JSON_HEADERS,
       body: JSON.stringify(chatBody),
       signal,
     });
     if (!fallback.ok) throw new Error(`Ошибка ответа модели: ${fallback.status}`);
-    const data = (await fallback.json()) as { response?: string };
-    return data.response ?? "";
+    return (await fallback.json()) as ChatApiResponse;
   };
 
   const emitChars = (value: string) => {
     for (const char of value) onToken(char);
   };
 
-  const fallbackWithSuffix = async (alreadyEmitted: string) => {
+  const fallbackWithSuffix = async (alreadyEmitted: string): Promise<StreamChatResult> => {
     const full = await requestFallback();
     if (!alreadyEmitted) {
-      emitChars(full);
-      return;
+      emitChars(full.response ?? "");
+      return {
+        conversationId: full.conversation_id ?? null,
+        method: full.method,
+        durationMs: full.duration_ms,
+        knowledgeHits: full.knowledge_hits,
+      };
     }
-    if (full.startsWith(alreadyEmitted)) {
-      emitChars(full.slice(alreadyEmitted.length));
+    if ((full.response ?? "").startsWith(alreadyEmitted)) {
+      emitChars((full.response ?? "").slice(alreadyEmitted.length));
     }
+    return {
+      conversationId: full.conversation_id ?? null,
+      method: full.method,
+      durationMs: full.duration_ms,
+      knowledgeHits: full.knowledge_hits,
+    };
   };
 
-  if (
-    (import.meta.env.VITE_KOLIBRI_RESPONSE_MODE ?? "script").toLowerCase() !== "llm" &&
-    !preferBackendForPrompt(payload.prompt, payload.context)
-  ) {
+  if (isExplicitWasmMode()) {
     try {
       const localAnswer = await kolibriBridge.ask(
         effectivePrompt,
@@ -294,7 +296,7 @@ export async function streamChat(
         !payload.memoryEnabled,
       );
       emitChars(localAnswer);
-      return;
+      return { conversationId: payload.sessionId };
     } catch {
       // fallback to backend stream below
     }
@@ -302,26 +304,28 @@ export async function streamChat(
 
   let response: Response;
   try {
-    response = await fetch("/api/v1/ai/chat/stream", {
+    response = await apiFetch("/api/v1/ai/chat/stream", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: JSON_HEADERS,
       body: JSON.stringify(chatBody),
       signal,
     });
-  } catch {
-    await fallbackWithSuffix("");
-    return;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw error;
+    }
+    return await fallbackWithSuffix("");
   }
 
   if (!response.ok || !response.body) {
-    await fallbackWithSuffix("");
-    return;
+    return await fallbackWithSuffix("");
   }
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder("utf-8");
   let buffer = "";
   let emitted = "";
+  let finalResult: StreamChatResult = { conversationId: payload.sessionId };
 
   while (true) {
     let done = false;
@@ -330,9 +334,11 @@ export async function streamChat(
       const readResult = await reader.read();
       done = readResult.done;
       value = readResult.value;
-    } catch {
-      await fallbackWithSuffix(emitted);
-      return;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw error;
+      }
+      return await fallbackWithSuffix(emitted);
     }
     if (done) break;
     if (value) buffer += decoder.decode(value, { stream: true });
@@ -350,11 +356,25 @@ export async function streamChat(
       const raw = dataLine.replace("data:", "").trim();
 
       if (eventType === "error") {
-        await fallbackWithSuffix(emitted);
-        return;
+        return await fallbackWithSuffix(emitted);
       }
-      if (eventType !== "token") continue;
       try {
+        if (eventType === "done") {
+          const parsed = JSON.parse(raw) as {
+            conversation_id?: string;
+            method?: string;
+            duration_ms?: number;
+            knowledge_hits?: number;
+          };
+          finalResult = {
+            conversationId: parsed.conversation_id ?? finalResult.conversationId,
+            method: parsed.method,
+            durationMs: parsed.duration_ms,
+            knowledgeHits: parsed.knowledge_hits,
+          };
+          continue;
+        }
+        if (eventType !== "token") continue;
         const parsed = JSON.parse(raw) as { text?: string };
         if (parsed.text) {
           onToken(parsed.text);
@@ -367,14 +387,15 @@ export async function streamChat(
   }
 
   if (!emitted.length) {
-    await fallbackWithSuffix("");
+    return await fallbackWithSuffix("");
   }
+  return finalResult;
 }
 
 export async function imagineImage(payload: ImagineRequest): Promise<ImagineResponse> {
-  const response = await fetch("/api/v1/ai/imagine", {
+  const response = await apiFetch("/api/v1/ai/imagine", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: JSON_HEADERS,
     body: JSON.stringify(payload),
   });
 
@@ -398,7 +419,7 @@ export async function analyzeImageAttachment(file: File, prompt = "Опиши и
   formData.append("file", file);
   formData.append("prompt", prompt);
 
-  const response = await fetch("/api/v1/ai/vision/analyze", {
+  const response = await apiFetch("/api/v1/ai/vision/analyze", {
     method: "POST",
     body: formData,
   });
@@ -413,9 +434,9 @@ export async function analyzeImageAttachment(file: File, prompt = "Опиши и
 }
 
 export async function learnTextWithSwarmDemo(payload: LearnTextDemoRequest): Promise<LearnTextDemoResponse> {
-  const response = await fetch("/api/v1/ai/demo/learn/text", {
+  const response = await apiFetch("/api/v1/ai/demo/learn/text", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: JSON_HEADERS,
     body: JSON.stringify(payload),
   });
 
@@ -430,7 +451,7 @@ export async function learnTextWithSwarmDemo(payload: LearnTextDemoRequest): Pro
 
 export async function fetchQualityBenchmarkHistory(limit = 20): Promise<QualityBenchmarkHistoryResponse> {
   const safeLimit = Math.max(1, Math.min(200, Math.floor(limit)));
-  const response = await fetch(`/api/v1/ai/quality/benchmark/history?limit=${safeLimit}`);
+  const response = await apiFetch(`/api/v1/ai/quality/benchmark/history?limit=${safeLimit}`);
   if (!response.ok) {
     throw new Error(`Не удалось загрузить историю качества: ${response.status}`);
   }
@@ -438,7 +459,7 @@ export async function fetchQualityBenchmarkHistory(limit = 20): Promise<QualityB
 }
 
 export async function fetchSwarmRuntimeStatus(): Promise<SwarmRuntimeStatusResponse> {
-  const response = await fetch("/api/v1/swarm/runtime/status");
+  const response = await apiFetch("/api/v1/swarm/runtime/status");
   if (!response.ok) {
     throw new Error(`Не удалось загрузить статус роя: ${response.status}`);
   }
@@ -446,7 +467,7 @@ export async function fetchSwarmRuntimeStatus(): Promise<SwarmRuntimeStatusRespo
 }
 
 export async function startSwarmRuntime(): Promise<SwarmRuntimeStatusResponse> {
-  const response = await fetch("/api/v1/swarm/runtime/start", { method: "POST" });
+  const response = await apiFetch("/api/v1/swarm/runtime/start", { method: "POST" });
   if (!response.ok) {
     throw new Error(`Не удалось запустить рой: ${response.status}`);
   }
@@ -454,7 +475,7 @@ export async function startSwarmRuntime(): Promise<SwarmRuntimeStatusResponse> {
 }
 
 export async function runSwarmComparison(): Promise<SwarmRuntimeStatusResponse> {
-  const response = await fetch("/api/v1/swarm/runtime/refresh", { method: "POST" });
+  const response = await apiFetch("/api/v1/swarm/runtime/refresh", { method: "POST" });
   if (!response.ok) {
     throw new Error(`Не удалось принудительно пересчитать рой: ${response.status}`);
   }
@@ -462,7 +483,7 @@ export async function runSwarmComparison(): Promise<SwarmRuntimeStatusResponse> 
 }
 
 export async function runSwarmComparisonIfIdle(): Promise<SwarmRuntimeStatusResponse> {
-  const response = await fetch("/api/v1/swarm/runtime/run", { method: "POST" });
+  const response = await apiFetch("/api/v1/swarm/runtime/run", { method: "POST" });
   if (!response.ok) {
     throw new Error(`Не удалось пересчитать сравнение роя: ${response.status}`);
   }
@@ -475,9 +496,9 @@ export async function ingestSwarmText(payload: {
   source?: string;
   category?: string;
 }): Promise<SwarmRuntimeStatusResponse> {
-  const response = await fetch("/api/v1/swarm/runtime/ingest/text", {
+  const response = await apiFetch("/api/v1/swarm/runtime/ingest/text", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: JSON_HEADERS,
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
@@ -495,9 +516,9 @@ export async function ingestSwarmUrl(payload: {
   max_pages?: number;
   delay_sec?: number;
 }): Promise<SwarmRuntimeStatusResponse> {
-  const response = await fetch("/api/v1/swarm/runtime/ingest/url", {
+  const response = await apiFetch("/api/v1/swarm/runtime/ingest/url", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: JSON_HEADERS,
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
@@ -515,9 +536,9 @@ export async function exportSwarmKpack(payload: {
   description?: string;
   default_query?: string;
 }): Promise<SwarmKpackExportResponse> {
-  const response = await fetch("/api/v1/swarm/runtime/kpack/export", {
+  const response = await apiFetch("/api/v1/swarm/runtime/kpack/export", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: JSON_HEADERS,
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
@@ -528,7 +549,7 @@ export async function exportSwarmKpack(payload: {
 }
 
 export async function downloadSwarmKpack(payload: Pick<SwarmKpackExportResponse, "download_url" | "filename">): Promise<void> {
-  const response = await fetch(payload.download_url);
+  const response = await apiFetch(payload.download_url);
   if (!response.ok) {
     throw new Error(`Не удалось скачать .kpack: ${response.status}`);
   }
@@ -555,7 +576,7 @@ export async function importSwarmKpack(
   form.append("refresh", String(options?.refresh ?? true));
   form.append("refresh_timeout_sec", String(options?.refresh_timeout_sec ?? 180));
 
-  const response = await fetch("/api/v1/swarm/runtime/kpack/import", {
+  const response = await apiFetch("/api/v1/swarm/runtime/kpack/import", {
     method: "POST",
     body: form,
   });
@@ -564,4 +585,338 @@ export async function importSwarmKpack(
     throw new Error(typeof body.detail === "string" ? body.detail : `Не удалось импортировать .kpack: ${response.status}`);
   }
   return (await response.json()) as SwarmRuntimeStatusResponse;
+}
+
+export async function fetchAuthStatus(): Promise<AuthStatusResponse> {
+  const response = await apiFetch("/api/v1/auth/status");
+  if (!response.ok) {
+    throw new Error(`Не удалось загрузить auth status: ${response.status}`);
+  }
+  return (await response.json()) as AuthStatusResponse;
+}
+
+export async function loginAccount(payload: { username: string; password: string }): Promise<{ access_token: string; role: string }> {
+  const response = await apiFetch("/api/v1/auth/login", {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(payload),
+  });
+  const body = await response.json().catch(() => ({} as { detail?: string; access_token?: string; role?: string }));
+  if (!response.ok) {
+    throw new Error(typeof body.detail === "string" ? body.detail : `Не удалось войти: ${response.status}`);
+  }
+  return {
+    access_token: String(body.access_token || ""),
+    role: String(body.role || "user"),
+  };
+}
+
+export async function logoutAccount(): Promise<void> {
+  await apiFetch("/api/v1/auth/logout", { method: "POST" }).catch(() => undefined);
+}
+
+export async function fetchAccountProfile(): Promise<AccountProfileResponse> {
+  const response = await apiFetch(`/api/v1/account/profile?client_id=${encodeURIComponent(getStableClientId())}`);
+  if (!response.ok) {
+    throw new Error(`Не удалось загрузить профиль: ${response.status}`);
+  }
+  return (await response.json()) as AccountProfileResponse;
+}
+
+export async function updateAccountProfile(payload: {
+  name?: string;
+  facts?: string[];
+}): Promise<AccountProfileResponse> {
+  const response = await apiFetch(`/api/v1/account/profile?client_id=${encodeURIComponent(getStableClientId())}`, {
+    method: "PUT",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(payload),
+  });
+  const body = await response.json().catch(() => ({} as { detail?: string }));
+  if (!response.ok) {
+    throw new Error(typeof body.detail === "string" ? body.detail : `Не удалось обновить профиль: ${response.status}`);
+  }
+  return body as AccountProfileResponse;
+}
+
+export async function fetchAccountPreferences(): Promise<AccountPreferencesResponse> {
+  const response = await apiFetch(`/api/v1/account/preferences?client_id=${encodeURIComponent(getStableClientId())}`);
+  if (!response.ok) {
+    throw new Error(`Не удалось загрузить настройки: ${response.status}`);
+  }
+  return (await response.json()) as AccountPreferencesResponse;
+}
+
+export async function updateAccountPreferences(payload: {
+  theme?: "system" | "light" | "dark";
+  persona?: "assistant" | "romantic" | "storyteller";
+  memory_enabled?: boolean;
+  model?: string;
+}): Promise<AccountPreferencesResponse> {
+  const response = await apiFetch(`/api/v1/account/preferences?client_id=${encodeURIComponent(getStableClientId())}`, {
+    method: "PUT",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(payload),
+  });
+  const body = await response.json().catch(() => ({} as { detail?: string }));
+  if (!response.ok) {
+    throw new Error(typeof body.detail === "string" ? body.detail : `Не удалось обновить настройки: ${response.status}`);
+  }
+  return body as AccountPreferencesResponse;
+}
+
+export async function fetchConversationSessions(limit = 100): Promise<ConversationListResponse> {
+  const safeLimit = Math.max(1, Math.min(500, Math.floor(limit)));
+  const response = await apiFetch(
+    `/api/v1/ai/conversations?client_id=${encodeURIComponent(getStableClientId())}&limit=${safeLimit}`,
+  );
+  if (!response.ok) {
+    throw new Error(`Не удалось загрузить диалоги: ${response.status}`);
+  }
+  return (await response.json()) as ConversationListResponse;
+}
+
+export async function fetchConversationTurns(conversationId: string, limit = 120): Promise<ConversationTurnsResponse> {
+  const safeLimit = Math.max(1, Math.min(400, Math.floor(limit)));
+  const response = await apiFetch(
+    `/api/v1/ai/conversations/${encodeURIComponent(conversationId)}/turns?client_id=${encodeURIComponent(getStableClientId())}&limit=${safeLimit}`,
+  );
+  if (!response.ok) {
+    throw new Error(`Не удалось загрузить историю чата: ${response.status}`);
+  }
+  return (await response.json()) as ConversationTurnsResponse;
+}
+
+export async function syncConversationSession(payload: {
+  conversation_id: string;
+  title?: string;
+  pinned?: boolean;
+}): Promise<ConversationSummary> {
+  const response = await apiFetch(`/api/v1/ai/conversations?client_id=${encodeURIComponent(getStableClientId())}`, {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(payload),
+  });
+  const body = await response.json().catch(() => ({} as { detail?: string }));
+  if (!response.ok) {
+    throw new Error(typeof body.detail === "string" ? body.detail : `Не удалось синхронизировать диалог: ${response.status}`);
+  }
+  return body as ConversationSummary;
+}
+
+export async function patchConversationSession(
+  conversationId: string,
+  payload: { title?: string; pinned?: boolean },
+): Promise<ConversationSummary> {
+  const response = await apiFetch(
+    `/api/v1/ai/conversations/${encodeURIComponent(conversationId)}?client_id=${encodeURIComponent(getStableClientId())}`,
+    {
+      method: "PATCH",
+      headers: JSON_HEADERS,
+      body: JSON.stringify(payload),
+    },
+  );
+  const body = await response.json().catch(() => ({} as { detail?: string }));
+  if (!response.ok) {
+    throw new Error(typeof body.detail === "string" ? body.detail : `Не удалось обновить диалог: ${response.status}`);
+  }
+  return body as ConversationSummary;
+}
+
+export async function deleteConversationSession(conversationId: string): Promise<void> {
+  const response = await apiFetch(
+    `/api/v1/ai/conversations/${encodeURIComponent(conversationId)}?client_id=${encodeURIComponent(getStableClientId())}`,
+    { method: "DELETE" },
+  );
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Не удалось удалить диалог: ${response.status}`);
+  }
+}
+
+// ============================================================================
+// Unified Knowledge Hub API
+// ============================================================================
+
+export interface KnowledgeGraphNode {
+  id: string;
+  label: string;
+  frequency: number;
+  fitness: number;
+  domain: string;
+}
+
+export interface KnowledgeGraphEdge {
+  source: string;
+  target: string;
+  weight: number;
+}
+
+export interface KnowledgeGraphData {
+  nodes: KnowledgeGraphNode[];
+  links: KnowledgeGraphEdge[];
+}
+
+export interface KnowledgeQueryRequest {
+  query: string;
+  top_k: number;
+}
+
+export interface KnowledgeQueryResponse {
+  query: string;
+  sources: Array<{
+    name: string;
+    score: number;
+    content: string;
+    metadata: Record<string, any>;
+  }>;
+  best_answer: string;
+  confidence: number;
+  total_sources: number;
+  fusion_method: string;
+  duration_ms: number;
+}
+
+export interface KnowledgeAnalyticsResponse {
+  knowledge_graph: {
+    patterns: number;
+    edges: number;
+    documents: number;
+    tokens: number;
+  };
+  formula_pool: {
+    size: number;
+    generation: number;
+    best_fitness: number;
+  };
+  embeddings: {
+    vocab_size: number;
+    trained_pairs: number;
+    epochs: number;
+  };
+}
+
+export async function queryKnowledgeHub(req: KnowledgeQueryRequest): Promise<KnowledgeQueryResponse> {
+  const response = await apiFetch("/api/v1/ai/knowledge/query", {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(req),
+  });
+  const body = await response.json().catch(() => ({} as { detail?: string }));
+  if (!response.ok) {
+    throw new Error(typeof body.detail === "string" ? body.detail : `Ошибка запроса к Knowledge Hub: ${response.status}`);
+  }
+  return body as KnowledgeQueryResponse;
+}
+
+export async function getKnowledgeAnalytics(): Promise<KnowledgeAnalyticsResponse> {
+  const response = await apiFetch("/api/v1/ai/knowledge/analytics");
+  if (!response.ok) {
+    throw new Error(`Ошибка получения аналитики: ${response.status}`);
+  }
+  return (await response.json()) as KnowledgeAnalyticsResponse;
+}
+
+export async function getKnowledgeGraphData(domain?: string): Promise<KnowledgeGraphData> {
+  // Получаем аналитику и конвертируем в формат графа
+  const analytics = await getKnowledgeAnalytics();
+  
+  // Получаем данные графа из knowledge API
+  const response = await apiFetch("/api/v1/ai/knowledge/analytics");
+  if (!response.ok) {
+    throw new Error(`Ошибка получения данных графа: ${response.status}`);
+  }
+  
+  // Пока возвращаем заглушку на основе аналитики
+  // В будущем бэкенд должен отдавать реальные узлы и рёбра
+  const nodes: KnowledgeGraphNode[] = [];
+  const links: KnowledgeGraphEdge[] = [];
+  
+  return { nodes, links };
+}
+
+// ============================================================================
+// Continuous Learning API
+// ============================================================================
+
+export interface LearningStatusResponse {
+  enabled: boolean;
+  running: boolean;
+  cycle_interval_sec: number;
+  curriculum_level: number;
+  tasks_registered: number;
+  tasks: Array<{
+    name: string;
+    priority: string;
+    run_count: number;
+    total_time: number;
+    error_count: number;
+    last_error: string;
+  }>;
+  metrics: {
+    total_cycles: number;
+    total_tasks_executed: number;
+    total_errors: number;
+    total_uptime: number;
+    corpus: {
+      patterns: number;
+      edges: number;
+      documents: number;
+      tokens: number;
+    };
+    formulas: {
+      pool_size: number;
+      best_fitness: number;
+      evolution_count: number;
+    };
+    world_model: {
+      loss: number;
+      concepts: number;
+      surprise: number;
+    };
+    embeddings: {
+      vocab_size: number;
+      loss: number;
+    };
+    dialogue: {
+      processed: number;
+      facts_extracted: number;
+      knowledge_created: number;
+    };
+    curriculum: {
+      level: number;
+      source: string;
+    };
+  };
+}
+
+export async function getLearningStatus(): Promise<LearningStatusResponse> {
+  const response = await apiFetch("/api/v1/learning/status");
+  if (!response.ok) {
+    throw new Error(`Ошибка получения статуса обучения: ${response.status}`);
+  }
+  return (await response.json()) as LearningStatusResponse;
+}
+
+export async function startLearning(): Promise<{ status: string; metrics: any }> {
+  const response = await apiFetch("/api/v1/learning/start", { method: "POST" });
+  if (!response.ok) {
+    throw new Error(`Ошибка запуска обучения: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function stopLearning(): Promise<{ status: string; metrics: any }> {
+  const response = await apiFetch("/api/v1/learning/stop", { method: "POST" });
+  if (!response.ok) {
+    throw new Error(`Ошибка остановки обучения: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function advanceCurriculum(): Promise<any> {
+  const response = await apiFetch("/api/v1/learning/curriculum/advance", { method: "POST" });
+  if (!response.ok) {
+    throw new Error(`Ошибка повышения уровня: ${response.status}`);
+  }
+  return response.json();
 }

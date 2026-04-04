@@ -43,6 +43,21 @@ static int parse_strategy(const char *raw, KolibriInferenceStrategy *out) {
     return -1;
 }
 
+static void print_digit_votes(const KolibriNumericVoteSummary *summary) {
+    if (!summary) {
+        printf("DIGIT_VOTES=\n");
+        return;
+    }
+    printf("DIGIT_VOTES=");
+    for (size_t i = 0; i < KOLIBRI_INF_DIGIT_VOTERS; ++i) {
+        if (i > 0U) {
+            printf(",");
+        }
+        printf("%zu:%.6f", i, summary->channels[i]);
+    }
+    printf("\n");
+}
+
 int main(int argc, char **argv) {
     const char *query = NULL;
     const char *strategy_raw = "formula";
@@ -100,6 +115,15 @@ int main(int argc, char **argv) {
     printf("KNOWLEDGE_HITS=%zu\n", result.knowledge_hits);
     printf("FORMULAS_APPLIED=%zu\n", result.formulas_applied);
     printf("LOGIC_RULES=%zu\n", result.logic_rules_fired);
+    printf("QUERY_KIND=%s\n", result.query_semantics.query_kind);
+    printf("CANONICAL_TOPIC=%s\n", result.query_semantics.canonical_topic);
+    printf("DEFINITION_ENTITY=%s\n", result.query_semantics.definition_entity);
+    printf("TOPIC_TOKEN_COUNT=%zu\n", result.query_semantics.topic_token_count);
+    printf("DIGIT_WINNER=%u\n", (unsigned)result.numeric_vote.winner_digit);
+    printf("DIGIT_WINNER_SCORE=%.6f\n", result.numeric_vote.winner_score);
+    printf("DIGIT_RUNNER_UP_SCORE=%.6f\n", result.numeric_vote.runner_up_score);
+    printf("DIGIT_CONSENSUS=%.6f\n", result.numeric_vote.consensus);
+    print_digit_votes(&result.numeric_vote);
     printf("DURATION_MS=%.3f\n", result.total_duration_ms);
     printf("RESPONSE_BEGIN\n");
     printf("%s\n", result.response);

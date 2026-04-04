@@ -201,6 +201,162 @@ def test_profile_memory_commands(engine):
     assert "люблю практические тесты" in about_me["response"]
 
 
+def test_profile_memory_read_now_flows_through_canonical_synthesis(engine, monkeypatch):
+    """Read-only profile memory query должен идти через canonical synthesis path."""
+    conv = "profile-memory-canonical-001"
+    engine.chat("Меня зовут Алексей", conversation_id=conv)
+
+    called: dict[str, bool] = {}
+
+    def fake_synthesize(*args, **kwargs):
+        called["value"] = True
+        return ("Я помню о вас:\n• Имя: Алексей", 0.95, "profile-memory")
+
+    monkeypatch.setattr(engine, "_synthesize_response", fake_synthesize)
+
+    result = engine.chat("Как меня зовут?", conversation_id=conv)
+
+    assert called.get("value") is True
+    assert result["method"] == "profile-memory"
+    assert "Алексей" in result["response"]
+
+
+def test_document_list_now_flows_through_canonical_synthesis(engine, monkeypatch):
+    """Read-only список обученных текстов должен идти через canonical synthesis path."""
+    conv = "document-list-canonical-001"
+    learned = engine.chat("Научи: " + ("Сказка Колобок. " * 30), conversation_id=conv)
+    assert learned["method"] == "train-command"
+
+    called: dict[str, bool] = {}
+
+    def fake_synthesize(*args, **kwargs):
+        called["value"] = True
+        return ("Я помню такие тексты:\n• Колобок", 0.95, "document-list")
+
+    monkeypatch.setattr(engine, "_synthesize_response", fake_synthesize)
+
+    result = engine.chat("Какие тексты ты знаешь?", conversation_id=conv)
+
+    assert called.get("value") is True
+    assert result["method"] == "document-list"
+    assert "колобок" in result["response"].lower()
+
+
+def test_retell_memory_now_flows_through_canonical_synthesis(engine, monkeypatch):
+    """Read-only retell request должен идти через canonical synthesis path."""
+    conv = "retell-canonical-001"
+    learned = engine.chat("Научи: " + ("Сказка Колобок. " * 30), conversation_id=conv)
+    assert learned["method"] == "train-command"
+
+    called: dict[str, bool] = {}
+
+    def fake_synthesize(*args, **kwargs):
+        called["value"] = True
+        return ("Пересказ: Колобок ушёл от деда и бабки.", 0.95, "retell-memory")
+
+    monkeypatch.setattr(engine, "_synthesize_response", fake_synthesize)
+
+    result = engine.chat("Перескажи колобок своими словами", conversation_id=conv)
+
+    assert called.get("value") is True
+    assert result["method"] == "retell-memory"
+    assert "пересказ" in result["response"].lower()
+
+
+def test_document_display_title_prefers_clean_summary_over_noisy_title(engine):
+    doc = {
+        "title": "Текст: представь, тебя, список",
+        "summary": "Колобок ушёл от деда и бабки и встретил лису.",
+        "text": "Колобок ушёл от деда и бабки и встретил лису.",
+    }
+
+    title = engine._document_display_title(doc)
+
+    assert "колобок" in title.lower()
+    assert not title.lower().startswith("текст:")
+
+
+def test_document_list_hides_auto_message_documents(engine, monkeypatch):
+    profile = engine._new_user_profile()
+    profile["documents"] = [
+        {
+            "title": "Текст: представь, тебя, список",
+            "summary": "Операторский автофрагмент, который не должен показываться пользователю.",
+            "text": "Операторский автофрагмент, который не должен показываться пользователю.",
+            "source": "auto-message",
+        },
+        {
+            "title": "Сказка Колобок",
+            "summary": "Колобок ушёл от деда и бабки и встретил зверей.",
+            "text": "Колобок ушёл от деда и бабки и встретил зверей.",
+            "source": "teach-command",
+        },
+    ]
+    monkeypatch.setattr(engine, "_get_user_profile", lambda *args, **kwargs: profile)
+
+    response, method = engine._build_profile_memory_read_response("Какие тексты ты знаешь?")
+
+    assert method == "document-list"
+    assert "колобок" in (response or "").lower()
+    assert "представь, тебя, список" not in (response or "").lower()
+
+
+def test_document_list_hides_noisy_operator_titles(engine, monkeypatch):
+    profile = engine._new_user_profile()
+    profile["documents"] = [
+        {
+            "title": "Вот это уже сильная, сбалансированная версия",
+            "summary": "Вот это уже сильная, сбалансированная версия.",
+            "text": "Вот это уже сильная, сбалансированная версия.",
+            "source": "teach-command",
+        },
+        {
+            "title": "Тест на код + безопасность",
+            "summary": "Практический тест по коду и безопасности.",
+            "text": "Практический тест по коду и безопасности.",
+            "source": "teach-command",
+        },
+        {
+            "title": "Сказка Колобок",
+            "summary": "Колобок ушёл от деда и бабки и встретил зверей.",
+            "text": "Колобок ушёл от деда и бабки и встретил зверей.",
+            "source": "teach-command",
+        },
+    ]
+    monkeypatch.setattr(engine, "_get_user_profile", lambda *args, **kwargs: profile)
+
+    response, method = engine._build_profile_memory_read_response("Какие тексты ты знаешь?")
+
+    assert method == "document-list"
+    assert "колобок" in (response or "").lower()
+    assert "вот это уже сильная" not in (response or "").lower()
+    assert "тест на код + безопасность" in (response or "").lower()
+
+
+def test_document_list_hides_devlog_like_entries_by_content(engine, monkeypatch):
+    profile = engine._new_user_profile()
+    profile["documents"] = [
+        {
+            "title": "Отчёт по исправлению",
+            "summary": "Сделал. Локальный решатель логических задач внедрён и выкачен на сервер. Что изменил: backend/service/ai_engine.py",
+            "text": "Сделал. Локальный решатель логических задач внедрён и выкачен на сервер. Что изменил: /Users/kolibri/kolibri-project/backend/service/ai_engine.py",
+        },
+        {
+            "title": "История про теремок",
+            "summary": "Теремок стоял в поле, и к нему приходили звери.",
+            "text": "История про теремок. Теремок стоял в поле, и к нему приходили звери.",
+        },
+    ]
+    monkeypatch.setattr(engine, "_get_user_profile", lambda *args, **kwargs: profile)
+
+    response, method = engine._build_profile_memory_read_response("Какие тексты ты знаешь?")
+
+    assert method == "document-list"
+    assert "теремок" in (response or "").lower()
+    assert "локальный решатель" not in (response or "").lower()
+    assert "backend/service/ai_engine.py" not in (response or "")
+
+
 def test_c_core_formula_bridge_short_circuits_definition_query(tmp_path):
     """Определительные запросы должны уметь приходить из C-core formula bridge."""
     from backend.service.ai_engine import KolibriAIEngine
@@ -226,6 +382,46 @@ def test_c_core_formula_bridge_short_circuits_definition_query(tmp_path):
 
     assert result["method"] == "c-core-formula"
     assert "точная формальная наука" in result["response"]
+
+
+def test_c_inference_runner_parses_numeric_vote_summary():
+    """Python bridge должен поднимать telemetry цифрового голосования из C CLI."""
+    from backend.service.ai_engine import CInferenceRunner
+
+    runner = CInferenceRunner()
+    parsed = runner._parse_output(
+        "\n".join(
+            [
+                "STATUS=ok",
+                "CONFIDENCE=0.875",
+                "KNOWLEDGE_HITS=2",
+                "FORMULAS_APPLIED=1",
+                "LOGIC_RULES=0",
+                "DIGIT_WINNER=1",
+                "DIGIT_WINNER_SCORE=8.400000",
+                "DIGIT_RUNNER_UP_SCORE=4.200000",
+                "DIGIT_CONSENSUS=0.510000",
+                "QUERY_KIND=what_is",
+                "CANONICAL_TOPIC=математика",
+                "DEFINITION_ENTITY=математика",
+                "TOPIC_TOKEN_COUNT=1",
+                "DIGIT_VOTES=0:0.350000,1:8.400000,2:4.200000,3:0.000000,4:1.100000,5:3.500000,6:1.250000,7:0.000000,8:0.000000,9:0.450000",
+                "RESPONSE_BEGIN",
+                "Математика — точная формальная наука.",
+                "RESPONSE_END",
+            ]
+        )
+    )
+
+    assert parsed is not None
+    assert parsed["digit_winner"] == 1
+    assert parsed["digit_consensus"] == pytest.approx(0.51)
+    assert parsed["digit_votes"]["1"] == pytest.approx(8.4)
+    assert parsed["digit_votes"]["5"] == pytest.approx(3.5)
+    assert parsed["query_kind"] == "what_is"
+    assert parsed["canonical_topic"] == "математика"
+    assert parsed["definition_entity"] == "математика"
+    assert parsed["topic_token_count"] == 1
 
 
 def test_c_core_formula_bridge_handles_knowledge_query(tmp_path):
@@ -256,6 +452,182 @@ def test_c_core_formula_bridge_handles_knowledge_query(tmp_path):
 
     assert result["method"] == "c-core-formula"
     assert "небесных телах" in result["response"]
+
+
+def test_c_core_formula_bridge_surfaces_query_semantics(tmp_path):
+    """Обычный c-core-formula runtime должен поднимать query semantics из C bridge."""
+    from backend.service.ai_engine import KolibriAIEngine
+
+    eng = KolibriAIEngine()
+    eng._persist_conversations = False
+    eng._enable_c_inference = True
+    binary = tmp_path / "kolibri_infer_cli"
+    binary.write_text("", encoding="utf-8")
+    binary.chmod(0o755)
+    memory_dir = tmp_path / "formula_memory"
+    memory_dir.mkdir()
+    eng.c_inference.binary_path = binary
+    eng.c_inference.knowledge_path = memory_dir
+    eng.c_inference.query = lambda text, strategy="formula": {
+        "response": "Химия — естественная наука о веществах.",
+        "confidence": 0.88,
+        "knowledge_hits": 0,
+        "formulas_applied": 1,
+        "query_kind": "tell",
+        "canonical_topic": "химия",
+        "definition_entity": "химия",
+        "topic_token_count": 1,
+        "digit_winner": 1,
+        "digit_consensus": 0.41,
+        "digit_votes": {"1": 10.5, "5": 4.2},
+    }
+
+    result = eng.chat("расскажи о химии", conversation_id=f"c-core-semantics-{time.time_ns()}")
+
+    assert result["method"] == "c-core-formula"
+    fd = result["formula_data"]
+    assert fd["c_query_kind"] == "tell"
+    assert fd["c_canonical_topic"] == "химия"
+    assert fd["c_definition_entity"] == "химия"
+    assert fd["c_topic_token_count"] == 1
+    assert fd["c_digit_winner"] == 1
+    assert fd["c_digit_consensus"] == pytest.approx(0.41)
+
+
+@pytest.mark.parametrize(
+    ("query", "needle"),
+    [
+        ("объясни физику", "физик"),
+        ("расскажи о химии", "хими"),
+        ("что ты знаешь о праве", "прав"),
+        ("как устроено право", "прав"),
+        ("почему важно право", "прав"),
+    ],
+)
+def test_projection_queries_use_unified_canonical_fallback(engine, monkeypatch: pytest.MonkeyPatch, query, needle):
+    """Projection-запросы должны идти через единый fallback, а не в старые explain/topic-overview ветки."""
+    monkeypatch.setattr(engine, "_enable_c_inference", False)
+    monkeypatch.setattr(engine, "_try_web_augment_answer", lambda *args, **kwargs: None)
+
+    result = engine.chat(query, conversation_id=f"projection-fallback-{abs(hash(query)) % 10000}")
+
+    assert result["method"] == "canonical-topic-fallback"
+    assert needle in result["response"].lower()
+
+
+def test_runtime_digit_vote_present_for_math_eval(engine):
+    result = engine.chat("45+678", conversation_id=f"runtime-vote-math-{time.time_ns()}")
+    assert result["method"] == "math-eval"
+    fd = result["formula_data"]
+    assert fd["runtime_vote_origin"] == "runtime"
+    assert fd["runtime_digit_winner"] == 4
+    assert float(fd["runtime_digit_votes"]["4"]) > 0.0
+
+
+def test_math_eval_now_flows_through_canonical_synthesis(engine, monkeypatch):
+    """Math query должен идти через canonical synthesis path, а не early special branch."""
+    called: dict[str, bool] = {}
+
+    def fake_synthesize(*args, **kwargs):
+        called["value"] = True
+        return ("2+2 = **4**", 0.98, "math-eval")
+
+    monkeypatch.setattr(engine, "_synthesize_response", fake_synthesize)
+
+    result = engine.chat("2+2", conversation_id="math-canonical-001")
+
+    assert called.get("value") is True
+    assert result["method"] == "math-eval"
+
+
+def test_runtime_digit_vote_present_for_dialog_context(engine):
+    conv = f"runtime-vote-context-{time.time_ns()}"
+    engine.chat("В проекте используется порт 8001 для API.", conversation_id=conv)
+    result = engine.chat("А подробнее", conversation_id=conv)
+
+    assert result["method"] == "dialog-context"
+    fd = result["formula_data"]
+    assert fd["runtime_vote_origin"] == "runtime"
+    assert float(fd["runtime_digit_votes"]["6"]) > 0.0
+    assert fd["runtime_query_kind"] == "followup"
+
+
+def test_runtime_digit_vote_present_for_c_core_formula(engine, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(engine, "_enable_c_inference", True)
+    monkeypatch.setattr(
+        engine,
+        "_is_valid_c_formula_answer",
+        lambda query, payload: bool(payload and payload.get("response")),
+    )
+
+    class DummyCInference:
+        available = True
+
+        @staticmethod
+        def query(text: str, strategy: str = "formula") -> dict[str, object]:
+            return {
+                "response": "Право — система общеобязательных норм.",
+                "confidence": 0.91,
+                "knowledge_hits": 0,
+                "formulas_applied": 1,
+                "query_kind": "knowledge",
+                "canonical_topic": "право",
+                "definition_entity": "право",
+                "topic_token_count": 1,
+                "digit_winner": 1,
+                "digit_consensus": 0.44,
+                "digit_votes": {"1": 8.5, "5": 3.2, "9": 2.1},
+            }
+
+    monkeypatch.setattr(engine, "c_inference", DummyCInference())
+
+    result = engine.chat("что ты знаешь о праве", conversation_id=f"runtime-vote-c-core-{time.time_ns()}")
+
+    assert result["method"] == "c-core-formula"
+    fd = result["formula_data"]
+    assert fd["c_digit_winner"] == 1
+    assert fd["runtime_vote_origin"] == "c-core+runtime"
+    assert float(fd["runtime_digit_votes"]["1"]) >= 8.5
+
+
+def test_dialog_context_now_flows_through_canonical_synthesis(engine, monkeypatch: pytest.MonkeyPatch):
+    """Follow-up context answer больше не должен short-circuit до _synthesize_response."""
+    called = {"value": False}
+
+    def fake_synthesize_response(**kwargs):
+        called["value"] = True
+        return ("По контексту текущего диалога: порт 8001 используется для API.", 0.56, "dialog-context")
+
+    monkeypatch.setattr(engine, "_synthesize_response", fake_synthesize_response)
+
+    conv = f"canonical-dialog-context-{time.time_ns()}"
+    engine.chat("В проекте используется порт 8001 для API.", conversation_id=conv)
+    result = engine.chat("А подробнее", conversation_id=conv)
+
+    assert called["value"] is True
+    assert result["method"] == "dialog-context"
+    assert "8001" in result["response"]
+
+
+def test_dialog_fact_ack_now_flows_through_canonical_synthesis(engine, monkeypatch: pytest.MonkeyPatch):
+    """Фактическое утверждение пользователя должно идти через _synthesize_response, а не ранний short-circuit."""
+    called = {"value": False}
+
+    def fake_synthesize_response(**kwargs):
+        called["value"] = True
+        return ("Принял. Зафиксировал в контексте: В проекте используется порт 8001 для API.", 0.78, "dialog-fact-ack")
+
+    monkeypatch.setattr(engine, "_maybe_auto_learn_from_message", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(engine, "_synthesize_response", fake_synthesize_response)
+
+    result = engine.chat(
+        "В проекте используется порт 8001 для API.",
+        conversation_id=f"canonical-dialog-fact-{time.time_ns()}",
+    )
+
+    assert called["value"] is True
+    assert result["method"] == "dialog-fact-ack"
+    assert "8001" in result["response"]
 
 
 def test_c_core_formula_accepts_definition_with_etymology_noise():
@@ -344,7 +716,24 @@ def test_capabilities_intent_handles_natural_russian_variants(engine):
     result = engine.chat("что ты уже умеешь", conversation_id="capabilities-001")
     assert result["method"] == "command"
     text = result["response"].lower()
-    assert "kolibri ai" in text or "числовое" in text
+    assert "умею" in text
+    assert "c-ядро" in text or "локальной базы знаний" in text
+
+
+def test_capabilities_now_flow_through_canonical_synthesis(engine, monkeypatch):
+    """Read-only capabilities query должен идти через canonical synthesis path."""
+    called: dict[str, bool] = {}
+
+    def fake_synthesize(*args, **kwargs):
+        called["value"] = True
+        return ("Сейчас я уже умею считать точные выражения через C-ядро.", 1.0, "command")
+
+    monkeypatch.setattr(engine, "_synthesize_response", fake_synthesize)
+
+    result = engine.chat("что ты уже умеешь", conversation_id="capabilities-canonical-001")
+
+    assert called.get("value") is True
+    assert result["method"] == "command"
 
 
 def test_architecture_query_returns_system_explanation(engine):
@@ -354,6 +743,22 @@ def test_architecture_query_returns_system_explanation(engine):
     text = result["response"].lower()
     assert "c-ядро" in text or "ядро" in text
     assert "фронтенд" in text
+
+
+def test_architecture_now_flows_through_canonical_synthesis(engine, monkeypatch):
+    """Read-only architecture query должен идти через canonical synthesis path."""
+    called: dict[str, bool] = {}
+
+    def fake_synthesize(*args, **kwargs):
+        called["value"] = True
+        return ("Kolibri устроен слоями. В центре — C-ядро.", 0.98, "kolibri-architecture")
+
+    monkeypatch.setattr(engine, "_synthesize_response", fake_synthesize)
+
+    result = engine.chat("Объясни архитектуру Kolibri простым языком", conversation_id="arch-canonical-001")
+
+    assert called.get("value") is True
+    assert result["method"] == "kolibri-architecture"
 
 
 @pytest.mark.parametrize(
@@ -369,6 +774,127 @@ def test_meta_and_boundary_intents_do_not_fall_into_retrieval(engine, query, met
     result = engine.chat(query, conversation_id=f"meta-{abs(hash(query)) % 10000}")
     assert result["method"] == method
     assert needle in result["response"].lower()
+
+
+def test_self_meta_now_flows_through_canonical_synthesis(engine, monkeypatch):
+    """Read-only self-meta query должен идти через canonical synthesis path."""
+    called: dict[str, bool] = {}
+
+    def fake_synthesize(*args, **kwargs):
+        called["value"] = True
+        return ("Да. Я умею общаться текстом и считать.", 0.98, "self-meta")
+
+    monkeypatch.setattr(engine, "_synthesize_response", fake_synthesize)
+
+    result = engine.chat("ты умеешь говорить", conversation_id="self-meta-canonical-001")
+
+    assert called.get("value") is True
+    assert result["method"] == "self-meta"
+
+
+def test_system_stats_now_flow_through_canonical_synthesis(engine, monkeypatch):
+    called: dict[str, bool] = {}
+
+    def fake_synthesize(*args, **kwargs):
+        called["value"] = True
+        return ("📊 **Kolibri AI — Числовое Мышление**", 1.0, "command")
+
+    monkeypatch.setattr(engine, "_synthesize_response", fake_synthesize)
+
+    result = engine.chat("Покажи статистику модели", conversation_id="system-stats-canonical-001")
+
+    assert called.get("value") is True
+    assert result["method"] == "command"
+    assert "kolibri" in result["response"].lower()
+
+
+def test_formula_inspect_now_flows_through_canonical_synthesis(engine, monkeypatch):
+    called: dict[str, bool] = {}
+
+    def fake_synthesize(*args, **kwargs):
+        called["value"] = True
+        return ("⚡ **Формула Kolibri (лучшая из 16)**", 1.0, "formula-inspect")
+
+    monkeypatch.setattr(engine, "_synthesize_response", fake_synthesize)
+
+    result = engine.chat("Покажи формулу", conversation_id="formula-inspect-canonical-001")
+
+    assert called.get("value") is True
+    assert result["method"] == "formula-inspect"
+
+
+def test_formula_inspect_is_not_overridden_by_ru_safe_fallback(engine, monkeypatch):
+    """Canonical formula-inspect не должен сбиваться outer language-fallback'ом."""
+    monkeypatch.setattr(
+        engine,
+        "_synthesize_response",
+        lambda *args, **kwargs: ("⚡ **Формула Kolibri (лучшая из 16)**", 1.0, "formula-inspect"),
+    )
+    monkeypatch.setattr(engine, "_response_needs_language_fallback", lambda text: True)
+    monkeypatch.setattr(engine, "_build_russian_fallback", lambda message, retrieved: "fallback")
+
+    result = engine.chat("Покажи формулу", conversation_id="formula-inspect-outer-guard-001")
+
+    assert result["method"] == "formula-inspect"
+    assert "формула kolibri" in result["response"].lower()
+
+
+def test_projection_queries_now_flow_through_canonical_synthesis(engine, monkeypatch):
+    """Projection-запросы больше не должны short-circuit'иться до _synthesize_response()."""
+    called: dict[str, bool] = {}
+
+    def fake_synthesize(*args, **kwargs):
+        called["value"] = True
+        return ("Право — система общеобязательных норм.", 0.88, "c-core-formula")
+
+    monkeypatch.setattr(engine, "_synthesize_response", fake_synthesize)
+
+    result = engine.chat("что ты знаешь о праве", conversation_id=f"projection-synth-{time.time_ns()}")
+
+    assert called.get("value") is True
+    assert result["method"] == "c-core-formula"
+
+
+def test_projection_synthesis_preserves_c_formula_payload(engine, monkeypatch):
+    """Projection-ответ из canonical synthesis должен сохранить c-core telemetry."""
+    monkeypatch.setattr(engine, "_match_c_projection_query", lambda *_args, **_kwargs: ("knowledge", "право"))
+    monkeypatch.setattr(
+        engine,
+        "_try_c_core_topic_projection_response",
+        lambda **_kwargs: {
+            "response": "Право — система общеобязательных норм.",
+            "confidence": 0.88,
+            "sources": ["c-core-formula"],
+            "method": "c-core-formula",
+            "knowledge_hits": 2,
+            "c_payload": {
+                "query_kind": "knowledge",
+                "canonical_topic": "право",
+                "digit_winner": 1,
+                "digit_consensus": 0.44,
+                "digit_votes": {"1": 2.0, "9": 0.5},
+                "formulas_applied": 3,
+                "knowledge_hits": 2,
+            },
+            "formula_data": {
+                "c_query_kind": "knowledge",
+                "c_canonical_topic": "право",
+                "c_digit_winner": 1,
+                "c_digit_consensus": 0.44,
+                "c_digit_votes": {"1": 2.0, "9": 0.5},
+            },
+            "graph_stats": {"patterns": 1},
+        },
+    )
+
+    result = engine.chat("что ты знаешь о праве", conversation_id=f"projection-payload-{time.time_ns()}")
+
+    assert result["method"] == "c-core-formula"
+    assert result["sources"] == ["c-core-formula"]
+    assert result["knowledge_hits"] == 2
+    assert result["formula_data"]["c_query_kind"] == "knowledge"
+    assert result["formula_data"]["c_canonical_topic"] == "право"
+    assert result["formula_data"]["c_digit_winner"] == 1
 
 
 def test_c_inference_warmup_uses_formula_query(tmp_path):
@@ -586,6 +1112,33 @@ def test_conversation_recap_uses_current_thread(engine):
     assert "прав" in text
 
 
+def test_conversation_recap_now_flows_through_canonical_synthesis(engine, monkeypatch):
+    """Read-only recap должен идти через canonical synthesis path."""
+    conv = "dialog-recap-canonical-001"
+    engine.chat("Меня зовут Владислав", conversation_id=conv)
+    engine.chat("Расскажи о праве", conversation_id=conv)
+
+    called: dict[str, bool] = {}
+
+    def fake_synthesize(*args, **kwargs):
+        called["value"] = True
+        return (
+            "Кратко по текущему диалогу:\n"
+            "• Вы сказали: Меня зовут Владислав.\n"
+            "• Я ответил: Право — это система норм.",
+            0.96,
+            "conversation-memory",
+        )
+
+    monkeypatch.setattr(engine, "_synthesize_response", fake_synthesize)
+
+    result = engine.chat("О чем мы говорили до этого?", conversation_id=conv)
+
+    assert called.get("value") is True
+    assert result["method"] == "conversation-memory"
+    assert "владислав" in result["response"].lower()
+
+
 def test_conversation_recap_without_context_is_safe(engine):
     """Если содержательного контекста нет, recap должен честно об этом сказать."""
     conv = "dialog-recap-empty-001"
@@ -762,8 +1315,13 @@ def test_followup_c_query_candidates_include_example_paths(engine):
     more_candidates = engine._followup_c_query_candidates("more", "право")
 
     assert "пример из право" in example_candidates
+    assert "пример применения право" in example_candidates
+    assert "пример из практики право" in example_candidates
     assert "типичный случай право" in example_candidates
     assert "где используется право" in example_candidates
+    assert "роль право" in more_candidates
+    assert "функции право" in more_candidates
+    assert "применение право" in more_candidates
     assert "пример из право" in more_candidates
     assert "типичный случай право" in more_candidates
 
@@ -793,6 +1351,18 @@ def test_extract_explicit_example_text_allows_short_example_tail(engine):
     assert "договор" in result.lower()
 
 
+def test_extract_explicit_example_text_supports_natural_markers(engine):
+    result = engine._extract_explicit_example_text(
+        "Право помогает упорядочивать общественные отношения. Например: договор фиксирует обязанности сторон.",
+        topic="право",
+    )
+
+    assert result is not None
+    text = result.lower()
+    assert "договор" in text
+    assert "обязан" in text
+
+
 def test_followup_example_mode_prefers_explicit_example_from_recent_answer(engine, monkeypatch: pytest.MonkeyPatch):
     """Если прошлый ответ уже содержит явный пример, «А пример?» должен вернуть его напрямую."""
     conv = "dialog-followup-example-recent-001"
@@ -813,6 +1383,13 @@ def test_followup_example_mode_prefers_explicit_example_from_recent_answer(engin
     assert "например" in text
     assert "договор" in text
     assert "обязан" in text or "нарушени" in text
+
+
+def test_extract_followup_directive_mode_supports_natural_example_and_more_variants(engine):
+    assert engine._extract_followup_directive_mode("Приведи пример") == "example"
+    assert engine._extract_followup_directive_mode("Поясни на примере") == "example"
+    assert engine._extract_followup_directive_mode("Что ещё важного?") == "more"
+    assert engine._extract_followup_directive_mode("Что ещё ты знаешь?") == "more"
 
 
 def test_followup_why_mode_stays_on_topic(engine):
@@ -932,6 +1509,48 @@ def test_followup_chain_keeps_topic_for_five_steps(engine):
         assert "прав" in text
 
 
+def test_followup_more_after_example_prefers_new_aspect(engine, monkeypatch: pytest.MonkeyPatch):
+    """После примера «Что ещё?» должно искать следующий аспект темы, а не ещё один пример."""
+    conv = "dialog-followup-more-after-example-001"
+    engine.chat("Расскажи о праве", conversation_id=conv)
+
+    monkeypatch.setattr(engine, "_enable_c_inference", True)
+    monkeypatch.setattr(
+        engine,
+        "_is_valid_c_formula_answer",
+        lambda query, payload: bool(payload and payload.get("response")),
+    )
+
+    class DummyCInference:
+        available = True
+
+        @staticmethod
+        def query(text: str, strategy: str = "formula") -> dict[str, object]:
+            normalized = text.lower()
+            if normalized == "пример из право":
+                return {"response": "Пример из права: договор определяет обязанности сторон."}
+            if normalized == "роль право":
+                return {"response": "Право играет роль механизма согласования правил, ответственности и защиты интересов."}
+            if normalized == "почему важно право":
+                return {"response": "Право важно для защиты законных интересов и предсказуемости общественных отношений."}
+            return {"response": ""}
+
+    monkeypatch.setattr(engine, "c_inference", DummyCInference())
+    monkeypatch.setattr(
+        engine,
+        "_get_recent_assistant_answer",
+        lambda context_window, current_query=None: "Например: договор определяет обязанности сторон.",
+    )
+    monkeypatch.setattr(engine, "_topic_summary_for_followup", lambda topic: None)
+
+    result = engine.chat("Что ещё?", conversation_id=conv)
+
+    assert result["method"] == "dialog-context"
+    text = result["response"].lower()
+    assert "роль" in text or "защит" in text or "ответствен" in text
+    assert "договор определяет обязанности сторон" not in text
+
+
 def test_followup_weather_uses_previous_user_query_for_lookup(engine, monkeypatch: pytest.MonkeyPatch):
     """Follow-up к внешней теме должен разворачиваться в предыдущий вопрос пользователя."""
     conv = "weather-followup-anchor-001"
@@ -990,6 +1609,16 @@ def test_weather_location_hint_normalizes_common_city_case(engine):
     assert "лениногор" in hint.lower()
 
 
+def test_weather_is_not_handled_as_early_special_command(engine):
+    """Погода больше не должна жить в ранней special-command ветке, а идти через canonical runtime."""
+    result = engine._handle_special_commands(
+        "Какая погода в Лениногорске?",
+        "какая погода в лениногорске?",
+        context_window=None,
+    )
+    assert result is None
+
+
 def test_weather_queries_prefer_realtime_lookup(engine, monkeypatch: pytest.MonkeyPatch):
     """Погодные вопросы должны сначала идти в realtime weather lookup."""
     calls: list[str] = []
@@ -1011,6 +1640,27 @@ def test_weather_queries_prefer_realtime_lookup(engine, monkeypatch: pytest.Monk
     assert first["method"] == "web-augment-weather"
     assert second["method"] == "web-augment-weather"
     assert any("лениногорск" in item.lower() for item in calls)
+
+
+def test_weather_queries_return_honest_unavailable_when_realtime_sources_fail(engine, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr("backend.service.ai_engine.external_network_available", lambda: True)
+    monkeypatch.setattr("backend.service.ai_engine.fetch_weather_answer", lambda *a, **k: None)
+    monkeypatch.setattr(engine, "_try_web_augment_answer", lambda *a, **k: None)
+
+    result = engine.chat("Какая погода в Сургуте?", conversation_id="weather-unavailable-001")
+
+    assert result["method"] == "weather-unavailable"
+    assert "сургут" in result["response"].lower()
+    assert "не буду подменять ответ локальной заглушкой" in result["response"].lower()
+
+
+def test_weather_queries_fail_fast_when_external_network_is_down(engine, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr("backend.service.ai_engine.external_network_available", lambda: False)
+
+    result = engine.chat("Какая погода в Сургуте?", conversation_id="weather-network-down-001")
+
+    assert result["method"] == "weather-unavailable"
+    assert "сургут" in result["response"].lower()
 
 
 def test_news_queries_prefer_realtime_digest(engine, monkeypatch: pytest.MonkeyPatch):
