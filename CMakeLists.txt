@@ -95,10 +95,27 @@ add_library(kolibri_core_objects OBJECT
     backend/src/web_crawler.c
     backend/src/fractal_memory.c
     backend/src/attention.c
+    backend/src/numeric_tokenizer.c
+    backend/src/kat_train_backprop.c
+    backend/src/math_solver.c
+    backend/src/corpus_math_trainer.c
+    backend/src/evolutionary_trainer.c
+    backend/src/swarm_learner.c
+    backend/src/swarm_network.c
+    backend/src/self_verification.c
+    backend/src/explanation_generator.c
+    backend/src/reasoning_engine.c
+    backend/src/domain_knowledge_loader.c
+    backend/src/simd_ops.c
+    backend/src/threaded_inference.c
+    backend/src/pattern_discovery.c
+    backend/src/logical_solver.c
+    backend/src/fact_extractor.c
     backend/src/world_model.c
     backend/src/vision.c
     backend/src/audio.c
     backend/src/auto_learn.c
+    backend/src/autonomous_learning.c
 )
 
 target_include_directories(kolibri_core_objects
@@ -524,6 +541,94 @@ if(KOLIBRI_ENABLE_TESTS)
     add_executable(test_attention tests/test_attention.c)
     target_link_libraries(test_attention PRIVATE kolibri_core Threads::Threads m)
     add_test(NAME test_attention COMMAND test_attention)
+
+    # NUMERIC TRANSFORMER - Numeric Tokenizer + Backprop + AdamW
+    add_executable(test_numeric_transformer tests/test_numeric_transformer.c)
+    target_link_libraries(test_numeric_transformer PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_numeric_transformer COMMAND test_numeric_transformer)
+
+    # MATH SOLVER - Symbolic Math Engine
+    add_executable(test_math_solver tests/test_math_solver.c)
+    target_link_libraries(test_math_solver PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_math_solver COMMAND test_math_solver)
+
+    # NUMERIC TOKENIZER - Math Expression Tokenizer
+    add_executable(test_numeric_tokenizer tests/test_numeric_tokenizer.c)
+    target_link_libraries(test_numeric_tokenizer PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_numeric_tokenizer COMMAND test_numeric_tokenizer)
+
+    # TRAINING PIPELINE - Corpus Math Trainer
+    add_executable(test_corpus_math_trainer tests/test_corpus_math_trainer.c)
+    target_link_libraries(test_corpus_math_trainer PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_corpus_math_trainer COMMAND test_corpus_math_trainer)
+
+    # EVOLUTIONARY TRAINER - Formula Evolution
+    add_executable(test_evolutionary_trainer tests/test_evolutionary_trainer.c)
+    target_link_libraries(test_evolutionary_trainer PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_evolutionary_trainer COMMAND test_evolutionary_trainer)
+
+    # SWARM LEARNER - Distributed Swarm Learning
+    add_executable(test_swarm_learner tests/test_swarm_learner.c)
+    target_link_libraries(test_swarm_learner PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_swarm_learner COMMAND test_swarm_learner)
+
+    add_executable(test_swarm_network tests/test_swarm_network.c)
+    target_link_libraries(test_swarm_network PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_swarm_network COMMAND test_swarm_network)
+
+    # Month 6: Quality Assurance
+    add_executable(test_self_verification tests/test_self_verification.c)
+    target_link_libraries(test_self_verification PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_self_verification COMMAND test_self_verification)
+
+    add_executable(test_explanation_generator tests/test_explanation_generator.c)
+    target_link_libraries(test_explanation_generator PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_explanation_generator COMMAND test_explanation_generator)
+
+    # Phase 3: Knowledge & Reasoning
+    add_executable(test_reasoning_engine tests/test_reasoning_engine.c)
+    target_link_libraries(test_reasoning_engine PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_reasoning_engine COMMAND test_reasoning_engine)
+
+    add_executable(test_pattern_discovery tests/test_pattern_discovery.c)
+    target_link_libraries(test_pattern_discovery PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_pattern_discovery COMMAND test_pattern_discovery)
+
+    # DOMAIN KNOWLEDGE LOADER - Physics, Chemistry, Programming, Law
+    add_executable(test_domain_knowledge_loader tests/test_domain_knowledge_loader.c)
+    target_link_libraries(test_domain_knowledge_loader PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_domain_knowledge_loader COMMAND test_domain_knowledge_loader)
+
+    # SIMD OPERATIONS - AVX2/NEON optimized vector math
+    add_executable(test_simd_ops tests/test_simd_ops.c)
+    target_link_libraries(test_simd_ops PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_simd_ops COMMAND test_simd_ops)
+
+    # THREADED INFERENCE - Multi-threaded matmul, thread pool
+    add_executable(test_threaded_inference tests/test_threaded_inference.c)
+    target_link_libraries(test_threaded_inference PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_threaded_inference COMMAND test_threaded_inference)
+
+    # Bonus: Fruit boxes puzzle
+    add_executable(test_fruit_boxes tests/test_fruit_boxes.c)
+    target_link_libraries(test_fruit_boxes PRIVATE kolibri_core Threads::Threads m)
+
+    # Bonus: 8 coins puzzle
+    add_executable(test_8_coins tests/test_8_coins.c)
+    target_link_libraries(test_8_coins PRIVATE kolibri_core Threads::Threads m)
+
+    # CLI: Reasoning engine
+    add_executable(kolibri_reason apps/kolibri_reason.c)
+    target_link_libraries(kolibri_reason PRIVATE kolibri_core Threads::Threads m)
+
+    # CLI: Logical solver
+    add_executable(kolibri_solve apps/kolibri_solve.c)
+    target_link_libraries(kolibri_solve PRIVATE kolibri_core Threads::Threads m)
+
+    # Logical solver test
+    add_executable(test_logical_solver tests/test_logical_solver.c)
+    target_link_libraries(test_logical_solver PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_logical_solver COMMAND test_logical_solver)
 
     # AGI: WORLD MODEL - предсказательная модель мира
     add_executable(test_world_model tests/test_world_model.c)

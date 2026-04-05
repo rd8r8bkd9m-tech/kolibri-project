@@ -71,7 +71,7 @@ export function LearningDashboard() {
     },
   });
 
-  const uptimeFormatted = status?.metrics.total_uptime
+  const uptimeFormatted = status?.metrics?.total_uptime
     ? formatUptime(status.metrics.total_uptime)
     : "0s";
 
@@ -143,7 +143,7 @@ export function LearningDashboard() {
         {status && (
           <Badge className="bg-sky-500/10">
             <TrendingUp className="h-3 w-3 mr-1" />
-            Curriculum: {status.metrics.curriculum.level} ({status.metrics.curriculum.source})
+            Curriculum: {status?.metrics?.curriculum?.level ?? 0} ({status?.metrics?.curriculum?.source ?? 'unknown'})
           </Badge>
         )}
       </div>
@@ -154,29 +154,29 @@ export function LearningDashboard() {
           <MetricCard
             icon={<Database className="h-5 w-5" />}
             label="Корпус"
-            value={`${status.metrics.corpus.patterns} паттернов`}
-            subvalue={`${status.metrics.corpus.edges} связей, ${status.metrics.corpus.documents} док.`}
+            value={`${status?.metrics?.corpus?.patterns ?? 0} паттернов`}
+            subvalue={`${status?.metrics?.corpus?.edges ?? 0} связей, ${status?.metrics?.corpus?.documents ?? 0} док.`}
             color="text-blue-400"
           />
           <MetricCard
             icon={<Brain className="h-5 w-5" />}
             label="Формулы"
-            value={`${status.metrics.formulas.pool_size} формул`}
-            subvalue={`Fitness: ${status.metrics.formulas.best_fitness.toFixed(4)}`}
+            value={`${status?.metrics?.formulas?.pool_size ?? 0} формул`}
+            subvalue={`Fitness: ${status?.metrics?.formulas?.best_fitness?.toFixed(4) ?? '0.0000'}`}
             color="text-purple-400"
           />
           <MetricCard
             icon={<Activity className="h-5 w-5" />}
             label="Embeddings"
-            value={`${status.metrics.embeddings.vocab_size} слов`}
-            subvalue={`Loss: ${status.metrics.embeddings.loss.toFixed(4)}`}
+            value={`${status?.metrics?.embeddings?.vocab_size ?? 0} слов`}
+            subvalue={`Loss: ${status?.metrics?.embeddings?.loss?.toFixed(4) ?? '0.0000'}`}
             color="text-green-400"
           />
           <MetricCard
             icon={<MessageSquare className="h-5 w-5" />}
             label="Диалоги"
-            value={`${status.metrics.dialogue.processed} обработано`}
-            subvalue={`${status.metrics.dialogue.facts_extracted} фактов`}
+            value={`${status?.metrics?.dialogue?.processed ?? 0} обработано`}
+            subvalue={`${status?.metrics?.dialogue?.facts_extracted ?? 0} фактов`}
             color="text-amber-400"
           />
         </div>
@@ -187,7 +187,7 @@ export function LearningDashboard() {
         <h3 className="text-sm font-medium text-slate-300 mb-2">Задачи обучения</h3>
         <ScrollArea className="flex-1">
           <div className="space-y-2">
-            {status?.tasks.map((task) => (
+            {(status?.tasks ?? []).map((task) => (
               <TaskCard key={task.name} task={task} />
             ))}
             {isLoading && (

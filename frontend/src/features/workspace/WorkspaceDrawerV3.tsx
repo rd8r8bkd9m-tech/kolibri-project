@@ -484,27 +484,27 @@ function KnowledgeGraphTab() {
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="rounded-2xl border border-foreground/6 bg-background px-3 py-3">
               <p className="text-muted">Паттерны</p>
-              <p className="mt-1 font-semibold">{analyticsQuery.data.knowledge_graph.patterns}</p>
+              <p className="mt-1 font-semibold">{analyticsQuery.data?.knowledge_graph?.patterns ?? 0}</p>
             </div>
             <div className="rounded-2xl border border-foreground/6 bg-background px-3 py-3">
               <p className="text-muted">Рёбра</p>
-              <p className="mt-1 font-semibold">{analyticsQuery.data.knowledge_graph.edges}</p>
+              <p className="mt-1 font-semibold">{analyticsQuery.data?.knowledge_graph?.edges ?? 0}</p>
             </div>
             <div className="rounded-2xl border border-foreground/6 bg-background px-3 py-3">
               <p className="text-muted">Формулы</p>
-              <p className="mt-1 font-semibold">{analyticsQuery.data.formula_pool.size}</p>
+              <p className="mt-1 font-semibold">{analyticsQuery.data?.formula_pool?.size ?? 0}</p>
             </div>
             <div className="rounded-2xl border border-foreground/6 bg-background px-3 py-3">
               <p className="text-muted">Embeddings</p>
-              <p className="mt-1 font-semibold">{analyticsQuery.data.embeddings.vocab_size}</p>
+              <p className="mt-1 font-semibold">{analyticsQuery.data?.embeddings?.vocab_size ?? 0}</p>
             </div>
             <div className="rounded-2xl border border-foreground/6 bg-background px-3 py-3">
               <p className="text-muted">Документы</p>
-              <p className="mt-1 font-semibold">{analyticsQuery.data.knowledge_graph.documents}</p>
+              <p className="mt-1 font-semibold">{analyticsQuery.data?.knowledge_graph?.documents ?? 0}</p>
             </div>
             <div className="rounded-2xl border border-foreground/6 bg-background px-3 py-3">
               <p className="text-muted">Токены</p>
-              <p className="mt-1 font-semibold">{analyticsQuery.data.knowledge_graph.tokens}</p>
+              <p className="mt-1 font-semibold">{analyticsQuery.data?.knowledge_graph?.tokens ?? 0}</p>
             </div>
           </div>
         </AppPanel>

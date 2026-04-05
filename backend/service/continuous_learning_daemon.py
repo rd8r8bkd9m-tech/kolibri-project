@@ -38,10 +38,13 @@ from .background_learning import BackgroundLearningManager, ingest_urls_via_trai
 from .number_mind import (
     KnowledgeGraph,
     FormulaPool,
+    PatternEntry,
+    KnowledgeEdge,
     word_to_pattern,
     _tokenize,
     _split_sentences,
 )
+from .persistence import get_db
 from .project_paths import get_project_root
 from .realtime_lookup import external_network_available
 
@@ -639,6 +642,13 @@ class ContinuousLearningDaemon:
             weight=2.5,
         ))
 
+        self._tasks.append(LearningTask(
+            name="swarm_sync",
+            priority=LearningPriority.HIGH,
+            fn=self._task_swarm_sync,
+            weight=3.5,
+        ))
+
         # MEDIUM priority
         self._tasks.append(LearningTask(
             name="evolve_formulas",
@@ -791,8 +801,8 @@ class ContinuousLearningDaemon:
             save_path.parent.mkdir(parents=True, exist_ok=True)
             pool.save(str(save_path))
 
-            best = pool.get_best(1)
-            best_fitness = best[0].fitness if best else 0.0
+            best = pool.best()  # Возвращает single Formula, не список
+            best_fitness = best.fitness if best else 0.0
 
             self.metrics.formula_pool_size = len(pool.formulas)
             self.metrics.formula_best_fitness = best_fitness
@@ -928,6 +938,117 @@ class ContinuousLearningDaemon:
             "weights_adjusted": sum(1 for t in error_tasks if t.error_count > 3),
         }
 
+    def _task_swarm_sync(self) -> dict:
+        """Синхронизация знаний с другими узлами роя (swarm sync)."""
+        import os
+        import requests
+        
+        try:
+            # Получаем ID этого узла и список пиров
+            node_id = os.environ.get("KOLIBRI_NODE_ID", "node_a")
+            
+            # Находим соседей из nodes.json
+            nodes_config_path = self._project_root / "swarm" / "nodes.json"
+            if not nodes_config_path.exists():
+                return {"status": "skipped", "reason": "no_nodes_config"}
+            
+            import json as json_lib
+            try:
+                nodes_config = json_lib.loads(nodes_config_path.read_text())
+                nodes_map = {n["name"]: n for n in nodes_config.get("nodes", [])}
+                my_config = nodes_map.get(node_id)
+                if not my_config:
+                    return {"status": "skipped", "reason": "node_not_in_config"}
+                
+                peers = my_config.get("peers", [])
+            except Exception:
+                peers = []
+            
+            if not peers:
+                return {"status": "skipped", "reason": "no_peers"}
+            
+            # Готовим локальное состояние для отправки
+            graph = self._get_graph()
+            pool = self._get_formula_pool()
+            
+            # Выбираем лучшие паттерны (топ-500)
+            patterns_to_send = {}
+            for i, pattern in enumerate(list(graph.patterns.keys())[:500]):
+                patterns_to_send[str(pattern)] = {"hash": pattern}
+            
+            # Отправляем лучшие формулы
+            edges_to_send = {}
+            for i, (src, dst) in enumerate(list(graph.edges.keys())[:500]):
+                edges_to_send[f"{src}_{dst}"] = {"src": src, "dst": dst}
+            
+            synced_peers = 0
+            synced_patterns = 0
+            synced_edges = 0
+            
+            # Синхронизируемся с каждым пиром
+            for peer_name in peers:
+                peer_config = nodes_map.get(peer_name)
+                if not peer_config:
+                    continue
+                
+                peer_port = peer_config.get("port", 8001)
+                peer_url = f"http://localhost:{peer_port}/api/v1/swarm/sync"
+                
+                try:
+                    response = requests.post(
+                        peer_url,
+                        json={
+                            "node_id": node_id,
+                            "epoch": self.metrics.total_cycles,
+                            "patterns": patterns_to_send,
+                            "edges": edges_to_send,
+                            "checksum": hashlib.sha256(
+                                json_lib.dumps(patterns_to_send, sort_keys=True).encode()
+                            ).hexdigest(),
+                        },
+                        timeout=5,
+                    )
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        synced_peers += 1
+                        synced_patterns += data.get("merged_patterns", 0)
+                        synced_edges += data.get("merged_edges", 0)
+                        
+                        # Получаем знания от соседа
+                        peer_patterns = data.get("patterns", {})
+                        peer_edges = data.get("edges", {})
+                        
+                        # Интегрируем в локальный граф
+                        for pattern_key, pattern_data in list(peer_patterns.items())[:100]:
+                            if pattern_key not in graph.patterns:
+                                h = pattern_data.get("hash", 0)
+                                if h > 0:
+                                    graph.patterns[h] = PatternEntry(hash=h)
+                        
+                        for edge_key, edge_data in list(peer_edges.items())[:100]:
+                            src, dst = edge_data.get("src"), edge_data.get("dst")
+                            if src and dst:
+                                graph.edges[(src, dst)] = KnowledgeEdge(src=src, dst=dst, weight=1.0)
+                        
+                        log.info(
+                            "[CLD] Synced with %s: %d patterns, %d edges",
+                            peer_name, peer_patterns.__len__(), peer_edges.__len__(),
+                        )
+                except requests.exceptions.RequestException as e:
+                    log.warning("[CLD] Sync with %s failed: %s", peer_name, str(e))
+                except Exception as e:
+                    log.warning("[CLD] Sync with %s error: %s", peer_name, str(e))
+            
+            return {
+                "status": "ok",
+                "synced_peers": synced_peers,
+                "synced_patterns": synced_patterns,
+                "synced_edges": synced_edges,
+            }
+        except Exception as exc:
+            return {"status": "error", "error": str(exc)}
+
     # -----------------------------------------------------------------------
     # Public API for dialogue learning
     # -----------------------------------------------------------------------
@@ -965,12 +1086,88 @@ class ContinuousLearningDaemon:
     def _get_graph(self) -> KnowledgeGraph:
         if self._graph is None:
             self._graph = KnowledgeGraph()
+            # Загружаем реальное состояние графа из БД (как в ai_engine)
+            self._load_graph_from_db()
         return self._graph
 
+    def _load_graph_from_db(self) -> None:
+        """Восстановить граф знаний из SQLite, чтобы демон видел реальные данные."""
+        graph = self._graph
+        if graph is None:
+            return
+        try:
+            db = get_db()
+            if not db.is_enabled():
+                return
+            
+            patterns = db.load_patterns()
+            restored_patterns = 0
+            for p in patterns:
+                h = int(p.get("hash", 0) or 0)
+                if h <= 0:
+                    continue
+                word = str(p.get("word", "") or "").strip().lower()
+                raw_pattern = p.get("pattern", [])
+                pattern: list[int] = []
+                if isinstance(raw_pattern, list):
+                    for d in raw_pattern[:64]:
+                        try:
+                            pattern.append(int(d) % 10)
+                        except (TypeError, ValueError):
+                            pattern.append(0)
+                if not pattern:
+                    fallback = word if word else str(h)
+                    pattern = word_to_pattern(fallback)
+                entry = PatternEntry(
+                    word=word or f"#{h}",
+                    pattern=pattern,
+                    hash=h,
+                    frequency=max(1, int(p.get("frequency", 1) or 1)),
+                    fitness=float(p.get("fitness", 0.0) or 0.0),
+                )
+                graph.patterns[h] = entry
+                if word:
+                    graph._hash_to_word[h] = word
+                restored_patterns += 1
+
+            edges = db.load_edges()
+            restored_edges = 0
+            for e in edges:
+                src = int(e.get("source_hash", 0) or 0)
+                tgt = int(e.get("target_hash", 0) or 0)
+                if src <= 0 or tgt <= 0 or src == tgt:
+                    continue
+                key = (min(src, tgt), max(src, tgt))
+                edge = KnowledgeEdge(
+                    source_hash=key[0],
+                    target_hash=key[1],
+                    weight=float(e.get("weight", 0.0) or 0.0),
+                    cooccurrence=max(1, int(e.get("cooccurrence", 1) or 1)),
+                )
+                graph.edges[key] = edge
+                graph._adj.setdefault(key[0], set()).add(key[1])
+                graph._adj.setdefault(key[1], set()).add(key[0])
+                restored_edges += 1
+
+            try:
+                documents_trained = int(float(db.get_meta("documents_trained", "0") or 0))
+            except (TypeError, ValueError):
+                documents_trained = 0
+            if documents_trained > 0:
+                graph.documents_trained = documents_trained
+
+            log.info(
+                "Daemon: загружено %d паттернов, %d рёбер из БД",
+                restored_patterns, restored_edges,
+            )
+        except Exception as exc:
+            log.warning("Ошибка загрузки графа из БД демоном: %s", exc)
+
     def _get_formula_pool(self) -> FormulaPool:
-        if self._formula_pool is None:
-            save_path = self._project_root / "data" / "models" / "kolibri_formulas.json"
-            self._formula_pool = FormulaPool.load_or_create(str(save_path))
+        # Перезагружаем пул с диска каждый раз, чтобы видеть обновления от ai_engine
+        # (ai_engine и daemon работают с одним файлом, но разные объекты в памяти)
+        save_path = self._project_root / "data" / "models" / "kolibri_formulas.json"
+        self._formula_pool = FormulaPool.load_or_create(str(save_path))
         return self._formula_pool
 
     def _get_background_manager(self) -> BackgroundLearningManager:
@@ -987,11 +1184,26 @@ class ContinuousLearningDaemon:
 
             pool = self._get_formula_pool()
             self.metrics.formula_pool_size = len(pool.formulas)
-            best = pool.get_best(1)
-            if best:
-                self.metrics.formula_best_fitness = best[0].fitness
-        except Exception:
-            pass
+            
+            # Получаем лучшую формулу
+            best = pool.best()  # Возвращает single Formula
+            if best and hasattr(best, 'fitness'):
+                self.metrics.formula_best_fitness = float(best.fitness)
+            elif pool.formulas:
+                # Fallback: если best() не работает, вычисляем сами
+                fitnesses = []
+                for f in pool.formulas:
+                    if hasattr(f, 'fitness'):
+                        fitnesses.append(float(f.fitness))
+                if fitnesses:
+                    self.metrics.formula_best_fitness = max(fitnesses)
+                else:
+                    self.metrics.formula_best_fitness = 0.0
+            else:
+                self.metrics.formula_best_fitness = 0.0
+            
+        except Exception as exc:
+            log.debug("Ошибка при обновлении метрик подсистем: %s", exc)
 
     # -----------------------------------------------------------------------
     # Metrics Persistence

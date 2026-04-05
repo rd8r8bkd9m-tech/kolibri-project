@@ -38,7 +38,7 @@ export function ThreadViewportV3({ mobile = false }: { mobile?: boolean }) {
   useEffect(() => {
     const payload = conversationTurnsQuery.data;
     if (!payload || thinking) return;
-    if (!payload.items.length) return;
+    if (!payload.items || !payload.items.length) return;
 
     const resolvedSessionId = payload.conversation_id || currentSessionId;
     const currentMessages = messagesBySession[currentSessionId] ?? [];

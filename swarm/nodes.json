@@ -2,18 +2,653 @@
   "nodes": [
     {
       "name": "node_a",
+      "port": 8001,
       "genome": "build/knowledge/approved/node_a/knowledge_genome.dat",
       "receive_dir": "build/swarm/inbox/node_a",
       "hmac_key_inline": "kolibri-knowledge",
-      "peers": ["node_b"]
+      "peers": [
+        "node_x1",
+        "node_b",
+        "node_f",
+        "node_t1"
+      ]
     },
     {
       "name": "node_b",
+      "port": 8002,
       "genome": "build/knowledge/approved/node_b/knowledge_genome.dat",
       "receive_dir": "build/swarm/inbox/node_b",
       "hmac_key_inline": "kolibri-knowledge",
-      "peers": ["node_a"]
+      "peers": [
+        "node_a",
+        "node_c",
+        "node_g",
+        "node_u1"
+      ]
+    },
+    {
+      "name": "node_c",
+      "port": 8003,
+      "genome": "build/knowledge/approved/node_c/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_c",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_b",
+        "node_d",
+        "node_h",
+        "node_v1"
+      ]
+    },
+    {
+      "name": "node_d",
+      "port": 8004,
+      "genome": "build/knowledge/approved/node_d/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_d",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_c",
+        "node_e",
+        "node_i",
+        "node_w1"
+      ]
+    },
+    {
+      "name": "node_e",
+      "port": 8005,
+      "genome": "build/knowledge/approved/node_e/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_e",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_d",
+        "node_f",
+        "node_j",
+        "node_x1"
+      ]
+    },
+    {
+      "name": "node_f",
+      "port": 8006,
+      "genome": "build/knowledge/approved/node_f/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_f",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_e",
+        "node_g",
+        "node_k",
+        "node_a"
+      ]
+    },
+    {
+      "name": "node_g",
+      "port": 8007,
+      "genome": "build/knowledge/approved/node_g/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_g",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_f",
+        "node_h",
+        "node_l",
+        "node_b"
+      ]
+    },
+    {
+      "name": "node_h",
+      "port": 8008,
+      "genome": "build/knowledge/approved/node_h/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_h",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_g",
+        "node_i",
+        "node_m",
+        "node_c"
+      ]
+    },
+    {
+      "name": "node_i",
+      "port": 8009,
+      "genome": "build/knowledge/approved/node_i/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_i",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_h",
+        "node_j",
+        "node_n",
+        "node_d"
+      ]
+    },
+    {
+      "name": "node_j",
+      "port": 8010,
+      "genome": "build/knowledge/approved/node_j/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_j",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_i",
+        "node_k",
+        "node_o",
+        "node_e"
+      ]
+    },
+    {
+      "name": "node_k",
+      "port": 8011,
+      "genome": "build/knowledge/approved/node_k/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_k",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_j",
+        "node_l",
+        "node_p",
+        "node_f"
+      ]
+    },
+    {
+      "name": "node_l",
+      "port": 8012,
+      "genome": "build/knowledge/approved/node_l/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_l",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_k",
+        "node_m",
+        "node_q",
+        "node_g"
+      ]
+    },
+    {
+      "name": "node_m",
+      "port": 8013,
+      "genome": "build/knowledge/approved/node_m/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_m",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_l",
+        "node_n",
+        "node_r",
+        "node_h"
+      ]
+    },
+    {
+      "name": "node_n",
+      "port": 8014,
+      "genome": "build/knowledge/approved/node_n/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_n",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_m",
+        "node_o",
+        "node_s",
+        "node_i"
+      ]
+    },
+    {
+      "name": "node_o",
+      "port": 8015,
+      "genome": "build/knowledge/approved/node_o/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_o",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_n",
+        "node_p",
+        "node_t",
+        "node_j"
+      ]
+    },
+    {
+      "name": "node_p",
+      "port": 8016,
+      "genome": "build/knowledge/approved/node_p/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_p",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_o",
+        "node_q",
+        "node_u",
+        "node_k"
+      ]
+    },
+    {
+      "name": "node_q",
+      "port": 8017,
+      "genome": "build/knowledge/approved/node_q/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_q",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_p",
+        "node_r",
+        "node_v",
+        "node_l"
+      ]
+    },
+    {
+      "name": "node_r",
+      "port": 8018,
+      "genome": "build/knowledge/approved/node_r/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_r",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_q",
+        "node_s",
+        "node_w",
+        "node_m"
+      ]
+    },
+    {
+      "name": "node_s",
+      "port": 8019,
+      "genome": "build/knowledge/approved/node_s/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_s",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_r",
+        "node_t",
+        "node_x",
+        "node_n"
+      ]
+    },
+    {
+      "name": "node_t",
+      "port": 8020,
+      "genome": "build/knowledge/approved/node_t/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_t",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_s",
+        "node_u",
+        "node_y",
+        "node_o"
+      ]
+    },
+    {
+      "name": "node_u",
+      "port": 8021,
+      "genome": "build/knowledge/approved/node_u/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_u",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_t",
+        "node_v",
+        "node_z",
+        "node_p"
+      ]
+    },
+    {
+      "name": "node_v",
+      "port": 8022,
+      "genome": "build/knowledge/approved/node_v/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_v",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_u",
+        "node_w",
+        "node_a1",
+        "node_q"
+      ]
+    },
+    {
+      "name": "node_w",
+      "port": 8023,
+      "genome": "build/knowledge/approved/node_w/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_w",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_v",
+        "node_x",
+        "node_b1",
+        "node_r"
+      ]
+    },
+    {
+      "name": "node_x",
+      "port": 8024,
+      "genome": "build/knowledge/approved/node_x/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_x",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_w",
+        "node_y",
+        "node_c1",
+        "node_s"
+      ]
+    },
+    {
+      "name": "node_y",
+      "port": 8025,
+      "genome": "build/knowledge/approved/node_y/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_y",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_x",
+        "node_z",
+        "node_d1",
+        "node_t"
+      ]
+    },
+    {
+      "name": "node_z",
+      "port": 8026,
+      "genome": "build/knowledge/approved/node_z/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_z",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_y",
+        "node_a1",
+        "node_e1",
+        "node_u"
+      ]
+    },
+    {
+      "name": "node_a1",
+      "port": 8027,
+      "genome": "build/knowledge/approved/node_a1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_a1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_z",
+        "node_b1",
+        "node_f1",
+        "node_v"
+      ]
+    },
+    {
+      "name": "node_b1",
+      "port": 8028,
+      "genome": "build/knowledge/approved/node_b1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_b1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_a1",
+        "node_c1",
+        "node_g1",
+        "node_w"
+      ]
+    },
+    {
+      "name": "node_c1",
+      "port": 8029,
+      "genome": "build/knowledge/approved/node_c1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_c1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_b1",
+        "node_d1",
+        "node_h1",
+        "node_x"
+      ]
+    },
+    {
+      "name": "node_d1",
+      "port": 8030,
+      "genome": "build/knowledge/approved/node_d1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_d1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_c1",
+        "node_e1",
+        "node_i1",
+        "node_y"
+      ]
+    },
+    {
+      "name": "node_e1",
+      "port": 8031,
+      "genome": "build/knowledge/approved/node_e1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_e1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_d1",
+        "node_f1",
+        "node_j1",
+        "node_z"
+      ]
+    },
+    {
+      "name": "node_f1",
+      "port": 8032,
+      "genome": "build/knowledge/approved/node_f1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_f1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_e1",
+        "node_g1",
+        "node_k1",
+        "node_a1"
+      ]
+    },
+    {
+      "name": "node_g1",
+      "port": 8033,
+      "genome": "build/knowledge/approved/node_g1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_g1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_f1",
+        "node_h1",
+        "node_l1",
+        "node_b1"
+      ]
+    },
+    {
+      "name": "node_h1",
+      "port": 8034,
+      "genome": "build/knowledge/approved/node_h1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_h1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_g1",
+        "node_i1",
+        "node_m1",
+        "node_c1"
+      ]
+    },
+    {
+      "name": "node_i1",
+      "port": 8035,
+      "genome": "build/knowledge/approved/node_i1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_i1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_h1",
+        "node_j1",
+        "node_n1",
+        "node_d1"
+      ]
+    },
+    {
+      "name": "node_j1",
+      "port": 8036,
+      "genome": "build/knowledge/approved/node_j1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_j1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_i1",
+        "node_k1",
+        "node_o1",
+        "node_e1"
+      ]
+    },
+    {
+      "name": "node_k1",
+      "port": 8037,
+      "genome": "build/knowledge/approved/node_k1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_k1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_j1",
+        "node_l1",
+        "node_p1",
+        "node_f1"
+      ]
+    },
+    {
+      "name": "node_l1",
+      "port": 8038,
+      "genome": "build/knowledge/approved/node_l1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_l1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_k1",
+        "node_m1",
+        "node_q1",
+        "node_g1"
+      ]
+    },
+    {
+      "name": "node_m1",
+      "port": 8039,
+      "genome": "build/knowledge/approved/node_m1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_m1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_l1",
+        "node_n1",
+        "node_r1",
+        "node_h1"
+      ]
+    },
+    {
+      "name": "node_n1",
+      "port": 8040,
+      "genome": "build/knowledge/approved/node_n1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_n1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_m1",
+        "node_o1",
+        "node_s1",
+        "node_i1"
+      ]
+    },
+    {
+      "name": "node_o1",
+      "port": 8041,
+      "genome": "build/knowledge/approved/node_o1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_o1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_n1",
+        "node_p1",
+        "node_t1",
+        "node_j1"
+      ]
+    },
+    {
+      "name": "node_p1",
+      "port": 8042,
+      "genome": "build/knowledge/approved/node_p1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_p1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_o1",
+        "node_q1",
+        "node_u1",
+        "node_k1"
+      ]
+    },
+    {
+      "name": "node_q1",
+      "port": 8043,
+      "genome": "build/knowledge/approved/node_q1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_q1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_p1",
+        "node_r1",
+        "node_v1",
+        "node_l1"
+      ]
+    },
+    {
+      "name": "node_r1",
+      "port": 8044,
+      "genome": "build/knowledge/approved/node_r1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_r1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_q1",
+        "node_s1",
+        "node_w1",
+        "node_m1"
+      ]
+    },
+    {
+      "name": "node_s1",
+      "port": 8045,
+      "genome": "build/knowledge/approved/node_s1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_s1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_r1",
+        "node_t1",
+        "node_x1",
+        "node_n1"
+      ]
+    },
+    {
+      "name": "node_t1",
+      "port": 8046,
+      "genome": "build/knowledge/approved/node_t1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_t1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_s1",
+        "node_u1",
+        "node_a",
+        "node_o1"
+      ]
+    },
+    {
+      "name": "node_u1",
+      "port": 8047,
+      "genome": "build/knowledge/approved/node_u1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_u1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_t1",
+        "node_v1",
+        "node_b",
+        "node_p1"
+      ]
+    },
+    {
+      "name": "node_v1",
+      "port": 8048,
+      "genome": "build/knowledge/approved/node_v1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_v1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_u1",
+        "node_w1",
+        "node_c",
+        "node_q1"
+      ]
+    },
+    {
+      "name": "node_w1",
+      "port": 8049,
+      "genome": "build/knowledge/approved/node_w1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_w1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_v1",
+        "node_x1",
+        "node_d",
+        "node_r1"
+      ]
+    },
+    {
+      "name": "node_x1",
+      "port": 8050,
+      "genome": "build/knowledge/approved/node_x1/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_x1",
+      "hmac_key_inline": "kolibri-knowledge",
+      "peers": [
+        "node_w1",
+        "node_a",
+        "node_e",
+        "node_s1"
+      ]
     }
   ]
 }
-

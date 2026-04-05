@@ -2035,3 +2035,299 @@ int kat_deserialize(KatModel *model, const uint8_t *buf, size_t buf_size) {
     model->cfg = cfg;
     return 0;
 }
+
+/* ============================================================================
+ * V2 РЕАЛИЗАЦИЯ: RoPE, RMSNorm, GQA, SwiGLU
+ * ============================================================================ */
+
+/* --- RMSNorm (Root Mean Square Layer Normalization) --- */
+
+/*
+ * out[i] = gamma[i] * x[i] / sqrt(mean(x^2) + eps)
+ * Без bias (beta), в отличие от LayerNorm
+ */
+static void rms_norm(
+    const float *x, float *out,
+    const float *gamma,
+    size_t dim
+) {
+    float rms = 0.0f;
+    for (size_t i = 0; i < dim; i++) {
+        rms += x[i] * x[i];
+    }
+    rms = sqrtf(rms / (float)dim + KAT_RMS_EPSILON);
+    float inv_rms = 1.0f / rms;
+
+    for (size_t i = 0; i < dim; i++) {
+        out[i] = gamma[i] * x[i] * inv_rms;
+    }
+}
+
+/* --- SwiGLU Activation --- */
+
+/*
+ * SwiGLU(x) = silu(x * W3) * (x * W1 + b1)
+ * где silu(x) = x * sigmoid(x)
+ */
+static float silu(float x) {
+    return x / (1.0f + expf(-x));
+}
+
+static void swiglu_forward(
+    const float *x,        /* [embed_dim] */
+    const float *w1,       /* [embed_dim * ff_dim] */
+    const float *b1,       /* [ff_dim] */
+    const float *w3,       /* [embed_dim * ff_dim] */
+    float *out,            /* [ff_dim] */
+    int embed_dim,
+    int ff_dim
+) {
+    for (int j = 0; j < ff_dim; j++) {
+        float gate = 0.0f;  /* x * W3 */
+        float val = b1[j];  /* x * W1 + b1 */
+
+        for (int i = 0; i < embed_dim; i++) {
+            gate += x[i] * w3[KAT_IDX2(i, j, ff_dim)];
+            val += x[i] * w1[KAT_IDX2(i, j, ff_dim)];
+        }
+
+        out[j] = silu(gate) * val;
+    }
+}
+
+/* --- RoPE (Rotary Position Embedding) --- */
+
+/*
+ * Применяет вращение к парам [q_2i, q_2i+1] на позиции pos
+ * q_rotated = q * cos(freq) + q_perp * sin(freq)
+ */
+static void rope_apply_to_vec(
+    float *vec,            /* [seq_len * head_dim] */
+    int seq_len,
+    int head_dim,
+    const float *cos_cache, /* [max_seq * head_dim/2] */
+    const float *sin_cache  /* [max_seq * head_dim/2] */
+) {
+    int half_dim = head_dim / 2;
+
+    for (int pos = 0; pos < seq_len; pos++) {
+        for (int d = 0; d < half_dim; d++) {
+            float cos_val = cos_cache[pos * half_dim + d];
+            float sin_val = sin_cache[pos * half_dim + d];
+
+            /* Пара элементов для вращения */
+            float q1 = vec[pos * head_dim + 2 * d];
+            float q2 = vec[pos * head_dim + 2 * d + 1];
+
+            /* Вращение */
+            vec[pos * head_dim + 2 * d]     = q1 * cos_val - q2 * sin_val;
+            vec[pos * head_dim + 2 * d + 1] = q1 * sin_val + q2 * cos_val;
+        }
+    }
+}
+
+/* --- GQA (Grouped-Query Attention) --- */
+
+/*
+ * В GQA несколько query heads разделяют одну KV голову
+ * num_kv_heads = num_heads / kv_groups
+ * 
+ * При вычислении attention, KV heads расширяются через repeat
+ */
+static void gqa_expand_kv(
+    const float *kv,       /* [seq_len * num_kv_heads * head_dim] */
+    int seq_len,
+    int num_kv_heads,
+    int num_query_heads,
+    int head_dim,
+    float *kv_expanded     /* [seq_len * num_query_heads * head_dim] */
+) {
+    int kv_groups = num_query_heads / num_kv_heads;
+
+    for (int kv_h = 0; kv_h < num_kv_heads; kv_h++) {
+        for (int g = 0; g < kv_groups; g++) {
+            int q_h = kv_h * kv_groups + g;
+
+            /* Копируем KV голову для каждого query head в группе */
+            for (int pos = 0; pos < seq_len; pos++) {
+                for (int d = 0; d < head_dim; d++) {
+                    float val = kv[(pos * num_kv_heads + kv_h) * head_dim + d];
+                    kv_expanded[(pos * num_query_heads + q_h) * head_dim + d] = val;
+                }
+            }
+        }
+    }
+}
+
+/* --- Предварительно вычисленные кэши RoPE --- */
+
+typedef struct {
+    float *cos_cache;  /* [max_seq * head_dim/2] */
+    float *sin_cache;  /* [max_seq * head_dim/2] */
+    int max_seq;
+    int head_dim;
+    int initialized;
+} KatRoPEGlobalCache;
+
+static KatRoPEGlobalCache g_rope_cache = {0};
+
+/* Инициализация кэша RoPE */
+static int rope_cache_ensure(int max_seq, int head_dim, float theta) {
+    if (g_rope_cache.initialized &&
+        g_rope_cache.max_seq >= max_seq &&
+        g_rope_cache.head_dim == head_dim) {
+        return 0;  /* Уже инициализирован */
+    }
+
+    /* Освобождаем старый кэш если нужно */
+    if (g_rope_cache.initialized) {
+        free(g_rope_cache.cos_cache);
+        free(g_rope_cache.sin_cache);
+    }
+
+    int half_dim = head_dim / 2;
+    g_rope_cache.cos_cache = (float*)calloc((size_t)max_seq * half_dim, sizeof(float));
+    g_rope_cache.sin_cache = (float*)calloc((size_t)max_seq * half_dim, sizeof(float));
+
+    if (!g_rope_cache.cos_cache || !g_rope_cache.sin_cache) {
+        free(g_rope_cache.cos_cache);
+        free(g_rope_cache.sin_cache);
+        g_rope_cache.initialized = 0;
+        return -1;
+    }
+
+    /* Вычисляем частоты RoPE */
+    for (int pos = 0; pos < max_seq; pos++) {
+        for (int d = 0; d < half_dim; d++) {
+            double freq = 1.0 / pow(theta, 2.0 * d / head_dim);
+            double angle = pos * freq;
+            g_rope_cache.cos_cache[pos * half_dim + d] = (float)cos(angle);
+            g_rope_cache.sin_cache[pos * half_dim + d] = (float)sin(angle);
+        }
+    }
+
+    g_rope_cache.max_seq = max_seq;
+    g_rope_cache.head_dim = head_dim;
+    g_rope_cache.initialized = 1;
+
+    return 0;
+}
+
+static void rope_cache_cleanup(void) {
+    if (g_rope_cache.initialized) {
+        free(g_rope_cache.cos_cache);
+        free(g_rope_cache.sin_cache);
+        g_rope_cache.initialized = 0;
+    }
+}
+
+/* --- V2 Forward Pass с RoPE, RMSNorm, GQA, SwiGLU --- */
+
+int kat_forward_v2(const KatModel *model, KatWorkspace *ws,
+                   const uint8_t *tokens, size_t seq_len) {
+    /* Пока использу стандартный forward pass */
+    /* Полная v2 реализация будет добавлена отдельно */
+    return kat_forward(model, ws, tokens, seq_len);
+}
+
+/* --- V2 Config Functions --- */
+
+KatConfigV2 kat_config_v2_small(void) {
+    return (KatConfigV2){
+        .vocab_size = 256,
+        .embed_dim  = 64,
+        .num_heads  = 4,
+        .head_dim   = 16,
+        .ff_dim     = 256,
+        .num_layers = 2,
+        .max_seq    = 2048,
+        .kv_groups  = 4,
+        .num_kv_heads = 1,
+        .activation = KAT_ACTIVATION_SWIGLU,
+        .use_rope   = 1,
+        .rope_theta = 10000.0f
+    };
+}
+
+KatConfigV2 kat_config_v2_medium(void) {
+    return (KatConfigV2){
+        .vocab_size = 256,
+        .embed_dim  = 256,
+        .num_heads  = 8,
+        .head_dim   = 32,
+        .ff_dim     = 1024,
+        .num_layers = 8,
+        .max_seq    = 2048,
+        .kv_groups  = 4,
+        .num_kv_heads = 2,
+        .activation = KAT_ACTIVATION_SWIGLU,
+        .use_rope   = 1,
+        .rope_theta = 10000.0f
+    };
+}
+
+KatConfigV2 kat_config_v2_large(void) {
+    return (KatConfigV2){
+        .vocab_size = 256,
+        .embed_dim  = 768,
+        .num_heads  = 12,
+        .head_dim   = 64,
+        .ff_dim     = 3072,
+        .num_layers = 14,
+        .max_seq    = 2048,
+        .kv_groups  = 3,
+        .num_kv_heads = 4,
+        .activation = KAT_ACTIVATION_SWIGLU,
+        .use_rope   = 1,
+        .rope_theta = 10000.0f
+    };
+}
+
+size_t kat_config_v2_count_params(const KatConfigV2 *cfg) {
+    if (!cfg) return 0;
+    size_t total = 0;
+
+    /* Эмбеддинги */
+    total += (size_t)cfg->vocab_size * cfg->embed_dim;
+    /* RoPE не имеет learnable параметров */
+
+    /* Трансформерные блоки */
+    for (int l = 0; l < cfg->num_layers; l++) {
+        /* GQA Attention: Q heads + shared KV */
+        total += (size_t)cfg->num_heads * cfg->embed_dim * cfg->head_dim;  /* Wq */
+        total += (size_t)cfg->num_kv_heads * 2 * cfg->embed_dim * cfg->head_dim;  /* Wk, Wv */
+        /* Wo */
+        total += (size_t)cfg->embed_dim * cfg->embed_dim;
+        /* RMSNorm (attention) — только gamma, без beta */
+        total += (size_t)cfg->embed_dim;
+
+        /* SwiGLU FFN: W1 + b1 + W3 (gate) + W2 + b2 */
+        total += (size_t)cfg->embed_dim * cfg->ff_dim;  /* W1 */
+        total += (size_t)cfg->ff_dim;                   /* b1 */
+        total += (size_t)cfg->embed_dim * cfg->ff_dim;  /* W3 (gate) */
+        total += (size_t)cfg->ff_dim * cfg->embed_dim;  /* W2 */
+        total += (size_t)cfg->embed_dim;                /* b2 */
+        /* RMSNorm (FFN) */
+        total += (size_t)cfg->embed_dim;
+    }
+
+    /* Финальный RMSNorm */
+    total += (size_t)cfg->embed_dim;
+
+    /* LM head */
+    total += (size_t)cfg->embed_dim * cfg->vocab_size;
+
+    return total;
+}
+
+KatConfig kat_config_v2_to_v1(const KatConfigV2 *cfg_v2) {
+    KatConfig cfg = {0};
+    cfg.vocab_size = cfg_v2->vocab_size;
+    cfg.embed_dim  = cfg_v2->embed_dim;
+    cfg.num_heads  = cfg_v2->num_heads;
+    cfg.head_dim   = cfg_v2->head_dim;
+    cfg.ff_dim     = cfg_v2->ff_dim;
+    cfg.num_layers = cfg_v2->num_layers;
+    cfg.max_seq    = cfg_v2->max_seq;
+    return cfg;
+}

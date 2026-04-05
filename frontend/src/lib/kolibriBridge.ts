@@ -1,3 +1,5 @@
+import KolibriCoreModule from './kolibriCoreModule';
+
 export interface KolibriContextTurn {
   prompt: string;
   answer: string;
@@ -37,7 +39,6 @@ interface KolibriWasmExports {
   _kolibri_bridge_init(): number;
   _kolibri_bridge_reset(): number;
   _kolibri_bridge_execute(programPtr: number, outputPtr: number, outputCapacity: number): number;
-  /* New UX APIs */
   _kolibri_bridge_query(queryPtr: number, outputPtr: number, outputCapacity: number): number;
   _kolibri_bridge_query_json(queryPtr: number, outputPtr: number, outputCapacity: number): number;
   _kolibri_bridge_create_conversation(idPtr: number): number;
@@ -55,14 +56,9 @@ interface KolibriWasmExports {
 }
 
 const OUTPUT_CAPACITY = 8192;
-const WASM_RESOURCE_URL = "/kolibri.wasm";
 const RESPONSE_MODE = (import.meta.env.VITE_KOLIBRI_RESPONSE_MODE ?? "script").toLowerCase();
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder("utf-8");
-
-const WASI_ERRNO_SUCCESS = 0;
-const WASI_ERRNO_INVAL = 28;
-const WASI_FILETYPE_CHARACTER_DEVICE = 2;
 
 function escapeScriptString(value: string): string {
   return value
@@ -102,146 +98,45 @@ function buildProgram(
   return `${lines.join("\n")}\n`;
 }
 
-class WasiAdapter {
-  private memory: WebAssembly.Memory | null = null;
-  private view: DataView | null = null;
-
-  attach(memory: WebAssembly.Memory): void {
-    this.memory = memory;
-    this.view = new DataView(memory.buffer);
-  }
-
-  private ensureView(): DataView {
-    if (!this.memory) throw new Error("WASI memory is not initialised");
-    if (!this.view || this.view.buffer !== this.memory.buffer) {
-      this.view = new DataView(this.memory.buffer);
-    }
-    return this.view;
-  }
-
-  get imports(): Record<string, Record<string, WebAssembly.ImportValue>> {
-    return {
-      wasi_snapshot_preview1: {
-        args_get: () => WASI_ERRNO_SUCCESS,
-        args_sizes_get: (argcPtr: number, argvBufSizePtr: number) => {
-          const view = this.ensureView();
-          view.setUint32(argcPtr, 0, true);
-          view.setUint32(argvBufSizePtr, 0, true);
-          return WASI_ERRNO_SUCCESS;
-        },
-        environ_get: () => WASI_ERRNO_SUCCESS,
-        environ_sizes_get: (countPtr: number, sizePtr: number) => {
-          const view = this.ensureView();
-          view.setUint32(countPtr, 0, true);
-          view.setUint32(sizePtr, 0, true);
-          return WASI_ERRNO_SUCCESS;
-        },
-        fd_close: () => WASI_ERRNO_SUCCESS,
-        fd_fdstat_get: (_fd: number, statPtr: number) => {
-          const view = this.ensureView();
-          for (let offset = 0; offset < 24; offset += 1) view.setUint8(statPtr + offset, 0);
-          view.setUint8(statPtr, WASI_FILETYPE_CHARACTER_DEVICE);
-          return WASI_ERRNO_SUCCESS;
-        },
-        fd_seek: () => WASI_ERRNO_INVAL,
-        fd_write: (_fd: number, iovsPtr: number, iovsLen: number, nwrittenPtr: number) => {
-          const view = this.ensureView();
-          let bytesWritten = 0;
-          for (let index = 0; index < iovsLen; index += 1) {
-            const len = view.getUint32(iovsPtr + index * 8 + 4, true);
-            bytesWritten += len;
-          }
-          view.setUint32(nwrittenPtr, bytesWritten >>> 0, true);
-          view.setUint32(nwrittenPtr + 4, Math.floor(bytesWritten / 2 ** 32) >>> 0, true);
-          return WASI_ERRNO_SUCCESS;
-        },
-        proc_exit: (status: number) => {
-          throw new Error(`WASI program exited with code ${status}`);
-        },
-        random_get: (ptr: number, len: number) => {
-          if (!this.memory) return WASI_ERRNO_INVAL;
-          const bytes = new Uint8Array(this.memory.buffer, ptr, len);
-          if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
-            crypto.getRandomValues(bytes);
-          } else {
-            for (let i = 0; i < len; i += 1) bytes[i] = Math.floor(Math.random() * 256);
-          }
-          return WASI_ERRNO_SUCCESS;
-        },
-        clock_time_get: (_clockId: number, _precision: number, timePtr: number) => {
-          const view = this.ensureView();
-          const nowMs =
-            typeof performance !== "undefined" && typeof performance.now === "function"
-              ? performance.timeOrigin + performance.now()
-              : Date.now();
-          const nowNs = BigInt(Math.floor(nowMs * 1_000_000));
-          if (typeof view.setBigUint64 === "function") {
-            view.setBigUint64(timePtr, nowNs, true);
-          } else {
-            const low = Number(nowNs & BigInt(0xffffffff));
-            const high = Number((nowNs >> BigInt(32)) & BigInt(0xffffffff));
-            view.setUint32(timePtr, low >>> 0, true);
-            view.setUint32(timePtr + 4, high >>> 0, true);
-          }
-          return WASI_ERRNO_SUCCESS;
-        },
-      },
-    };
-  }
-}
-
-function resolveMemory(exports: WebAssembly.Exports): WebAssembly.Memory {
-  const memory = (exports as Record<string, unknown>).memory;
-  if (memory instanceof WebAssembly.Memory) return memory;
-  throw new Error("WASM-модуль не экспортирует память");
-}
-
 function resolveFunction(exports: WebAssembly.Exports, candidates: readonly string[]): (...args: number[]) => number {
   const lookup = exports as Record<string, unknown>;
   for (const name of candidates) {
     const candidate = lookup[name];
-    if (typeof candidate === "function") {
-      return candidate as (...args: number[]) => number;
-    }
+    if (typeof candidate === "function") return candidate as (...args: number[]) => number;
   }
   throw new Error(`WASM-модуль не экспортирует ${candidates.join(", ")}`);
 }
 
-function createExports(rawExports: WebAssembly.Exports, wasi: WasiAdapter): KolibriWasmExports {
-  const memory = resolveMemory(rawExports);
-  wasi.attach(memory);
-  const resolve = (candidates: string[]) =>
-    resolveFunction(rawExports, candidates) as (...args: number[]) => number;
+function createExports(rawExports: WebAssembly.Exports): KolibriWasmExports {
+  const memory = rawExports.memory as WebAssembly.Memory;
+  if (!(memory instanceof WebAssembly.Memory)) throw new Error("WASM-модуль не экспортирует память");
+  const resolve = (candidates: string[]) => resolveFunction(rawExports, candidates) as (...args: number[]) => number;
   return {
     memory,
     _malloc: resolve(["_malloc", "malloc"]) as (size: number) => number,
     _free: resolve(["_free", "free"]) as (ptr: number) => void,
     _kolibri_bridge_init: resolve(["_kolibri_bridge_init", "kolibri_bridge_init"]) as () => number,
     _kolibri_bridge_reset: resolve(["_kolibri_bridge_reset", "kolibri_bridge_reset"]) as () => number,
-    _kolibri_bridge_execute: resolve(
-      ["_kolibri_bridge_execute", "kolibri_bridge_execute"],
-    ) as (programPtr: number, outputPtr: number, outputCapacity: number) => number,
-    /* New UX APIs — optional, may not be present in older WASM builds */
-    _kolibri_bridge_query: resolve(["_kolibri_bridge_query", "kolibri_bridge_query"]) as (queryPtr: number, outputPtr: number, outputCapacity: number) => number,
-    _kolibri_bridge_query_json: resolve(["_kolibri_bridge_query_json", "kolibri_bridge_query_json"]) as (queryPtr: number, outputPtr: number, outputCapacity: number) => number,
-    _kolibri_bridge_create_conversation: resolve(["_kolibri_bridge_create_conversation", "kolibri_bridge_create_conversation"]) as (idPtr: number) => number,
-    _kolibri_bridge_delete_conversation: resolve(["_kolibri_bridge_delete_conversation", "kolibri_bridge_delete_conversation"]) as (idPtr: number) => number,
-    _kolibri_bridge_send_message: resolve(["_kolibri_bridge_send_message", "kolibri_bridge_send_message"]) as (convIdPtr: number, msgPtr: number, outputPtr: number, outputCapacity: number) => number,
+    _kolibri_bridge_execute: resolve(["_kolibri_bridge_execute", "kolibri_bridge_execute"]) as (a: number, b: number, c: number) => number,
+    _kolibri_bridge_query: resolve(["_kolibri_bridge_query", "kolibri_bridge_query"]) as (a: number, b: number, c: number) => number,
+    _kolibri_bridge_query_json: resolve(["_kolibri_bridge_query_json", "kolibri_bridge_query_json"]) as (a: number, b: number, c: number) => number,
+    _kolibri_bridge_create_conversation: resolve(["_kolibri_bridge_create_conversation", "kolibri_bridge_create_conversation"]) as (a: number) => number,
+    _kolibri_bridge_delete_conversation: resolve(["_kolibri_bridge_delete_conversation", "kolibri_bridge_delete_conversation"]) as (a: number) => number,
+    _kolibri_bridge_send_message: resolve(["_kolibri_bridge_send_message", "kolibri_bridge_send_message"]) as (a: number, b: number, c: number, d: number) => number,
     _kolibri_bridge_get_progress_state: resolve(["_kolibri_bridge_get_progress_state", "kolibri_bridge_get_progress_state"]) as () => number,
     _kolibri_bridge_get_progress_value: resolve(["_kolibri_bridge_get_progress_value", "kolibri_bridge_get_progress_value"]) as () => number,
     _kolibri_bridge_get_progress_detail: resolve(["_kolibri_bridge_get_progress_detail", "kolibri_bridge_get_progress_detail"]) as () => number,
     _kolibri_bridge_get_thinking: resolve(["_kolibri_bridge_get_thinking", "kolibri_bridge_get_thinking"]) as () => number,
     _kolibri_bridge_cancel_query: resolve(["_kolibri_bridge_cancel_query", "kolibri_bridge_cancel_query"]) as () => void,
-    _kolibri_bridge_batch_query: resolve(["_kolibri_bridge_batch_query", "kolibri_bridge_batch_query"]) as (queriesPtrPtr: number, queryCount: number, outputPtr: number, outputCapacity: number) => number,
+    _kolibri_bridge_batch_query: resolve(["_kolibri_bridge_batch_query", "kolibri_bridge_batch_query"]) as (a: number, b: number, c: number, d: number) => number,
     _kolibri_bridge_get_memory_usage: resolve(["_kolibri_bridge_get_memory_usage", "kolibri_bridge_get_memory_usage"]) as () => number,
-    _kolibri_bridge_health: resolve(["_kolibri_bridge_health", "kolibri_bridge_health"]) as (outputPtr: number, outputCapacity: number) => number,
-    _kolibri_bridge_set_stream_callback: resolve(["_kolibri_bridge_set_stream_callback", "kolibri_bridge_set_stream_callback"]) as (callbackPtr: number, userDataPtr: number) => void,
+    _kolibri_bridge_health: resolve(["_kolibri_bridge_health", "kolibri_bridge_health"]) as (a: number, b: number) => number,
+    _kolibri_bridge_set_stream_callback: resolve(["_kolibri_bridge_set_stream_callback", "kolibri_bridge_set_stream_callback"]) as (a: number, b: number) => void,
   };
 }
 
 class KolibriWasmBridge {
   private exports: KolibriWasmExports | null = null;
-  private readonly wasi = new WasiAdapter();
   private initPromise: Promise<void> | null = null;
   private streamCallback: StreamCallback | null = null;
 
@@ -442,31 +337,10 @@ class KolibriWasmBridge {
   }
 
   private async initialise(): Promise<void> {
-    const imports = this.wasi.imports;
-    let instance: WebAssembly.Instance;
-    if ("instantiateStreaming" in WebAssembly) {
-      try {
-        const streaming = await WebAssembly.instantiateStreaming(fetch(WASM_RESOURCE_URL), imports);
-        instance = streaming.instance;
-      } catch {
-        const response = await fetch(WASM_RESOURCE_URL);
-        if (!response.ok) {
-          throw new Error(`Не удалось загрузить kolibri.wasm: ${response.status}`);
-        }
-        const bytes = await response.arrayBuffer();
-        const loaded = await WebAssembly.instantiate(bytes, imports);
-        instance = loaded.instance;
-      }
-    } else {
-      const response = await fetch(WASM_RESOURCE_URL);
-      if (!response.ok) {
-        throw new Error(`Не удалось загрузить kolibri.wasm: ${response.status}`);
-      }
-      const bytes = await response.arrayBuffer();
-      const loaded = await WebAssembly.instantiate(bytes, imports);
-      instance = loaded.instance;
-    }
-    this.exports = createExports(instance.exports, this.wasi);
+    const mod = await KolibriCoreModule({
+      locateFile: (p: string) => `/src/lib/${p}`
+    });
+    this.exports = createExports(mod as unknown as WebAssembly.Exports);
     const status = this.exports._kolibri_bridge_init();
     if (status !== 0) {
       throw new Error(`Не удалось инициализировать C-ядро Kolibri (код ${status})`);
