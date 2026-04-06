@@ -162,6 +162,11 @@ class RealBridge:
                     if not conv_id or conv_id in self.last_conv_ids:
                         continue
                     
+                    # Skip global:: conversations
+                    if conv_id.startswith("global::"):
+                        self.last_conv_ids.add(conv_id)
+                        continue
+                    
                     # Get conversation turns
                     try:
                         turns_r = await client.get(
