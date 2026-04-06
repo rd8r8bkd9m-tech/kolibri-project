@@ -465,7 +465,7 @@ static void handle_chat(int fd, const char *body, int stream) {
             while (before > message && *(before-1) >= '0' && *(before-1) <= '9') before--;
             strncpy(num1, before, x - before);
             num1[x - before] = '\0';
-            const char *after = x + (x[1] == '*' ? 2 : (x[0] == ' ' && x[1] == 'у' ? 9 : 1));
+            const char *after = x + (x[1] == '*' ? 2 : 1);
             const char *end = after;
             while (*end >= '0' && *end <= '9') end++;
             if (end > after) { strncpy(num2, after, end - after); num2[end-after] = '\0'; op = 1; }
@@ -772,6 +772,7 @@ static void handle_chat(int fd, const char *body, int stream) {
     }
 
 done:
+    {
     double elapsed = now_ms() - t0;
     char safe[4096];
     json_escape(safe, answer, sizeof(safe));
@@ -798,6 +799,7 @@ done:
             "\"confidence\":%.4f,\"duration_ms\":%.1f}",
             safe, conversation_id, method, confidence, elapsed);
         send_json(fd, 200, "OK", resp);
+    }
     }
 }
 
@@ -1349,7 +1351,7 @@ int main(int argc, char *argv[]) {
             printf("  ✅ Corpus Trainer: loaded 100K facts\n");
         } else if (stat("knowledge/knowledge_base.md", &kb_st) == 0) {
             klm_train_file(g_corpus, "knowledge/knowledge_base.md");
-            printf("  ✅ Corpus Trainer: loaded knowledge_base.md (%ld bytes)\n", kb_st.st_size);
+            printf("  ✅ Corpus Trainer: loaded knowledge_base.md (%lld bytes)\n", (long long)kb_st.st_size);
         } else {
             klm_train_text(g_corpus, "Искусственный интеллект — область информатики", 50);
             klm_train_text(g_corpus, "Машинное обучение позволяет компьютерам учиться на данных", 63);
