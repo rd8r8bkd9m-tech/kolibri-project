@@ -23,6 +23,10 @@ const SOURCES = [
     { name: 'kolibriai_ru',  url: 'https://kolibriai.ru',            timeout: 60000 },
 ];
 
+// ─── Known facts cache for learning ───
+const learnedFacts = new Map();  // question → answer
+const PEER_PUSH_INTERVAL = 120000;  // Push to peers every 2 min
+
 /**
  * Попробовать kolibri_swarm endpoint
  * Возвращает { answer, source, confidence, ... } или null

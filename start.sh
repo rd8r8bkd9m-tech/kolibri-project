@@ -54,10 +54,35 @@ fi
 cd "$ROOT" && ./kolibri_http 8001 &
 BPID=$!
 sleep 2
-echo "✅ Kolibri HTTP Server: Full C-Core"
+echo "✅ Kolibri HTTP Server: C-Core"
 echo "   Modules: reasoning, world_model, corpus, formula, fractal, autolearn"
-echo "   Endpoints: /api/v1/ai/chat, /api/v1/world_model/*, /api/v1/corpus/*,"
-echo "              /api/v1/fractal/*, /api/v1/autolearn/status"
+
+# Start kolibri_swarm_mac
+if [ -f "$ROOT/kolibri_swarm_mac" ]; then
+    echo "🐝 Starting kolibri_swarm_mac :8002..."
+    mkdir -p "$ROOT/knowledge/swarm"
+    # Merge shards if needed
+    if [ -f "$ROOT/knowledge/swarm/node1_knowledge.md" ] && [ -f "$ROOT/knowledge/swarm/node2_knowledge.md" ]; then
+        cat "$ROOT/knowledge/swarm/node1_knowledge.md" "$ROOT/knowledge/swarm/node2_knowledge.md" > "$ROOT/knowledge/knowledge_base.md"
+    fi
+    cd "$ROOT" && ./kolibri_swarm_mac 8002 --peer 217.60.249.157:8001 < /dev/null &>/tmp/kolibri_swarm_mac.log &
+    SWARM_PID=$!
+    sleep 2
+    echo "✅ Swarm node: 20K+ facts, peer to Node 1"
+fi
+
+# Start hybrid proxy
+if [ -f "$ROOT/kolibri_mac_proxy.js" ]; then
+    echo "🔗 Starting hybrid proxy :8003..."
+    cd "$ROOT" && nohup node kolibri_mac_proxy.js > /tmp/kolibri_mac_proxy.log 2>&1 &
+    PROXY_PID=$!
+    sleep 3
+    echo "✅ Hybrid proxy: swarm → Node1 → kolibriai.ru"
+fi
+
+sleep 1
+echo ""
+echo "🌐 http://localhost:3000 → proxy → :8003 → all sources"
 sleep 1
 
 # Start frontend
@@ -66,5 +91,5 @@ VPID=$!
 sleep 3
 
 echo "✅ http://localhost:3000"
-trap "kill $BPID $VPID 2>/dev/null; exit 0" INT TERM
+trap "kill $BPID $SWARM_PID $PROXY_PID $VPID 2>/dev/null; exit 0" INT TERM
 wait $VPID
