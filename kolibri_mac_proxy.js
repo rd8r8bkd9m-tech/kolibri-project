@@ -37,7 +37,7 @@ async function trySwarm(source, body) {
         const data = JSON.stringify(body);
         const isHttps = source.url.startsWith('https');
         const lib = isHttps ? https : http;
-        
+
         const req = lib.request(url, {
             method: 'POST',
             timeout: source.timeout,
@@ -52,8 +52,11 @@ async function trySwarm(source, body) {
                 try {
                     const json = JSON.parse(raw);
                     const ans = json.response || '';
-                    // Проверяем что это реальный ответ
-                    if (ans && ans.length > 5 && !ans.includes('Нет точного ответа')) {
+                    // Require meaningful answer (not empty, not fallback, at least 15 chars)
+                    if (ans && ans.length > 15 && 
+                        !ans.includes('Нет точного ответа') && 
+                        !ans.includes('Попробуйте вопрос') &&
+                        !ans.includes('Доступно')) {
                         resolve({ ...json, source: source.name });
                         return;
                     }
