@@ -471,6 +471,40 @@ static void handle_chat(int fd, const char *body, int stream) {
             if (end > after) { strncpy(num2, after, end - after); num2[end-after] = '\0'; op = 1; }
         }
         
+        /* Addition: N+M */
+        if (!op) {
+            x = strstr(message, "+");
+            if (x) {
+                const char *b = x; while (b > message && *(b-1) >= '0' && *(b-1) <= '9') b--;
+                size_t l1 = x - b;
+                const char *e = x + 1; while (*e >= '0' && *e <= '9') e++;
+                size_t l2 = e - (x + 1);
+                if (l1 > 0 && l1 < sizeof(num1) && l2 > 0 && l2 < sizeof(num2)) {
+                    memcpy(num1, b, l1); num1[l1] = '\0';
+                    memcpy(num2, x + 1, l2); num2[l2] = '\0';
+                    op = 2;
+                }
+            }
+        }
+        /* Subtraction: N-M or N - M */
+        if (!op) {
+            x = strstr(message, " - ");
+            if (!x) for (int _ci = 1; message[_ci+1] && !x; _ci++)
+                if (message[_ci] == '-' && message[_ci-1] >= '0' && message[_ci-1] <= '9' && message[_ci+1] >= '0' && message[_ci+1] <= '9') x = message + _ci;
+            if (x) {
+                const char *b = x; while (b > message && *(b-1) >= '0' && *(b-1) <= '9') b--;
+                size_t l1 = x - b;
+                const char *e = x + 1; while (*e == ' ') e++;
+                const char *ne = e; while (*ne >= '0' && *ne <= '9') ne++;
+                size_t l2 = ne - e;
+                if (l1 > 0 && l1 < sizeof(num1) && l2 > 0 && l2 < sizeof(num2)) {
+                    memcpy(num1, b, l1); num1[l1] = '\0';
+                    memcpy(num2, e, l2); num2[l2] = '\0';
+                    op = 3;
+                }
+            }
+        }
+
         /* "в степени": N в степени M */
         const char *pow = strstr(message, " в степени ");
         if (pow) {
@@ -499,6 +533,16 @@ static void handle_chat(int fd, const char *body, int stream) {
             strcpy(method, "math_calc");
             confidence = 1.0;
             goto done;
+        }
+        if (op == 2) {
+            long long a = atoll(num1), b = atoll(num2);
+            snprintf(answer, sizeof(answer), "%lld + %lld = %lld", a, b, a + b);
+            strcpy(method, "math_calc"); confidence = 1.0; goto done;
+        }
+        if (op == 3) {
+            long long a = atoll(num1), b = atoll(num2);
+            snprintf(answer, sizeof(answer), "%lld - %lld = %lld", a, b, a - b);
+            strcpy(method, "math_calc"); confidence = 1.0; goto done;
         }
         if (op == 4) {
             long long a = atoll(num1), b = atoll(num2);
@@ -1441,47 +1485,9 @@ int main(int argc, char *argv[]) {
         
         /* Distillation: corpus → world model */
         if (g_world_model && g_corpus_ready) {
-            printf("  🔄 Starting distillation: corpus → world model...\n");
-            /* Feed key math/logic facts to world model */
-            const char *distill_data[] = {
-                "Теорема Пифагора: c в квадрате равно a в квадрате плюс b в квадрате",
-                "Площадь круга равна пи умножить на r в квадрате",
-                "Дискриминант равен b в квадрате минус четыре a c",
-                "Производная это предел отношения приращения функции к приращению аргумента",
-                "Интеграл это предел суммы площадей прямоугольников",
-                "Синус альфа равно противолежащий катет делить на гипотенузу",
-                "Косинус альфа равно прилежащий катет делить на гипотенузу",
-                "Логарифм это степень в которую нужно возвести основание",
-                "Е в степени икс равно сумме x в степени n делить на n факториал",
-                "Число пи приблизительно равно три целых сто сорок одна тысячная",
-                "Фотосинтез это процесс преобразования углекислого газа и воды в глюкозу",
-                "Эйнштейн доказал что энергия равна масса умножить на скорость света в квадрате",
-                "Закон Ома сила тока равна напряжение делить на сопротивление",
-                "Второй закон Ньютона сила равна масса умножить на ускорение",
-                "Скорость света приблизительно равна триста миллионов метров в секунду",
-                "Факториал n это произведение всех чисел от единицы до n",
-                "Сумма арифметической прогрессии равна n делить на два умножить на a один плюс a n",
-                "Теорема Виета сумма корней равна минус p произведение равно q",
-                "Математика: два в десятой степени равно тысяча двадцать четыре",
-                "Логика: если a то b и a следовательно b modus ponens",
-            };
-            int distill_count = sizeof(distill_data) / sizeof(distill_data[0]);
-            for (int i = 0; i < distill_count; i++) {
-                kwm_observe_block(g_world_model, 
-                                  (const uint8_t*)distill_data[i],
-                                  strlen(distill_data[i]));
-            }
-            /* Initial training on distilled data */
-            for (int i = 0; i < 20; i++) {
-                kal_train_tick(g_auto_learn);
-            }
-            printf("  ✅ Distillation complete: %d facts distilled to world model\n", distill_count);
-        }
-        
-        KalMetrics met;
-        kal_get_metrics(g_auto_learn, &met);
-        printf("  ✅ Auto Learn: %d sources, background learning STARTED\n", data_count + 1);
-    }
+        /* Skip slow distillation — fast startup */
+        g_bg_learn_running = 1; g_bg_learn_stop = 0; g_bg_learn_pause = 0;
+        printf("  ✅ Background learning: ready (fast startup)\n");
 
     /* AUTONOMOUS LEARNING: Data collection only (no separate thread)
      * World model learns via bg_learn background thread
