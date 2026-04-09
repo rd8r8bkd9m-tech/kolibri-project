@@ -468,10 +468,6 @@ static void handle_chat(int fd, const char *body, int stream) {
         const char *x = strstr(message, " × ");
         if (!x) x = strstr(message, " * ");
         if (!x) x = strstr(message, " умножить ");
-        /* Also try compact: N*M (no spaces) */
-        if (!x) for (int _ci = 1; message[_ci + 1]; _ci++)
-            if (message[_ci] == '*' && message[_ci-1] >= '0' && message[_ci-1] <= '9' && message[_ci+1] >= '0' && message[_ci+1] <= '9')
-                { x = message + _ci; break; }
         if (x) {
             const char *before = x;
             while (before > message && *(before-1) >= '0' && *(before-1) <= '9') before--;
@@ -1224,7 +1220,7 @@ static void handle_autolearn_control(int fd, const char *body) {
     
     if (strcmp(action, "start") == 0) {
         if (!g_bg_learn_running) {
-            // bg_learn_start();
+            bg_learn_start();
             send_json(fd, 200, "OK", "{\"status\":\"started\"}");
         } else {
             send_json(fd, 200, "OK", "{\"status\":\"already_running\"}");
@@ -1404,10 +1400,10 @@ int main(int argc, char *argv[]) {
         struct stat kb_st;
         if (stat("knowledge/knowledge_100k.md", &kb_st) == 0) {
             printf("  📚 Loading 100K knowledge base (%.1f MB)...\n", kb_st.st_size / 1048576.0);
-            // klm_train_file(g_corpus, "knowledge/knowledge_100k.md");
+            klm_train_file(g_corpus, "knowledge/knowledge_100k.md");
             printf("  ✅ Corpus Trainer: loaded 100K facts\n");
         } else if (stat("knowledge/knowledge_base.md", &kb_st) == 0) {
-            // klm_train_file(g_corpus, "knowledge/knowledge_base.md");
+            klm_train_file(g_corpus, "knowledge/knowledge_base.md");
             printf("  ✅ Corpus Trainer: loaded knowledge_base.md (%lld bytes)\n", (long long)kb_st.st_size);
         } else {
             klm_train_text(g_corpus, "Искусственный интеллект — область информатики", 50);
@@ -1494,10 +1490,10 @@ int main(int argc, char *argv[]) {
         g_auto_ready = 1;
         
         /* START BACKGROUND LEARNING THREAD with distillation */
-        // bg_learn_start();
+        bg_learn_start();
         
         /* Distillation: corpus → world model */
-        if (0 && g_world_model && g_corpus_ready) { /* disabled: slow startup */
+        if (g_world_model && g_corpus_ready) {
             printf("  🔄 Starting distillation: corpus → world model...\n");
             /* Feed key math/logic facts to world model */
             const char *distill_data[] = {
@@ -1530,7 +1526,7 @@ int main(int argc, char *argv[]) {
             }
             /* Initial training on distilled data */
             for (int i = 0; i < 20; i++) {
-                // kal_train_tick(g_auto_learn);
+                kal_train_tick(g_auto_learn);
             }
             printf("  ✅ Distillation complete: %d facts distilled to world model\n", distill_count);
         }
