@@ -36,7 +36,7 @@ extern "C" {
 /* Начальные размеры хеш-таблиц (степени двойки для быстрого modulo) */
 /* ЛИМИТЫ СНЯТЫ: таблицы растут динамически через рехеширование */
 #ifndef KLM_INITIAL_PATTERNS
-#define KLM_INITIAL_PATTERNS    524288      /* Начальный размер: 128K слов */
+#define KLM_INITIAL_PATTERNS    2097152      /* Начальный размер: 128K слов */
 #endif
 #ifndef KLM_INITIAL_EDGES
 #define KLM_INITIAL_EDGES       1048576      /* Начальный размер: 256K рёбер */
@@ -44,7 +44,7 @@ extern "C" {
 
 /* Обратная совместимость (старый код компилируется) */
 #ifndef KLM_MAX_PATTERNS
-#define KLM_MAX_PATTERNS        2097152
+#define KLM_MAX_PATTERNS        8388608
 #endif
 #ifndef KLM_MAX_EDGES
 #define KLM_MAX_EDGES           4194304

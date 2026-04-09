@@ -899,7 +899,23 @@ done: {
  * OTHER ENDPOINTS
  * ============================================================================ */
 
-static void handle_health(int fd) { send_json(fd, 200, "OK", "{\"status\":\"ok\",\"backend\":\"C-core\"}"); }
+static void handle_health(int fd) {
+    size_t corpus_patterns = 0, corpus_edges = 0;
+    if (g_corpus && g_corpus_ready) {
+        KlmTrainerStats st = klm_get_stats(g_corpus);
+        corpus_patterns = st.patterns_learned;
+        corpus_edges = st.edges_created;
+    }
+    size_t formula_count = 0;
+    if (g_formula_pool) formula_count = g_formula_pool->association_count;
+    char resp[512];
+    snprintf(resp, sizeof(resp),
+        "{\"status\":\"ok\",\"backend\":\"C-core\","
+        "\"corpus_patterns\":%zu,\"corpus_edges\":%zu,\"formula_pool\":%zu,"
+        "\"world_model_ready\":%d,\"reasoning\":true}",
+        corpus_patterns, corpus_edges, formula_count, g_world_model_ready);
+    send_json(fd, 200, "OK", resp);
+}
 
 static void handle_models(int fd) {
     send_json(fd, 200, "OK",
@@ -1242,7 +1258,7 @@ static void handle_autolearn_control(int fd, const char *body) {
 
     if (strcmp(action, "start") == 0) {
         if (!g_bg_learn_running) {
-            // bg_learn_start(); /* disabled: slow startup */
+            bg_learn_start();
             send_json(fd, 200, "OK", "{\"status\":\"started\"}");
         } else {
             send_json(fd, 200, "OK", "{\"status\":\"already_running\"}");
@@ -1496,19 +1512,15 @@ int main(int argc, char *argv[]) {
         KlmTrainerStats st = klm_get_stats(g_corpus);
         printf("  ✅ Corpus: %zu patterns, %zu edges (fast startup)\n", st.patterns_learned, st.edges_created);
 
-        /* Background KB loading thread */
-        struct stat kb_st;
-        if (stat("knowledge/knowledge_100k.md", &kb_st) == 0) {
-            printf("  📚 Background: loading 100K KB (%.1f MB)...\n", kb_st.st_size / 1048576.0);
-            pthread_t kb_thread;
-            pthread_create(&kb_thread, NULL, (void *(*)(void *))klm_train_file, g_corpus);
-            pthread_detach(kb_thread);
-        } else if (stat("knowledge/knowledge_base.md", &kb_st) == 0) {
-            printf("  📚 Background: loading knowledge_base.md (%.1f MB)...\n", kb_st.st_size / 1048576.0);
-            pthread_t kb_thread;
-            pthread_create(&kb_thread, NULL, (void *(*)(void *))klm_train_file, g_corpus);
-            pthread_detach(kb_thread);
+        /* Load QA knowledge base (fast — 120 Q&A, ~14KB) */
+        struct stat qa_st;
+        if (stat("knowledge/knowledge_base_qa.md", &qa_st) == 0) {
+            printf("  📚 Loading QA knowledge base (%ld bytes)...\n", (long)qa_st.st_size);
+            klm_train_file(g_corpus, "knowledge/knowledge_base_qa.md");
         }
+        KlmTrainerStats st2 = klm_get_stats(g_corpus);
+        printf("  ✅ Corpus: %zu patterns, %zu edges (QA loaded)\n",
+               st2.patterns_learned, st2.edges_created);
     }
 
     /* Init Formula Pool — formula-based Q&A */
@@ -1578,7 +1590,7 @@ int main(int argc, char *argv[]) {
         g_auto_ready = 1;
 
         /* START BACKGROUND LEARNING THREAD with distillation */
-        // bg_learn_start(); /* disabled: slow startup */
+        bg_learn_start();
 
         /* Distillation: corpus → world model — disabled for fast startup */
         /* (world model learns from chat and background thread) */
