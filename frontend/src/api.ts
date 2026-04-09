@@ -36,6 +36,13 @@ export interface StreamChatResult {
   confidence?: number;
   sources?: number;
   thinking?: string;
+  /* Estimator / project metadata */
+  productMode?: string;
+  projectActive?: boolean;
+  domainMode?: string;
+  estimateStage?: string;
+  projectKind?: string;
+  projectAreaM2?: number;
 }
 
 /* #22. Markdown rendering support */
