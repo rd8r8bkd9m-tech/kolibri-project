@@ -44,10 +44,10 @@ if [ $HTTP_NEED_BUILD -eq 1 ]; then
             break
         fi
     done
-    cc -O2 -I "$ROOT/backend/include" -I "$ROOT/backend/include/kolibri" $OPENSSL_INC \
+    cc -std=c23 -O2 -I "$ROOT/backend/include" -I "$ROOT/backend/include/kolibri" $OPENSSL_INC \
         -o "$ROOT/kolibri_http" \
         "$ROOT/backend/src/kolibri_http_server.c" "$ROOT/build/libkolibri_core.a" \
-        $OPENSSL_LIB -lm -lpthread
+        $OPENSSL_LIB -lm -lpthread -lsqlite3
 fi
 
 # Start backend
