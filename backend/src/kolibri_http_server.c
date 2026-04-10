@@ -28,6 +28,65 @@
 #include "kolibri/reasoning_engine.h"
 #include "kolibri/self_verification.h"
 
+/* Forward declarations */
+static void str_lower(const char *src, char *dst, int max);
+static const char *find_chemistry_answer(const char *message);
+
+static const char *find_chemistry_answer(const char *message) {
+    static const char *chemistry_lookup[][2] = {{"вода", "Вода — H₂O (2 атома водорода + 1 атом кислорода)"},
+                                                {"формула воды", "H₂O — вода"},
+                                                {"h2o", "H₂O — вода (оксид водорода)"},
+                                                {"углекислый газ", "CO₂ — углекислый газ"},
+                                                {"формула углекислого", "CO₂ — углекислый газ"},
+                                                {"co2", "CO₂ — углекислый газ"},
+                                                {"кислород", "O₂ — молекулярный кислород"},
+                                                {"формула кислорода", "O₂ — молекулярный кислород"},
+                                                {"водород", "H₂ — молекулярный водород"},
+                                                {"формула водорода", "H₂ — молекулярный водород"},
+                                                {"поваренная соль", "NaCl — хлорид натрия (поваренная соль)"},
+                                                {"формула соли", "NaCl — хлорид натрия"},
+                                                {"nacl", "NaCl — хлорид натрия (поваренная соль)"},
+                                                {"серная кислота", "H₂SO₄ — серная кислота"},
+                                                {"соляная кислота", "HCl — соляная (хлороводородная) кислота"},
+                                                {"формула соляной", "HCl — соляная кислота"},
+                                                {"аммиак", "NH₃ — аммиак"},
+                                                {"метан", "CH₄ — метан (простейший углеводород)"},
+                                                {"этанол", "C₂H₅OH — этиловый спирт (этанол)"},
+                                                {"глюкоза", "C₆H₁₂O₆ — глюкоза"},
+                                                {"озон", "O₃ — озон (аллотропная модификация кислорода)"},
+                                                {"пероксид", "H₂O₂ — пероксид водорода"},
+                                                {"азот", "N₂ — молекулярный азот"},
+                                                {"формула азота", "N₂ — молекулярный азот"},
+                                                {"угарный газ", "CO — угарный газ (монооксид углерода)"},
+                                                {"формула угля", "C — углерод (графит, алмаз)"},
+                                                {"моль", "Моль — единица количества вещества (6.022 × 10²³ частиц)"},
+                                                {"число авогадро", "N_A = 6.022 × 10²³ моль⁻¹"},
+                                                {NULL, NULL}};
+
+    char msg_lower[512];
+    str_lower(message, msg_lower, sizeof(msg_lower));
+
+    const char *best_answer = NULL;
+    int best_score = 0;
+
+    printf("  DEBUG find_chem: msg_lower='%s' (len=%zu)\n", msg_lower, strlen(msg_lower));
+    for (int i = 0; chemistry_lookup[i][0]; i++) {
+        const char *key = chemistry_lookup[i][0];
+        const char *ans = chemistry_lookup[i][1];
+        const char *found = strstr(msg_lower, key);
+        if (i < 5) printf("  DEBUG find_chem[%d]: key='%s', found=%s\n", i, key, found ? "YES" : "no");
+        if (found) {
+            int score = strlen(key);
+            printf("  DEBUG chemistry: matched key='%s', score=%d\n", key, score);
+            if (score > best_score) {
+                best_score = score;
+                best_answer = ans;
+            }
+        }
+    }
+    return best_answer;
+}
+
 /* ===== KNOWLEDGE & MEMORY ===== */
 #include "kolibri/fractal_memory.h"
 #include "kolibri/knowledge_index.h"
@@ -597,17 +656,26 @@ static void str_lower(const char *src, char *dst, int max) {
     while (src[i] && i < max - 1) {
         unsigned char c = (unsigned char)src[i];
         if (c >= 0x41 && c <= 0x5A) {
+            /* Latin uppercase A-Z → a-z */
             dst[i] = c + 0x20;
             i++;
         } else if (c == 0xD0 && i + 1 < max - 1) {
+            /* Cyrillic UTF-8 D0 xx */
             unsigned char c2 = (unsigned char)src[i + 1];
-            if (c2 >= 0x90 && c2 <= 0xAF) {
+            if (c2 == 0x81) {
+                /* Ё (D0 81) → ё (D1 91) */
+                dst[i] = 0xD1;
+                dst[i + 1] = 0x91;
+                i += 2;
+            } else if (c2 >= 0x90 && c2 <= 0x9F) {
+                /* А-П (D0 90..9F) → а-п (D0 B0..BF) */
                 dst[i] = 0xD0;
                 dst[i + 1] = c2 + 0x20;
                 i += 2;
-            } else if (c2 == 0x81) {
-                dst[i] = 0xD0;
-                dst[i + 1] = 0xB5;
+            } else if (c2 >= 0xA0 && c2 <= 0xAF) {
+                /* Р-Я (D0 A0..AF) → р-я (D1 80..8F) */
+                dst[i] = 0xD1;
+                dst[i + 1] = c2 - 0x20;
                 i += 2;
             } else {
                 dst[i] = c;
@@ -642,6 +710,59 @@ static const char *find_math_qa(const char *message) {
         }
     }
     return best_answer;
+}
+
+/* Try to evaluate compact arithmetic expressions: "7 умножить на 8", "2+2", "10-3" */
+static int kolibri_try_compact_math(const char *message, double *result_out, char *op_out, size_t op_out_size) {
+    if (!message || !result_out || !op_out)
+        return -1;
+
+    char lower[512];
+    {
+        int i = 0;
+        for (; message[i] && i < 511; i++) {
+            unsigned char c = (unsigned char)message[i];
+            lower[i] = (c >= 'A' && c <= 'Z') ? (c + 32) : c;
+        }
+        lower[i] = '\0';
+    }
+
+    /* "X умножить на Y" */
+    double a = 0.0, b = 0.0;
+    if (sscanf(lower, "%lf умножить на %lf", &a, &b) == 2) {
+        *result_out = a * b;
+        snprintf(op_out, op_out_size, "%.0f x %.0f", a, b);
+        return 0;
+    }
+
+    /* "X + Y", "X - Y", "X * Y", "X / Y" */
+    char op_char = 0;
+    if (sscanf(lower, "%lf %c %lf", &a, &op_char, &b) == 3) {
+        switch (op_char) {
+        case '+':
+            *result_out = a + b;
+            break;
+        case '-':
+            *result_out = a - b;
+            break;
+        case '*':
+        case 'x':
+            *result_out = a * b;
+            break;
+        case '/':
+            if (b != 0)
+                *result_out = a / b;
+            else
+                return -1;
+            break;
+        default:
+            return -1;
+        }
+        snprintf(op_out, op_out_size, "%.0f %c %.0f", a, op_char, b);
+        return 0;
+    }
+
+    return -1;
 }
 
 #define CHAT_STATE_MAX 32
@@ -1065,6 +1186,78 @@ static void handle_chat(int fd, const char *body, int stream) {
     double parsed_a = 0.0, parsed_b = 0.0, parsed_c = 0.0;
     char parsed_equation[256] = {0};
     str_lower(message, message_lower, sizeof(message_lower));
+    printf("  DEBUG handle_chat: message='%s', message_lower='%s'\n", message, message_lower);
+
+    /* === EARLY INTENT CLASSIFICATION FOR ROUTING === */
+    KolibriIntent classified_intent = KIC_INTENT_UNKNOWN;
+    if (g_rl_ready) {
+        KolibriIntentResult intent_result;
+        if (kolibri_ic_classify(&g_intent_classifier, message, &intent_result) == 0) {
+            classified_intent = intent_result.primary_intent;
+            strcpy(runtime_query_kind, kolibri_ic_intent_name(classified_intent));
+        }
+    }
+
+    /* === INTENT-BASED EARLY ROUTING === */
+    /* Route math intents to math solver */
+    if (classified_intent == KIC_INTENT_MATH_PROBLEM) {
+        /* Try compact arithmetic first: "7 умножить на 8", "2+2", "10-3" */
+        double math_result = 0.0;
+        char math_op[64] = {0};
+        if (kolibri_try_compact_math(message, &math_result, math_op, sizeof(math_op)) == 0) {
+            snprintf(answer, sizeof(answer), "%s = %.0f", math_op, math_result);
+            strcpy(method, "math_compact");
+            strcpy(runtime_query_kind, "math");
+            strcpy(runtime_digit_winner, "math_compact");
+            confidence = 0.99;
+            goto done;
+        }
+    }
+
+    /* === KEYWORD-BASED MATH DETECTION (fallback when intent fails) === */
+    /* Detect "X умножить на Y" pattern explicitly */
+    {
+        double mult_a = 0.0, mult_b = 0.0;
+        if (sscanf(message_lower, "%lf умножить на %lf", &mult_a, &mult_b) == 2) {
+            double mult_result = mult_a * mult_b;
+            snprintf(answer, sizeof(answer), "%.0f × %.0f = %.0f", mult_a, mult_b, mult_result);
+            strcpy(method, "math_multiply");
+            strcpy(runtime_query_kind, "math");
+            strcpy(runtime_digit_winner, "math_multiply");
+            confidence = 0.99;
+            goto done;
+        }
+    }
+
+    /* Route logic puzzles to reasoning */
+    if (classified_intent == KIC_INTENT_LOGIC_PUZZLE) {
+        /* Will fall through to reasoning engine below */
+        strcpy(runtime_query_kind, "logic");
+    }
+
+    /* === CHEMISTRY DOMAIN DETECTION === */
+    int is_chemistry = strstr(message_lower, "формула") || strstr(message_lower, "веществ") ||
+                       strstr(message_lower, "элемент") || strstr(message_lower, "реакци") ||
+                       strstr(message_lower, "молекул") || strstr(message_lower, "атом") ||
+                       strstr(message_lower, "h2o") || strstr(message_lower, "co2") || strstr(message_lower, "o2") ||
+                       strstr(message_lower, "nacl") ||
+                       /* Also check original message for cyrillic */
+                       strstr(message, "формула") || strstr(message, "веществ") || strstr(message, "элемент") ||
+                       strstr(message, "реакци");
+    if (is_chemistry) {
+        printf("  DEBUG: chemistry detected for '%s'\n", message);
+        /* Try chemistry knowledge base lookup */
+        const char *chem_answer = find_chemistry_answer(message);
+        printf("  DEBUG: chemistry answer = %s\n", chem_answer ? chem_answer : "(null)");
+        if (chem_answer) {
+            snprintf(answer, sizeof(answer), "%s", chem_answer);
+            strcpy(method, "chemistry");
+            strcpy(runtime_query_kind, "chemistry");
+            strcpy(runtime_digit_winner, "chemistry");
+            confidence = 0.9;
+            goto done;
+        }
+    }
 
     ChatConversationState *state = get_chat_state(conversation_id, conversation_id[0] != '\0');
     int conversation_turns = state ? state->turn_count + 1 : 1;
@@ -1153,13 +1346,12 @@ static void handle_chat(int fd, const char *body, int stream) {
     }
 
     /* === DOMAIN KEYWORD DETECTION (before reasoning to avoid cross-domain confusion) === */
-    /* Chemistry keywords */
-    int is_chemistry = strstr(message, "водород") || strstr(message, "Водород") || strstr(message, "кислород") ||
-                       strstr(message, "Кислород") || strstr(message, "реакци") || strstr(message, "Реакци") ||
-                       strstr(message, "химическ") || strstr(message, "Химическ") || strstr(message, "нейтрализ") ||
-                       strstr(message, "горен") || strstr(message, "NaOH") || strstr(message, "HCl") ||
-                       strstr(message, "метан") || strstr(message, "сульфид");
-    if (is_chemistry) {
+    /* Chemistry keywords (merged with early detection above) */
+    int is_chem_kw = strstr(message, "водород") || strstr(message, "кислород") || strstr(message, "реакци") ||
+                     strstr(message, "химическ") || strstr(message, "нейтрализ") || strstr(message, "горен") ||
+                     strstr(message, "NaOH") || strstr(message, "HCl") || strstr(message, "метан") ||
+                     strstr(message, "сульфид");
+    if (is_chem_kw && !is_chemistry) {
         snprintf(answer, sizeof(answer),
                  "Водород H2 горит в кислороде O2: 2H2 + O2 → 2H2O (реакция горения). "
                  "Метан: CH4 + 2O2 → CO2 + 2H2O. Нейтрализация: HCl + NaOH → NaCl + H2O. "
