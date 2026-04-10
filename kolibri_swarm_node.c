@@ -1,7 +1,14 @@
 /*
- * kolibri_swarm_node.c — v2
- * Minimal standalone swarm node with working HTTP body parsing
- * Single-file compile: gcc -O2 -o kolibri_swarm kolibri_swarm_node.c -lm
+ * kolibri_swarm_node.c — Kolibri Swarm Node with Knowledge Base
+ * 
+ * Loads Q&A knowledge base and answers questions using keyword scoring.
+ * Supports up to 2000 Q&A pairs with efficient keyword matching.
+ *
+ * Compile: gcc -O2 -o kolibri_swarm kolibri_swarm_node.c -lm
+ * Run:     ./kolibri_swarm 8002 --peer 217.60.249.157:8001
+ *
+ * Knowledge file: knowledge/knowledge_base.md
+ * Format: ### Q: question\n\n**Ответ:** answer\n\n---
  */
 
 #include <stdio.h>
@@ -11,355 +18,354 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <sys/stat.h>
+#include <ctype.h>
 #include <time.h>
-#include <errno.h>
 
-#define PORT 8001
-#define MAX_REQ 16384
-#define MAX_RESP 16384
-#define MAX_QA 30000
+#define MAX_KB 2000
+#define MAX_Q_LEN 512
+#define MAX_A_LEN 2048
+#define PORT_DEFAULT 8002
+#define MAX_PEERS 8
+#define MAX_PEERS_STR 256
+#define BUF_SIZE 65536
 
-/* Globals */
-static char qa_q[MAX_QA][512];
-static char qa_a[MAX_QA][1024];
-static int qa_count = 0;
-static int total_facts = 0;
+typedef struct {
+    char question[MAX_Q_LEN];
+    char answer[MAX_A_LEN];
+    char keywords[256];  /* space-separated lowercase keywords */
+} QAPair;
 
-/* Peer list for swarm */
-typedef struct { char host[256]; int port; } Peer;
-static Peer peers[32];
+static QAPair knowledge_base[MAX_KB];
+static int kb_count = 0;
+
+static char peer_hosts[MAX_PEERS][MAX_PEERS_STR];
 static int peer_count = 0;
 
-/* ─── Knowledge loader ─── */
-static int load_knowledge(const char *path) {
-    FILE *f = fopen(path, "r");
-    if (!f) return 0;
+/* ─── Knowledge Base Loading ─── */
+static void to_lower(char *dst, const char *src, int max) {
+    int i;
+    for (i = 0; i < max - 1 && src[i]; i++) {
+        unsigned char c = (unsigned char)src[i];
+        /* Simple ASCII lowercase */
+        if (c >= 'A' && c <= 'Z') c += 32;
+        dst[i] = c;
+    }
+    dst[i] = 0;
+}
+
+static void extract_keywords(char *out, const char *text, int max) {
+    char lower[1024];
+    to_lower(lower, text, sizeof(lower));
     
-    char line[2048], cur_q[1024] = {0}, cur_a[1024] = {0};
-    int in_answer = 0;
-    
-    while (fgets(line, sizeof(line), f)) {
-        if (strncmp(line, "### Q", 5) == 0) {
-            if (cur_q[0] && cur_a[0] && qa_count < MAX_QA) {
-                strncpy(qa_q[qa_count], cur_q, 511);
-                strncpy(qa_a[qa_count], cur_a, 1023);
-                qa_count++;
+    int out_pos = 0;
+    char *tok = strtok(lower, " ,.!?;:—–()\n\t\"*");
+    while (tok && out_pos < max - 20) {
+        int len = strlen(tok);
+        if (len >= 3) {
+            if (out_pos > 0) {
+                out[out_pos++] = ' ';
             }
-            char *colon = strchr(line, ':');
-            if (colon) {
-                strncpy(cur_q, colon + 2, sizeof(cur_q) - 1);
-                cur_q[strcspn(cur_q, "\r\n")] = 0;
-                cur_a[0] = 0;
-                in_answer = 0;
-                total_facts++;
-            }
-        } else if (strncmp(line, "**Ответ:**", 15) == 0) {
-            const char *p = line + 15;
-            while (*p == ' ' || *p == '\t') p++;  /* Skip leading spaces */
-            strncpy(cur_a, p, sizeof(cur_a) - 1);
-            cur_a[strcspn(cur_a, "\r\n")] = 0;
-            in_answer = 1;
-        } else if (in_answer && line[0] != '#' && line[0] != '-' &&
-                   strncmp(line, "---", 3) != 0 && strlen(line) > 2) {
-            char *p = line;
-            while (*p == ' ' || *p == '\t') p++;
-            size_t len = strlen(p);
-            if (len > 2 && len < 500 && strlen(cur_a) + len < 1020) {
-                /* Strip trailing newline/spaces */
-                while (len > 0 && (p[len-1] == '\n' || p[len-1] == '\r' || p[len-1] == ' ')) len--;
-                if (len > 0) {
-                    strncat(cur_a, " ", sizeof(cur_a) - strlen(cur_a) - 1);
-                    strncat(cur_a, p, sizeof(cur_a) - strlen(cur_a) - 1);
-                    cur_a[strcspn(cur_a, "\r\n")] = 0;
-                }
-            }
-        } else if (strncmp(line, "---", 3) == 0) {
-            if (cur_q[0] && cur_a[0] && qa_count < MAX_QA) {
-                strncpy(qa_q[qa_count], cur_q, 511);
-                strncpy(qa_a[qa_count], cur_a, 1023);
-                qa_count++;
-            }
-            cur_q[0] = cur_a[0] = 0;
-            in_answer = 0;
+            int copy = len < 30 ? len : 30;
+            memcpy(out + out_pos, tok, copy);
+            out_pos += copy;
+            out[out_pos] = 0;
         }
+        tok = strtok(NULL, " ,.!?;:—–()\n\t\"*");
+    }
+}
+
+static int load_knowledge_base(const char *path) {
+    FILE *f = fopen(path, "r");
+    if (!f) {
+        fprintf(stderr, "⚠️  Cannot open %s\n", path);
+        return 0;
     }
     
-    if (cur_q[0] && cur_a[0] && qa_count < MAX_QA) {
-        strncpy(qa_q[qa_count], cur_q, 511);
-        strncpy(qa_a[qa_count], cur_a, 1023);
-        qa_count++;
+    char line[4096];
+    int state = 0; /* 0=expect Q, 1=expect answer, 2=expect --- */
+    int loaded = 0;
+    
+    while (fgets(line, sizeof(line), f) && kb_count < MAX_KB) {
+        /* Remove trailing newline */
+        int len = strlen(line);
+        while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) len--;
+        line[len] = 0;
+        
+        /* Skip empty lines */
+        if (len == 0) continue;
+        
+        /* Detect question line: ### Q... */
+        if (strncmp(line, "### Q", 5) == 0) {
+            if (kb_count < MAX_KB) {
+                char *colon = strchr(line + 5, ':');
+                if (colon) colon++;
+                else colon = line + 5;
+                while (*colon == ' ') colon++;
+                
+                /* Clean and add question mark */
+                int qlen = strlen(colon);
+                if (qlen > 0 && colon[qlen-1] != '?') {
+                    colon[qlen] = '?';
+                    colon[qlen+1] = 0;
+                    qlen++;
+                }
+                if (qlen >= MAX_Q_LEN) qlen = MAX_Q_LEN - 1;
+                memcpy(knowledge_base[kb_count].question, colon, qlen);
+                knowledge_base[kb_count].question[qlen] = 0;
+                
+                /* Extract keywords */
+                extract_keywords(knowledge_base[kb_count].keywords, colon, sizeof(knowledge_base[kb_count].keywords));
+                
+                knowledge_base[kb_count].answer[0] = 0;
+                state = 1;
+            }
+        }
+        /* Detect separator */
+        else if (strncmp(line, "---", 3) == 0) {
+            if (state >= 1 && knowledge_base[kb_count].answer[0]) {
+                kb_count++;
+                loaded++;
+            }
+            state = 0;
+        }
+        /* Answer line (between ### Q and ---) */
+        else if (state == 1 && kb_count < MAX_KB) {
+            int alen = len;
+            if (alen >= MAX_A_LEN) alen = MAX_A_LEN - 1;
+            memcpy(knowledge_base[kb_count].answer, line, alen);
+            knowledge_base[kb_count].answer[alen] = 0;
+            state = 2;
+        }
     }
     
     fclose(f);
-    return qa_count;
+    return loaded;
 }
 
-/* ─── Keyword search ─── */
-static const char* find_answer(const char *query) {
-    if (!query || !query[0]) return NULL;
+/* ─── Answer Finding ─── */
+static int find_best_answer(const char *question, char *answer, int max_ans) {
+    char q_lower[1024];
+    to_lower(q_lower, question, sizeof(q_lower));
     
-    /* Tokenize query */
-    char tokens[64][64];
-    int ntokens = 0;
-    char qbuf[1024];
-    strncpy(qbuf, query, sizeof(qbuf) - 1);
-    char *tok = strtok(qbuf, " ,.!?;:—–()\n\t");
-    while (tok && ntokens < 64) {
-        if (strlen(tok) > 2) {
-            strncpy(tokens[ntokens], tok, 63);
-            ntokens++;
-        }
-        tok = strtok(NULL, " ,.!?;:—–()\n\t");
-    }
-    if (ntokens == 0) return NULL;
+    /* Extract query keywords */
+    char q_keywords[256];
+    extract_keywords(q_keywords, question, sizeof(q_keywords));
     
-    /* Score each Q&A */
-    int best = 0, best_idx = -1;
-    for (int i = 0; i < qa_count; i++) {
-        int score_q = 0, score_a = 0;
-        for (int t = 0; t < ntokens; t++) {
-            if (strstr(qa_q[i], tokens[t])) score_q += 10;  /* High weight for question match */
-            if (strstr(qa_a[i], tokens[t])) score_a += 1;   /* Low weight for answer match */
+    int best_score = 0;
+    int best_idx = -1;
+    
+    for (int i = 0; i < kb_count; i++) {
+        int score = 0;
+        
+        /* Exact match bonus */
+        if (strstr(q_lower, knowledge_base[i].question) || 
+            strstr(knowledge_base[i].question, q_lower)) {
+            score += 100;
         }
-        /* Prefer question matches over answer-only matches */
-        int total = score_q * 3 + score_a;
-        if (total > best) { best = total; best_idx = i; }
+        
+        /* Keyword matching */
+        char *kb_kw = knowledge_base[i].keywords;
+        char kw_copy[256];
+        strncpy(kw_copy, kb_kw, sizeof(kw_copy) - 1);
+        kw_copy[sizeof(kw_copy) - 1] = 0;
+        
+        char *kw = strtok(kw_copy, " ");
+        while (kw) {
+            if (strstr(q_lower, kw)) {
+                score += 10;
+            }
+            kw = strtok(NULL, " ");
+        }
+        
+        /* Check answer contains query keywords */
+        char a_lower[MAX_A_LEN];
+        to_lower(a_lower, knowledge_base[i].answer, sizeof(a_lower));
+        kw = strtok(q_keywords, " ");
+        while (kw) {
+            if (strstr(a_lower, kw)) {
+                score += 5;
+            }
+            kw = strtok(NULL, " ");
+        }
+        
+        /* Number matching */
+        if (isdigit((unsigned char)question[0])) {
+            /* Query starts with number, check if answer contains it */
+            if (strstr(knowledge_base[i].answer, question) ||
+                strstr(knowledge_base[i].answer, q_lower)) {
+                score += 50;
+            }
+        }
+        
+        if (score > best_score) {
+            best_score = score;
+            best_idx = i;
+        }
     }
     
-    /* Require at least one question token to match */
-    if (best_idx >= 0) {
-        int q_match = 0;
-        for (int t = 0; t < ntokens; t++) {
-            if (strstr(qa_q[best_idx], tokens[t])) { q_match = 1; break; }
-        }
-        if (q_match || best > 20) return qa_a[best_idx];
+    if (best_idx >= 0 && best_score >= 10) {
+        strncpy(answer, knowledge_base[best_idx].answer, max_ans - 1);
+        answer[max_ans - 1] = 0;
+        return best_score;
     }
-    return NULL;
+    
+    return 0;
 }
 
-/* ─── HTTP helpers ─── */
-static void send_json(int fd, int status, const char *body) {
+/* ─── HTTP Server ─── */
+static void send_response(int fd, int status, const char *ctype, const char *body) {
     char hdr[512];
     int hlen = snprintf(hdr, sizeof(hdr),
-        "HTTP/1.1 %d OK\r\nContent-Type: application/json\r\n"
-        "Content-Length: %zu\r\nAccess-Control-Allow-Origin: *\r\n"
-        "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n\r\n",
-        status, strlen(body));
+        "HTTP/1.1 %d OK\r\nContent-Type: %s\r\nContent-Length: %zu\r\n"
+        "Access-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\n\r\n",
+        status, ctype, strlen(body));
     write(fd, hdr, hlen);
-    if (body[0]) write(fd, body, strlen(body));
+    if (body && body[0]) write(fd, body, strlen(body));
 }
 
-/* ─── Parse JSON string value (FIXED) ─── */
-static void json_get_str(const char *json, const char *key, char *out, int max) {
-    out[0] = 0;
-    if (!json) return;
-    
-    /* Build search pattern: "key":" */
-    char pat[128];
-    int pat_len = 0;
-    pat[pat_len++] = '"';
-    for (int i = 0; key[i] && pat_len < 120; i++) pat[pat_len++] = key[i];
-    pat[pat_len++] = '"';
-    pat[pat_len++] = ':';
-    pat[pat_len++] = '"';
-    pat[pat_len] = 0;
-    
-    const char *p = strstr(json, pat);
-    if (!p) return;
-    
-    p += pat_len;
+static void send_json(int fd, const char *json) {
+    send_response(fd, 200, "application/json", json);
+}
+
+static void get_json_str(const char *json, const char *key, char *out, int max) {
+    char search[128];
+    snprintf(search, sizeof(search), "\"%s\":\"", key);
+    const char *p = strstr(json, search);
+    if (!p) { out[0] = 0; return; }
+    p += strlen(search);
     int i = 0;
-    while (*p && *p != '"' && i < max - 1) {
-        /* Handle escape sequences */
-        if (*p == '\\' && *(p+1)) {
-            p++;
-            switch (*p) {
-                case '"': case '\\': case '/': out[i++] = *p; break;
-                case 'n': out[i++] = '\n'; break;
-                case 't': out[i++] = '\t'; break;
-                case 'r': out[i++] = '\r'; break;
-                default: out[i++] = *p; break;
-            }
-        } else {
-            out[i++] = *p;
-        }
-        p++;
-    }
+    while (*p && *p != '"' && i < max - 1) out[i++] = *p++;
     out[i] = 0;
 }
 
 static void json_escape(char *out, const char *in, int max) {
     int j = 0;
-    int len = strlen(in);
-    for (int i = 0; i < len && j < max - 3; i++) {
+    for (int i = 0; in[i] && j < max - 3; i++) {
         unsigned char c = (unsigned char)in[i];
         if (c == '"') { out[j++] = '\\'; out[j++] = '"'; }
         else if (c == '\\') { out[j++] = '\\'; out[j++] = '\\'; }
         else if (c == '\n') { out[j++] = '\\'; out[j++] = 'n'; }
         else if (c == '\t') { out[j++] = '\\'; out[j++] = 't'; }
-        else if (c == '\r') { out[j++] = '\\'; out[j++] = 'r'; }
-        else if (c < 0x20) { /* skip control chars */ }
-        else { out[j++] = c; }  /* Copy byte as-is, including UTF-8 */
+        else if (c < 0x20) { /* skip */ }
+        else { out[j++] = c; }
     }
     out[j] = 0;
 }
 
-/* ─── Read full HTTP body respecting Content-Length ─── */
-static int read_full_body(int fd, const char *headers, int headers_len,
-                          char *body, int max_body) {
-    /* Find Content-Length */
-    const char *cl = NULL;
-    const char *p = headers;
-    while (p < headers + headers_len - 16) {
-        if (strncmp(p, "Content-Length: ", 16) == 0) {
-            cl = p + 16;
-            break;
-        }
-        p++;
+static void handle_chat(int fd, const char *body) {
+    char message[2048] = {0}, conv[256] = {0};
+    get_json_str(body, "message", message, sizeof(message));
+    get_json_str(body, "conversation_id", conv, sizeof(conv));
+    if (!conv[0]) strcpy(conv, "default");
+    
+    char answer[MAX_A_LEN] = {0};
+    int score = find_best_answer(message, answer, sizeof(answer));
+    
+    char safe[MAX_A_LEN * 2] = {0};
+    if (answer[0]) {
+        json_escape(safe, answer, sizeof(safe));
+    } else {
+        snprintf(safe, sizeof(safe), "Нет точного ответа на \"%s\". Доступно %d фактов.", message, kb_count);
     }
     
-    int content_len = cl ? atoi(cl) : 0;
-    
-    /* Body starts after \r\n\r\n */
-    const char *body_start = headers;
-    int already = 0;
-    for (int i = 0; i < headers_len - 3; i++) {
-        if (headers[i] == '\r' && headers[i+1] == '\n' &&
-            headers[i+2] == '\r' && headers[i+3] == '\n') {
-            body_start = headers + i + 4;
-            already = headers_len - (i + 4);
-            break;
-        }
-    }
-    
-    if (already > 0 && already < max_body) {
-        memcpy(body, body_start, already);
-    }
-    
-    /* Read remaining bytes */
-    while (already < content_len && already < max_body - 1) {
-        int r = read(fd, body + already, content_len - already);
-        if (r <= 0) break;
-        already += r;
-    }
-    body[already < max_body ? already : max_body - 1] = 0;
-    return already;
+    char resp[8192];
+    double conf = score > 50 ? 0.95 : (score > 20 ? 0.9 : (score > 10 ? 0.7 : 0.3));
+    snprintf(resp, sizeof(resp),
+        "{\"response\":\"%s\",\"conversation_id\":\"%s\",\"method\":\"knowledge_base\",\"confidence\":%.2f,\"duration_ms\":0}",
+        safe, conv, conf);
+    send_json(fd, resp);
 }
 
-/* ─── Knowledge sync from peer ─── */
-static int sync_from_peer(const char *host, int port) {
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd < 0) return -1;
+static void handle_health(int fd) {
+    char resp[512];
+    snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"facts\":%d,\"peers\":%d,\"requests\":0}", kb_count, peer_count);
+    send_json(fd, resp);
+}
+
+static void handle_export(int fd) {
+    /* Export knowledge as NDJSON for swarm sync */
+    char hdr[256];
+    int hlen = snprintf(hdr, sizeof(hdr),
+        "HTTP/1.1 200 OK\r\nContent-Type: application/x-ndjson\r\n"
+        "Access-Control-Allow-Origin: *\r\n\r\n");
+    write(fd, hdr, hlen);
     
-    struct sockaddr_in addr = {0};
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-    inet_pton(AF_INET, host, &addr.sin_addr);
-    
-    if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        close(fd);
-        return -1;
+    for (int i = 0; i < kb_count; i++) {
+        char qsafe[MAX_Q_LEN * 2] = {0}, asafe[MAX_A_LEN * 2] = {0};
+        json_escape(qsafe, knowledge_base[i].question, sizeof(qsafe));
+        json_escape(asafe, knowledge_base[i].answer, sizeof(asafe));
+        char line[4096];
+        snprintf(line, sizeof(line), "{\"q\":\"%s\",\"a\":\"%s\"}\n", qsafe, asafe);
+        write(fd, line, strlen(line));
     }
+}
+
+static void handle_request(int fd, const char *req) {
+    /* Parse method and path */
+    char method[16] = {0}, path[1024] = {0};
+    sscanf(req, "%15s %1023s", method, path);
     
-    /* Request all Q&A from peer */
-    const char *req = "GET /api/v1/swarm/export HTTP/1.1\r\nHost: peer\r\n\r\n";
-    write(fd, req, strlen(req));
-    
-    /* Read response */
-    char resp[65536];
-    int total = 0;
-    while (total < (int)sizeof(resp) - 1) {
-        int r = read(fd, resp + total, sizeof(resp) - 1 - total);
-        if (r <= 0) break;
-        total += r;
+    if (strcmp(method, "OPTIONS") == 0) {
+        send_response(fd, 200, "text/plain", "");
+        return;
     }
-    resp[total] = 0;
-    close(fd);
     
     /* Find body after \r\n\r\n */
-    char *body = strstr(resp, "\r\n\r\n");
-    if (!body) return 0;
-    body += 4;
+    const char *body = strstr(req, "\r\n\r\n");
+    if (body) body += 4;
+    else body = "";
     
-    /* Parse NDJSON: one JSON object per line */
-    int added = 0;
-    char *line = strtok(body, "\n");
-    while (line && qa_count < MAX_QA - 100) {
-        char q[512] = {0}, a[1024] = {0};
-        json_get_str(line, "q", q, sizeof(q));
-        json_get_str(line, "a", a, sizeof(a));
-        if (q[0] && a[0]) {
-            /* Check for duplicate */
-            int dup = 0;
-            for (int i = 0; i < qa_count; i++) {
-                if (strcmp(qa_q[i], q) == 0) { dup = 1; break; }
-            }
-            if (!dup) {
-                strncpy(qa_q[qa_count], q, 511);
-                strncpy(qa_a[qa_count], a, 1023);
-                qa_count++;
-                total_facts++;
-                added++;
-            }
-        }
-        line = strtok(NULL, "\n");
+    if (strcmp(path, "/api/v1/health") == 0 && strcmp(method, "GET") == 0) {
+        handle_health(fd);
+    } else if (strcmp(path, "/api/v1/swarm/export") == 0 && strcmp(method, "GET") == 0) {
+        handle_export(fd);
+    } else if ((strcmp(path, "/api/v1/ai/chat") == 0 || strncmp(path, "/api/v1/ai/chat/", 16) == 0) && strcmp(method, "POST") == 0) {
+        handle_chat(fd, body);
+    } else {
+        send_json(fd, "{\"error\":\"not found\"}");
     }
-    
-    return added;
 }
 
 /* ─── Main ─── */
 int main(int argc, char *argv[]) {
-    int port = PORT;
-    if (argc > 1) port = atoi(argv[1]);
+    int port = PORT_DEFAULT;
     
-    /* Parse peer arguments: --peer host:port */
-    for (int i = 2; i < argc; i++) {
+    /* Parse arguments */
+    for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--peer") == 0 && i + 1 < argc) {
             i++;
-            char *colon = strchr(argv[i], ':');
-            if (colon) {
-                *colon = 0;
-                strncpy(peers[peer_count].host, argv[i], 255);
-                peers[peer_count].port = atoi(colon + 1);
+            if (peer_count < MAX_PEERS) {
+                strncpy(peer_hosts[peer_count], argv[i], MAX_PEERS_STR - 1);
+                peer_hosts[peer_count][MAX_PEERS_STR - 1] = 0;
                 peer_count++;
-                printf("  Peer: %s:%d\n", peers[peer_count-1].host, peers[peer_count-1].port);
             }
+        } else if (argv[i][0] >= '0' && argv[i][0] <= '9') {
+            port = atoi(argv[i]);
         }
     }
     
-    printf("🐦 Kolibri Swarm Node v2\n");
-    printf("  Port: %d\n", port);
-    printf("  Peers: %d\n", peer_count);
+    /* Load knowledge base */
+    printf("🐦 Kolibri Swarm Node — port %d, %d peers\n", port, peer_count);
     
-    /* Load knowledge */
-    const char *paths[] = {
+    /* Try multiple knowledge base paths */
+    const char *kb_paths[] = {
         "knowledge/knowledge_base.md",
         "/opt/kp/knowledge/knowledge_base.md",
+        "/home/ladik/kolibri/knowledge/knowledge_base.md",
         NULL
     };
-    for (int i = 0; paths[i]; i++) {
-        if (load_knowledge(paths[i]) > 0) {
-            printf("  ✅ Loaded %d Q&A from %s\n", qa_count, paths[i]);
-            break;
-        }
-    }
-    if (qa_count == 0) printf("  ⚠️  No knowledge loaded\n");
     
-    /* Sync from peers */
-    for (int i = 0; i < peer_count; i++) {
-        printf("  🔄 Syncing from %s:%d... ", peers[i].host, peers[i].port);
-        int added = sync_from_peer(peers[i].host, peers[i].port);
-        if (added > 0) {
-            printf("✅ +%d facts (total: %d)\n", added, qa_count);
-        } else {
-            printf("⚠️  no new facts\n");
-        }
+    int loaded = 0;
+    for (int i = 0; kb_paths[i] && !loaded; i++) {
+        loaded = load_knowledge_base(kb_paths[i]);
+        if (loaded) printf("  ✅ Loaded %d Q&A facts from %s\n", loaded, kb_paths[i]);
     }
     
-    printf("\n📊 Total facts: %d\n", qa_count);
-    printf("🌐 http://0.0.0.0:%d\n\n", port);
+    if (!loaded) {
+        printf("  ⚠️  No knowledge base found, starting with 0 facts\n");
+    }
+    
+    printf("🌐 Listening on http://0.0.0.0:%d\n\n", port);
     fflush(stdout);
     
     /* Create socket */
@@ -375,158 +381,24 @@ int main(int argc, char *argv[]) {
     addr.sin_port = htons(port);
     
     if (bind(srv, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        perror("bind"); return 1;
+        perror("bind"); close(srv); return 1;
     }
-    listen(srv, 32);
+    if (listen(srv, 32) < 0) {
+        perror("listen"); close(srv); return 1;
+    }
     
-    char buf[MAX_REQ];
-    int req_count = 0;
-    
+    char buf[BUF_SIZE];
     while (1) {
         struct sockaddr_in cli;
         socklen_t clen = sizeof(cli);
         int fd = accept(srv, (struct sockaddr*)&cli, &clen);
         if (fd < 0) continue;
         
-        /* Read headers first */
         int n = read(fd, buf, sizeof(buf) - 1);
-        if (n <= 0) { close(fd); continue; }
-        buf[n] = 0;
-        
-        /* Parse method */
-        char *sp = strchr(buf, ' ');
-        if (!sp) { close(fd); continue; }
-        *sp = 0;
-        const char *method = buf;
-        
-        /* Parse path */
-        char *path = sp + 1;
-        char *pe = strchr(path, ' ');
-        if (pe) *pe = 0;
-        pe = strchr(path, '\r');
-        if (pe) *pe = 0;
-        
-        /* Read full body */
-        char body[8192] = {0};
-        read_full_body(fd, buf, n, body, sizeof(body));
-        
-        req_count++;
-        printf("  %s %s\n", method, path);
-        fflush(stdout);
-        
-        /* ─── Routes ─── */
-        if (strcmp(method, "OPTIONS") == 0) {
-            send_json(fd, 200, "");
+        if (n > 0) {
+            buf[n] = 0;
+            handle_request(fd, buf);
         }
-        else if (strcmp(path, "/api/v1/health") == 0) {
-            char resp[512];
-            snprintf(resp, sizeof(resp),
-                "{\"status\":\"ok\",\"facts\":%d,\"peers\":%d,\"requests\":%d}",
-                qa_count, peer_count, req_count);
-            send_json(fd, 200, resp);
-        }
-        else if (strcmp(path, "/api/v1/swarm/peers") == 0) {
-            char resp[2048];
-            int off = snprintf(resp, sizeof(resp), "{\"peers\":[");
-            for (int i = 0; i < peer_count; i++) {
-                off += snprintf(resp + off, sizeof(resp) - off,
-                    "%s{\"host\":\"%s\",\"port\":%d}",
-                    i > 0 ? "," : "", peers[i].host, peers[i].port);
-            }
-            snprintf(resp + off, sizeof(resp) - off, "],\"count\":%d}", peer_count);
-            send_json(fd, 200, resp);
-        }
-        else if (strcmp(path, "/api/v1/swarm/sync") == 0 && strcmp(method, "POST") == 0) {
-            /* Add new peer from request body */
-            char host[256] = {0};
-            int p = 0;
-            json_get_str(body, "host", host, sizeof(host));
-            char port_str[16] = {0};
-            json_get_str(body, "port", port_str, sizeof(port_str));
-            if (port_str[0]) p = atoi(port_str);
-            
-            if (host[0] && p > 0 && peer_count < 32) {
-                /* Check if already exists */
-                int exists = 0;
-                for (int i = 0; i < peer_count; i++) {
-                    if (strcmp(peers[i].host, host) == 0 && peers[i].port == p) {
-                        exists = 1; break;
-                    }
-                }
-                if (!exists) {
-                    strncpy(peers[peer_count].host, host, 255);
-                    peers[peer_count].port = p;
-                    peer_count++;
-                    
-                    /* Sync from new peer */
-                    int added = sync_from_peer(host, p);
-                    char resp[512];
-                    snprintf(resp, sizeof(resp),
-                        "{\"status\":\"peer_added\",\"total_peers\":%d,\"facts_added\":%d,\"total_facts\":%d}",
-                        peer_count, added, qa_count);
-                    send_json(fd, 200, resp);
-                } else {
-                    send_json(fd, 200, "{\"status\":\"already_peer\"}");
-                }
-            } else {
-                send_json(fd, 400, "{\"error\":\"missing host/port\"}");
-            }
-        }
-        else if (strcmp(path, "/api/v1/swarm/export") == 0) {
-            /* Export all Q&A as NDJSON */
-            /* Send headers first */
-            char hdr[256];
-            /* We don't know exact size, so use chunked or approximate */
-            int estimated = qa_count * 800;
-            snprintf(hdr, sizeof(hdr),
-                "HTTP/1.1 200 OK\r\nContent-Type: application/x-ndjson\r\n"
-                "Content-Length: %d\r\n\r\n", estimated);
-            write(fd, hdr, strlen(hdr));
-            
-            for (int i = 0; i < qa_count; i++) {
-                char qsafe[1024] = {0}, asafe[2048] = {0};
-                json_escape(qsafe, qa_q[i], sizeof(qsafe));
-                json_escape(asafe, qa_a[i], sizeof(asafe));
-                char line[4096];
-                int len = snprintf(line, sizeof(line),
-                    "{\"q\":\"%s\",\"a\":\"%s\"}\n", qsafe, asafe);
-                write(fd, line, len);
-            }
-        }
-        else if (strncmp(path, "/api/v1/ai/chat", 15) == 0 && strcmp(method, "POST") == 0) {
-            char message[2048] = {0}, conv[256] = {0};
-            json_get_str(body, "message", message, sizeof(message));
-            json_get_str(body, "conversation_id", conv, sizeof(conv));
-            
-            const char *ans = find_answer(message);
-            char safe[4096] = {0};
-
-            if (ans) {
-                json_escape(safe, ans, sizeof(safe));
-            } else {
-                char msg_escaped[2048] = {0};
-                json_escape(msg_escaped, message, sizeof(msg_escaped));
-                snprintf(safe, sizeof(safe),
-                    "Нет точного ответа на %s. Доступно %d фактов. "
-                    "Попробуйте вопрос из математики, физики, химии, IT, географии или истории.",
-                    msg_escaped, qa_count);
-            }
-            
-            char resp[MAX_RESP];
-            snprintf(resp, sizeof(resp),
-                "{\"response\":\"%s\",\"conversation_id\":\"%s\","
-                "\"method\":\"knowledge_base\",\"confidence\":%s,\"duration_ms\":0}",
-                safe, conv[0] ? conv : "default",
-                ans ? "0.9" : "0.3");
-            send_json(fd, 200, resp);
-        }
-        else if (strncmp(path, "/api/", 5) == 0) {
-            send_json(fd, 200, "{}");
-        }
-        else {
-            send_json(fd, 404, "{\"error\":\"not found\"}");
-        }
-        
         close(fd);
     }
     

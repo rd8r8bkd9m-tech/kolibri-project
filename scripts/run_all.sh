@@ -73,13 +73,33 @@ zapisat_shag() {
 }
 
 zapisat_shag "Подготовка каталога build: $postroika"
-cmake -S "$kornevaya" -B "$postroika" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+cmake -S "$kornevaya" -B "$postroika" \
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+    -DKOLIBRI_ENABLE_TESTS=ON
 
 zapisat_shag "Сборка ядра"
 cmake --build "$postroika"
 
+zapisat_shag "Проверка честности CTest inventory"
+python3 "$kornevaya/scripts/check_ctest_inventory.py" --build-dir "$postroika"
+
 zapisat_shag "Запуск модульных тестов"
 ctest --test-dir "$postroika" --output-on-failure
+
+zapisat_shag "Phase 1 benchmark для C runtime"
+python3 "$kornevaya/tests/test_kolibri_http_phase1_benchmark.py" \
+    "$postroika/kolibri_http_server" \
+    --output-json "$postroika/benchmarks/kolibri_http_phase1_benchmark.json"
+
+if command -v npm >/dev/null 2>&1; then
+    zapisat_shag "Frontend smoke contracts"
+    (cd "$kornevaya/frontend" && npm run test)
+
+    zapisat_shag "Frontend typecheck/build"
+    (cd "$kornevaya/frontend" && npm run lint && npm run build)
+else
+    zapisat_shag "Пропускаем frontend smoke/typecheck: npm не найден"
+fi
 
 if [ "$propustit_wasm" -eq 0 ]; then
     zapisat_shag "Сборка kolibri.wasm"

@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, Download, Link2, PackageOpen, RefreshCcw, Rocket, Upload, X } from "lucide-react";
+import { Activity, Download, Link2, PackageOpen, RefreshCcw, Rocket, Upload, X, Brain, Layers, BookOpen, LineChart, GitBranch, BookMarked, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
@@ -18,18 +18,30 @@ import { appQueryKeys, useQualityHistoryQuery, useSwarmStatusQuery } from "@/fea
 import { AppPanel, SectionTitle } from "@/features/ui-system/surface";
 import { cn } from "@/lib/utils";
 import { useShellStore } from "@/store/useShellStore";
-import type { WorkspaceSurface } from "@/types";
+import type { WorkspaceSurface, SwarmRuntimeStatusResponse } from "@/types";
 import { KnowledgeGraphViz } from "@/features/workspace/KnowledgeGraphViz";
 import { LearningDashboard } from "@/features/workspace/LearningDashboard";
+import LiveQueueDashboard from "@/components/LiveQueueDashboard";
 
-const surfaces: Array<{ value: WorkspaceSurface; label: string }> = [
-  { value: "swarm", label: "Рой" },
-  { value: "packs", label: "Пакеты" },
-  { value: "teach", label: "Обучение" },
-  { value: "quality", label: "Качество" },
-  { value: "knowledge", label: "Граф знаний" },
-  { value: "learning", label: "Обучение ИИ" },
+// Detect if we're connected to a lightweight C swarm node
+function isLightweightSwarmNode(status: SwarmRuntimeStatusResponse | undefined): boolean {
+  if (!status) return false;
+  // C node returns minimal shape: no latest_demo, no swarm_topology.nodes
+  return !status.latest_demo && !status.swarm_topology?.nodes && status.live_memory_document_count !== undefined;
+}
+
+const surfaces: Array<{ value: WorkspaceSurface; label: string; icon: React.ElementType }> = [
+  { value: "swarm", label: "Рой", icon: Brain },
+  { value: "packs", label: "Пакеты", icon: Layers },
+  { value: "teach", label: "Обучение", icon: BookOpen },
+  { value: "quality", label: "Качество", icon: LineChart },
+  { value: "knowledge", label: "Граф", icon: GitBranch },
+  { value: "learning", label: "Обучение ИИ", icon: BookMarked },
+  { value: "live-queue", label: "Live Queue", icon: Timer },
 ];
+
+// Surfaces to hide when in lightweight C node mode
+const lightweightHiddenSurfaces: WorkspaceSurface[] = ["packs", "teach", "quality", "knowledge", "learning"];
 
 export function WorkspaceDrawerV3() {
   const open = useShellStore((s) => s.workspaceOpen);
@@ -46,6 +58,15 @@ export function WorkspaceDrawerV3() {
   const [workspaceMessage, setWorkspaceMessage] = useState("");
   const swarmQuery = useSwarmStatusQuery();
   const qualityQuery = useQualityHistoryQuery(12);
+  const isLightweight = isLightweightSwarmNode(swarmQuery.data);
+  const visibleSurfaces = isLightweight
+    ? surfaces.filter((s) => !lightweightHiddenSurfaces.includes(s.value))
+    : surfaces;
+
+  // Reset surface if current one is hidden in lightweight mode
+  if (isLightweight && lightweightHiddenSurfaces.includes(workspaceSurface)) {
+    setWorkspaceSurface("swarm");
+  }
 
   const refreshQueries = async () => {
     await Promise.all([
@@ -193,22 +214,26 @@ export function WorkspaceDrawerV3() {
           </div>
 
           <div className="flex items-center gap-2 overflow-x-auto">
-            {surfaces.map((surface) => (
-              <button
-                key={surface.value}
-                type="button"
-                onClick={() => setWorkspaceSurface(surface.value)}
-                aria-pressed={workspaceSurface === surface.value}
-                className={cn(
-                  "rounded-full border px-3 py-2 text-sm font-medium transition",
-                  workspaceSurface === surface.value
-                    ? "v3-accent-solid"
-                    : "border-foreground/8 bg-background text-muted hover:text-foreground",
-                )}
-              >
-                {surface.label}
-              </button>
-            ))}
+            {visibleSurfaces.map((surface) => {
+              const Icon = surface.icon;
+              return (
+                <button
+                  key={surface.value}
+                  type="button"
+                  onClick={() => setWorkspaceSurface(surface.value)}
+                  aria-pressed={workspaceSurface === surface.value}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm font-medium transition-all",
+                    workspaceSurface === surface.value
+                      ? "v3-accent-solid"
+                      : "border-foreground/8 bg-background text-muted hover:text-foreground hover:border-foreground/12",
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {surface.label}
+                </button>
+              );
+            })}
           </div>
 
           {workspaceMessage ? (
@@ -220,7 +245,37 @@ export function WorkspaceDrawerV3() {
           <div className="min-h-0 flex-1 overflow-y-auto space-y-4 pr-1">
             {workspaceSurface === "swarm" ? (
               <>
-                <div className="grid grid-cols-2 gap-3">
+                {isLightweight ? (
+                  /* Simplified view for lightweight C swarm node */
+                  <div className="space-y-4">
+                    <AppPanel className="px-4 py-4">
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Статус узла</p>
+                      <p className="mt-2 text-2xl font-semibold">{swarmQuery.data?.running ? "ON" : "OFF"}</p>
+                      <p className="mt-1 text-xs text-muted">Лёгкий C-узел роя</p>
+                    </AppPanel>
+                    <div className="grid grid-cols-2 gap-3">
+                      <AppPanel className="px-4 py-4">
+                        <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Факты</p>
+                        <p className="mt-2 text-2xl font-semibold">{swarmQuery.data?.live_memory_document_count ?? "—"}</p>
+                        <p className="mt-1 text-xs text-muted">в базе знаний</p>
+                      </AppPanel>
+                      <AppPanel className="px-4 py-4">
+                        <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Пиры</p>
+                        <p className="mt-2 text-2xl font-semibold">{swarmQuery.data?.swarm_topology?.active_node_count ?? 1}</p>
+                        <p className="mt-1 text-xs text-muted">подключено</p>
+                      </AppPanel>
+                    </div>
+                    <AppPanel className="px-4 py-4">
+                      <SectionTitle
+                        eyebrow="Управление знаниями"
+                        title="База знаний"
+                        description="Для C-узла знания загружаются из файла knowledge/knowledge_base.md при старте."
+                      />
+                    </AppPanel>
+                  </div>
+                ) : (
+                  <>
+                  <div className="grid grid-cols-2 gap-3">
                   <AppPanel className="px-4 py-4">
                     <p className="text-[11px] uppercase tracking-[0.16em] text-muted">Контур</p>
                     <p className="mt-2 text-2xl font-semibold">{swarmQuery.data?.running ? "ON" : "OFF"}</p>
@@ -310,6 +365,8 @@ export function WorkspaceDrawerV3() {
                     ) : null}
                   </AppPanel>
                 ) : null}
+                  </>
+                )}
               </>
             ) : null}
 
@@ -435,6 +492,10 @@ export function WorkspaceDrawerV3() {
 
             {workspaceSurface === "learning" ? (
               <LearningTab />
+            ) : null}
+
+            {workspaceSurface === "live-queue" ? (
+              <LiveQueueDashboard />
             ) : null}
           </div>
         </div>

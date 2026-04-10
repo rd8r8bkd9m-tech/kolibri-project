@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { cva } from "class-variance-authority";
-import { Check, Copy, MoreHorizontal, PencilLine, RotateCcw, SendHorizontal, RefreshCcw } from "lucide-react";
+import { Check, Copy, MoreHorizontal, PencilLine, RotateCcw, SendHorizontal, RefreshCcw, ThumbsUp, ThumbsDown } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -23,6 +23,55 @@ const bubbleVariants = cva("rounded-[1.35rem] px-4 py-3 text-[15px] leading-[1.5
   },
 });
 
+function CodeBlock({ code, language }: { code: string; language?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // noop
+    }
+  };
+
+  return (
+    <div className="group/code relative overflow-hidden rounded-xl border border-border/10 bg-card/95">
+      <div className="flex items-center justify-between border-b border-border/10 bg-muted/30 px-3 py-2">
+        <span className="text-[11px] font-medium text-muted uppercase tracking-wide">
+          {language || "code"}
+        </span>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-medium transition-all",
+            copied
+              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+              : "bg-foreground/5 text-muted hover:text-foreground hover:bg-foreground/10"
+          )}
+        >
+          {copied ? (
+            <>
+              <Check className="h-3.5 w-3.5" />
+              Скопировано
+            </>
+          ) : (
+            <>
+              <Copy className="h-3.5 w-3.5" />
+              Копировать
+            </>
+          )}
+        </button>
+      </div>
+      <pre className="overflow-x-auto p-3">
+        <code className="font-mono text-sm text-foreground">{code}</code>
+      </pre>
+    </div>
+  );
+}
+
 function renderCodeBlocks(content: string) {
   const blocks = content.split(/```/g);
   if (blocks.length < 2) {
@@ -37,12 +86,69 @@ function renderCodeBlocks(content: string) {
           return <div key={index} className="markdown" dangerouslySetInnerHTML={{ __html: renderMarkdown(part) }} />;
         }
         const [lang, ...rest] = part.split("\n");
-        return (
-          <pre key={index} className="overflow-x-auto rounded-xl border border-border/10 bg-card/95 p-3">
-            <code className="font-mono text-sm text-foreground">{rest.join("\n")}</code>
-          </pre>
-        );
+        const codeContent = rest.join("\n").trim();
+        return <CodeBlock key={index} code={codeContent} language={lang?.trim() || undefined} />;
       })}
+    </div>
+  );
+}
+
+function formatEstimateStage(stage?: string): string {
+  switch (stage) {
+    case "collecting_inputs":
+      return "Сбор вводных";
+    case "draft_ready":
+      return "Черновая смета";
+    case "project_plan":
+      return "План проекта";
+    case "materials_scope":
+      return "Материалы";
+    default:
+      return stage || "";
+  }
+}
+
+function MessageReactions({ messageId }: { messageId: string }) {
+  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+
+  const handleFeedback = (type: "up" | "down") => {
+    if (feedback === type) {
+      setFeedback(null); // toggle off
+      return;
+    }
+    setFeedback(type);
+    // TODO: Send feedback to backend for quality tracking
+    console.log(`[${messageId}] Feedback: ${type}`);
+  };
+
+  return (
+    <div className="mt-2 flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => handleFeedback("up")}
+        className={cn(
+          "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all",
+          feedback === "up"
+            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+            : "border-foreground/8 bg-transparent text-muted hover:text-foreground hover:bg-foreground/5"
+        )}
+      >
+        <ThumbsUp className="h-3 w-3" />
+        {feedback === "up" ? "1" : "0"}
+      </button>
+      <button
+        type="button"
+        onClick={() => handleFeedback("down")}
+        className={cn(
+          "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all",
+          feedback === "down"
+            ? "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"
+            : "border-foreground/8 bg-transparent text-muted hover:text-foreground hover:bg-foreground/5"
+        )}
+      >
+        <ThumbsDown className="h-3 w-3" />
+        {feedback === "down" ? "1" : "0"}
+      </button>
     </div>
   );
 }
@@ -64,6 +170,9 @@ export const MessageBubble = memo(function MessageBubble({
   const canEdit = message.role === "user" && !message.streaming && !message.imageUrl;
   const canRetry = message.role === "assistant" && !message.streaming && Boolean(previousUserPrompt?.trim());
   const hasImage = Boolean(message.imageUrl);
+  const productMeta = message.productMeta;
+  const showEstimatorMeta =
+    message.role === "assistant" && (productMeta?.productMode === "estimator" || productMeta?.projectActive);
   const normalizedContent = message.role === "assistant" ? sanitizeAssistantText(message.content) : message.content;
   const hasContent = normalizedContent.trim().length > 0;
   const displayContent = hasContent ? normalizedContent : (message.streaming ? "Думаю..." : "");
@@ -180,6 +289,31 @@ export const MessageBubble = memo(function MessageBubble({
             <a href={message.imageUrl} target="_blank" rel="noreferrer" className="group mt-3 block overflow-hidden rounded-xl border border-border/15 bg-card/60">
               <img src={message.imageUrl} alt="Сгенерированное изображение" className="max-h-[38rem] w-full object-cover transition duration-300 group-hover:scale-[1.01]" loading="lazy" />
             </a>
+          ) : null}
+          {showEstimatorMeta ? (
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted">
+              <span className="rounded-full border border-amber-300/35 bg-amber-500/10 px-2.5 py-1 font-medium text-amber-700 dark:text-amber-200">
+                Сметчик
+              </span>
+              {productMeta?.projectKind ? (
+                <span className="rounded-full border border-foreground/10 bg-background/70 px-2.5 py-1">
+                  {productMeta.projectKind}
+                </span>
+              ) : null}
+              {productMeta?.estimateStage ? (
+                <span className="rounded-full border border-foreground/10 bg-background/70 px-2.5 py-1">
+                  {formatEstimateStage(productMeta.estimateStage)}
+                </span>
+              ) : null}
+              {typeof productMeta?.projectAreaM2 === "number" ? (
+                <span className="rounded-full border border-foreground/10 bg-background/70 px-2.5 py-1">
+                  {productMeta.projectAreaM2.toFixed(1)} м²
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+          {!message.streaming && message.role === "assistant" && hasContent ? (
+            <MessageReactions messageId={message.id} />
           ) : null}
           <div className={cn("mt-2 flex items-center gap-2 text-[11px]", message.role === "user" ? "text-background/70" : "text-muted")}>
             <span>{formatTime(message.createdAt)}</span>

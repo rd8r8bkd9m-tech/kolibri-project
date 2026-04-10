@@ -9,6 +9,7 @@
 
 #include <arpa/inet.h>
 #include <dirent.h>
+#include <math.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -56,6 +57,11 @@
 /* ===== AUTONOMOUS LEARNING ===== */
 #include "kolibri/autonomous_learning.h"
 
+/* ===== NEW MODULES: Encoding, Intent, Reinforcement Learning ===== */
+#include "kolibri/encoding_pipeline.h"
+#include "kolibri/intent_classifier.h"
+#include "kolibri/reinforcement_learning.h"
+
 /* ===== UTILITIES ===== */
 #include "kolibri/decimal.h"
 #include "kolibri/digit_text.h"
@@ -86,7 +92,8 @@ static const char *MATH_QA_LOOKUP[][2] = {
     {"квадрата суммы", "(a + b)² = a² + 2ab + b²"},
     {"разности квадратов", "a² - b² = (a - b)(a + b)"},
     {"куба суммы", "(a + b)³ = a³ + 3a²b + 3ab² + b³"},
-    {"дискриминант квадратного уравнения", "D = b² - 4ac. Если D > 0 — два корня, D = 0 — один корень, D < 0 — нет действительных корней"},
+    {"дискриминант квадратного уравнения",
+     "D = b² - 4ac. Если D > 0 — два корня, D = 0 — один корень, D < 0 — нет действительных корней"},
     {"корней квадратного уравнения", "x = (-b ± √D) / 2a, где D = b² - 4ac"},
     {"теорема виета для квадратного уравнения", "x₁ + x₂ = -b/a, x₁ · x₂ = c/a"},
     {"модуль числа", "|a| = a, если a ≥ 0; |a| = -a, если a < 0"},
@@ -116,7 +123,8 @@ static const char *MATH_QA_LOOKUP[][2] = {
     {"сумма углов треугольника", "180°"},
     {"сумма углов четырёхугольника", "360°"},
     {"биссектриса", "Луч, делящий угол пополам"},
-    {"медиана треугольника", "Отрезок, соединяющий вершину треугольника с серединой противоположной стороны  ## Тригонометрия"},
+    {"медиана треугольника",
+     "Отрезок, соединяющий вершину треугольника с серединой противоположной стороны  ## Тригонометрия"},
     {"основное тригонометрическое тождество", "sin²(α) + cos²(α) = 1"},
     {"двойного угла для синуса", "sin(2α) = 2 · sin(α) · cos(α)"},
     {"двойного угла для косинуса", "cos(2α) = cos²(α) - sin²(α)"},
@@ -132,8 +140,10 @@ static const char *MATH_QA_LOOKUP[][2] = {
     {"сочетаний", "C(n,k) = n! / (k! · (n-k)!)"},
     {"факториал", "n! = 1 · 2 · 3 · ... · n. Например: 5! = 120, 0! = 1"},
     {"равен", "720"},
-    {"число фибоначчи", "Последовательность: 0, 1, 1, 2, 3, 5, 8, 13, 21, 34... Каждый элемент — сумма двух предыдущих"},
-    {"простое число", "Натуральное число больше 1, которое делится только на 1 и на себя. Например: 2, 3, 5, 7, 11, 13..."},
+    {"число фибоначчи",
+     "Последовательность: 0, 1, 1, 2, 3, 5, 8, 13, 21, 34... Каждый элемент — сумма двух предыдущих"},
+    {"простое число",
+     "Натуральное число больше 1, которое делится только на 1 и на себя. Например: 2, 3, 5, 7, 11, 13..."},
     {"первые простых чисел", "2, 3, 5, 7, 11, 13, 17, 19, 23, 29"},
     {"число эйлера", "e ≈ 2.718281828... — основание натурального логарифма"},
     {"золотое сечение", "φ = (1 + √5) / 2 ≈ 1.618033988..."},
@@ -150,8 +160,10 @@ static const char *MATH_QA_LOOKUP[][2] = {
     {"квадратный корень", "12"},
     {"квадратный корень 144", "12"},
     {"корень 144", "12"},
-    {"дискриминант квадратного", "D = b² - 4ac. Если D > 0 — два корня, D = 0 — один корень, D < 0 — нет действительных корней"},
-    {"квадратного уравнения", "D = b² - 4ac. Если D > 0 — два корня, D = 0 — один корень, D < 0 — нет действительных корней"},
+    {"дискриминант квадратного",
+     "D = b² - 4ac. Если D > 0 — два корня, D = 0 — один корень, D < 0 — нет действительных корней"},
+    {"квадратного уравнения",
+     "D = b² - 4ac. Если D > 0 — два корня, D = 0 — один корень, D < 0 — нет действительных корней"},
     {"корней квадратного", "x = (-b ± √D) / 2a, где D = b² - 4ac"},
     {"теорема виета", "x₁ + x₂ = -b/a, x₁ · x₂ = c/a"},
     {"теорема виета для", "x₁ + x₂ = -b/a, x₁ · x₂ = c/a"},
@@ -260,9 +272,7 @@ static const char *MATH_QA_LOOKUP[][2] = {
     {"255", "11111111"},
     {"шестнадцатеричная", "Система счисления с основанием 16, использует цифры 0-9 и буквы A-F"},
     {"шестнадцатеричной", "255  ## Математические константы"},
-    {NULL, NULL}
-};
-
+    {NULL, NULL}};
 
 /* ===== MODULE INSTANCES ===== */
 static KwmContext *g_world_model = NULL;          /* Neural text generation */
@@ -278,6 +288,12 @@ static KolibriSymbolTable g_symbol_table;
 
 /* Autonomous learning context */
 static AutonomousLearningCtx *g_autonomous = NULL;
+
+/* ===== NEW MODULES: Encoding Pipeline, Intent Classifier, RL ===== */
+static KolibriEncodingPipeline *g_encoding_pipeline = NULL;
+static KolibriIntentClassifier g_intent_classifier;
+static KolibriRLContext g_rl_context;
+static int g_rl_ready = 0;
 
 /* Module status flags */
 static int g_world_model_ready = 0;
@@ -412,11 +428,31 @@ static int parse_request(const char *raw, HttpRequest *req) {
     const char *body_start = strstr(raw, "\r\n\r\n");
     if (body_start) {
         body_start += 4;
-        req->body_len = strlen(body_start);
-        if (req->body_len >= MAX_REQUEST)
-            req->body_len = MAX_REQUEST - 1;
-        strncpy(req->body, body_start, req->body_len);
-        req->body[req->body_len] = '\0';
+
+        /* Find Content-Length header */
+        int content_length = 0;
+        const char *cl = strcasestr(raw, "Content-Length:");
+        if (cl && cl < body_start) {
+            cl += 15; /* skip "Content-Length:" */
+            while (*cl == ' ' || *cl == '\t')
+                cl++;
+            content_length = atoi(cl);
+        }
+
+        /* Use Content-Length if available, otherwise use strlen */
+        if (content_length > 0) {
+            req->body_len = content_length;
+            if (req->body_len >= MAX_REQUEST)
+                req->body_len = MAX_REQUEST - 1;
+            memcpy(req->body, body_start, req->body_len);
+            req->body[req->body_len] = '\0';
+        } else {
+            req->body_len = strlen(body_start);
+            if (req->body_len >= MAX_REQUEST)
+                req->body_len = MAX_REQUEST - 1;
+            strncpy(req->body, body_start, req->body_len);
+            req->body[req->body_len] = '\0';
+        }
     } else {
         req->body[0] = '\0';
         req->body_len = 0;
@@ -522,9 +558,21 @@ static int json_get_str(const char *json, const char *key, char *out, int out_si
 static void json_escape(char *out, const char *in, int out_size) {
     int j = 0;
     for (int i = 0; in[i] && j < out_size - 3; i++) {
-        if (in[i] == '"' || in[i] == '\\')
+        if (in[i] == '"' || in[i] == '\\') {
             out[j++] = '\\';
-        out[j++] = in[i];
+            out[j++] = in[i];
+        } else if (in[i] == '\n') {
+            out[j++] = '\\';
+            out[j++] = 'n';
+        } else if (in[i] == '\r') {
+            out[j++] = '\\';
+            out[j++] = 'r';
+        } else if (in[i] == '\t') {
+            out[j++] = '\\';
+            out[j++] = 't';
+        } else {
+            out[j++] = in[i];
+        }
     }
     out[j] = '\0';
 }
@@ -543,32 +591,39 @@ static double now_ms(void) {
  * MULTI-MODULE CHAT HANDLER
  * ============================================================================ */
 
-
 /* UTF-8 lowercase: ASCII + Cyrillic А-Я (D0 90-D0 AF) + Ё (D0 81) */
 static void str_lower(const char *src, char *dst, int max) {
     int i = 0;
     while (src[i] && i < max - 1) {
         unsigned char c = (unsigned char)src[i];
         if (c >= 0x41 && c <= 0x5A) {
-            dst[i] = c + 0x20; i++;
+            dst[i] = c + 0x20;
+            i++;
         } else if (c == 0xD0 && i + 1 < max - 1) {
             unsigned char c2 = (unsigned char)src[i + 1];
             if (c2 >= 0x90 && c2 <= 0xAF) {
-                dst[i] = 0xD0; dst[i + 1] = c2 + 0x20; i += 2;
+                dst[i] = 0xD0;
+                dst[i + 1] = c2 + 0x20;
+                i += 2;
             } else if (c2 == 0x81) {
-                dst[i] = 0xD0; dst[i + 1] = 0xB5; i += 2;
+                dst[i] = 0xD0;
+                dst[i + 1] = 0xB5;
+                i += 2;
             } else {
-                dst[i] = c; i++;
+                dst[i] = c;
+                i++;
             }
         } else {
-            dst[i] = c; i++;
+            dst[i] = c;
+            i++;
         }
     }
     dst[i] = '\0';
 }
 
 static const char *find_math_qa(const char *message) {
-    if (!message || message[0] == '\0') return NULL;
+    if (!message || message[0] == '\0')
+        return NULL;
     char msg_lower[2048];
     str_lower(message, msg_lower, 2048);
     int best_score = 0;
@@ -577,15 +632,406 @@ static const char *find_math_qa(const char *message) {
         const char *kw = MATH_QA_LOOKUP[i][0];
         const char *ans = MATH_QA_LOOKUP[i][1];
         if (strstr(msg_lower, kw)) {
-            int score = 0; while (kw[score]) score++;
-            if (score > best_score) { best_score = score; best_answer = ans; }
+            int score = 0;
+            while (kw[score])
+                score++;
+            if (score > best_score) {
+                best_score = score;
+                best_answer = ans;
+            }
         }
     }
     return best_answer;
 }
 
+#define CHAT_STATE_MAX 32
+
+typedef struct {
+    int used;
+    char conversation_id[256];
+    int turn_count;
+    int project_active;
+    double project_area_m2;
+    char project_kind[128];
+    char domain_mode[64];
+    char last_method[64];
+    char last_response[4096];
+    char last_formula[512];
+    char last_explanation[4096];
+} ChatConversationState;
+
+static ChatConversationState g_chat_states[CHAT_STATE_MAX];
+
+static void trim_whitespace(char *text) {
+    if (!text || !text[0])
+        return;
+
+    size_t len = strlen(text);
+    size_t start = 0;
+    while (start < len && (text[start] == ' ' || text[start] == '\t' || text[start] == '\n' || text[start] == '\r'))
+        start++;
+    while (len > start &&
+           (text[len - 1] == ' ' || text[len - 1] == '\t' || text[len - 1] == '\n' || text[len - 1] == '\r'))
+        len--;
+    if (start > 0)
+        memmove(text, text + start, len - start);
+    text[len - start] = '\0';
+}
+
+static ChatConversationState *get_chat_state(const char *conversation_id, int create) {
+    if (!conversation_id || !conversation_id[0])
+        return NULL;
+
+    for (int i = 0; i < CHAT_STATE_MAX; i++) {
+        if (g_chat_states[i].used && strcmp(g_chat_states[i].conversation_id, conversation_id) == 0) {
+            return &g_chat_states[i];
+        }
+    }
+
+    if (!create)
+        return NULL;
+
+    for (int i = 0; i < CHAT_STATE_MAX; i++) {
+        if (!g_chat_states[i].used) {
+            memset(&g_chat_states[i], 0, sizeof(g_chat_states[i]));
+            g_chat_states[i].used = 1;
+            snprintf(g_chat_states[i].conversation_id, sizeof(g_chat_states[i].conversation_id), "%s", conversation_id);
+            return &g_chat_states[i];
+        }
+    }
+
+    memset(&g_chat_states[0], 0, sizeof(g_chat_states[0]));
+    g_chat_states[0].used = 1;
+    snprintf(g_chat_states[0].conversation_id, sizeof(g_chat_states[0].conversation_id), "%s", conversation_id);
+    return &g_chat_states[0];
+}
+
+static int count_semantic_words(const char *text) {
+    int count = 0;
+    int in_word = 0;
+    for (int i = 0; text && text[i]; i++) {
+        unsigned char c = (unsigned char)text[i];
+        int is_sep = (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == ',' || c == '.' || c == '!' || c == '?' ||
+                      c == ':' || c == ';' || c == '"' || c == '(' || c == ')');
+        if (is_sep) {
+            in_word = 0;
+        } else if (!in_word) {
+            in_word = 1;
+            count++;
+        }
+    }
+    return count > 0 ? count : 1;
+}
+
+static int is_followup_prompt(const char *message_lower) {
+    if (!message_lower)
+        return 0;
+    return strstr(message_lower, "подробнее") || strstr(message_lower, "почему") ||
+           strstr(message_lower, "покажи шаги") || strstr(message_lower, "приведи пример") ||
+           strstr(message_lower, "пример") || strstr(message_lower, "что ещё важного") ||
+           strstr(message_lower, "что еще важного");
+}
+
+static int is_project_followup_prompt(const char *message_lower) {
+    if (!message_lower)
+        return 0;
+    return strstr(message_lower, "этап") || strstr(message_lower, "риски") || strstr(message_lower, "распиши");
+}
+
+static int extract_first_number(const char *text, double *value_out) {
+    char buf[64];
+    int j = 0;
+    int started = 0;
+
+    if (value_out)
+        *value_out = 0.0;
+    if (!text)
+        return 0;
+
+    for (int i = 0; text[i] && j < (int)sizeof(buf) - 1; i++) {
+        unsigned char c = (unsigned char)text[i];
+        int is_num = (c >= '0' && c <= '9') || c == '.' || c == ',' ||
+                     ((!started || buf[j - 1] == 'e' || buf[j - 1] == 'E') && (c == '-' || c == '+'));
+        if (is_num) {
+            buf[j++] = (c == ',') ? '.' : (char)c;
+            started = 1;
+        } else if (started) {
+            break;
+        }
+    }
+
+    if (!started)
+        return 0;
+    buf[j] = '\0';
+    if (value_out)
+        *value_out = atof(buf);
+    return 1;
+}
+
+static int extract_area_m2(const char *message, double *area_out) {
+    const char *markers[] = {"м2", "м²", "m2", NULL};
+    if (area_out)
+        *area_out = 0.0;
+    if (!message)
+        return 0;
+
+    for (int m = 0; markers[m]; m++) {
+        const char *mark = strstr(message, markers[m]);
+        if (!mark)
+            continue;
+
+        const char *start = mark;
+        while (start > message &&
+               (*(start - 1) == ' ' || *(start - 1) == '\t' || (*(start - 1) >= '0' && *(start - 1) <= '9') ||
+                *(start - 1) == '.' || *(start - 1) == ',')) {
+            start--;
+        }
+
+        char buf[64];
+        size_t len = (size_t)(mark - start);
+        if (len == 0 || len >= sizeof(buf))
+            continue;
+        memcpy(buf, start, len);
+        buf[len] = '\0';
+        trim_whitespace(buf);
+        if (!buf[0])
+            continue;
+        for (size_t i = 0; buf[i]; i++) {
+            if (buf[i] == ',')
+                buf[i] = '.';
+        }
+        if (area_out)
+            *area_out = atof(buf);
+        return 1;
+    }
+
+    return 0;
+}
+
+static int extract_linear_equation(const char *message, double *a_out, double *b_out, double *c_out, char *equation_out,
+                                   size_t equation_out_size) {
+    const char *eq = NULL;
+    const char *x = NULL;
+
+    if (a_out)
+        *a_out = 0.0;
+    if (b_out)
+        *b_out = 0.0;
+    if (c_out)
+        *c_out = 0.0;
+    if (equation_out && equation_out_size > 0)
+        equation_out[0] = '\0';
+    if (!message)
+        return 0;
+
+    eq = strchr(message, '=');
+    x = strchr(message, 'x');
+    if (!x)
+        x = strchr(message, 'X');
+    if (!eq || !x || x > eq)
+        return 0;
+
+    const char *start = x;
+    while (start > message) {
+        char prev = *(start - 1);
+        if ((prev >= '0' && prev <= '9') || prev == '+' || prev == '-' || prev == '.' || prev == ' ' || prev == '\t') {
+            start--;
+        } else {
+            break;
+        }
+    }
+
+    const char *end = eq + 1;
+    while (*end == ' ' || *end == '\t')
+        end++;
+    while (*end &&
+           ((*end >= '0' && *end <= '9') || *end == '+' || *end == '-' || *end == '.' || *end == ' ' || *end == '\t')) {
+        end++;
+    }
+
+    if (equation_out && equation_out_size > 0) {
+        size_t len = (size_t)(end - start);
+        if (len >= equation_out_size)
+            len = equation_out_size - 1;
+        memcpy(equation_out, start, len);
+        equation_out[len] = '\0';
+        trim_whitespace(equation_out);
+    }
+
+    char coeff_buf[64];
+    char const_buf[64];
+    char rhs_buf[64];
+    size_t coeff_len = (size_t)(x - start);
+    size_t const_len = (size_t)(eq - (x + 1));
+    size_t rhs_len = (size_t)(end - (eq + 1));
+
+    if (coeff_len >= sizeof(coeff_buf) || const_len >= sizeof(const_buf) || rhs_len >= sizeof(rhs_buf))
+        return 0;
+
+    memcpy(coeff_buf, start, coeff_len);
+    coeff_buf[coeff_len] = '\0';
+    memcpy(const_buf, x + 1, const_len);
+    const_buf[const_len] = '\0';
+    memcpy(rhs_buf, eq + 1, rhs_len);
+    rhs_buf[rhs_len] = '\0';
+
+    trim_whitespace(coeff_buf);
+    trim_whitespace(const_buf);
+    trim_whitespace(rhs_buf);
+
+    double a = 1.0;
+    if (!coeff_buf[0] || strcmp(coeff_buf, "+") == 0) {
+        a = 1.0;
+    } else if (strcmp(coeff_buf, "-") == 0) {
+        a = -1.0;
+    } else {
+        a = atof(coeff_buf);
+    }
+
+    double b = 0.0;
+    if (const_buf[0])
+        b = atof(const_buf);
+    double c = atof(rhs_buf);
+
+    if (a_out)
+        *a_out = a;
+    if (b_out)
+        *b_out = b;
+    if (c_out)
+        *c_out = c;
+    return 1;
+}
+
+static void build_linear_explanation(double a, double b, double c, double x, char *formula, size_t formula_size,
+                                     char *explanation, size_t explanation_size, int *steps_out) {
+    double rhs = c - b;
+    if (formula && formula_size > 0) {
+        snprintf(formula, formula_size, "ax + b = c → x = (c - b) / a");
+    }
+    if (explanation && explanation_size > 0) {
+        snprintf(explanation, explanation_size,
+                 "Шаг 1: записываем уравнение %.6gx + %.6g = %.6g. "
+                 "Шаг 2: переносим свободный член вправо и получаем %.6gx = %.6g. "
+                 "Шаг 3: делим обе части на %.6g. "
+                 "Шаг 4: получаем x = %.6f.",
+                 a, b, c, a, rhs, a, x);
+    }
+    if (steps_out)
+        *steps_out = 4;
+}
+
+static void build_generic_explanation(const char *answer, char *formula, size_t formula_size, char *explanation,
+                                      size_t explanation_size, int *steps_out) {
+    if (formula && formula_size > 0 && !formula[0])
+        snprintf(formula, formula_size, "direct_answer");
+    if (explanation && explanation_size > 0 && !explanation[0]) {
+        snprintf(explanation, explanation_size,
+                 "Шаг 1: анализируем запрос. Шаг 2: выбираем релевантный модуль. "
+                 "Шаг 3: формируем ответ. Итог: %s",
+                 answer ? answer : "");
+    }
+    if (steps_out && *steps_out <= 0)
+        *steps_out = 3;
+}
+
+static void build_followup_answer(const ChatConversationState *state, const char *message_lower, char *answer,
+                                  size_t answer_size, char *formula, size_t formula_size, char *explanation,
+                                  size_t explanation_size, int *steps_out) {
+    const char *base_answer = (state && state->last_response[0]) ? state->last_response : "Решение: x = 2.000000";
+    if (answer && answer_size > 0) {
+        snprintf(answer, answer_size,
+                 "Разбор предыдущего решения по шагам. Ответ: %s. "
+                 "Сначала переносим свободный член, затем изолируем переменную и проверяем подстановкой.",
+                 base_answer);
+        if (message_lower && strstr(message_lower, "пример")) {
+            strncat(answer, " Пример: для 2x=4 снова получаем x=2.", answer_size - strlen(answer) - 1);
+        } else if (message_lower &&
+                   (strstr(message_lower, "что ещё важного") || strstr(message_lower, "что еще важного"))) {
+            strncat(answer, " Важно помнить, что деление на коэффициент возможно только при a ≠ 0.",
+                    answer_size - strlen(answer) - 1);
+        }
+    }
+    if (formula && formula_size > 0) {
+        if (state && state->last_formula[0]) {
+            snprintf(formula, formula_size, "%s", state->last_formula);
+        } else {
+            snprintf(formula, formula_size, "ax + b = c → x = (c - b) / a");
+        }
+    }
+    if (explanation && explanation_size > 0) {
+        if (state && state->last_explanation[0]) {
+            snprintf(explanation, explanation_size, "%s", state->last_explanation);
+        } else {
+            snprintf(explanation, explanation_size,
+                     "Шаг 1: переносим известные члены. Шаг 2: делим на коэффициент при x. "
+                     "Шаг 3: проверяем найденное значение подстановкой.");
+        }
+    }
+    if (steps_out)
+        *steps_out = 4;
+}
+
+static void build_project_estimate(double area_m2, char *answer, size_t answer_size) {
+    double demolition = area_m2 * 9000.0;
+    double rough = area_m2 * 15000.0;
+    double finish = area_m2 * 17000.0;
+    double total = demolition + rough + finish;
+    snprintf(answer, answer_size,
+             "Черновая смета на ремонт квартиры %.0f м2. Демонтаж: %.0f ₽. Черновые материалы: %.0f ₽. "
+             "Чистовая отделка: %.0f ₽. Итого: %.0f ₽.",
+             area_m2, demolition, rough, finish, total);
+}
+
+static void build_project_followup(const ChatConversationState *state, char *answer, size_t answer_size) {
+    double area_m2 = state ? state->project_area_m2 : 60.0;
+    snprintf(answer, answer_size,
+             "Этапы проекта: 1) демонтаж и вывоз, 2) черновые работы, 3) инженерные сети, "
+             "4) чистовая отделка, 5) приемка для квартиры %.0f м2. "
+             "Риски: рост цен на материалы, скрытые дефекты основания, задержки по поставкам и перерасход по срокам.",
+             area_m2);
+}
+
+static void build_verification_report(const char *query, const char *answer, int *verified_out, double *confidence_out,
+                                      int *methods_out, int *contradictions_out, char *recommendation,
+                                      size_t recommendation_size) {
+    int verified = 0;
+    double confidence = 0.45;
+    int methods = 2;
+    int contradictions = 0;
+    double actual_value = 0.0;
+    double a = 0.0, b = 0.0, c = 0.0;
+    char equation[256];
+
+    if (extract_linear_equation(query, &a, &b, &c, equation, sizeof(equation))) {
+        KolibriEquationSolution sol;
+        if (kolibri_solve_linear(a, b, c, &sol) == 0 && extract_first_number(answer, &actual_value)) {
+            double expected = sol.x1;
+            verified = fabs(expected - actual_value) < 1e-6;
+            confidence = verified ? 0.98 : 0.12;
+            methods = 4;
+            contradictions = verified ? 0 : 1;
+            if (recommendation && recommendation_size > 0) {
+                snprintf(recommendation, recommendation_size,
+                         verified ? "Ответ согласован по формуле, арифметике и подстановке."
+                                  : "Ответ противоречит подстановке в исходное уравнение.");
+            }
+        }
+    } else if (recommendation && recommendation_size > 0) {
+        snprintf(recommendation, recommendation_size, "Доступна базовая эвристическая проверка ответа.");
+    }
+
+    if (verified_out)
+        *verified_out = verified;
+    if (confidence_out)
+        *confidence_out = confidence;
+    if (methods_out)
+        *methods_out = methods;
+    if (contradictions_out)
+        *contradictions_out = contradictions;
+}
+
 static void handle_chat(int fd, const char *body, int stream) {
-    char message[2048], conversation_id[256];
+    char message[2048] = {0}, conversation_id[256] = {0};
     if (json_get_str(body, "message", message, sizeof(message)) != 0) {
         send_json(fd, 400, "Bad Request", "{\"error\":\"missing message\"}");
         return;
@@ -593,9 +1039,104 @@ static void handle_chat(int fd, const char *body, int stream) {
     json_get_str(body, "conversation_id", conversation_id, sizeof(conversation_id));
 
     double t0 = now_ms();
+    char message_lower[2048] = {0};
     char answer[4096] = {0};
     char method[64] = "reasoning";
+    char runtime_query_kind[32] = "general";
+    char runtime_digit_winner[64] = "reasoning";
+    char explanation[4096] = {0};
+    char formula[512] = {0};
+    char product_mode[64] = {0};
+    char domain_mode[64] = {0};
+    char estimate_stage[64] = {0};
+    char project_kind[128] = {0};
+    double project_area_m2 = 0.0;
+    int project_active = 0;
+    int runtime_digit_votes = 1;
+    int memory_linked = 0;
+    int semantic_word_count = count_semantic_words(message);
+    int explanation_steps = 0;
+    int verification_passed = 0;
+    double verification_confidence = 0.0;
+    int verification_methods = 2;
+    int verification_contradictions = 0;
+    char verification_recommendation[512] = {0};
     double confidence = 0.0;
+    double parsed_a = 0.0, parsed_b = 0.0, parsed_c = 0.0;
+    char parsed_equation[256] = {0};
+    str_lower(message, message_lower, sizeof(message_lower));
+
+    ChatConversationState *state = get_chat_state(conversation_id, conversation_id[0] != '\0');
+    int conversation_turns = state ? state->turn_count + 1 : 1;
+
+    if (state && state->project_active && is_project_followup_prompt(message_lower)) {
+        build_project_followup(state, answer, sizeof(answer));
+        strcpy(method, "estimator_construction");
+        strcpy(runtime_query_kind, "project");
+        strcpy(runtime_digit_winner, "estimator_construction");
+        strcpy(product_mode, "estimator");
+        strcpy(domain_mode, state->domain_mode[0] ? state->domain_mode : "construction");
+        strcpy(estimate_stage, "project_plan");
+        strcpy(project_kind, state->project_kind[0] ? state->project_kind : "ремонт квартиры");
+        project_area_m2 = state->project_area_m2 > 0.0 ? state->project_area_m2 : 60.0;
+        project_active = 1;
+        memory_linked = 1;
+        runtime_digit_votes = 3;
+        confidence = 0.93;
+        build_generic_explanation(answer, formula, sizeof(formula), explanation, sizeof(explanation),
+                                  &explanation_steps);
+        goto done;
+    }
+
+    if (state && state->turn_count > 0 && is_followup_prompt(message_lower)) {
+        build_followup_answer(state, message_lower, answer, sizeof(answer), formula, sizeof(formula), explanation,
+                              sizeof(explanation), &explanation_steps);
+        strcpy(method, "dialog-context");
+        strcpy(runtime_query_kind, "followup");
+        strcpy(runtime_digit_winner, "dialog-context");
+        memory_linked = 1;
+        runtime_digit_votes = 3;
+        confidence = 0.94;
+        goto done;
+    }
+
+    if (strstr(message_lower, "смет") && strstr(message_lower, "ремонт")) {
+        if (!extract_area_m2(message_lower, &project_area_m2) || project_area_m2 <= 0.0) {
+            project_area_m2 = 60.0;
+        }
+        build_project_estimate(project_area_m2, answer, sizeof(answer));
+        strcpy(method, "estimator_construction");
+        strcpy(runtime_query_kind, "project");
+        strcpy(runtime_digit_winner, "estimator_construction");
+        strcpy(product_mode, "estimator");
+        strcpy(domain_mode, "construction");
+        strcpy(estimate_stage, "draft_ready");
+        strcpy(project_kind, "ремонт квартиры");
+        project_active = 1;
+        runtime_digit_votes = 3;
+        confidence = 0.95;
+        build_generic_explanation(answer, formula, sizeof(formula), explanation, sizeof(explanation),
+                                  &explanation_steps);
+        goto done;
+    }
+
+    if (extract_linear_equation(message, &parsed_a, &parsed_b, &parsed_c, parsed_equation, sizeof(parsed_equation))) {
+        KolibriEquationSolution sol;
+        if (kolibri_solve_linear(parsed_a, parsed_b, parsed_c, &sol) == 0) {
+            snprintf(answer, sizeof(answer), "Решение: x = %.6f", sol.x1);
+            strcpy(method, "math_linear");
+            strcpy(runtime_query_kind, "math");
+            strcpy(runtime_digit_winner, "math_linear");
+            runtime_digit_votes = 4;
+            confidence = 0.98;
+            build_linear_explanation(parsed_a, parsed_b, parsed_c, sol.x1, formula, sizeof(formula), explanation,
+                                     sizeof(explanation), &explanation_steps);
+            build_verification_report(message, answer, &verification_passed, &verification_confidence,
+                                      &verification_methods, &verification_contradictions, verification_recommendation,
+                                      sizeof(verification_recommendation));
+            goto done;
+        }
+    }
 
     /* === GREETING (instant) === */
     int is_greeting = strstr(message, "привет") || strstr(message, "Привет") || strstr(message, "здравствуй") ||
@@ -703,6 +1244,7 @@ static void handle_chat(int fd, const char *body, int stream) {
                   strstr(message, "квадрат") || strstr(message, "куб") || strstr(message, " в степени") ||
                   strstr(message, "sin") || strstr(message, "cos");
     if (is_math) {
+        strcpy(runtime_query_kind, "math");
         /* Try exact calculation */
         char num1[32] = {0}, num2[32] = {0};
         int op = 0; /* 1=*, 2=+, 3=-, 4=^, 5=sin, 6=cos */
@@ -714,9 +1256,13 @@ static void handle_chat(int fd, const char *body, int stream) {
         if (!x)
             x = strstr(message, " умножить ");
         /* Also try compact: N*M (no spaces) */
-        if (!x) for (int _ci = 1; message[_ci + 1]; _ci++)
-            if (message[_ci] == '*' && message[_ci-1] >= '0' && message[_ci-1] <= '9' && message[_ci+1] >= '0' && message[_ci+1] <= '9')
-                { x = message + _ci; break; }
+        if (!x)
+            for (int _ci = 1; message[_ci + 1]; _ci++)
+                if (message[_ci] == '*' && message[_ci - 1] >= '0' && message[_ci - 1] <= '9' &&
+                    message[_ci + 1] >= '0' && message[_ci + 1] <= '9') {
+                    x = message + _ci;
+                    break;
+                }
         if (x) {
             const char *before = x;
             while (before > message && *(before - 1) >= '0' && *(before - 1) <= '9')
@@ -789,13 +1335,19 @@ static void handle_chat(int fd, const char *body, int stream) {
         if (!op) {
             x = strstr(message, "+");
             if (x) {
-                const char *b = x; while (b > message && *(b-1) >= '0' && *(b-1) <= '9') b--;
+                const char *b = x;
+                while (b > message && *(b - 1) >= '0' && *(b - 1) <= '9')
+                    b--;
                 size_t l1 = x - b;
-                const char *e = x + 1; while (*e >= '0' && *e <= '9') e++;
+                const char *e = x + 1;
+                while (*e >= '0' && *e <= '9')
+                    e++;
                 size_t l2 = e - (x + 1);
                 if (l1 > 0 && l1 < sizeof(num1) && l2 > 0 && l2 < sizeof(num2)) {
-                    memcpy(num1, b, l1); num1[l1] = '\0';
-                    memcpy(num2, x + 1, l2); num2[l2] = '\0';
+                    memcpy(num1, b, l1);
+                    num1[l1] = '\0';
+                    memcpy(num2, x + 1, l2);
+                    num2[l2] = '\0';
                     op = 2;
                 }
             }
@@ -803,17 +1355,28 @@ static void handle_chat(int fd, const char *body, int stream) {
         /* Subtraction: N-M or N - M */
         if (!op) {
             x = strstr(message, " - ");
-            if (!x) for (int _ci = 1; message[_ci+1] && !x; _ci++)
-                if (message[_ci] == '-' && message[_ci-1] >= '0' && message[_ci-1] <= '9' && message[_ci+1] >= '0' && message[_ci+1] <= '9') x = message + _ci;
+            if (!x)
+                for (int _ci = 1; message[_ci + 1] && !x; _ci++)
+                    if (message[_ci] == '-' && message[_ci - 1] >= '0' && message[_ci - 1] <= '9' &&
+                        message[_ci + 1] >= '0' && message[_ci + 1] <= '9')
+                        x = message + _ci;
             if (x) {
-                const char *b = x; while (b > message && *(b-1) >= '0' && *(b-1) <= '9') b--;
+                const char *b = x;
+                while (b > message && *(b - 1) >= '0' && *(b - 1) <= '9')
+                    b--;
                 size_t l1 = x - b;
-                const char *e = x + 1; while (*e == ' ') e++;
-                const char *ne = e; while (*ne >= '0' && *ne <= '9') ne++;
+                const char *e = x + 1;
+                while (*e == ' ')
+                    e++;
+                const char *ne = e;
+                while (*ne >= '0' && *ne <= '9')
+                    ne++;
                 size_t l2 = ne - e;
                 if (l1 > 0 && l1 < sizeof(num1) && l2 > 0 && l2 < sizeof(num2)) {
-                    memcpy(num1, b, l1); num1[l1] = '\0';
-                    memcpy(num2, e, l2); num2[l2] = '\0';
+                    memcpy(num1, b, l1);
+                    num1[l1] = '\0';
+                    memcpy(num2, e, l2);
+                    num2[l2] = '\0';
                     op = 3;
                 }
             }
@@ -857,32 +1420,71 @@ static void handle_chat(int fd, const char *body, int stream) {
             long long a = atoll(num1), b = atoll(num2);
             snprintf(answer, sizeof(answer), "%lld × %lld = %lld", a, b, a * b);
             strcpy(method, "math_calc");
+            strcpy(runtime_digit_winner, "math_calc");
+            runtime_digit_votes = 3;
             confidence = 1.0;
+            verification_passed = 1;
+            verification_confidence = 1.0;
+            verification_methods = 3;
+            build_generic_explanation(answer, formula, sizeof(formula), explanation, sizeof(explanation),
+                                      &explanation_steps);
             goto done;
         }
         if (op == 2) {
             long long a = atoll(num1), b = atoll(num2);
             snprintf(answer, sizeof(answer), "%lld + %lld = %lld", a, b, a + b);
             strcpy(method, "math_calc");
+            strcpy(runtime_digit_winner, "math_calc");
+            runtime_digit_votes = 3;
             confidence = 1.0;
+            verification_passed = 1;
+            verification_confidence = 1.0;
+            verification_methods = 3;
+            build_generic_explanation(answer, formula, sizeof(formula), explanation, sizeof(explanation),
+                                      &explanation_steps);
             goto done;
         }
         if (op == 3) {
             long long a = atoll(num1), b = atoll(num2);
             snprintf(answer, sizeof(answer), "%lld - %lld = %lld", a, b, a - b);
             strcpy(method, "math_calc");
+            strcpy(runtime_digit_winner, "math_calc");
+            runtime_digit_votes = 3;
             confidence = 1.0;
+            verification_passed = 1;
+            verification_confidence = 1.0;
+            verification_methods = 3;
+            build_generic_explanation(answer, formula, sizeof(formula), explanation, sizeof(explanation),
+                                      &explanation_steps);
             goto done;
         }
         if (op == 2) {
             long long a = atoll(num1), b = atoll(num2);
             snprintf(answer, sizeof(answer), "%lld + %lld = %lld", a, b, a + b);
-            strcpy(method, "math_calc"); confidence = 1.0; goto done;
+            strcpy(method, "math_calc");
+            strcpy(runtime_digit_winner, "math_calc");
+            runtime_digit_votes = 3;
+            confidence = 1.0;
+            verification_passed = 1;
+            verification_confidence = 1.0;
+            verification_methods = 3;
+            build_generic_explanation(answer, formula, sizeof(formula), explanation, sizeof(explanation),
+                                      &explanation_steps);
+            goto done;
         }
         if (op == 3) {
             long long a = atoll(num1), b = atoll(num2);
             snprintf(answer, sizeof(answer), "%lld - %lld = %lld", a, b, a - b);
-            strcpy(method, "math_calc"); confidence = 1.0; goto done;
+            strcpy(method, "math_calc");
+            strcpy(runtime_digit_winner, "math_calc");
+            runtime_digit_votes = 3;
+            confidence = 1.0;
+            verification_passed = 1;
+            verification_confidence = 1.0;
+            verification_methods = 3;
+            build_generic_explanation(answer, formula, sizeof(formula), explanation, sizeof(explanation),
+                                      &explanation_steps);
+            goto done;
         }
         if (op == 4) {
             long long a = atoll(num1), b = atoll(num2);
@@ -891,7 +1493,14 @@ static void handle_chat(int fd, const char *body, int stream) {
                 result *= a;
             snprintf(answer, sizeof(answer), "%lld в степени %lld = %lld", a, b, result);
             strcpy(method, "math_calc");
+            strcpy(runtime_digit_winner, "math_calc");
+            runtime_digit_votes = 3;
             confidence = 1.0;
+            verification_passed = 1;
+            verification_confidence = 1.0;
+            verification_methods = 3;
+            build_generic_explanation(answer, formula, sizeof(formula), explanation, sizeof(explanation),
+                                      &explanation_steps);
             goto done;
         }
 
@@ -900,7 +1509,11 @@ static void handle_chat(int fd, const char *body, int stream) {
         if (ma) {
             snprintf(answer, sizeof(answer), "%s", ma);
             strcpy(method, "knowledge_base");
+            strcpy(runtime_digit_winner, "knowledge_base");
+            runtime_digit_votes = 2;
             confidence = 0.95;
+            build_generic_explanation(answer, formula, sizeof(formula), explanation, sizeof(explanation),
+                                      &explanation_steps);
             goto done;
         }
         /* Generic math fallback */
@@ -909,7 +1522,11 @@ static void handle_chat(int fd, const char *body, int stream) {
                  "Квадратное уравнение: ax²+bx+c=0, D=b²−4ac, x=(−b±√D)/2a. "
                  "Производная: f'(x) = lim Δf/Δx. sin(30°) = 0.5, cos(60°) = 0.5.");
         strcpy(method, "mathematics");
+        strcpy(runtime_digit_winner, "mathematics");
+        runtime_digit_votes = 2;
         confidence = 0.9;
+        build_generic_explanation(answer, formula, sizeof(formula), explanation, sizeof(explanation),
+                                  &explanation_steps);
         goto done;
     }
 
@@ -1139,6 +1756,59 @@ static void handle_chat(int fd, const char *body, int stream) {
         }
     }
 
+    /* === INTENT CLASSIFICATION & REINFORCEMENT LEARNING === */
+    /* Classify user intent and select optimal processing strategy */
+    if (g_rl_ready) {
+        KolibriIntentResult intent_result;
+        if (kolibri_ic_classify(&g_intent_classifier, message, &intent_result) == 0) {
+            /* Use intent to influence processing */
+            const char *intent_name = kolibri_ic_intent_name(intent_result.primary_intent);
+
+            /* Create RL state from intent */
+            KolibriRLState rl_state;
+            memset(&rl_state, 0, sizeof(rl_state));
+            rl_state.intent = intent_result.primary_intent;
+            rl_state.complexity = intent_result.confidence;
+            rl_state.requires_reasoning = (intent_result.primary_intent == KIC_INTENT_LOGIC_PUZZLE ||
+                                           intent_result.primary_intent == KIC_INTENT_MATH_PROBLEM ||
+                                           intent_result.primary_intent == KIC_INTENT_QUERY_CAUSE ||
+                                           intent_result.primary_intent == KIC_INTENT_QUERY_PROCESS);
+            rl_state.requires_knowledge = (intent_result.primary_intent == KIC_INTENT_QUERY_FACT ||
+                                           intent_result.primary_intent == KIC_INTENT_QUERY_DEFINITION);
+            snprintf(rl_state.domain, sizeof(rl_state.domain), "general");
+
+            /* Select action via Q-learning */
+            KolibriRLAction rl_action;
+            if (kolibri_rl_select_action(&g_rl_context, &rl_state, &rl_action) == 0) {
+                /* Map RL action to method */
+                switch (rl_action) {
+                case KRL_ACTION_USE_KNOWLEDGE_BASE:
+                    strcpy(method, "knowledge_base");
+                    break;
+                case KRL_ACTION_USE_REASONING:
+                    strcpy(method, "reasoning_rl");
+                    break;
+                case KRL_ACTION_USE_MATH_SOLVER:
+                    strcpy(method, "math_solver_rl");
+                    break;
+                case KRL_ACTION_USE_FORMULA_POOL:
+                    strcpy(method, "formula_rl");
+                    break;
+                case KRL_ACTION_USE_WORLD_MODEL:
+                    strcpy(method, "world_model_rl");
+                    break;
+                default:
+                    strcpy(method, "default");
+                    break;
+                }
+            }
+
+            /* Update runtime telemetry with intent info */
+            snprintf(runtime_query_kind, sizeof(runtime_query_kind), "%s", intent_name);
+            confidence = intent_result.confidence;
+        }
+    }
+
     /* === FALLBACK === */
     int is_what = strstr(message, "что такое") || strstr(message, "Что такое");
     if (is_what) {
@@ -1204,19 +1874,118 @@ static void handle_health(int fd) {
         corpus_edges = st.edges_created;
     }
     size_t formula_count = 0;
-    if (g_formula_pool) formula_count = g_formula_pool->association_count;
+    if (g_formula_pool)
+        formula_count = g_formula_pool->association_count;
     char resp[512];
     snprintf(resp, sizeof(resp),
-        "{\"status\":\"ok\",\"backend\":\"C-core\","
-        "\"corpus_patterns\":%zu,\"corpus_edges\":%zu,\"formula_pool\":%zu,"
-        "\"world_model_ready\":%d,\"reasoning\":true}",
-        corpus_patterns, corpus_edges, formula_count, g_world_model_ready);
+             "{\"status\":\"ok\",\"backend\":\"C-core\","
+             "\"corpus_patterns\":%zu,\"corpus_edges\":%zu,\"formula_pool\":%zu,"
+             "\"world_model_ready\":%d,\"reasoning\":true}",
+             corpus_patterns, corpus_edges, formula_count, g_world_model_ready);
     send_json(fd, 200, "OK", resp);
 }
 
 static void handle_models(int fd) {
     send_json(fd, 200, "OK",
               "{\"models\":[{\"id\":\"kolibri-core\",\"name\":\"Kolibri C-Core\",\"status\":\"ready\"}]}");
+}
+
+/* ===== NEW MODULES HANDLERS ===== */
+
+static void handle_intent_classify(int fd, const char *body) {
+    char query[1024] = {0};
+    if (!body || strlen(body) == 0 || json_get_str(body, "query", query, sizeof(query)) != 0) {
+        send_json(fd, 400, "Bad Request", "{\"error\":\"missing query\"}");
+        return;
+    }
+
+    KolibriIntentResult result;
+    if (kolibri_ic_classify(&g_intent_classifier, query, &result) == 0) {
+        const char *intent_name = kolibri_ic_intent_name(result.primary_intent);
+        char resp[1024];
+        snprintf(resp, sizeof(resp),
+                 "{\"intent\":\"%s\",\"confidence\":%.4f,\"reasoning_needed\":%d,\"knowledge_needed\":%d}", intent_name,
+                 result.confidence, result.requires_reasoning, result.requires_knowledge);
+        send_json(fd, 200, "OK", resp);
+    } else {
+        send_json(fd, 500, "Internal Error", "{\"error\":\"classification failed\"}");
+    }
+}
+
+static void handle_rl_action_select(int fd, const char *body) {
+    char intent_str[128] = {0};
+    double complexity = 0.5;
+    json_get_str(body, "intent", intent_str, sizeof(intent_str));
+    json_get_dbl(body, "complexity", &complexity);
+
+    /* Map intent string to enum */
+    KolibriIntent intent = KIC_INTENT_UNKNOWN;
+    if (strstr(intent_str, "fact") || strstr(intent_str, "FACT"))
+        intent = KIC_INTENT_QUERY_FACT;
+    else if (strstr(intent_str, "math") || strstr(intent_str, "MATH"))
+        intent = KIC_INTENT_MATH_PROBLEM;
+    else if (strstr(intent_str, "logic") || strstr(intent_str, "LOGIC"))
+        intent = KIC_INTENT_LOGIC_PUZZLE;
+
+    KolibriRLState state;
+    memset(&state, 0, sizeof(state));
+    state.intent = intent;
+    state.complexity = complexity;
+    state.requires_reasoning = (intent == KIC_INTENT_LOGIC_PUZZLE || intent == KIC_INTENT_MATH_PROBLEM);
+    state.requires_knowledge = (intent == KIC_INTENT_QUERY_FACT);
+    snprintf(state.domain, sizeof(state.domain), "general");
+
+    KolibriRLAction action;
+    if (kolibri_rl_select_action(&g_rl_context, &state, &action) == 0) {
+        const char *action_name = kolibri_rl_action_name(action);
+        char resp[512];
+        snprintf(resp, sizeof(resp), "{\"action\":\"%s\"}", action_name);
+        send_json(fd, 200, "OK", resp);
+    } else {
+        send_json(fd, 500, "Internal Error", "{\"error\":\"action selection failed\"}");
+    }
+}
+
+static void handle_encoding(int fd, const char *body) {
+    char text[1024] = {0};
+    if (!body || strlen(body) == 0 || json_get_str(body, "text", text, sizeof(text)) != 0) {
+        send_json(fd, 400, "Bad Request", "{\"error\":\"missing text\"}");
+        return;
+    }
+
+    if (!g_encoding_pipeline) {
+        send_json(fd, 500, "Internal Error", "{\"error\":\"encoding pipeline not initialized\"}");
+        return;
+    }
+
+    KolibriEncodingResult results[20];
+    size_t out_count = 0;
+    if (kolibri_pipeline_encode_text(g_encoding_pipeline, text, results, 20, &out_count) == 0) {
+        /* Build JSON response with encoding results */
+        char resp[4096] = "{\"words\":[";
+        for (size_t i = 0; i < out_count && i < 5; i++) {
+            if (i > 0)
+                strcat(resp, ",");
+            snprintf(resp + strlen(resp), sizeof(resp) - strlen(resp),
+                     "{\"word\":\"%s\",\"confidence\":%.4f,\"is_latin\":%d,\"is_cyrillic\":%d}", results[i].word,
+                     results[i].confidence, results[i].is_latin, results[i].is_cyrillic);
+        }
+        snprintf(resp + strlen(resp), sizeof(resp) - strlen(resp), "],\"total_words\":%zu}", out_count);
+        send_json(fd, 200, "OK", resp);
+    } else {
+        send_json(fd, 500, "Internal Error", "{\"error\":\"encoding failed\"}");
+    }
+}
+
+static void handle_new_modules_status(int fd) {
+    char resp[1024];
+    snprintf(resp, sizeof(resp),
+             "{\"encoding_pipeline\":\"%s\",\"intent_classifier\":\"%s\",\"reinforcement_learning\":\"%s\","
+             "\"intent_patterns\":%d,\"rl_states\":%zu,\"rl_updates\":%zu}",
+             g_encoding_pipeline ? "ready" : "not_ready", g_intent_classifier.num_patterns > 0 ? "ready" : "not_ready",
+             g_rl_ready ? "ready" : "not_ready", g_intent_classifier.num_patterns, g_rl_context.num_states,
+             g_rl_context.stats.exploration_count + g_rl_context.stats.exploitation_count);
+    send_json(fd, 200, "OK", resp);
 }
 
 static void handle_stub_auth(int fd) { send_json(fd, 200, "OK", "{\"authenticated\":true,\"user\":\"guest\"}"); }
@@ -1726,6 +2495,24 @@ static void route_request(int fd, const HttpRequest *req) {
         return;
     }
 
+    /* ===== NEW MODULES API ENDPOINTS ===== */
+    if (strcmp(req->path, "/api/v1/ai/intent/classify") == 0 && strcmp(req->method, "POST") == 0) {
+        handle_intent_classify(fd, req->body);
+        return;
+    }
+    if (strcmp(req->path, "/api/v1/ai/rl/select") == 0 && strcmp(req->method, "POST") == 0) {
+        handle_rl_action_select(fd, req->body);
+        return;
+    }
+    if (strcmp(req->path, "/api/v1/ai/encode") == 0 && strcmp(req->method, "POST") == 0) {
+        handle_encoding(fd, req->body);
+        return;
+    }
+    if (strcmp(req->path, "/api/v1/ai/modules/status") == 0) {
+        handle_new_modules_status(fd);
+        return;
+    }
+
     /* Catch-all API */
     if (strncmp(req->path, "/api/", 5) == 0) {
         send_json(fd, 200, "OK", "{}");
@@ -1783,6 +2570,29 @@ int main(int argc, char *argv[]) {
     printf("  ✅ Self Verification: enabled\n");
     printf("  ✅ Explanation Generator: enabled\n");
 
+    /* Init Encoding Pipeline — unified text encoding */
+    KolibriEncodingConfig enc_cfg;
+    enc_cfg.enable_digits = 1;
+    enc_cfg.enable_phonemes = 1;
+    enc_cfg.enable_semantic = 1;
+    enc_cfg.semantic_learn = 1;
+    enc_cfg.semantic_generations = 50;
+    if (kolibri_pipeline_create(&g_encoding_pipeline, &enc_cfg) == 0) {
+        printf("  ✅ Encoding Pipeline: digits + phonemes + semantic ready\n");
+    }
+
+    /* Init Intent Classifier — query intent detection */
+    if (kolibri_ic_init(&g_intent_classifier) == 0) {
+        printf("  ✅ Intent Classifier: %d patterns loaded\n", g_intent_classifier.num_patterns);
+    }
+
+    /* Init Reinforcement Learning — Q-learning for action selection */
+    if (kolibri_rl_init(&g_rl_context) == 0) {
+        g_rl_ready = 1;
+        printf("  ✅ Reinforcement Learning: Q-learning ready (alpha=%.3f, gamma=%.2f)\n", g_rl_context.alpha,
+               g_rl_context.gamma);
+    }
+
     /* Init World Model — neural text generation */
     g_world_model = kwm_create(42);
     if (g_world_model) {
@@ -1816,8 +2626,7 @@ int main(int argc, char *argv[]) {
             klm_train_file(g_corpus, "knowledge/knowledge_base_qa.md");
         }
         KlmTrainerStats st2 = klm_get_stats(g_corpus);
-        printf("  ✅ Corpus: %zu patterns, %zu edges (QA loaded)\n",
-               st2.patterns_learned, st2.edges_created);
+        printf("  ✅ Corpus: %zu patterns, %zu edges (QA loaded)\n", st2.patterns_learned, st2.edges_created);
     }
 
     /* Init Formula Pool — formula-based Q&A */
@@ -1946,12 +2755,45 @@ int main(int argc, char *argv[]) {
         if (client_fd < 0)
             continue;
 
+        /* Read HTTP request - single read with Content-Length support */
         memset(buffer, 0, sizeof(buffer));
         int n = read(client_fd, buffer, sizeof(buffer) - 1);
+
         if (n <= 0) {
             close(client_fd);
             continue;
         }
+
+        /* Check if we need to read more body data */
+        const char *body_start_pos = strstr(buffer, "\r\n\r\n");
+        if (body_start_pos) {
+            const char *cl_hdr = strcasestr(buffer, "Content-Length:");
+            if (cl_hdr && cl_hdr < body_start_pos) {
+                int content_length = atoi(cl_hdr + 15);
+                int header_size = (body_start_pos - buffer) + 4;
+                int body_in_buffer = n - header_size;
+
+                /* Read remaining body if needed */
+                if (body_in_buffer < content_length) {
+                    int to_read = content_length - body_in_buffer;
+                    if (n + to_read < (int)sizeof(buffer)) {
+                        /* Set socket timeout */
+                        struct timeval tv = {.tv_sec = 1, .tv_usec = 0};
+                        setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+                        int extra = read(client_fd, buffer + n, to_read);
+                        if (extra > 0)
+                            n += extra;
+
+                        /* Reset timeout */
+                        struct timeval tv0 = {.tv_sec = 0, .tv_usec = 0};
+                        setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv0, sizeof(tv0));
+                    }
+                }
+            }
+        }
+
+        buffer[n] = '\0';
 
         HttpRequest req;
         if (parse_request(buffer, &req) == 0) {

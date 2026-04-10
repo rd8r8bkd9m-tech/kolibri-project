@@ -44,11 +44,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake nasm grub-pc-bin xorriso gcc-multilib
       - name: Конфигурация CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DKOLIBRI_ENABLE_TESTS=ON
       - name: Сборка C-ядра
         run: cmake --build build -j
+      - name: Проверка CTest inventory
+        run: python3 scripts/check_ctest_inventory.py --build-dir build
       - name: Юнит-тесты C
         run: ctest --test-dir build --output-on-failure
+      - name: Phase 1 benchmark (C runtime)
+        run: |
+          python3 tests/test_kolibri_http_phase1_benchmark.py \
+            build/kolibri_http_server \
+            --output-json build/benchmarks/kolibri_http_phase1_benchmark.json
       - name: Сборка ISO
         run: ./scripts/build_iso.sh
       - name: SHA256 ISO
@@ -67,11 +74,20 @@ jobs:
           cp build/kolibri.iso artifacts/iso/
           cp build/kolibri.iso.sha256 artifacts/iso/
           cp build/kolibri.iso.sig artifacts/iso/
+      - name: Подготовка benchmark артефакта
+        run: |
+          mkdir -p artifacts/benchmarks
+          cp build/benchmarks/kolibri_http_phase1_benchmark.json artifacts/benchmarks/
       - name: Публикация артефакта ISO
         uses: actions/upload-artifact@v4
         with:
           name: kolibri-iso
           path: artifacts/iso
+      - name: Публикация benchmark артефакта
+        uses: actions/upload-artifact@v4
+        with:
+          name: kolibri-phase1-benchmark
+          path: artifacts/benchmarks
 
   wasm-build:
     name: WebAssembly
@@ -154,8 +170,8 @@ jobs:
       - name: Сборка фронтенда
         run: npm run build
         working-directory: frontend
-      - name: Тесты Vitest
-        run: npm run test -- --runInBand
+      - name: Frontend smoke contracts
+        run: npm run test
         working-directory: frontend
       - name: Архив dist
         run: |

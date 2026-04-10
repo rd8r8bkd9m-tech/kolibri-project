@@ -1,9 +1,18 @@
 export type ModelOption = "Колибри 4.1 • Быстрая" | "Колибри 4 • Тяжёлая" | "Колибри 5 • Превью";
 export type PrimarySurface = "thread" | "chats";
 export type ComposerAction = "attach" | "voice" | "teach" | "imagine" | "pack";
-export type WorkspaceSurface = "swarm" | "packs" | "teach" | "quality" | "knowledge" | "learning";
+export type WorkspaceSurface = "swarm" | "packs" | "teach" | "quality" | "knowledge" | "learning" | "live-queue";
 
 export type MessageRole = "user" | "assistant";
+
+export interface ChatProductMeta {
+  productMode?: string;
+  projectActive?: boolean;
+  domainMode?: string;
+  estimateStage?: string;
+  projectKind?: string;
+  projectAreaM2?: number;
+}
 
 export interface ChatMessage {
   id: string;
@@ -13,6 +22,7 @@ export interface ChatMessage {
   editedAt?: number;
   streaming?: boolean;
   imageUrl?: string;
+  productMeta?: ChatProductMeta;
 }
 
 export interface ChatSession {
@@ -160,6 +170,12 @@ export interface ChatApiResponse {
   cognitive?: Record<string, unknown> | null;
   self_check?: Record<string, unknown> | null;
   client_id?: string | null;
+  product_mode?: string;
+  project_active?: boolean;
+  domain_mode?: string;
+  estimate_stage?: string;
+  project_kind?: string;
+  project_area_m2?: number;
 }
 
 export interface SwarmRoundPoint {

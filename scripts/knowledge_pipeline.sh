@@ -13,7 +13,8 @@ fi
 
 mkdir -p "$output_dir"
 
-queue_db="$output_dir/queue.db"
+# Export approved live queue questions
+queue_db="$output_dir/live_queue.db"
 approved_dir="$output_dir/approved"
 
 if [[ -x "$project_root/build/kolibri_queue" ]]; then

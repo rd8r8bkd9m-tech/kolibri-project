@@ -4540,9 +4540,12 @@ class KolibriAIEngine:
                 special["client_id"] = client_key
                 return special
 
+            prefer_specialized_pipeline = self._should_prefer_specialized_pipeline(message)
+
             # #Фаза A1: RAG Pipeline — первый шаг перед C-inference
+            # Но не для запросов, где нужен exact math / code-gen / logic path.
             rag_response: dict | None = None
-            if self._rag_enabled and not stage_exceeded("retrieval"):
+            if self._rag_enabled and (not prefer_specialized_pipeline) and not stage_exceeded("retrieval"):
                 try:
                     # Определяем категорию запроса
                     rag_category = self._detect_rag_category(message)
@@ -4651,13 +4654,44 @@ class KolibriAIEngine:
             math_response: dict | None = None
             if self._math_enabled and self._is_math_query(message):
                 try:
+                    exact_math = self._try_math_eval(message)
+                    if exact_math is not None:
+                        math_text = str(exact_math.get("response", "") or "")
+                        math_response = {
+                            "response": self._apply_persona_style(math_text, persona=persona),
+                            "confidence": float(exact_math.get("confidence", 1.0) or 1.0),
+                            "sources": list(exact_math.get("sources", ["math-engine"])),
+                            "conversation_id": conv.id,
+                            "knowledge_hits": int(exact_math.get("knowledge_hits", 0) or 0),
+                            "method": str(exact_math.get("method", "math-eval") or "math-eval"),
+                            "duration_ms": round((time.time() - start_time) * 1000, 1),
+                            "model_available": True,
+                            "formula_data": exact_math.get("formula_data", self._basic_formula_data()),
+                            "graph_stats": exact_math.get("graph_stats", self.graph.get_stats()),
+                            "thinking": thinking_text,
+                            "thinking_steps": [
+                                {
+                                    "type": s.step_type.name,
+                                    "content": s.description,
+                                    "result": s.result,
+                                    "confidence": s.confidence,
+                                }
+                                for s in thinking_steps
+                            ],
+                            "generation_used": False,
+                            "context_stats": context_window.get_stats(),
+                            "cached": False,
+                            "client_id": client_key,
+                        }
+                        conv.add("assistant", math_response["response"])
+                        self._persist_conversation_turn(client_key, conv.id, "assistant", math_response["response"])
+                        context_window.add_message("assistant", math_response["response"])
+                        return math_response
+
                     math_result = self.math.solve(message)
                     if math_result and math_result.get("confidence", 0) > 0.5:
                         math_text = f"Решение:\n\n{math_result['response']}\n\nОтвет: {math_result.get('answer', 'N/A')}"
                         math_text = self._apply_persona_style(math_text, persona=persona)
-                        conv.add("user", message)
-                        self._persist_conversation_turn(client_key, conv.id, "user", message)
-                        context_window.add_message("user", message)
                         conv.add("assistant", math_text)
                         self._persist_conversation_turn(client_key, conv.id, "assistant", math_text)
                         context_window.add_message("assistant", math_text)
@@ -4698,7 +4732,7 @@ class KolibriAIEngine:
 
             # #Фаза B3: Function Calling — если запрос требует инструмент
             fc_response: dict | None = None
-            if self._function_calling_enabled:
+            if self._function_calling_enabled and (not prefer_specialized_pipeline):
                 try:
                     tool_call = self.function_calling.detect_tool_call(message)
                     if tool_call:
@@ -5112,6 +5146,7 @@ class KolibriAIEngine:
                     "web-rate",
                     "web-reference",
                 }
+                and (not self._is_math_reasoning_method(method))
                 and self._response_needs_language_fallback(response)
             ):
                 fallback = self._build_russian_fallback(message, retrieved)
@@ -5395,10 +5430,25 @@ class KolibriAIEngine:
         # Текстовые задачи
         if any(word in q for word in ["сколько будет", "сколько всего", "сколько осталось"]):
             return True
+        # Словесные арифметические выражения
+        if any(word in q for word in ["посчитай", "плюс", "минус", "умнож", "делит", "скобк", "степен", "корень"]):
+            return True
         # Геометрия
         if any(word in q for word in ["площадь", "периметр", "объем", "площад"]):
             return True
         return False
+
+    def _is_logic_query(self, message: str) -> bool:
+        """Определить, что запрос требует логического решателя, а не retrieval/RAG."""
+        q = (message or "").strip().lower().replace("ё", "е")
+        if not q:
+            return False
+        markers = ("логик", "логич", "силлог", "вывод", "следует", "шар", "гарантир", "все ")
+        return any(marker in q for marker in markers)
+
+    def _should_prefer_specialized_pipeline(self, message: str) -> bool:
+        """Запросы на код, математику и явную логику не должны перехватываться RAG."""
+        return self._is_code_query(message) or self._is_math_query(message) or self._is_logic_query(message)
 
     def _is_c_formula_query(self, message: str) -> bool:
         q = (message or "").strip().lower()
@@ -5634,6 +5684,19 @@ class KolibriAIEngine:
                 str(math_result.get("response", "") or ""),
                 float(math_result.get("confidence", 0.98) or 0.98),
                 str(math_result.get("method", "math-eval") or "math-eval"),
+            )
+        math_reasoning_result = self._try_math_reasoning_answer(message)
+        if math_reasoning_result is not None:
+            return (
+                str(math_reasoning_result.get("response", "") or ""),
+                float(math_reasoning_result.get("confidence", 0.9) or 0.9),
+                str(math_reasoning_result.get("method", "math-reasoning") or "math-reasoning"),
+                {
+                    "sources": list(math_reasoning_result.get("sources", ["math-reasoning"])),
+                    "knowledge_hits": int(math_reasoning_result.get("knowledge_hits", 0) or 0),
+                    "formula_data": math_reasoning_result.get("formula_data"),
+                    "graph_stats": math_reasoning_result.get("graph_stats"),
+                },
             )
         recap_answer, recap_method = self._build_conversation_memory_read_response(
             message=message,
@@ -8019,7 +8082,7 @@ class KolibriAIEngine:
         if not q:
             return None
         lower = q.lower().replace("ё", "е")
-        if not any(marker in lower for marker in ("логик", "логич", "силлог", "вывод", "следует", "шар", "гарантир", "все ")):
+        if not self._is_logic_query(lower):
             return None
 
         balls_answer = self._solve_balls_guarantee_puzzle(lower)
@@ -10093,6 +10156,8 @@ class KolibriAIEngine:
         projection_match = self._match_c_projection_query(stripped)
         if projection_match:
             return str(projection_match[0])
+        if self._is_math_reasoning_method(method):
+            return "math"
         method_map = {
             "math-eval": "math",
             "logic-solver": "logic",
@@ -10160,7 +10225,7 @@ class KolibriAIEngine:
             channels[2] += 2.8
         if query_kind == "importance" or "потому" in answer.lower():
             channels[3] += 2.7
-        if method_name in {"math-eval", "logic-solver"} or self._try_math_eval(query) is not None:
+        if self._is_math_reasoning_method(method_name) or method_name == "logic-solver" or self._try_math_eval(query) is not None:
             channels[4] += 6.2
             channels[9] += 0.45
         if method_name in {
@@ -10349,6 +10414,12 @@ class KolibriAIEngine:
     def _normalize_math_expression(self, expr: str) -> str:
         text = self._MATH_CLEAN_RE.sub("", expr).strip().lower().replace("ё", "е")
         text = text.replace("×", "*").replace("÷", "/").replace("^", "**")
+        text = re.sub(
+            r"(\d+(?:[.,]\d+)?)\s*%\s*от\s*(\d+(?:[.,]\d+)?)",
+            r"(\1 / 100) * \2",
+            text,
+            flags=re.IGNORECASE,
+        )
         text = text.replace("в квадрате", " ** 2 ")
         text = text.replace("в кубе", " ** 3 ")
         text = re.sub(r"\bквадратный\s+корень\s+из\b", " sqrt ", text)
@@ -10401,6 +10472,12 @@ class KolibriAIEngine:
         )
         normalized = re.sub(r"\s{2,}", " ", normalized).strip()
         return normalized
+
+    def _is_math_reasoning_method(self, method: str) -> bool:
+        method_name = str(method or "").strip().lower()
+        if method_name == "math-eval":
+            return True
+        return method_name.startswith(("math-", "arithmetic", "percentage", "algebra", "geometry", "word-problem"))
 
     def _try_math_eval(self, expr: str) -> dict | None:
         """Безопасное вычисление математических выражений."""
@@ -10508,6 +10585,45 @@ class KolibriAIEngine:
             "sources": ["math-engine"], "method": "math-eval",
             "knowledge_hits": 0,
             "formula_data": self._basic_formula_data(),
+            "graph_stats": self.graph.get_stats(),
+        }
+
+    def _try_math_reasoning_answer(self, question: str) -> dict | None:
+        """Решение текстовых математических задач через math_reasoning pipeline."""
+        if not self._math_enabled or not self._is_math_query(question):
+            return None
+
+        math_result = self.math.solve(question)
+        if not isinstance(math_result, dict):
+            return None
+
+        method = str(math_result.get("method", "") or "").strip().lower()
+        confidence = float(math_result.get("confidence", 0.0) or 0.0)
+        if confidence < 0.6 or method.endswith("failed"):
+            return None
+
+        steps = [str(step).strip() for step in (math_result.get("steps", []) or []) if str(step).strip()]
+        answer = math_result.get("answer", "")
+        response_lines: list[str] = ["Решение:"]
+        if steps:
+            response_lines.extend(f"{index}. {step}" for index, step in enumerate(steps, 1))
+        else:
+            response_lines.append("1. Задача распознана и решена.")
+        response_lines.append("")
+        response_lines.append(f"Ответ: {answer}")
+
+        return {
+            "response": "\n".join(response_lines).strip(),
+            "confidence": confidence,
+            "sources": ["math-reasoning"],
+            "method": math_result.get("method", "math-reasoning"),
+            "knowledge_hits": 0,
+            "formula_data": {
+                **self._basic_formula_data(),
+                "math_steps": steps,
+                "math_answer": answer,
+                "math_reasoning_method": math_result.get("method", "math-reasoning"),
+            },
             "graph_stats": self.graph.get_stats(),
         }
 

@@ -47,3 +47,11 @@
 ## Release rule
 
 No document or status report may claim completion if any gate above is red.
+
+## Reproducible Commands
+
+- CTest inventory: `python3 scripts/check_ctest_inventory.py --build-dir build`
+- C runtime Phase 1 benchmark: `ctest --test-dir build -R test_kolibri_http_phase1_benchmark --output-on-failure`
+- C runtime API smoke: `ctest --test-dir build -R test_kolibri_http_server_api --output-on-failure`
+- C runtime stream smoke: `ctest --test-dir build -R test_kolibri_http_stream_api --output-on-failure`
+- Frontend smoke/typecheck/build: `cd frontend && npm run test && npm run lint && npm run build`

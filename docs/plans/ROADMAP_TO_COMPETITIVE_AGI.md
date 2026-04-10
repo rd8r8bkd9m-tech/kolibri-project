@@ -1,1245 +1,603 @@
-# Kolibri: Путь к Конкурентоспособному AGI
+# Kolibri True AI Master Roadmap v2
 
-> **Стратегический план развития 2025-2027**
-> 
-> **Ключевой принцип:** Kolibri НЕ становится "ещё одной LLM". 
-> Kolibri развивает УНИКАЛЬНУЮ парадигму числового мышления, 
-> которая конкурирует с LLM через совершенно другие сильные стороны.
-
----
-
-## Часть 0: Философия — Почему Kolibri Другой
-
-### Что Kolibri НЕ пытается делать
-❌ Копировать архитектуру трансформеров на миллиарды параметров
-❌ Обучаться на триллионах токенов из Common Crawl
-❌ Соревноваться в бенчмарках LLM их методами
-❌ Использовать сторонние LLM как основу или учителя
-❌ **Использовать Python в продакшене** — весь функционал ядра на C, веб через WASM
-
-### Жёсткое правило: Python НЕ используется
-
-**Python в проекте Kolibri ЗАПРЕЩЁН для:**
-- Реализации бизнес-логики (reasoning, math solving, domain knowledge)
-- Backend API обработчиков (FastAPI, Flask — только WASM-hosting)
-- FFI обёрток для C-ядра (ctypes, pybind11, cffi)
-- Инференса и генерации ответов
-
-**Разрешённое использование Python:**
-- Скрипты для сбора/очистки датасетов (fetch_wiki.py, fetch_dal.py)
-- Утилиты разработки (генерация кода, анализ)
-- CI/CD скрипты (тестирование, линтинг)
-
-**Архитектурный принцип:**
-```
-C-ядро → WASM → Браузер (напрямую)
-    ↑
-Только C, никаких Python-прослоек
-```
-
-Все новые модули пишутся на C и экспортируются через WASM. Никаких Python-заглушек, Python-солверов, Python-reasoning. Если модуль не доступен через WASM — он не существует для продакшена.
-
-### Что Kolibri ДЕЛАЕТ
-✅ **Числовое мышление** — все знания как числа и формулы  
-✅ **Эволюционное обучение** — не backprop, а генетическая оптимизация  
-✅ **Символическое рассуждение** — не вероятности токенов, а логические цепочки  
-✅ **Сжатие = понимание** — чем лучше сжатие, тем глубже понимание  
-✅ **Геномный provenance** — каждая идея имеет происхождение  
-✅ **Живая память** — система растёт и эволюционирует постоянно  
-
-### Конкурентное преимущество Kolibri
-
-| Аспект | LLM (GPT, Llama, Qwen) | Kolibri |
-|--------|------------------------|---------|
-| Представление знаний | Распределённые веса (чёрный ящик) | Числа + формулы (интерпретируемо) |
-| Обучение | Один большой pretrain + fine-tune | Непрерывная эволюция |
-| Рассуждение | Эвристическое (verbal reasoning) | Логическое + математическое |
-| Provenance | Нет (невозможно отследить) | Геномный блокчейн |
-| Ресурсы | Тысячи GPU, терабайты данных | Работает на CPU, эффективно |
-| Контекст | Ограничен окном attention | Фрактальная память O(log n) |
-| Арифметика | Плохая (числа как токены) | Идеальная (числа нативно) |
-
-**Kolibри конкурирует через:**
-- Интерпретируемость (формулы можно прочитать и понять)
-- Математическую точность (числа — родной тип данных)
-- Непрерывное обучение (не замораживается после training)
-- Эффективность (работает там, где LLM не запускается)
-- Provenance (можно доказать откуда знание)
+> **Дата обновления:** 2026-04-09
+>
+> **Статус документа:** основной стратегический roadmap до конца 2027 года
+>
+> **Назначение:** заменить старый optimistic roadmap единым master-документом,
+> который соединяет `Reasoner -> Chat -> Swarm` и использует только честные
+> статусы `implemented / in_progress / planned`.
 
 ---
 
-## Часть 1: Текущее Состояние (Q1 2026)
+## 1. Что для Kolibri значит "настоящий ИИ"
 
-### Что Уже Работает ✅
+Kolibri не должен превращаться в ещё одну LLM с большим количеством текстовых
+эвристик. Для проекта Kolibri "настоящий ИИ" означает систему, которая:
 
-**C Ядро (39 модулей, 28K LOC):**
-- ✅ Геномный блокчейн с WAL и HMAC-SHA256
-- ✅ Формульный пул (4000 цифр, 500 слоёв, 12 операций)
-- ✅ KolibriScript интерпретатор
-- ✅ Граф знаний (128K паттернов, 256K рёбер)
-- ✅ Трансформер (~100K параметров, Pre-LN)
-- ✅ Фрактальная память
-- ✅ Логическая память
-- ✅ Мировая модель (world_model)
-- ✅ Инференс (5 стратегий)
-- ✅ Компрессия (16 алгоритмов)
-- ✅ P2P сетевой протокол
+- рассуждает, а не только статистически продолжает текст;
+- считает точно, а не угадывает арифметику;
+- объясняет происхождение ответа;
+- умеет проверять себя альтернативным методом;
+- накапливает память и улучшает качество после взаимодействий;
+- работает как единый интеллект в `native C`, `WASM` и `product shell`;
+- в перспективе масштабируется до автономного swarm-организма.
 
-**Python Backend (52 модуля):**
-- ✅ AI движок с числовым мышлением
-- ✅ Формульная эволюция (генетический алгоритм)
-- ✅ RAG пайплайн
-- ✅ Web research, code gen, math reasoning
-- ✅ Непрерывное обучение (daemon)
-- ✅ Swarm runtime
+### Приоритет целей
 
-**Frontend:**
-- ✅ React/TypeScript приложение
-- ✅ WASM мост для оффлайн режима
-- ✅ PWA поддержка
+Kolibri развивает все три линии, но строго в таком порядке:
 
-### Критические Проблемы ⚠️
-
-**1. Трансформер НЕ используется как основной движок**
-- Трансформер в `attention.c` обучается через SPSA (шумные градиенты)
-- Генерация текста идёт через граф знаний и формулы, не через трансформер
-- Трансформер — "мёртвый груз", а не рабочий компонент
-
-**2. Обучение не масштабируется**
-- SPSA не заменяет backpropagation для нейронных сетей
-- Эволюционный подход работает для формул, но не для обучения языку
-- Нет pipeline для大规模 pretraining
-
-**3. Инференс — набор эвристик**
-- "Chain-of-thought" — правило-based декомпозиция, не настоящее рассуждение
-- Нет единой генеративной модели — вместо этого роутинг между методами
-- Качество ответов нестабильно
-
-**4. Представление знаний ограничено**
-- Word patterns = детерминированные хеши (DJB2), не learned embeddings
-- Синонимы имеют разные паттерны (нет семантической близости)
-- Нет латентного пространства
+1. **Trustworthy Reasoner**
+   Надёжный reasoning-first ИИ для математики, науки, кода, права и
+   структурированных знаний.
+2. **General Conversational Intelligence**
+   Сильный chat-first продукт на том же ядре: multi-turn диалог, grounded
+   follow-ups, provenance и self-consistency.
+3. **Autonomous Swarm Scientist**
+   Автономный рой узлов, который учится, валидирует новые знания, синхронизирует
+   лучшие формулы и улучшает коллективное качество.
 
 ---
 
-## Часть 2: Стратегия — Три Столпа Конкурентоспособности
+## 2. Неизменяемые столпы Kolibri
 
-### Столп 1: Математическое Превосходство
+### 2.1 Decimal Cognition
 
-**Цель:** Kolibri становится ЛУЧШИМ в математике, логике и точных науках.
+Внутреннее представление Kolibri строится вокруг цифр `0..9`, а не вокруг
+обычных токенов строкового LLM-мира.
 
-**Почему это возможно:**
-- Числа — родной тип данных (не токены)
-- Формулы — интерпретируемые математические выражения
-- Трансформер может обучиться точным вычислениям
+- Все входы проходят через decimal transduction.
+- Числа, арифметика, токены, сигналы голосования и provenance должны быть
+  совместимы с decimal-first контуром.
+- `decimal.c`, `digits.c`, `digit_text.c`, `numeric_tokenizer.c` остаются
+  фундаментом восприятия.
 
-**Конкретные задачи:**
+### 2.2 Formula Evolution
 
-#### 1.1. Native Numeric Transformer
-```
-Текущее: word → DJB2 hash → 64 цифры (детерминировано)
-Целевое: token → learned embedding с numeric awareness
+Kolibri учится через эволюцию и отбор исполняемых формул, а не только через
+масштабирование параметров.
 
-Новая архитектура embedding:
-- Числовые токены: специальные эмбеддинги с позиционной информацией цифр
-- Дроби/десятичные: точное представление через decimal.c
-- Математические символы: π, e, √, ∫, ∑ и т.д.
-- Операторы: +, -, ×, ÷, =, <, >
-```
+- Формула считается рабочей единицей знания.
+- Fitness, mutation, crossover, population diversity и replayability остаются
+  обязательной частью архитектуры.
+- Даже при наличии backprop и transformer-компонентов формульный слой остаётся
+  первичным differentiator проекта.
 
-**Реализация:**
-- Создать `numeric_tokenizer.c` — токенизатор для математических выражений
-- Модифицировать `attention.c` для multi-modal embeddings (текст + числа)
-- Обучить на математических датасетах (GSM8K, MATH, AIME)
+### 2.3 Digital Genome
 
-#### 1.2. Symbolic Reasoning Engine
-```
-Текущее: formula.c эволюционирует 4000-цифровые геномы
-Целевое: система выводит и проверяет математические доказательства
+Память Kolibri должна быть проверяемой и прослеживаемой.
 
-Новые компоненты:
-- Theorem prover на основе формульной логики
-- Step-by-step решение с объяснением каждого шага
-- Проверка доказательств (proof verification)
-```
+- Все значимые обучающие и reasoning-события должны иметь provenance.
+- `genome.c` и `ReasonBlock` остаются базой для audit trail.
+- Формула без происхождения не считается fully trusted knowledge.
 
-**Реализация:**
-- Расширить `formula_logic.c` для символьных вычислений
-- Интегрировать с `logical_memory.c` для хранения теорем
-- Создать `math_solver.c` — решатель с пошаговым объяснением
+### 2.4 Swarm Intelligence
 
-#### 1.3. Exact Arithmetic Layer
-```
-Проблема LLM: 2.3 + 5.7 = ??? (угадывают)
-Решение Kolibri: decimal.c даёт ТОЧНЫЙ ответ
+Swarm не является декоративным экраном или маркетинговым benchmark.
 
-Архитектура:
-- Arithmetic co-processor: точные вычисления встраиваются в генерацию
-- Neural + Symbolic гибрид: нейросеть понимает задачу, symbolic layer считает
-- Верификация: каждый числовой ответ проверяется точно
-```
+- Рой нужен для реального распространения полезных знаний.
+- Узлы должны иметь роли, health, consensus, disagreement и measurable uplift.
+- Любой ingest должен в перспективе уметь доходить до swarm refresh и validator
+  consensus path.
 
 ---
 
-### Столп 2: Непрерывное Эволюционное Обучение
+## 3. Anti-Goals
 
-**Цель:** Kolibri никогда не "замораживается" — постоянно учится и улучшается.
+Kolibri сознательно **не** строится как:
 
-**Почему это возможно:**
-- Геномный блокчейн хранит историю обучения
-- Формульная эволюция оптимизирует знания
-- Swarm позволяет распределённое обучение
-
-**Конкретные задачи:**
-
-#### 2.1. Evolutionary Pretraining Pipeline
-```
-Текущее: SPSA обновляет веса (шумно, медленно)
-Целевое: двухуровневая эволюция
-
-Уровень 1: Micro-evolution (ежедневно)
-- Обновление графа знаний из новых данных
-- Эволюция формул для улучшения ассоциаций
-- SPSA обновляет embedding слоя
-
-Уровень 2: Macro-evolution (еженедельно)
-- Популяция из 100 формул эволюционирует
-- Tournament selection по качеству ответов
-- Crossover + mutation создают новые архитектуры
-- Лучшие формулы сохраняются в геном
-```
-
-**Реализация:**
-- Создать `evolutionary_trainer.c` — главный цикл эволюции
-- Модифицировать `formula.c` для популяционной эволюции
-- Интегрировать с `genome.c` для сохранения лучших формул
-
-#### 2.2. Quality Metrics без LLM
-```
-Проблема: как оценить качество без teacher model?
-
-Решение: внутренние метрики Kolibri
-1. Compression ratio — насколько хорошо сжимает знания (сжатие = понимание)
-2. Formula fitness — насколько формулы точно предсказывают ответы
-3. Graph coherence — связность графа знаний
-4. Reasoning depth — глубина логических цепочек
-5. Arithmetic accuracy — точность вычислений
-
-Автоматическая оценка:
-- Самопроверка: система генерирует ответ → проверяет себя
-- Cross-validation: разные методы должны давать согласованные ответы
-- Provenance tracking: каждое знание имеет источник и историю
-```
-
-#### 2.3. Swarm Learning Protocol
-```
-Текущее: swarm refresh пересчитывает "1 vs 10"
-Целевое: полноценное распределённое обучение
-
-Протокол:
-1. Каждый узел обучается локально на своих данных
-2. Периодически узлы обмениваются формулами (не градиентами)
-3. Полученные формулы тестируются локально
-4. Лучшие формулы интегрируются через crossover
-5. Provenance сохраняется в геноме
-
-Преимущество над federated learning:
-- Обмениваемся ИНТЕРПРЕТИРУЕМЫМИ формулами, не весами
-- Каждый узел понимает ЧТО он получил
-- Можно отследить происхождение каждого знания
-```
+- клон GPT/Claude/ChatGPT с текстовой оптимизацией любой ценой;
+- продукт, где Python request-serving считается ядром интеллекта;
+- набор несвязанных демо-модулей без одного канонического runtime;
+- "сверх-AGI" по заявлениям в документах без reproducible benchmarks;
+- swarm-визуализация без доказуемого прироста качества;
+- WASM-демо, которое живёт отдельно от боевого ядра.
 
 ---
 
-### Столп 3: Интерпретируемость и Доверие
+## 4. Truth Policy for Status Claims
 
-**Цель:** Kolibri — самая доверенная AI система, потому что всё можно проверить.
+Этот документ подчиняется жёсткой политике статусов.
 
-**Почему это критично:**
-- LLM — чёрные ящики, невозможно проверить откуда ответ
-- Kolibri — каждая формула читаема, каждое знание имеет provenance
-- Это НЕ преимущество — это ТРЕБОВАНИЕ для медицины, юриспруденции, науки
+### 4.1 Разрешённые статусы
 
-**Конкретные задачи:**
+- `implemented` — есть код, тесты, воспроизводимый запуск и acceptance.
+- `in_progress` — есть код или design, но нет полного подтверждения.
+- `planned` — есть только план, идея, черновик или частичная заготовка.
 
-#### 3.1. Formula Explanation System
-```
-Каждый ответ Kolibri включает:
-1. Прямой ответ
-2. Формулу которая его вывела
-3. Цепочку рассуждений (шаг за шагом)
-4. Источники знаний (provenance из генома)
-5. Уровень уверенности и почему
+### 4.2 Правила
 
-Пример:
-Вопрос: "Какова площадь круга радиусом 5?"
+- Нельзя отмечать phase outcome как завершённый только потому, что существует
+  файл, модуль или локальный прототип.
+- Если acceptance gates из [QA_ACCEPTANCE.md](../QA_ACCEPTANCE.md) не зелёные,
+  задача не считается fully complete.
+- Если CTest зарегистрировал тест, но бинарь не собирается или не запускается,
+  такой тест не может подтверждать roadmap-claim.
+- `ROADMAP_SINGLE_SOURCE_OF_TRUTH.md` остаётся factual baseline по реализованному
+  состоянию; этот документ задаёт стратегию и квартальную программу.
 
-Ответ Kolibri:
-"Площадь круга = π × r²
-Формула: f(r) = π × r² [из domain:math, formula_id:0x4A2F]
-Шаги:
-  1. r = 5
-  2. r² = 25
-  3. π ≈ 3.14159...
-  4. Площадь = 3.14159... × 25 = 78.539...
-Ответ: 78.54 кв. единиц
-Уверенность: 100% (точная формула, точные вычисления)
-Источник: Математика, геометрия, изучено 2025-03-15"
-```
+### 4.3 Иерархия правды
 
-#### 3.2. Knowledge Provenance Graph
-```
-Расширить `genome.c` для полного provenance tracking:
+Порядок источников правды:
 
-Каждый блок генома содержит:
-- Какое знание получено
-- Откуда (URL, документ, пользователь)
-- Когда (timestamp)
-- Какие формулы использованы
-- Какие другие знания зависят от этого
-- Верификация (HMAC-SHA256)
+1. [PRODUCT_SPEC_V2.md](../PRODUCT_SPEC_V2.md)
+2. [PUBLIC_ARCHITECTURE.md](../PUBLIC_ARCHITECTURE.md)
+3. [API_REFERENCE.md](../API_REFERENCE.md)
+4. [QA_ACCEPTANCE.md](../QA_ACCEPTANCE.md)
+5. [ROADMAP_SINGLE_SOURCE_OF_TRUTH.md](ROADMAP_SINGLE_SOURCE_OF_TRUTH.md)
+6. Этот master-roadmap
 
-Визуализация:
-- Граф provenance для любого ответа
-- Можно отследить до исходного источника
-- Показывает какие знания критичны, какие маргинальны
-```
-
-#### 3.3. Self-Verification Protocol
-```
-Перед выдачей ответа Kolibri:
-1. Генерирует ответ основным методом
-2. Проверяет через альтернативный метод
-3. Сравнивает результаты
-4. Если расхождение → объясняет неопределённость
-5. Если согласие → повышает уверенность
-
-Пример:
-- Основной: формульная логика → ответ X
-- Проверка: граф знаний → ответ X
-- Результат: уверенность высокая
-
-- Основной: формульная логика → ответ X  
-- Проверка: мировая модель → ответ Y
-- Результат: "Есть неопределённость. Объясняю оба подхода..."
-```
+Если документы конфликтуют, приоритет имеет более высокий элемент списка.
 
 ---
 
-## Часть 3: Дорожная Карта Реализации
+## 5. Current Factual Baseline on 2026-04-09
 
-### Фаза 1: Foundation (Q2 2026 — 3 месяца)
+### 5.1 Что уже подтверждено
 
-**Цель:** Модернизировать C ядро для конкурентоспособности
+- product shell остаётся `chat-first`;
+- C-core содержит модули для formula/inference, logical memory, world model,
+  exact math, reasoning engine, self-verification, explanation generation,
+  swarm-learner и related subsystems;
+- WASM path существует и уже встроен во frontend;
+- C HTTP server существует и уже обслуживает часть runtime/API сценариев;
+- numeric voting и morphology/semantics имеют по крайней мере первую
+  production-stage реализацию в C inference path;
+- live learning и swarm runtime существуют как продуктовые контуры.
 
-**Статус:** Месяц 1 ✅ ЗАВЕРШЁН, Месяц 2 🔄 В РАЗРАБОТКЕ
+### 5.2 Что ещё не подтверждено как завершённое
 
-#### Месяц 1: Numeric Transformer ✅ ЗАВЕРШЁН (2026-04-05)
+- C runtime как единственный канонический production gateway;
+- full parity между `native C`, `WASM` и chat runtime;
+- 50-node swarm как реально завершённый production capability;
+- agentic tool use и reasoning-guided action loop;
+- единый C-owned learning loop без Python orchestration debt;
+- consistency всей документации вокруг одного roadmap/status model.
 
-**Приоритет ВЫСОКИЙ:**
-- [x] ✅ Создать `numeric_tokenizer.c/h` (914 строк)
-  - [x] ✅ Токенизация математических выражений
-  - [x] ✅ Специальные токены для чисел, операторов, функций
-  - [x] ✅ Поддержка Unicode математики (π, √, ∫, ∑, и т.д.)
-  - [x] ✅ Числовое embedding с позиционной информацией
+### 5.3 Главный текущий разрыв
 
-- [x] ✅ Модифицировать `attention.c` (+300 строк)
-  - [x] ✅ RoPE (Rotary Position Embedding) вместо sinusoidal
-  - [x] ✅ RMSNorm вместо LayerNorm
-  - [x] ✅ GQA (Grouped-Query Attention) — экономия 75% KV
-  - [x] ✅ SwiGLU activation вместо GELU
-  - [x] ✅ max_seq увеличен до 2048
-  - [x] ✅ V2 конфигурации: small (152K), medium (7.7M), large (121M)
+Kolibri уже имеет сильный набор идей и модулей, но пока ещё не собран в один
+проверяемый интеллект-контур:
 
-- [x] ✅ Создать `kat_train_backprop.c/h` (818 строк)
-  - [x] ✅ Настоящий backpropagation вместо SPSA
-  - [x] ✅ AdamW оптимизатор
-  - [x] ✅ Gradient clipping
-  - [x] ✅ LR scheduler (cosine warmup)
+`Perception -> Working Cognition -> Trust -> Memory -> Learning -> Action -> Swarm`
 
-**Результаты тестирования:**
-```
-✅ 14/14 тестов проходят (test_numeric_tokenizer.c создан)
-✅ Init, vocab, tokenize, math_tokenize
-✅ Digit tokens, operators, functions, constants (π, e, φ точные)
-✅ Number parsing: 42, -7, 3.14, 1e10
-✅ Detokenize, embedding (norm=11.03), token names
-✅ Unicode math: π, √
-✅ Integrated workflow: 'sin(π/2) + cos(0) = 2' → 13 tokens
-✅ Loss уменьшается: 5.2936 → 5.2877
-✅ Gradient clipping: norm 12800 → 1.0
-✅ LR scheduler: warmup → cosine → decay
-```
-
-**Критерий успеха:** ✅ Выполнен — backprop работает, tokenizer протестирован 14/14
-
-**Отчёт:** `docs/plans/PHASE1_MONTH1_REPORT.md`
-
-#### Месяц 2: Symbolic Math Engine ✅ ЗАВЕРШЁН
-
-**Приоритет ВЫСОКИЙ:**
-- [x] ✅ Расширить `formula_logic.c`
-  - [x] ✅ Символьные вычисления (упрощение выражений)
-  - [x] ✅ Правила вывода (линейные, квадратные, системы)
-  - [x] ✅ Хранение решений в структурированном виде
-
-- [x] ✅ Создать `math_solver.c/h` (1026 строк)
-  - [x] ✅ Решение линейных уравнений (ax + b = c)
-  - [x] ✅ Решение квадратных уравнений (ax² + bx + c = 0)
-  - [x] ✅ Системы линейных уравнений (метод Гаусса, до 10x10)
-  - [x] ✅ Пошаговое объяснение каждого решения
-  - [x] ✅ Проверка ответов подстановкой
-  - [x] ✅ Форматирование решений для вывода
-
-- [x] ✅ Интегрировать с `decimal.c`
-  - [x] ✅ Точные вычисления с epsilon = 1e-10
-  - [x] ✅ НОД/НОК для упрощения дробей
-  - [x] ✅ Упрощение дробей
-
-**Результаты тестирования:**
-```
-✅ 14/14 тестов проходят
-✅ Линейные: x = 2 (2x+3=7), x = 3 (5x=15), нет решений, беск. решений
-✅ Квадратные: x₁=3, x₂=2 (x²-5x+6=0), x=2 (x²-4x+4=0)
-✅ Комплексные: x = ±i (x²+1=0)
-✅ Системы: 2x2 (x=2,y=1), 3x3 (x=1,y=2,z=3)
-✅ Проверка: ошибка 0.00e+00
-✅ Пошаговые объяснения работают
-```
-
-**Критерий успеха:** ✅ Решает 100% тестовых задач с пошаговым объяснением
-
-#### Месяц 3: Training Pipeline ✅ ЗАВЕРШЁН
-
-**Приоритет СРЕДНИЙ:**
-- [x] ✅ Создать `corpus_math_trainer.c/h` (714 строк)
-  - [x] ✅ Генерация синтетических датасетов (арифметика, уравнения, проценты)
-  - [x] ✅ Batch training с gradient accumulation
-  - [x] ✅ Validation и early stopping
-  - [x] ✅ Сохранение/загрузка чекпоинтов
-  - [x] ✅ Progress tracking и логирование
-  - [x] ✅ Benchmarking с comparison к baseline
-
-- [x] ✅ Интеграция датасетов
-  - [x] ✅ Синтетические примеры (4 типа: арифметика, линейные, квадратные, проценты)
-  - [x] ✅ Токенизация всего датасета
-  - [x] ✅ Shuffle и train/val split
-
-- [x] ✅ Benchmark система
-  - [x] ✅ Оценка accuracy и loss
-  - [x] ✅ Сравнение с baseline
-  - [x] ✅ Samples/sec throughput
-
-**Результаты тестирования:**
-```
-✅ Все тесты проходят
-✅ Dataset: 50 примеров, 4 типа задач, токенизация 100%
-✅ Training: loss уменьшается 5.91 → 5.80 (обучение работает!)
-✅ Benchmark: 267 samples/sec, loss 6.14 → 6.09 после обучения
-✅ Checkpoints: сохранение/загрузка работают (660KB)
-✅ Early stopping и validation готовы
-```
-
-**Критерий успеха:** ✅ Training pipeline работает end-to-end
+Именно этот разрыв закрывает настоящий roadmap.
 
 ---
 
-### Фаза 1: ИТОГО (3 месяца)
+## 6. Target Architecture Through 2027
 
-**Статус:** ✅ ВСЕ 3 МЕСЯЦА ЗАВЕРШЕНЫ
+### 6.1 North Star
 
-| Месяц | Компонент | Строк кода | Тесты | Статус |
-|-------|-----------|------------|-------|--------|
-| 1 | Numeric Transformer | 2,296 | 14/14 ✅ | ✅ |
-| 2 | Symbolic Math Engine | 1,026 | 14/14 ✅ | ✅ |
-| 3 | Training Pipeline | 714 | 10/10 ✅ | ✅ |
-| **ИТОГО** | | **4,036** | **38/38** | **✅** |
+Канонический production path Kolibri:
 
-**Ключевые достижения Фазы 1:**
-✅ Numeric Tokenizer с математикой — 14/14 тестов
-✅ RoPE, RMSNorm, GQA, SwiGLU в transformer
-✅ Backpropagation + AdamW оптимизатор
-✅ Symbolic Math Engine (линейные, квадратные, системы)
-✅ Training Pipeline с checkpointing
-✅ Benchmark система
-✅ Все тесты проходят (38/38)
+`C cognitive kernel -> C runtime gateway -> WASM twin -> product shell`
 
----
+Python допускается только как:
 
-### Фаза 2: Evolution (Q3 2026 — 3 месяца)
+- research tooling;
+- dataset preparation;
+- CI/CD scripts;
+- migration helpers;
+- operator tooling вне канонического intelligence path.
 
-**Цель:** Запустить непрерывное эволюционное обучение
+### 6.2 Canonical Intelligence Pipeline
 
-**Статус:** Месяц 1 ✅ ЗАВЕРШЁН (тест починен), Месяц 2 ✅, Месяц 6 ✅
+#### Perception
 
-#### Месяц 1: Evolutionary Pretraining ✅ ЗАВЕРШЁН
+- decimal transduction;
+- tokenization;
+- morphology;
+- normalization;
+- topic/entity extraction;
+- semantic continuity signals.
 
-- [x] ✅ Создать `evolutionary_trainer.c/h` (701 строк)
-  - [x] ✅ Популяция из 50+ формул
-  - [x] ✅ Tournament selection
-  - [x] ✅ 5 типов мутаций (point, swap, invert, scramble, shift)
-  - [x] ✅ 3 типа кроссовера (single-point, two-point, uniform)
-  - [x] ✅ Speciation для поддержания разнообразия
-  - [x] ✅ Fitness sharing
-  - [x] ✅ Elitism
+#### Working Cognition
 
-**Результаты тестирования:**
-```
-✅ 10/10 тестов проходят (тест починен — добавлен target_fitness=1e30)
-✅ Evolution: fitness улучшается 10% → 12.6% (sevens maximization)
-✅ Speciation: 8 видов обнаружены автоматически
-✅ Diversity: 0.26-0.30 (хорошее разнообразие)
-✅ Statistics: сохранение в CSV работает
-```
+- numeric voting;
+- formula / inference layer;
+- symbolic reasoning;
+- exact arithmetic;
+- world model;
+- logical memory;
+- memory linking.
 
-**Критерий успеха:** ✅ Эволюция работает, fitness улучшается
+#### Trust Layer
 
-#### Месяц 2: Swarm Learning ✅ ЗАВЕРШЁН (2026-04-05)
+- self-verification;
+- contradiction detection;
+- confidence rationale;
+- provenance collection;
+- explanation generation.
 
-- [x] ✅ Исправлен критический баг в `swarm_learner.c/h`
-  - [x] ✅ Segfault исправлен (переход на heap allocation для KolibriEvoTrainer)
-  - [x] ✅ Все 7 тестов в test_swarm_learner проходят
-  
-- [x] ✅ Модифицировать `net.c` для обмена формулами
-  - [x] ✅ Протокол обмена формулами между узлами (kn_share_formula, kn_listener_start/poll)
-  - [x] ✅ Верификация полученных формул (checksum + local fitness evaluation)
-  - [x] ✅ Crossover с внешними формулами (50/50 гибридизация при интеграции)
-  
-- [x] ✅ Создать `swarm_learner.c/h`
-  - [x] ✅ Локальное обучение (kolibri_swarm_train_local)
-  - [x] ✅ Периодическая синхронизация (kolibri_swarm_sync_round)
-  - [x] ✅ Интеграция лучших формул из роя (kolibri_swarm_receive_and_merge)
-  - [x] ✅ 10-узловой тест: 514ms, global_best=4.71, diversity=0.017
-  - [x] ✅ 540 формул принято в 10-узловом swarm
+#### Persistent Learning
 
-- [x] ✅ Создать `swarm_network.c/h` — сетевой слой для распределённого обучения
-  - [x] ✅ kolibri_swarm_net_init() — инициализация узла с listeners и peers
-  - [x] ✅ kolibri_swarm_net_send_best_formulas() — отправка top-K формул peer'ам
-  - [x] ✅ kolibri_swarm_net_receive_formulas() — приём, верификация, integration
-  - [x] ✅ kolibri_swarm_net_sync_round() — полный цикл синхронизации
-  - [x] ✅ Provenance tracking (откуда получена формула)
+- live queue;
+- approved knowledge assimilation;
+- formula evolution;
+- genome updates;
+- quality history;
+- replayable learning artifacts.
 
-- [x] ✅ Настроить распределённое обучение
-  - [x] ✅ 10 узлов для тестирования (test_swarm_learner: 10-node scalability test)
-  - [x] ✅ 5 узлов с сетевым обменом (test_swarm_network: 5-node test, 177ms)
-  - [x] ✅ Автоматическая синхронизация
-  - [x] ✅ Мониторинг прогресса (kolibri_swarm_print_stats, save_stats)
+#### Autonomy
 
-**Результаты тестирования:**
-```
-test_swarm_learner:
-  ✅ Initialization, local training, exchange, sync, full training
-  ✅ 10-node swarm: 514ms, global_best=4.71, diversity=0.017
-  ✅ 540 формул принято, все узлы активны
+- planning;
+- tool routing;
+- task state;
+- post-action verification;
+- reflection cycle;
+- swarm propagation.
 
-test_swarm_network:
-  ✅ Network init, local training, 2-node exchange, sync round
-  ✅ 5-node network: 177ms, все узлы обмениваются формулами
-  ✅ Swarm vs Isolated: +3.82% улучшение качества (4.76 vs 4.59)
-```
+### 6.3 Public Runtime Principle
 
-**Критерий успеха:** ⚠️ Частично выполнен
-- ✅ 10 узлов обучаются совместно
-- ⚠️ Улучшение качества: **+3.82%** (цель: 15%)
-- 💡 Для достижения 15%: нужны более сложные fitness функции (math problems), больше sync раундов (20-30 вместо 5), adaptive crossover rate
-
-**Итого создано/изменено:** ~2,172 строк кода (4 файла создано, 2 исправлено)
+- Frontend должен видеть один канонический runtime contract.
+- WASM должен быть twin того же ядра, а не отдельной деградированной логикой.
+- Public API и frontend types должны быть runtime-agnostic, а не привязаны к
+  FastAPI semantics.
 
 ---
 
-### Фаза 2: ИТОГО (Месяцы 1-6)
+## 7. Quarterly Roadmap
 
-| Месяц | Компонент | Строк кода | Тесты | Статус |
-|-------|-----------|------------|-------|--------|
-| 1 | Evolutionary Pretraining | 701 | 10/10 ✅ | ✅ |
-| 2 | Swarm Learning | 2,172 | 14/14 ✅ | ✅ |
-| 2a | Исправление swarm_learner | - | Segfault fixed | ✅ |
-| 2b | swarm_network.c/h (новый) | 746 | 7/7 ✅ | ✅ |
-| 6 | Self-Verification | 495 | 8/8 ✅ | ✅ |
-| 6 | Explanation Generator | 495 | 10/10 ✅ | ✅ |
-| **ИТОГО** | | **4,609** | **49/49** | **✅** |
+### Phase 0 — Truth Reset and Canonicalization
 
-**Ключевые достижения Фазы 2 (Месяцы 1-6):**
-✅ Evolutionary trainer с популяционной эволюцией
-✅ Speciation и fitness sharing для разнообразия
-✅ Swarm learner для multi-node обучения
-✅ Network layer для распределённого обмена формулами
-✅ Verifiction + crossover с внешними формулами
-✅ 10-узловой swarm работает (514ms)
-✅ Swarm vs Isolated: +3.82% (цель 15% — требует доработки)
-✅ Provenance tracking и мониторинг
-✅ Self-verification: 100% точность (>85% target)
-✅ Explanation generator: пошаговые объяснения для математики и общих вопросов
-✅ Форматирование: Text, Markdown, JSON
-✅ Все тесты проходят (49/49)
+**Срок:** 2026-04-09 -> 2026-05-31
 
----
+**Цель:** перестать жить в conflicting-docs режиме и зафиксировать один
+engineering reality model.
 
-#### Месяц 6: Quality Assurance ✅ ЗАВЕРШЁН (2026-04-05)
+### Outcomes
 
-- [x] ✅ Создать `self_verification.c/h` (495 строк)
-  - [x] ✅ Мульти-метод проверка ответов (formula, logical, knowledge, arithmetic)
-  - [x] ✅ Оценка уверенности (confidence scoring 0.0-1.0)
-  - [x] ✅ Обнаружение противоречий (contradiction detection)
-  - [x] ✅ Provenance tracking для каждого ответа
-  - [x] ✅ Генерация рекомендаций
+- `ROADMAP_TO_COMPETITIVE_AGI.md` полностью заменён на этот master-roadmap.
+- Канонический набор документов официально определён.
+- Старые optimistic claims переведены в честные статусы либо отправлены в
+  `unconfirmed`/archive контур.
+- Build/test inventory очищен: test registry соответствует реально собираемым и
+  запускаемым артефактам.
 
-- [x] ✅ Создать `explanation_generator.c/h` (495 строк)
-  - [x] ✅ Генерация пошаговых объяснений для математики (linear, quadratic, geometry)
-  - [x] ✅ Генерация объяснений для общих вопросов
-  - [x] ✅ Визуализация формул (formula_text, formula_id, domain)
-  - [x] ✅ Provenance tracking для ответов (источники, domain, timestamp)
-  - [x] ✅ Форматирование: Text, Markdown, JSON
+### Required work
 
-- [x] ✅ Бенчмарки и отчёты
-  - [x] ✅ Тесты на разнообразных задачах (8 тестов self_verification, 10 тестов explanation)
-  - [x] ✅ Оценка качества объяснений (confidence, agreement, verification)
-  - [x] ✅ Сравнение с baseline
+- Проверить все стратегические claims на соответствие `implemented` policy.
+- Убрать future-perfect формулировки вроде "всё завершено", если acceptance не
+  подтверждён.
+- Починить или понизить статус тестов, которые числятся, но не исполняются.
+- Привести `README`, roadmap docs и status docs к одной навигационной модели.
 
-**Результаты тестирования:**
-```
-test_self_verification (8 тестов):
-  ✅ Initialization, simple verification, contradictions
-  ✅ Arithmetic verification, text verification
-  ✅ Method names, save report, accuracy
-  ✅ Verification accuracy: 100% (5/5) — target was >85%
-  ✅ Confidence scoring: 0.80-0.84 (средняя уверенность)
-  ✅ Contradiction detection: 2 противоречия обнаружены
+### Exit gate
 
-test_explanation_generator (10 тестов):
-  ✅ Linear equation: 4 шага, confidence 0.95
-  ✅ Quadratic equation: дискриминант, корни, проверка
-  ✅ Geometry: π × r², пошаговые вычисления
-  ✅ General explanation: knowledge retrieval, cross-verification
-  ✅ Formatting: Text, Markdown, JSON — все работают
-```
+- docs consistent;
+- roadmap conflicts removed;
+- test inventory honest;
+- no false-completion language in primary docs.
 
-**Критерий успеха:** ✅ 90%+ ответов включают корректные explanations, self-verification точность 100% (>85% target)
+**Статус на 2026-04-09:** `in_progress`
 
 ---
 
-### Фаза 3: Knowledge & Reasoning (Q4 2026 — 3 месяца) ✅ ЗАВЕРШЕНА (2026-04-05)
+### Phase 1 — Cognitive Kernel for Trustworthy Reasoning
 
-**Цель:** Углубить рассуждение и знания за пределы математики
+**Срок:** 2026-06-01 -> 2026-09-30
 
-**Статус:** ✅ ВСЕ 3 МЕСЯЦА ЗАВЕРШЕНЫ
+**Цель:** довести C-kernel до состояния reasoning-first AI, а не набора
+telemetry-модулей.
 
-#### Месяц 7: Advanced Reasoning ✅ ЗАВЕРШЁН (v2 — настоящий вывод)
+### Core objectives
 
-- [x] ✅ Переписать `reasoning_engine.c` (1021 строка, v2)
-  - [x] ✅ Modus Ponens: P, P→Q ⊢ Q (реальный вывод)
-  - [x] ✅ Modus Tollens: ¬Q, P→Q ⊢ ¬P (реальный вывод)
-  - [x] ✅ Chain Rule: P→Q, Q→R ⊢ P→R (реальный вывод)
-  - [x] ✅ Elimination: A∨B, ¬A ⊢ B
-  - [x] ✅ Абдукция: генерация гипотез из правил
-  - [x] ✅ Индукция: обобщение из фактов
-  - [x] ✅ Аналогия: парсинг "A как B", mapping между доменами
-  - [x] ✅ Counterfactual: анализ зависимостей
+- morphology и semantics становятся обязательным runtime layer;
+- numeric voting принимает реальные routing/quality decisions;
+- reasoning engine, exact arithmetic, explanation generator и self-verification
+  входят в единый canonical answer pipeline;
+- memory linking и follow-up continuity уходят из route-specific patchwork в ядро.
 
-- [x] ✅ `kolibri_re_solve_logic_puzzle`
-  - [x] ✅ Задача про монеты: реальный алгоритм (3^N >= coins, ceil(N/3))
-  - [x] ✅ Другие задачи: elimination + chain rule + fallback
+### Required outcomes
 
-- [x] ✅ `logical_memory.c` — хранение фактов и правил
-  - [x] ✅ kolibri_re_add_fact / kolibri_re_add_rule
-  - [x] ✅ Правила применяются для вывода (modus ponens/chain)
+- точный math/solver path для арифметики, алгебры и logic puzzles;
+- contradiction-aware answer evaluation;
+- explanation + provenance attached by default для reasoning-grade answers;
+- `5-turn continuity` как explicit engineering target;
+- benchmark-first development вместо feature-claim-first development.
 
-**Результаты тестирования:**
-```
-✅ 10/10 тестов проходят
-✅ Modus Ponens: 'Сократ — человек' + правило → 'Сократ смертен' (conf=0.81)
-✅ Modus Tollens: 'не Сократ бессмертен' + правило → 'не Сократ — бог'
-✅ Chain Rule: 'дождь→мокрая→влажная' → 'дождь→влажная'
-✅ Abduction: 'Трава мокрая' → 2 гипотезы (дождь=0.80, полив=0.70)
-✅ Analogy: 'Атом как солнечная система' — распознано
-✅ Counterfactual: анализ зависимостей
-✅ Universal interface: автоопределение типа (4/4)
-✅ Logic puzzles: монеты решены (conf=0.95)
-```
+### Hard restrictions
 
-**Критерий успеха:** ✅ Настоящий логический вывод работает (не шаблоны)
+- нельзя объявлять Kolibri competitive AI из-за наличия отдельных модулей;
+- нельзя идти в model-scaling, пока reasoning benchmark ladder не зелёный;
+- нельзя оставлять morphology/semantics только как export telemetry.
 
-#### Месяц 8: Domain Expansion ✅ ЗАВЕРШЁН
+### Exit gate
 
-- [x] ✅ Создать `domain_knowledge_loader.c/h` (406 строк)
-  - [x] ✅ Физика: 12 фактов/правил (законы Ньютона, кинематика, энергия, Закон Ома)
-  - [x] ✅ Химия: 10 фактов/правил (реакции горения, нейтрализация, стехиометрия, pH)
-  - [x] ✅ Программирование: 14 фактов/правил (алгоритмы, структуры данных, паттерны, сложность)
-  - [x] ✅ Юриспруденция: 11 фактов/правил (презумпция невиновности, договоры, сроки давности)
+- exact arithmetic green;
+- algebra/solver tasks green;
+- logic + contradiction tasks green;
+- explanation fidelity validated;
+- 5-turn continuity baseline reached;
+- targeted C/backend tests green.
 
-- [x] ✅ Интеграция с reasoning engine
-  - [x] ✅ Загрузка через kolibri_re_add_fact/add_rule
-  - [x] ✅ Modus Ponens работает с реальными знаниями
-  - [x] ✅ Chain Rule находит цепочки правил
-  - [x] ✅ Abduction генерирует гипотезы из правил доменов
+**Статус на 2026-04-09:** `in_progress`
 
-- [x] ✅ Тестирование на всех доменах
-  - [x] ✅ Физика: 'Тело массой m...' → 'F = m * a' (conf=0.76)
-  - [x] ✅ Химия: 'Водород горит...' → '2H2 + O2 → 2H2O' (conf=0.88)
-  - [x] ✅ Программирование: 'Массив отсортирован...' → 'Бинарный поиск O(log n)'
-  - [x] ✅ Юриспруденция: 'Невиновность не доказана' → 'Презумпция невиновности'
+**Текущее reproducible evidence**
 
-**Результаты тестирования:**
-```
-✅ 9/9 тестов проходят
-✅ Load all domains: 48 фактов/правил
-✅ Physics Modus Ponens: conf=0.76
-✅ Physics Chain Rule: 5 steps
-✅ Chemistry reaction: 2H2 + O2 → 2H2O (conf=0.88)
-✅ Chemistry abduction: 8 гипотез, best='Водород H2 горит' (prob=0.99)
-✅ Programming algorithms: QuickSort, Binary Search найдены
-✅ Law principles: презумпция невиновности (conf=0.31)
-✅ Counterfactual physics: анализ зависимостей
-✅ Integrated workflow: все 4 домена работают
-```
-
-**Критерий успеха:** ✅ 4 домена загружены,推理 работает на реальных знаниях
-
-#### Месяц 9: Compression = Understanding ✅ ЗАВЕРШЁН
-
-- [x] ✅ Усилить `predictive_compress.c`
-  - [x] ✅ Сжатие как мера понимания
-  - [x] ✅ Автоматическое извлечение паттернов
-  - [x] ✅ Формулы из сжатых данных
-
-- [x] ✅ Создать `pattern_discovery.c/h` (395 строк)
-  - [x] ✅ Обнаружение скрытых паттернов в данных (Linear, Quadratic, Periodic)
-  - [x] ✅ Генерация гипотез
-  - [x] ✅ Проверка через эксперименты
-  - [x] ✅ Извлечение формул из паттернов
-
-- [x] ✅ Benchmark compression
-  - [x] ✅ Измерение ratios для разных доменов (Linear: 10x, Quadratic: 6.7x)
-  - [x] ✅ Корреляция сжатия с качеством ответов (R² = 1.0)
-  - [x] ✅ R² computation verified
-
-**Результаты тестирования:**
-```
-test_pattern_discovery (7 тестов):
-  ✅ Linear pattern: R² = 1.0000, compression = 10.0x
-  ✅ Quadratic pattern: R² = 1.0000, compression = 6.7x
-  ✅ Periodic pattern: detected
-  ✅ Formula generation: работает
-  ✅ Hypothesis testing: работает
-  ✅ R² computation: perfect=1.0, poor=-3.0
-  ✅ Compression-quality correlation: R² = 1.0 (>0.7 target)
-```
-
-**Критерий успеха:** ✅ Корреляция compression ratio с качеством ответов R² = 1.0 (>0.7 target)
+- `ctest --test-dir build -R '^(test_math_solver|test_self_verification|test_explanation_generator|test_reasoning_engine|test_kolibri_http_server_api|test_kolibri_http_stream_api|test_kolibri_http_phase1_benchmark)$' --output-on-failure`
+- `python3 tests/test_kolibri_http_phase1_benchmark.py build/kolibri_http_server --output-json build/benchmarks/kolibri_http_phase1_benchmark.json`
+- `python3 scripts/check_ctest_inventory.py --build-dir build`
+- `cd frontend && npm run test && npm run lint && npm run build`
 
 ---
 
-### Фаза 3: ИТОГО
+### Phase 2 — General Conversational Intelligence on the Same Core
 
-| Месяц | Компонент | Строк кода | Тесты | Статус |
-|-------|-----------|------------|-------|--------|
-| 7 | Reasoning Engine v2 | 1,021 | 10/10 ✅ | ✅ |
-| 8 | Domain Expansion | 406 | 9/9 ✅ | ✅ |
-| 9 | Pattern Discovery | 395 | 7/7 ✅ | ✅ |
-| **ИТОГО** | | **1,822** | **26/26** | **✅** |
+**Срок:** 2026-10-01 -> 2026-12-31
 
-**Ключевые достижения Фазы 3:**
-✅ Modus Ponens, Modus Tollens, Chain Rule — настоящий логический вывод
-✅ 5 типов рассуждений: Deductive, Inductive, Abductive, Analogical, Counterfactual
-✅ Logic puzzles: монеты решены через реальный алгоритм (conf=0.95)
-✅ Domain knowledge loader: 48 фактов/правил из 4 доменов
-✅ Физика: законы Ньютона, кинематика, Закон Ома
-✅ Химия: реакции горения, нейтрализация, стехиометрия
-✅ Программирование: алгоритмы, структуры данных, паттерны
-✅ Юриспруденция: презумпция невиновности, договоры, сроки давности
-✅ Автоопределение типа рассуждения по запросу
-✅ Pattern discovery: Linear, Quadratic, Periodic
-✅ Compression-quality correlation: R² = 1.0 (>0.7 target)
-✅ Все тесты проходят (26/26)
+**Цель:** построить сильный chat layer поверх reasoning-core, не разрушая trust
+и interpretability.
 
----
+### Core objectives
 
-### Фаза 4: Production Ready (Q1 2027 — 3 месяца)
+- устойчивый multi-turn dialogue;
+- entity/topic switching без route hacks;
+- tool necessity detection через numeric voting;
+- grounded answers with provenance;
+- retry, revise, resend через тот же canonical runtime.
 
-**Цель:** Сделать Kolibri готовым для реального использования
+### Product rules
 
-#### Месяц 10: Performance & Scalability ✅ ЗАВЕРШЁН
+- Kolibri остаётся chat-first продуктом;
+- user-facing `/api/v1/ai/chat` и `/api/v1/ai/chat/stream` остаются каноническими
+  поверхностями;
+- backend-specific shortcut branches должны исчезать из обычного диалога;
+- WASM/native parity становится release requirement для базовых reasoning/chat flows.
 
-- [x] ✅ SIMD оптимизация (AVX2/NEON/Scalar):
-  - [x] ✅ Создать `simd_ops.c/h` (228 строк)
-  - [x] ✅ AVX2: 8 floats за итерацию (dot, add, scale)
-  - [x] ✅ NEON: 4 floats за итерацию (dot, add, scale)
-  - [x] ✅ Scalar fallback для совместимости
-  - [x] ✅ Автодетект бэкенда: NEON (Apple M-series)
-  - [x] ✅ kat_vec_dot, kat_vec_add, kat_vec_scale
-  - [x] ✅ kat_rmsnorm, kat_softmax, kat_gelu, kat_swiglu
-  - [x] ✅ kat_matvec, kat_matmul
+### Exit gate
 
-- [x] ✅ Многопоточность для инференса:
-  - [x] ✅ Создать `threaded_inference.c/h` (228 строк)
-  - [x] ✅ Thread pool с task submission
-  - [x] ✅ Parallel matrix multiplication (row-parallel)
-  - [x] ✅ Автодетект потоков (sysctl/sysconf)
-  - [x] ✅ Detected threads: 8 (macOS M-series)
+- multi-turn dialogue stability validated;
+- entity/topic switching stable;
+- answer revision path consistent;
+- WASM/native parity smoke green;
+- browser smoke green for desktop and mobile.
 
-- [ ] GPU поддержка (опционально):
-  - [ ] CUDA kernel для attention (если доступен GPU)
-  - [ ] Metal для macOS
-  - [ ] Автоматический fallback на CPU
-
-- [ ] Масштабирование:
-  - [ ] Поддержка больших моделей (100M → 500M параметров)
-  - [ ] Distributed inference через swarm
-  - [ ] Load balancing для multiple узлов
-
-**Результаты тестирования:**
-```
-✅ test_simd_ops: 10/10 тестов
-  - Backend: NEON (Apple Silicon)
-  - Dot product: [1,2,3,4]·[5,6,7,8] = 70 ✓
-  - Vector add: [1..8] + [10..80] = [11..88] ✓
-  - Vector scale: [1..10] * 2 = [2, 4, ...] ✓
-  - RMSNorm: out[0]=0.3651 ✓
-  - Softmax: [1,2,3] → [0.09, 0.24, 0.67] ✓
-  - GELU: [-2,-1,0,1,2] → [-0.16, -0.17, 0, 0.83, 2.16] ✓
-  - SwiGLU: [1,2,3]·[0.5,1,1.5] → [0.37, 1.76, 4.29] ✓
-  - Matvec: [[1,2,3],[4,5,6]]@[1,2,3] = [14, 32] ✓
-  - Benchmark: dot 1M×100iters=0.037s, add=0.024s
-
-✅ test_threaded_inference: 5/5 тестов
-  - Thread detection: 8 cores
-  - Pool create/destroy ✓
-  - Task submission: 100 tasks ✓
-  - Parallel matmul: 64x128@128x64, max_diff=0.000000 ✓
-  - Benchmark: 16x16=0.0000s, 32x32=0.0000s, 64x64=0.0000s
-```
-
-**Критерий успеха:** ✅ SIMD и многопоточность работают, все тесты проходят
-
-#### Месяц 11: Developer Experience
-
-- [ ] SDK и API:
-  - Python SDK с typing и документацией
-  - REST API с OpenAPI спецификацией
-  - CLI утилиты для управления
-  - Примеры и tutorials
-  
-- [ ] Документация:
-  - Полное API reference
-  - Tutorials для начинающих
-  - Best practices guide
-  - Архитектурные decision records
-  
-- [ ] Тестирование:
-  - Unit тесты >90% coverage
-  - Integration тесты
-  - End-to-end тесты
-  - Benchmark suite
-
-**Критерий успеха:** Новый разработчик разворачивает Kolibri за <30 минут по документации
-
-#### Месяц 12: Real-World Deployment
-
-- [ ] Production deployment:
-  - Docker образы оптимизированные
-  - Kubernetes manifests
-  - Monitoring и alerting
-  - CI/CD pipeline
-  
-- [ ] Case studies:
-  - Образовательные учреждения (математика)
-  - Научные исследования (proof verification)
-  - Бизнес (financial calculations)
-  - Юридические фирмы (legal reasoning)
-  
-- [ ] Community building:
-  - Open-source сообщество
-  - Форум для обсуждений
-  - Регулярные релизы
-  - Contribution guidelines
-
-**Критерий успеха:** 100+ активных пользователей, 1000+ GitHub stars
+**Статус на 2026-04-09:** `planned`
 
 ---
 
-## Часть 4: Технические Спецификации
+### Phase 3 — Learning, Memory and Self-Improvement
 
-### Целевая Архитектура Модели
+**Срок:** 2027-01-01 -> 2027-03-31
 
-```
-Kolibri Numeric Transformer v2.0
-=================================
+**Цель:** превратить разрозненные обучающие подсистемы в один C-owned learning
+loop уровня настоящего ИИ.
 
-Размеры модели (3 уровня):
+### Core objectives
 
-  Small (для edge devices):
-    - Параметры: 100M
-    - Embedding: 768
-    - Heads: 12 (GQA: 4 groups)
-    - Layers: 14
-    - Seq length: 2048
-    - Vocabulary: 256 (byte) + 1024 (numeric tokens)
-    
-  Medium (для серверов):
-    - Параметры: 500M
-    - Embedding: 1536
-    - Heads: 16 (GQA: 4 groups)
-    - Layers: 24
-    - Seq length: 4096
-    - Vocabulary: 256 + 4096
-    
-  Large (для исследований):
-    - Параметры: 1B
-    - Embedding: 2048
-    - Heads: 24 (GQA: 8 groups)
-    - Layers: 32
-    - Seq length: 8192
-    - Vocabulary: 256 + 8192
+- свести `live queue -> moderation -> approved knowledge -> assimilation ->
+  training -> refresh -> provenance` в единый контролируемый цикл;
+- ввести долговременную память уровня ИИ;
+- включить reflection cycle после ответа;
+- сделать quality history и knowledge growth видимыми для оператора.
 
-Архитектура:
-  - Pre-Norm с RMSNorm
-  - RoPE (Rotary Position Embeddings)
-  - GQA (Grouped-Query Attention)
-  - SwiGLU activation
-  - Causal masking для генерации
-  
-Компоненты поверх трансформера:
-  - Numeric Embedding Layer (decimal.c integration)
-  - Symbolic Reasoning Module (formula_logic.c)
-  - World Model Prediction Head (world_model.c)
-  - Fractal Memory Store (fractal_memory.c)
-  - Knowledge Graph Attention (knowledge.c)
-```
+### Required memory layers
 
-### Требуемые Вычислительные Ресурсы
+- semantic memory linking;
+- episodic conversation memory;
+- learned document memory;
+- formula/genome memory with traceability.
 
-**Small модель (100M параметров):**
-- Training на 18T токенов: ~36 exaFLOPs
-- На 8×A100: ~2-4 недели
-- Инференс на CPU: ~100 токенов/сек
-- RAM требование: ~2GB для inference
+### Exit gate
 
-**Medium модель (500M):**
-- Training на 18T токенов: ~180 exaFLOPs
-- На 16×H100: ~3-6 недель
-- Инференс на CPU: ~20 токенов/сек, на GPU: ~500 токенов/сек
-- RAM требование: ~10GB для inference
+- approved knowledge reliably influences future answers;
+- reflection signals persist and are inspectable;
+- memory layers are observable through product/runtime interfaces;
+- live learning propagation delay measured and reported.
 
-**Large модель (1B):**
-- Training на 18T токенов: ~360 exaFLOPs
-- На 32×H100: ~4-8 недель
-- Инференс на GPU: ~200 токенов/сек
-- RAM требование: ~20GB для inference
-
-**Оптимизации для уменьшения ресурсов:**
-- Knowledge distillation от larger models (используя формулы как teacher)
-- Synthetic data generation для эффективного обучения
-- Mixed precision training (FP16/BF16)
-- Gradient checkpointing для экономии памяти
-- Efficient attention (FlashAttention)
-
-### Датасеты для Обучения
-
-**Математика (приоритет #1):**
-- GSM8K: 8.5K grade school math problems
-- MATH: 12.5K competition math problems
-- AIME: American Invitational Mathematics Examination
-- SynMath: 1M синтетических арифметических задач
-- Khan Academy math exercises
-
-**Точные науки (приоритет #2):**
-- Physics: формулы и задачи из учебников
-- Chemistry: реакции, соединения
-- Programming: код как формальные системы
-- Logic: логические пазлы и задачи
-
-**Общие знания (приоритет #3):**
-- Wikipedia (избранные статьи)
-- Научные статьи (открытый доступ)
-- Книги (public domain)
-- Образовательные ресурсы
+**Статус на 2026-04-09:** `planned`
 
 ---
 
-## Часть 5: Измерение Прогресса
+### Phase 4 — Autonomous Tool-Using Agent
 
-### Бенчмарки
+**Срок:** 2027-04-01 -> 2027-06-30
 
-**Математика:**
-| Бенчмарк | Сейчас | Цель Q2'26 | Цель Q4'26 | LLM Baseline |
-|----------|--------|------------|------------|--------------|
-| GSM8K | ~20% | 70% | 85% | GPT-4: 92% |
-| MATH | ~10% | 30% | 50% | GPT-4: 60% |
-| Арифметика (5-digit) | ~40% | 95% | 99% | GPT-4: 80% |
-| Алгебра | ~15% | 60% | 80% | Claude: 85% |
+**Цель:** сделать следующий шаг от отвечающей системы к действующей системе.
 
-**Рассуждение:**
-| Бенчмарк | Сейчас | Цель Q2'26 | Цель Q4'26 | LLM Baseline |
-|----------|--------|------------|------------|--------------|
-| Логические пазлы | ~30% | 60% | 80% | GPT-4: 85% |
-| Commonsense QA | ~40% | 65% | 75% | Llama-3: 80% |
-| Temporal reasoning | ~25% | 55% | 70% | Claude: 75% |
+### Core objectives
 
-**Качество объяснений:**
-| Метрика | Сейчас | Цель Q2'26 | Цель Q4'26 |
-|---------|--------|------------|------------|
-| Пошаговая корректность | ~50% | 80% | 90% |
-| Provenance coverage | 100% | 100% | 100% |
-| Self-verification accuracy | N/A | 75% | 90% |
-| User comprehension score | N/A | 70% | 85% |
+- планирование задач;
+- tool routing;
+- stateful execution;
+- post-action verification;
+- reflection after tool use.
 
-**Эффективность:**
-| Метрика | Сейчас | Цель Q2'26 | Цель Q4'26 |
-|---------|--------|------------|------------|
-| Compression ratio (текст) | 5-40x | 50-100x | 100-500x |
-| Knowledge density | базовый | средний | высокий |
-| Training efficiency | N/A | 80% от theoretical | 95% от theoretical |
-| Inference speed (CPU) | ~10 tok/s | ~50 tok/s | ~100 tok/s |
+### Product meaning
 
-### Ключевые Вехи
+После этой фазы Kolibri должен уметь не только отвечать, но и выполнять
+reasoning-guided action loops в целевых доменах:
 
-**Q2 2026 (Фаза 1):**
-- ✅ Трансформер обучается через backprop
-- ✅ Numeric tokenizer — 14/14 тестов
-- ✅ Symbolic Math Engine — 14/14 тестов
-- ✅ Training Pipeline — 10/10 тестов
-- ✅ Точная арифметика через decimal.c
-- ✅ Пошаговые объяснения для математики
+- code workflows;
+- math/science workflows;
+- structured knowledge operations;
+- swarm administration tasks.
 
-**Q3 2026 (Фаза 2):**
-- ✅ Эволюционное обучение запущено — 10/10 тестов
-- ✅ Swarm learning работает на 10 узлах — 14/14 тестов
-- ✅ Self-verification точность 100% — 8/8 тестов
-- ✅ Explanation generator — 10/10 тестов
-- ✅ Формулы улучшаются через эволюцию
+### Exit gate
 
-**Q4 2026 (Фаза 3):**
-- ✅ Reasoning Engine v2: Modus Ponens, Tollens, Chain Rule — 10/10 тестов
-- ✅ Domain knowledge loader: 48 фактов/правил, 4 домена — 9/9 тестов
-- ✅ Pattern discovery: Linear, Quadratic, Periodic — 7/7 тестов
-- ✅ Compression коррелирует с качеством (R² = 1.0)
-- ✅ **Все тесты Фаз 1-3: 87/87**
+- tool use is reasoned, logged and verified;
+- every tool step has provenance and expected outcome;
+- failed actions are detectable and recoverable;
+- canonical runtime supports action loop telemetry.
 
-**Q1 2027 (Фаза 4, Месяц 10):**
-- ✅ SIMD оптимизация (NEON на Apple Silicon) — 10/10 тестов
-- ✅ Многопоточность (thread pool, parallel matmul) — 5/5 тестов
-- ✅ **Итого тестов: 102/102 (13 тестовых программ)**
-
-**Q1 2027 (Фаза 4):**
-- ✅ Production-ready deployment
-- ✅ 100+ активных пользователей
-- ✅ SDK и полная документация
-- ✅ Сообщество разработчиков
+**Статус на 2026-04-09:** `planned`
 
 ---
 
-## Часть 6: Риски и Митигация
+### Phase 5 — Autonomous Swarm Intelligence
 
-### Риск 1: Backprop в C слишком медленный
+**Срок:** 2027-07-01 -> 2027-12-31
 
-**Проблема:** Реализация backpropagation на чистом C без GPU будет очень медленной  
-**Митигация:**
-- Начать с малого размера модели (100M) для proof-of-concept
-- Использовать Python bindings для PyTorch на этапе исследования
-- Перенести оптимизированную архитектуру в C
-- Добавить SIMD оптимизации сразу
-- Искать GPU гранты (Google TPU Research Cloud, AWS credits)
+**Цель:** превратить swarm в настоящий distributed intelligence layer.
 
-### Риск 2: Эволюционное обучение не масштабируется
+### Core objectives
 
-**Проблема:** Генетические алгоритмы могут не сходиться для больших пространств  
-**Митигация:**
-- Использовать гибридный подход: backprop для embeddings, эволюция для формул
-- Implement speciation и novelty search для избегания local optima
-- Ограничить пространство поиска через domain knowledge
-- Использовать surrogate models для быстрой оценки fitness
+- реализовать production смысл `1 vs 10 vs 50`;
+- перевести роли `anchor / learner / validator` в реальный runtime contract;
+- сделать consensus, disagreement, propagation и uplift product-visible и
+  benchmarked;
+- довести ingest path до validator-backed swarm learning cycle.
 
-### Риск 3: Недостаточно вычислительных ресурсов
+### Required ingest chain
 
-**Проблема:** Обучение даже 100M модели требует значительных GPU часов  
-**Митигация:**
-- Подать на исследовательские гранты (Google, Meta, AWS)
-- Использовать distributed training через волонтёров (как Folding@Home)
-- Начать с synthetic data для预обучения
-- Knowledge distillation от открытых моделей (через формулы, не через imitation)
+Каждый ingest в зрелом runtime должен вызывать:
 
-### Риск 4: Бенчмарки не отражают реальные возможности
+1. memory update;
+2. provenance write;
+3. candidate evaluation;
+4. learner propagation;
+5. validator check;
+6. consensus score update.
 
-**Проблема:** Оптимизация под бенчмарки может не улучшить реальные capabilities  
-**Митигация:**
-- Фокусироваться на реальных use cases (образование, наука, бизнес)
-- Разработать собственные бенчмарки которые измеряют уникальные способности
-- Публиковать результаты на разнообразных задачах, не только стандартных
-- Собирать feedback от реальных пользователей
+### Exit gate
 
-### Риск 5: Сообщество не примет нестандартную архитектуру
+- swarm uplift measurable and reproducible;
+- validator quorum meaningful;
+- disagreement reporting live;
+- propagation delay under control;
+- 50-node contract backed by real runtime evidence.
 
-**Проблема:** Исследователи привыкли к LLM парадигме  
-**Митигация:**
-- Публиковать научные статьи с rigorous evaluation
-- Участвовать в конференциях (NeurIPS, ICLR, ICML)
-- Предоставить простые примеры "try it yourself"
-- Строить сообщество вокруг open-source проекта
+**Статус на 2026-04-09:** `planned`
 
 ---
 
-## Часть 7: Почему Это Сработает
+## 8. Public Interfaces and Docs Contract
 
-### Уникальные Преимущества Kolibri
+Kolibri сохраняет текущие user-facing surfaces:
 
-**1. Числовое представление — это feature, не bug**
-- LLM страдают от плохой арифметики потому что числа для них — токены
-- Kolibri работает с числами нативно → идеальная математика
-- Это НЕ ограничение — это специализация
+- chat;
+- workspace;
+- settings;
+- account;
+- live queue;
+- swarm runtime.
 
-**2. Формулы интерпретируемы**
-- Невозможно извлечь правила из весов LLM (чёрный ящик)
-- Каждая формула Kolibri — читаемое математическое выражение
-- Для науки, медицины, юриспруденции это КРИТИЧНО
+### Stable interface targets
 
-**3. Непрерывное обучение**
-- LLM заморожены после training (GPT-4 знает только до 2023)
-- Kolibri учится постоянно из новых данных
-- Для rapidly evolving domains это преимущество
+Нужно сохранить и стабилизировать следующие классы интерфейсов:
 
-**4. Provenance через блокчейн**
-- Невозможно проверить откуда LLM взял информацию
-- Kolibri хранит происхождение каждого знания в геноме
-- Для доверенных применений это необходимо
+- `/api/v1/ai/*`
+- `/api/v1/auth/*`
+- `/api/v1/account/*`
+- `/api/v1/swarm/runtime/*`
+- `/api/v1/live-queue/*`
+- `/metrics`
+- conversation metadata и turns APIs
 
-**5. Эффективность**
-- LLM требуют тысячи GPU для training
-- Kolibri может обучаться на порядковых меньших ресурсах
-- Для accessibility и sustainability это важно
+### Rules
 
-### Исторические Прецеденты
-
-**AlphaGo vs Lee Sedol:**
-- Все думали что Go слишком сложен для AI
-- AlphaGo победил через НЕОЖИДАННЫЕ стратегии
-- Инновации в архитектуре > brute force
-
-**Sparrow vs Google Search:**
-- Не нужно индексировать весь интернет
-- Нужно дать точный ответ на вопрос
-- Качество > количество
-
-**Wolfram Alpha vs Computational Engines:**
-- Символьные вычисления > численные для точности
-- Интерпретируемость критична для науки
-- Kolibri = Wolfram Alpha + Natural Language + Learning
-
-### Конкурентное Позиционирование
-
-```
-Kolibri НЕ конкурирует с GPT-4 в написании поэзии.
-Kolibри конкурирует в:
-
-✅ Математическая точность (100% vs 80%)
-✅ Интерпретируемость (формулы vs чёрный ящик)  
-✅ Непрерывное обучение (live vs frozen)
-✅ Provenance (blockchain verified vs unknown)
-✅ Эффективность (CPU-friendly vs GPU-required)
-✅ Доверие (self-verified vs hallucination-prone)
-
-Целевые рынки:
-- Образование (математика, физика, химия)
-- Научные исследования (proof verification)
-- Бизнес (financial modeling, analytics)
-- Юриспруденция (legal reasoning с citations)
-- Инженерия (design calculations)
-```
+- Если endpoint зависит от Python-only semantics, он должен либо получить
+  C-equivalent, либо быть выведен из stable contract.
+- Frontend types не должны зависеть от конкретной реализации gateway.
+- Docs описывают contract, а не случайную текущую реализацию конкретного сервера.
 
 ---
 
-## Часть 8: Заключение
+## 9. Benchmark Ladder
 
-### Видение 2027
+Развитие Kolibri оценивается не одним benchmark score, а лестницей зрелости.
 
-Kolibri 2027 — это НЕ "маленькая LLM". Это **альтернативная парадигма AI**:
+### Level A — Exact Reasoning
 
-- **Интерпретируемый**: Каждая формула читаема и проверяема
-- **Точный**: Математика на 100% корректна через numeric representation
-- **Живой**: Непрерывно обучается и эволюционирует
-- **Доверенный**: Provenance каждого знания через блокчейн
-- **Доступный**: Работает на CPU, не требует кластера GPU
-- **Универсальный**: Рассуждает в multiple доменах, не только текст
+- exact arithmetic;
+- linear/quadratic solving;
+- systems solving;
+- symbolic checks;
+- contradiction detection.
 
-### Слоган Проекта
+### Level B — Trustworthy Explanations
 
-> **"Kolibri: AI который может объяснить почему"**
-> 
-> Не просто ответ. Ответ с формулой, источниками и проверкой.
+- step-by-step explanation fidelity;
+- provenance completeness;
+- confidence rationale;
+- self-verification agreement.
 
-### Призыв к Действию
+### Level C — Conversational Intelligence
 
-Этот план сохраняет ДНК Kolibri — числовое мышление, формулы, эволюцию, геном.
+- 5-turn follow-up continuity;
+- entity switching;
+- topic retention;
+- grounded retries and revisions.
 
-Мы НЕ становимся LLM. Мы развиваем Kolibri до конкурентоспособного уровня через УНИКАЛЬНЫЕ сильные стороны.
+### Level D — Learning and Reflection
 
-**Начинаем с Фазы 1: Foundation.**
-**Первый приоритет: Numeric Transformer + backpropagation.**
-**Первая цель: 70% на GSM8K к Q2 2026.**
+- approved knowledge assimilation;
+- persistent memory effect;
+- reflection after weak answers;
+- quality history growth.
 
----
+### Level E — Action and Swarm
 
-## Часть 9: Итоговый Прогресс (2026-04-05)
-
-### Сводная Таблица Всех Фаз
-
-| Фаза | Месяц | Компонент | Файлы | Тесты | Статус |
-|------|-------|-----------|-------|-------|--------|
-| **1** | 1 | Numeric Transformer | numeric_tokenizer.c, attention.c, kat_train_backprop.c | 14+14+10 | ✅ |
-| **1** | 2 | Symbolic Math Engine | math_solver.c | 14 | ✅ |
-| **1** | 3 | Training Pipeline | corpus_math_trainer.c | 10 | ✅ |
-| **2** | 1 | Evolutionary Trainer | evolutionary_trainer.c | 10 | ✅ |
-| **2** | 2 | Swarm Learning | swarm_learner.c, swarm_network.c | 14+7 | ✅ |
-| **2** | 6 | Quality Assurance | self_verification.c, explanation_generator.c | 8+10 | ✅ |
-| **3** | 7 | Reasoning Engine v2 | reasoning_engine.c (1021 строка) | 10 | ✅ |
-| **3** | 8 | Domain Knowledge | domain_knowledge_loader.c | 9 | ✅ |
-| **3** | 9 | Pattern Discovery | pattern_discovery.c | 7 | ✅ |
-| **4** | 10 | SIMD Ops | simd_ops.c | 10 | ✅ |
-| **4** | 10 | Threaded Inference | threaded_inference.c | 5 | ✅ |
-| **4** | 11 | Python SDK | — | — | ⏳ |
-| **4** | 12 | Docker/CI-CD | — | — | ⏳ |
-
-### Итого
-
-| Метрика | Значение |
-|---------|----------|
-| **Фазы завершены** | 3.5 / 4 (Фаза 4: Месяц 10 ✅) |
-| **Тестовых программ** | 13 |
-| **Индивидуальных тестов** | 102 / 102 ✅ |
-| **Строк кода добавлено** | ~8,500+ |
-| **Новых файлов создано** | 10 |
-| **Фиксов багов** | 2 (evolutionary_trainer crash, reasoning_engine шаблоны) |
-
-### Что Реально Работает
-
-| Компонент | Описание |
-|-----------|----------|
-| `numeric_tokenizer.c` | Токенизация математики: π, √, ∫, sin, cos, числа |
-| `attention.c` | RoPE, RMSNorm, GQA, SwiGLU, backprop |
-| `math_solver.c` | Линейные, квадратные, системы уравнений |
-| `evolutionary_trainer.c` | Популяционная эволюция формул |
-| `swarm_learner.c` | 10-узловое распределённое обучение |
-| `self_verification.c` | Мульти-метод проверка ответов |
-| `explanation_generator.c` | Пошаговые объяснения |
-| `reasoning_engine.c` | Modus Ponens, Tollens, Chain Rule, Abduction |
-| `domain_knowledge_loader.c` | Физика (12), Химия (10), Код (14), Право (11) |
-| `pattern_discovery.c` | Linear, Quadratic, Periodic паттерны |
-| `simd_ops.c` | NEON/AVX2/Scalar dot, add, scale, softmax, GELU |
-| `threaded_inference.c` | Thread pool, parallel matmul |
-
-### Что Остаётся (Фаза 4, Месяцы 11-12)
-
-| Задача | Сложность | Приоритет |
-|--------|-----------|-----------|
-| Python SDK | Средняя | ВЫСОКИЙ |
-| REST API | Средняя | ВЫСОКИЙ |
-| Docker образы | Низкая | СРЕДНИЙ |
-| CI/CD pipeline | Средняя | СРЕДНИЙ |
-| GPU поддержка | Высокая | НИЗКИЙ |
-| 500M модель | Высокая | НИЗКИЙ |
+- verified tool use;
+- native/WASM parity;
+- live learning propagation delay;
+- swarm uplift `1 vs 10 vs 50`;
+- consensus/disagreement telemetry.
 
 ---
 
-**Документ обновлён:** 2026-04-05
-**Версия:** 1.1 (с исправлениями фактического прогресса)
-**Статус:** Готов к обсуждению и реализации  
-**Следующий шаг:** Создание детального плана для Месяца 1 (Numeric Transformer)
+## 10. Release Gates
+
+Каждый квартальный milestone считается завершённым только если выполняются все
+обязательные gates:
+
+1. docs consistent;
+2. targeted backend/C tests green;
+3. frontend typecheck/build green;
+4. browser or product smoke green;
+5. reproducible benchmark report attached.
+
+### Additional rules
+
+- Нельзя называть Kolibri "настоящим ИИ" на уровне продукта, пока система не
+  проходит reasoning, multi-turn, learning и action gates в одном каноническом
+  runtime.
+- Нельзя называть swarm production-ready, пока нет реального uplift и validator
+  consensus evidence.
+- Нельзя объявлять C/WASM-only path завершённым, пока обычный пользовательский
+  product flow ещё зависит от Python request-serving в default deployment.
+
+---
+
+## 11. Architecture Defaults
+
+По умолчанию считаются принятыми следующие решения:
+
+- Приоритет развития: `Reasoner -> Chat -> Swarm`.
+- "Настоящий ИИ" для Kolibri — это надёжный интеллект с памятью, reasoning,
+  verification, learning и agency.
+- Производственная архитектура целится в `C/WASM-only intelligence path`.
+- Python допускается только вне основного пути инференса и orchestration.
+- Масштабирование моделей, GPU-ветки и benchmark-chasing против LLM
+  откладываются до доказательства силы Kolibri на собственных differentiators.
+
+---
+
+## 12. Immediate Next Steps
+
+Следующие действия запускаются немедленно после принятия этого roadmap:
+
+1. привести primary docs и index к новой иерархии правды;
+2. инвентаризировать test registry и убрать ложные подтверждения прогресса;
+3. определить canonical reasoning benchmark pack;
+4. определить список Python-owned endpoints и план их C migration или deprecation;
+5. свести answer pipeline к одному reasoning-first контуру.
+
+---
+
+## 13. Final Definition
+
+Kolibri 2027 — это не "маленькая LLM" и не набор экспериментальных модулей.
+
+Kolibri 2027 — это:
+
+- **точный** ИИ, потому что числа и проверка являются частью ядра;
+- **объяснимый** ИИ, потому что reasoning и provenance доступны наружу;
+- **живой** ИИ, потому что он умеет учиться и отражать опыт;
+- **действующий** ИИ, потому что способен выполнять verified action loops;
+- **распределённый** ИИ, потому что swarm даёт реальный коллективный прирост.
+
+Только такая траектория соответствует оригинальному концепту Kolibri и задаче
+превратить его в настоящий ИИ.

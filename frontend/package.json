@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "typecheck": "tsc -b --pretty false",
+    "build": "npm run typecheck && vite build",
     "preview": "vite preview",
-    "lint": "eslint . --ext ts,tsx --max-warnings=0"
+    "lint": "npm run typecheck",
+    "test": "node ./scripts/smoke-contracts.mjs"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.2",

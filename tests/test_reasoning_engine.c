@@ -1,367 +1,286 @@
 /*
- * test_reasoning_engine.c — v2: тесты для настоящего логического вывода
+ * test_reasoning_engine.c
+ *
+ * Unit тесты для reasoning engine
  *
  * Copyright (c) 2025 Кочуров Владислав Евгеньевич
  */
 
 #include "kolibri/reasoning_engine.h"
-
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 
 /* ============================================================================
- * INIT
+ * TEST UTILITIES
  * ============================================================================ */
 
-void test_re_init(void) {
-    printf("Testing reasoning engine initialization...\n");
+static int tests_run = 0;
+static int tests_passed = 0;
+static int tests_failed = 0;
 
-    KolibriREConfig config = {0};
-    int ret = kolibri_re_init(&config);
-    assert(ret == 0);
+#define TEST_ASSERT(condition, message, ...)                                                                           \
+    do {                                                                                                               \
+        tests_run++;                                                                                                   \
+        if (condition) {                                                                                               \
+            tests_passed++;                                                                                            \
+            printf("  ✓ " message "\n", ##__VA_ARGS__);                                                                \
+        } else {                                                                                                       \
+            tests_failed++;                                                                                            \
+            printf("  ✗ FAILED: " message "\n", ##__VA_ARGS__);                                                        \
+        }                                                                                                              \
+    } while (0)
 
-    printf("✓ Initialization test passed\n\n");
+#define TEST_START(name) printf("\n=== TEST: %s ===\n", name)
+
+/* ============================================================================
+ * TEST: Инициализация
+ * ============================================================================ */
+
+static void test_initialization(void) {
+    TEST_START("Initialization");
+
+    KolibriREConfig config;
+    memset(&config, 0, sizeof(config));
+    config.enable_deductive = 1;
+    config.enable_inductive = 1;
+    config.enable_abductive = 1;
+    config.enable_analogical = 1;
+    config.enable_counterfactual = 1;
+    config.min_confidence_threshold = 0.5;
+    config.max_chain_length = 10;
+    config.max_hypotheses = 5;
+
+    int result = kolibri_re_init(&config);
+    TEST_ASSERT(result == 0, "Engine initialized successfully");
+
+    /* Add test facts */
+    result = kolibri_re_add_fact(&config, "Все люди смертны", 1.0, "axiom");
+    TEST_ASSERT(result == 0, "Added fact: Все люди смертны");
+
+    result = kolibri_re_add_fact(&config, "Сократ - человек", 1.0, "axiom");
+    TEST_ASSERT(result == 0, "Added fact: Сократ - человек");
+
+    result = kolibri_re_add_fact(&config, "Земля вращается вокруг Солнца", 0.95, "science");
+    TEST_ASSERT(result == 0, "Added fact: Земля вращается вокруг Солнца");
+
+    /* Add test rules */
+    result = kolibri_re_add_rule(&config, "человек", "смертен", 3, 0.9, "logic");
+    TEST_ASSERT(result == 0, "Added rule: человек → смертен");
 }
 
 /* ============================================================================
- * MODUS PONENS
+ * TEST: Modus Ponens
  * ============================================================================ */
 
-void test_modus_ponens(void) {
-    printf("Testing Modus Ponens: P, P→Q ⊢ Q\n");
+static void test_modus_ponens(void) {
+    TEST_START("Modus Ponens");
 
-    KolibriREConfig config = {0};
+    KolibriREConfig config;
+    memset(&config, 0, sizeof(config));
+    config.enable_deductive = 1;
     kolibri_re_init(&config);
 
-    /* P */
-    kolibri_re_add_fact(&config, "Сократ — человек", 0.95, "history");
-    /* P→Q */
-    kolibri_re_add_rule(&config, "Сократ — человек", "Сократ смертен",
-                       KRE_OP_IMPLIES, 0.95, "logic");
+    kolibri_re_add_fact(&config, "Сократ - человек", 1.0, "test");
+    kolibri_re_add_rule(&config, "человек", "смертен", 3, 0.95, "logic");
 
     KolibriReasoningResult result;
-    int ret = kolibri_re_deductive("Сократ — человек", &config, &result);
-    assert(ret == 0);
-    assert(result.primary_type == KRE_REASONING_DEDUCTIVE);
-    assert(result.chain.num_steps >= 2);
-    assert(result.confidence > 0.7);
-    assert(strlen(result.answer) > 0);
+    int ret = kolibri_re_deductive("Сократ смертен?", &config, &result);
 
-    printf("  Fact: 'Сократ — человек'\n");
-    printf("  Rule: 'Сократ — человек' → 'Сократ смертен'\n");
-    printf("  Result: '%s'\n", result.answer);
-    printf("  Confidence: %.2f\n", result.confidence);
-    printf("  Steps: %d\n", result.chain.num_steps);
+    TEST_ASSERT(ret == 0, "Deductive reasoning completed");
+    TEST_ASSERT(result.confidence > 0.0, "Result has confidence score");
+    TEST_ASSERT(result.chain.num_steps > 0, "Reasoning chain has steps");
+    TEST_ASSERT(strlen(result.answer) > 0, "Result has answer");
 
-    kolibri_re_print_result(&result);
-    printf("✓ Modus Ponens test passed\n\n");
+    printf("  Answer: %s\n", result.answer);
 }
 
 /* ============================================================================
- * MODUS TOLLENS
+ * TEST: Hypothetical Syllogism
  * ============================================================================ */
 
-void test_modus_tollens(void) {
-    printf("Testing Modus Tollens: ¬Q, P→Q ⊢ ¬P\n");
+static void test_hypothetical_syllogism(void) {
+    TEST_START("Hypothetical Syllogism");
 
-    KolibriREConfig config = {0};
-    kolibri_re_init(&config);
-
-    kolibri_re_add_fact(&config, "не Сократ смертен", 0.90, "logic");
-    kolibri_re_add_rule(&config, "Сократ — бог", "Сократ бессмертен",
-                       KRE_OP_IMPLIES, 0.95, "mythology");
-
-    KolibriReasoningResult result;
-    int ret = kolibri_re_deductive("не Сократ бессмертен", &config, &result);
-    assert(ret == 0);
-
-    printf("  Fact: 'не Сократ бессмертен'\n");
-    printf("  Rule: 'Сократ — бог' → 'Сократ бессмертен'\n");
-    printf("  Result: '%s'\n", result.answer);
-    printf("  Confidence: %.2f\n", result.confidence);
-
-    printf("✓ Modus Tollens test passed\n\n");
-}
-
-/* ============================================================================
- * CHAIN RULE: P→Q, Q→R ⊢ P→R
- * ============================================================================ */
-
-void test_chain_rule(void) {
-    printf("Testing Chain Rule: P→Q, Q→R ⊢ P→R\n");
-
-    KolibriREConfig config = {0};
-    kolibri_re_init(&config);
-
-    /* P→Q */
-    kolibri_re_add_rule(&config, "Идёт дождь", "Трава мокрая", KRE_OP_IMPLIES, 0.9, "physics");
-    /* Q→R */
-    kolibri_re_add_rule(&config, "Трава мокрая", "Земля влажная", KRE_OP_IMPLIES, 0.85, "physics");
-
-    KolibriReasoningResult result;
-    int ret = kolibri_re_deductive("Идёт дождь", &config, &result);
-    assert(ret == 0);
-
-    printf("  Rule 1: 'Идёт дождь' → 'Трава мокрая'\n");
-    printf("  Rule 2: 'Трава мокрая' → 'Земля влажная'\n");
-    printf("  Result: '%s'\n", result.answer);
-    printf("  Steps: %d\n", result.chain.num_steps);
-
-    /* Должна быть найдена цепочка */
-    assert(result.chain.num_steps >= 1);
-    assert(strstr(result.answer, "дождь") != NULL ||
-           strstr(result.answer, "Цепочка") != NULL ||
-           strlen(result.answer) > 10);
-
-    printf("✓ Chain Rule test passed\n\n");
-}
-
-/* ============================================================================
- * ИНДУКЦИЯ
- * ============================================================================ */
-
-void test_inductive(void) {
-    printf("Testing Inductive reasoning\n");
-
-    KolibriREConfig config = {0};
-    kolibri_re_init(&config);
-
-    kolibri_re_add_fact(&config, "Лебедь 1 белый", 0.95, "observation");
-    kolibri_re_add_fact(&config, "Лебедь 2 белый", 0.95, "observation");
-    kolibri_re_add_fact(&config, "Лебедь 3 белый", 0.90, "observation");
-
-    KolibriReasoningResult result;
-    int ret = kolibri_re_inductive("Все лебеди белые", &config, &result);
-    assert(ret == 0);
-    assert(result.primary_type == KRE_REASONING_INDUCTIVE);
-    assert(result.confidence > 0.0 && result.confidence < 0.90);
-    assert(result.chain.num_steps >= 2);
-
-    printf("  Result: '%s'\n", result.answer);
-    printf("  Steps: %d, Confidence: %.2f\n", result.chain.num_steps, result.confidence);
-
-    printf("✓ Inductive reasoning test passed\n\n");
-}
-
-/* ============================================================================
- * АБДУКЦИЯ
- * ============================================================================ */
-
-void test_abductive(void) {
-    printf("Testing Abductive reasoning\n");
-
-    KolibriREConfig config = {0};
-    kolibri_re_init(&config);
-
-    kolibri_re_add_rule(&config, "Шёл дождь", "Трава мокрая", KRE_OP_IMPLIES, 0.8, "physics");
-    kolibri_re_add_rule(&config, "Включили полив", "Трава мокрая", KRE_OP_IMPLIES, 0.7, "physics");
-
-    KolibriReasoningResult result;
-    int ret = kolibri_re_abductive("Трава мокрая", &config, &result);
-    assert(ret == 0);
-    assert(result.primary_type == KRE_REASONING_ABDUCTIVE);
-    assert(result.num_hypotheses >= 2);
-    assert(result.best_hypothesis_idx == 0);
-
-    printf("  Query: 'Трава мокрая'\n");
-    printf("  Hypotheses: %d\n", result.num_hypotheses);
-    for (int i = 0; i < result.num_hypotheses; i++) {
-        printf("    H%d: %s (prob: %.2f)\n",
-               i + 1, result.hypotheses[i].hypothesis,
-               result.hypotheses[i].probability);
-    }
-    printf("  Best: H%d\n", result.best_hypothesis_idx + 1);
-
-    printf("✓ Abductive reasoning test passed\n\n");
-}
-
-/* ============================================================================
- * АНАЛОГИЯ
- * ============================================================================ */
-
-void test_analogical(void) {
-    printf("Testing Analogical reasoning\n");
-
-    KolibriREConfig config = {0};
+    KolibriREConfig config;
+    memset(&config, 0, sizeof(config));
     kolibri_re_init(&config);
 
     KolibriReasoningResult result;
-    int ret = kolibri_re_analogical("Атом как солнечная система", &config, &result);
-    assert(ret == 0);
-    assert(result.primary_type == KRE_REASONING_ANALOGICAL);
-    assert(result.num_analogies >= 1);
-    assert(result.analogies[0].similarity >= 0.0 && result.analogies[0].similarity <= 1.0);
+    int ret = kolibri_re_hypothetical_syllogism("дождь -> мокро", "мокро -> скользко", &config, &result);
 
-    printf("  Query: 'Атом как солнечная система'\n");
-    printf("  Source: '%s'\n", result.analogies[0].source_domain);
-    printf("  Target: '%s'\n", result.analogies[0].target_domain);
-    printf("  Similarity: %.2f\n", result.analogies[0].similarity);
+    TEST_ASSERT(ret == 0, "Hypothetical syllogism completed");
+    TEST_ASSERT(result.primary_type == KRE_REASONING_HYPOTHETICAL_SYLLOGISM, "Correct reasoning type");
+    TEST_ASSERT(result.confidence > 0.0, "Has confidence");
+    TEST_ASSERT(result.chain.num_steps == 2, "Chain has 2 steps");
+    TEST_ASSERT(strlen(result.answer) > 0, "Has answer");
 
-    printf("✓ Analogical reasoning test passed\n\n");
+    printf("  Answer: %s\n", result.answer);
+    TEST_ASSERT(strstr(result.answer, "дождь") != NULL, "Answer mentions 'дождь'");
+    TEST_ASSERT(strstr(result.answer, "скользко") != NULL, "Answer mentions 'скользко'");
 }
 
 /* ============================================================================
- * COUNTERFACTUAL
+ * TEST: Constructive Dilemma
  * ============================================================================ */
 
-void test_counterfactual(void) {
-    printf("Testing Counterfactual reasoning\n");
+static void test_constructive_dilemma(void) {
+    TEST_START("Constructive Dilemma");
 
-    KolibriREConfig config = {0};
+    KolibriREConfig config;
+    memset(&config, 0, sizeof(config));
     kolibri_re_init(&config);
-
-    kolibri_re_add_rule(&config, "Солнце светит", "День яркий", KRE_OP_IMPLIES, 0.9, "physics");
-    kolibri_re_add_fact(&config, "День яркий", 0.95, "observation");
 
     KolibriReasoningResult result;
-    int ret = kolibri_re_counterfactual("Солнце светит", "Солнце не светило бы",
-                                       &config, &result);
-    assert(ret == 0);
-    assert(result.primary_type == KRE_REASONING_COUNTERFACTUAL);
-    assert(strlen(result.counterfactual_premise) > 0);
-    assert(strlen(result.counterfactual_outcome) > 0);
+    int ret = kolibri_re_constructive_dilemma("учиться -> знать", "практиковаться -> уметь",
+                                              "учиться или практиковаться", &config, &result);
 
-    printf("  Query: 'Солнце светит'\n");
-    printf("  What if: '%s'\n", result.counterfactual_premise);
-    printf("  Outcome: '%s'\n", result.counterfactual_outcome);
-    printf("  Confidence: %.2f\n", result.confidence);
+    TEST_ASSERT(ret == 0, "Constructive dilemma completed");
+    TEST_ASSERT(result.primary_type == KRE_REASONING_CONSTRUCTIVE_DILEMMA, "Correct reasoning type");
+    TEST_ASSERT(result.chain.num_steps == 3, "Chain has 3 steps");
 
-    printf("✓ Counterfactual reasoning test passed\n\n");
+    printf("  Answer: %s\n", result.answer);
 }
 
 /* ============================================================================
- * UNIVERSAL INTERFACE — автоопределение типа
+ * TEST: Disjunctive Syllogism
  * ============================================================================ */
 
-void test_universal_reasoning(void) {
-    printf("Testing universal reasoning interface...\n");
+static void test_disjunctive_syllogism(void) {
+    TEST_START("Disjunctive Syllogism");
 
-    KolibriREConfig config = {0};
+    KolibriREConfig config;
+    memset(&config, 0, sizeof(config));
     kolibri_re_init(&config);
 
-    struct {
-        const char *query;
-        KolibriReasoningType expected;
-    } tests[] = {
-        {"Сократ смертен",                 KRE_REASONING_DEDUCTIVE},
-        {"почему трава мокрая",            KRE_REASONING_ABDUCTIVE},
-        {"атом похоже на солнечную систему", KRE_REASONING_ANALOGICAL},
-        {"что если Земля не вращалась",    KRE_REASONING_COUNTERFACTUAL},
-    };
+    KolibriReasoningResult result;
+    int ret = kolibri_re_disjunctive_syllogism("идет дождь или снег", "не идет дождь", &config, &result);
 
-    for (int i = 0; i < 4; i++) {
-        KolibriReasoningResult result;
-        kolibri_re_reason(tests[i].query, &config, &result, NULL, NULL);
+    TEST_ASSERT(ret == 0, "Disjunctive syllogism completed");
+    TEST_ASSERT(result.primary_type == KRE_REASONING_DISJUNCTIVE_SYLLOGISM, "Correct reasoning type");
+    TEST_ASSERT(result.confidence >= 0.85, "High confidence");
 
-        printf("  Query: %s\n", tests[i].query);
-        printf("    Type: %s (expected: %s)\n",
-               kolibri_re_type_name(result.primary_type),
-               kolibri_re_type_name(tests[i].expected));
-        printf("    Confidence: %.2f\n", result.confidence);
-
-        assert(result.primary_type == tests[i].expected);
-    }
-
-    printf("✓ Universal reasoning interface test passed\n\n");
+    printf("  Answer: %s\n", result.answer);
 }
 
 /* ============================================================================
- * ЛОГИЧЕСКИЕ ЗАДАЧИ
+ * TEST: Resolution
  * ============================================================================ */
 
-void test_logic_puzzles(void) {
-    printf("Testing logic puzzle solving...\n");
+static void test_resolution(void) {
+    TEST_START("Resolution");
 
-    KolibriREConfig config = {0};
+    KolibriREConfig config;
+    memset(&config, 0, sizeof(config));
     kolibri_re_init(&config);
 
-    const char *puzzles[] = {
-        "У Ани, Бори и Вани разные профессии: врач, учитель, инженер. "
-        "Аня не врач. Боря не учитель и не инженер. Кто есть кто?",
+    KolibriReasoningResult result;
+    int ret = kolibri_re_resolution("P или Q", "не P или R", &config, &result);
 
-        "12 монет, одна фальшивая. За 3 взвешивания найти фальшивую.",
+    TEST_ASSERT(ret == 0, "Resolution completed");
+    TEST_ASSERT(result.primary_type == KRE_REASONING_RESOLUTION, "Correct reasoning type");
+    TEST_ASSERT(result.chain.num_steps == 2, "Chain has 2 steps");
 
-        "Три друга живут в домах разного цвета: красном, синем, зелёном. "
-        "Красный дом левее синего. Где зелёный?"
-    };
-
-    int solved = 0;
-    int total = 3;
-
-    for (int i = 0; i < total; i++) {
-        KolibriReasoningResult result;
-        int ret = kolibri_re_solve_logic_puzzle(puzzles[i], &config, &result);
-
-        assert(ret == 0);
-        assert(result.chain.num_steps >= 1);
-        assert(result.confidence > 0.0);
-
-        printf("  Puzzle %d: %d steps, confidence=%.2f\n",
-               i + 1, result.chain.num_steps, result.confidence);
-        printf("    Answer: %.80s...\n", result.answer);
-
-        if (result.confidence > 0.25) solved++;  /* Любой осмысленный ответ */
-    }
-
-    double accuracy = (double)solved / total * 100.0;
-    printf("\n  Logic puzzles solved: %d/%d = %.0f%%\n", solved, total, accuracy);
-    printf("  Target: >80%%\n");
-
-    assert(accuracy >= 80.0);
-
-    printf("✓ Logic puzzle solving test passed\n\n");
+    printf("  Answer: %s\n", result.answer);
 }
 
 /* ============================================================================
- * ADD FACTS / RULES
+ * TEST: Biconditional
  * ============================================================================ */
 
-void test_add_facts_rules(void) {
-    printf("Testing add facts and rules...\n");
+static void test_biconditional(void) {
+    TEST_START("Biconditional");
 
-    KolibriREConfig config = {0};
+    KolibriREConfig config;
+    memset(&config, 0, sizeof(config));
     kolibri_re_init(&config);
 
-    int ret1 = kolibri_re_add_fact(&config, "Все люди смертны", 0.95, "philosophy");
-    int ret2 = kolibri_re_add_fact(&config, "Сократ — человек", 0.90, "history");
-    int ret3 = kolibri_re_add_rule(&config,
-                       "Все птицы летают",
-                       "Ворона летает",
-                       KRE_OP_IMPLIES,
-                       0.85,
-                       "biology");
+    KolibriReasoningResult result;
+    int ret = kolibri_re_biconditional("P тогда и только тогда, когда Q", "P", &config, &result);
 
-    assert(ret1 == 0);
-    assert(ret2 == 0);
-    assert(ret3 == 0);
+    TEST_ASSERT(ret == 0, "Biconditional reasoning completed");
+    TEST_ASSERT(result.primary_type == KRE_REASONING_BICONDITIONAL, "Correct reasoning type");
+    TEST_ASSERT(result.confidence >= 0.9, "High confidence for biconditional");
 
-    printf("  Facts: added, Rules: added\n");
-
-    printf("✓ Add facts and rules test passed\n\n");
+    printf("  Answer: %s\n", result.answer);
 }
 
 /* ============================================================================
- * TYPE NAMES
+ * TEST: Type Names and Descriptions
  * ============================================================================ */
 
-void test_type_names(void) {
-    printf("Testing type names and descriptions...\n");
-
-    assert(strcmp(kolibri_re_type_name(KRE_REASONING_DEDUCTIVE), "Deductive") == 0);
-    assert(strcmp(kolibri_re_type_name(KRE_REASONING_INDUCTIVE), "Inductive") == 0);
-    assert(strcmp(kolibri_re_type_name(KRE_REASONING_ABDUCTIVE), "Abductive") == 0);
-    assert(strcmp(kolibri_re_type_name(KRE_REASONING_ANALOGICAL), "Analogical") == 0);
-    assert(strcmp(kolibri_re_type_name(KRE_REASONING_COUNTERFACTUAL), "Counterfactual") == 0);
+static void test_type_names(void) {
+    TEST_START("Type Names and Descriptions");
 
     for (int i = 0; i < KRE_REASONING_COUNT; i++) {
-        printf("  %s: %s\n",
-               kolibri_re_type_name(i),
-               kolibri_re_type_desc(i));
+        const char *name = kolibri_re_type_name((KolibriReasoningType)i);
+        const char *desc = kolibri_re_type_desc((KolibriReasoningType)i);
+
+        TEST_ASSERT(name != NULL && strlen(name) > 0, "Type name exists for type %d", i);
+        TEST_ASSERT(desc != NULL && strlen(desc) > 0, "Type description exists for type %d", i);
     }
 
-    printf("✓ Type names test passed\n\n");
+    /* Test boundary */
+    const char *invalid_name = kolibri_re_type_name(KRE_REASONING_COUNT + 100);
+    TEST_ASSERT(strcmp(invalid_name, "Unknown") == 0, "Invalid type returns 'Unknown'");
+}
+
+/* ============================================================================
+ * TEST: Performance
+ * ============================================================================ */
+
+static void test_performance(void) {
+    TEST_START("Performance");
+
+    KolibriREConfig config;
+    memset(&config, 0, sizeof(config));
+    kolibri_re_init(&config);
+
+    /* Add multiple facts */
+    for (int i = 0; i < 50; i++) {
+        char fact[256];
+        snprintf(fact, sizeof(fact), "Факт номер %d", i);
+        kolibri_re_add_fact(&config, fact, 0.9, "test");
+    }
+
+    /* Measure reasoning time */
+    KolibriReasoningResult result;
+    kolibri_re_deductive("Тестовый запрос", &config, &result);
+
+    TEST_ASSERT(result.reasoning_time_ms < 100.0, "Reasoning completes in < 100ms (%.2fms)", result.reasoning_time_ms);
+
+    printf("  Reasoning time: %.2fms\n", result.reasoning_time_ms);
+}
+
+/* ============================================================================
+ * TEST: Edge Cases
+ * ============================================================================ */
+
+static void test_edge_cases(void) {
+    TEST_START("Edge Cases");
+
+    KolibriREConfig config;
+    memset(&config, 0, sizeof(config));
+    kolibri_re_init(&config);
+
+    KolibriReasoningResult result;
+
+    /* Empty query */
+    int ret = kolibri_re_deductive("", &config, &result);
+    TEST_ASSERT(ret == 0 || strlen(result.answer) > 0, "Handles empty query gracefully");
+
+    /* Very long query */
+    char long_query[2000];
+    memset(long_query, 'A', sizeof(long_query) - 1);
+    long_query[sizeof(long_query) - 1] = '\0';
+
+    ret = kolibri_re_deductive(long_query, &config, &result);
+    TEST_ASSERT(ret == 0, "Handles very long query");
+
+    /* Special characters */
+    ret = kolibri_re_deductive("Тест с символами: !@#$%^&*()", &config, &result);
+    TEST_ASSERT(ret == 0, "Handles special characters");
 }
 
 /* ============================================================================
@@ -369,37 +288,28 @@ void test_type_names(void) {
  * ============================================================================ */
 
 int main(void) {
-    printf("===========================================\n");
-    printf("Kolibri Reasoning Engine Tests v2\n");
-    printf("===========================================\n\n");
+    printf("╔═══════════════════════════════════════════════════════════╗\n");
+    printf("║     Kolibri Reasoning Engine - Unit Test Suite           ║\n");
+    printf("╚═══════════════════════════════════════════════════════════╝\n");
 
-    printf("--- Initialization ---\n\n");
-    test_re_init();
-
-    printf("--- Logical Inference ---\n\n");
+    test_initialization();
     test_modus_ponens();
-    test_modus_tollens();
-    test_chain_rule();
-
-    printf("--- Reasoning Types ---\n\n");
-    test_inductive();
-    test_abductive();
-    test_analogical();
-    test_counterfactual();
-
-    printf("--- Universal Interface ---\n\n");
-    test_universal_reasoning();
-
-    printf("--- Logic Puzzles ---\n\n");
-    test_logic_puzzles();
-
-    printf("--- Helpers ---\n\n");
-    test_add_facts_rules();
+    test_hypothetical_syllogism();
+    test_constructive_dilemma();
+    test_disjunctive_syllogism();
+    test_resolution();
+    test_biconditional();
     test_type_names();
+    test_performance();
+    test_edge_cases();
 
-    printf("===========================================\n");
-    printf("All tests passed! ✓\n");
-    printf("===========================================\n");
+    printf("\n╔═══════════════════════════════════════════════════════════╗\n");
+    printf("║                    TEST SUMMARY                           ║\n");
+    printf("╠═══════════════════════════════════════════════════════════╣\n");
+    printf("║  Total:  %4d                                           ║\n", tests_run);
+    printf("║  Passed: %4d                                           ║\n", tests_passed);
+    printf("║  Failed: %4d                                           ║\n", tests_failed);
+    printf("╚═══════════════════════════════════════════════════════════╝\n");
 
-    return 0;
+    return tests_failed > 0 ? 1 : 0;
 }

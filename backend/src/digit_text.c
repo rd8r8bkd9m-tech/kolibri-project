@@ -1,4 +1,5 @@
 #include "kolibri/digit_text.h"
+#include "kolibri/digits.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -89,15 +90,16 @@ int kolibri_digit_text_assign_utf8(KolibriDigitText *text, const char *utf8) {
     if (kolibri_digit_text_ensure_capacity(text, needed) != 0) {
         return -1;
     }
-    k_digit_stream stream;
-    k_digit_stream_init(&stream, text->digits, text->capacity);
-    k_digit_stream_reset(&stream);
-    int rc = k_transduce_utf8(&stream, (const unsigned char *)utf8, len);
-    if (rc != 0) return -1;
-    if (kolibri_digit_text_validate_digits(stream.digits, stream.length) != 0) {
+    kolibri_potok_cifr stream;
+    kolibri_potok_cifr_init(&stream, text->digits, text->capacity);
+    kolibri_potok_cifr_sbros(&stream);
+    int rc = kolibri_transducirovat_utf8(&stream, (const unsigned char *)utf8, len);
+    if (rc != 0)
+        return -1;
+    if (kolibri_digit_text_validate_digits(stream.danniye, stream.dlina) != 0) {
         return -1;
     }
-    text->length = stream.length;
+    text->length = stream.dlina;
     return 0;
 }
 
@@ -139,11 +141,7 @@ bool kolibri_digit_text_equals_utf8(const KolibriDigitText *lhs, const char *utf
         return lhs->length == 0;
     }
     k_digit_stream stream = {
-        .digits = (uint8_t *)lhs->digits,
-        .capacity = lhs->length,
-        .length = lhs->length,
-        .cursor = 0
-    };
+        .digits = (uint8_t *)lhs->digits, .capacity = lhs->length, .length = lhs->length, .cursor = 0};
     unsigned char decoded_stack[256];
     size_t decoded_len = 0;
     if (lhs->length / 3U <= sizeof(decoded_stack)) {
@@ -179,11 +177,7 @@ int kolibri_digit_text_to_utf8(const KolibriDigitText *text, char **out_utf8) {
     }
     if (expected > 0U) {
         k_digit_stream stream = {
-            .digits = (uint8_t *)text->digits,
-            .capacity = text->length,
-            .length = text->length,
-            .cursor = 0
-        };
+            .digits = (uint8_t *)text->digits, .capacity = text->length, .length = text->length, .cursor = 0};
         size_t produced = 0;
         if (k_emit_utf8(&stream, (unsigned char *)buffer, expected, &produced) != 0 || produced != expected) {
             free(buffer);

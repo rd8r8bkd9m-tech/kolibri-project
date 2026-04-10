@@ -10,11 +10,17 @@ Primary source-of-truth documents:
 - [PRODUCT_SPEC_V2.md](PRODUCT_SPEC_V2.md)
 - [API_REFERENCE.md](API_REFERENCE.md)
 - [QA_ACCEPTANCE.md](QA_ACCEPTANCE.md)
+- [plans/ROADMAP_TO_COMPETITIVE_AGI.md](plans/ROADMAP_TO_COMPETITIVE_AGI.md)
 - [DEPLOY_RUNBOOK.md](DEPLOY_RUNBOOK.md)
 
 ## Current active execution plan
 
-The active plan is the master completion plan for:
+The active plan follows the master sequence from
+`docs/plans/ROADMAP_TO_COMPETITIVE_AGI.md`:
+
+- `Reasoner -> Chat -> Swarm`
+
+Operationally, the current execution plan remains:
 
 - frontend full completion first
 - backend canonical runtime second

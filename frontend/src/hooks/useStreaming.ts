@@ -13,7 +13,7 @@ import { appQueryKeys } from "@/features/workspace/query";
 import { uid } from "@/lib/utils";
 import { useChatStore } from "@/store/useChatStore";
 import type { KolibriContextTurn } from "@/lib/kolibriBridge";
-import type { ChatMessage, LearnTextDemoResponse } from "@/types";
+import type { ChatMessage, ChatProductMeta, LearnTextDemoResponse } from "@/types";
 
 function formatSigned(value: number | null | undefined): string {
   const num = Number(value ?? 0);
@@ -120,6 +120,7 @@ export function useStreaming() {
     let partial = "";
     let assistantInserted = false;
     const assistantMessageId = uid("msg");
+    let finalProductMeta: ChatProductMeta | undefined;
 
     const ensureAssistantMessage = (initialContent = "") => {
       if (assistantInserted) return;
@@ -162,6 +163,16 @@ export function useStreaming() {
         },
         abortRef.current.signal,
       );
+      finalProductMeta = streamResult.productMode || streamResult.projectActive
+        ? {
+            productMode: streamResult.productMode,
+            projectActive: streamResult.projectActive,
+            domainMode: streamResult.domainMode,
+            estimateStage: streamResult.estimateStage,
+            projectKind: streamResult.projectKind,
+            projectAreaM2: streamResult.projectAreaM2,
+          }
+        : undefined;
       const finalState = useChatStore.getState();
       const finalConversationId = streamResult.conversationId?.trim();
       if (finalConversationId && finalConversationId !== sessionId) {
@@ -172,7 +183,9 @@ export function useStreaming() {
         ensureAssistantMessage(partial || "Ответ сформирован.");
       }
       const persistedSessionId = finalConversationId && finalConversationId !== sessionId ? finalConversationId : sessionId;
-      useChatStore.getState().replaceLastAssistant(persistedSessionId, partial || "Ответ сформирован.", false);
+      useChatStore
+        .getState()
+        .replaceLastAssistant(persistedSessionId, partial || "Ответ сформирован.", false, finalProductMeta);
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: accountQueryKeys.conversationTurnsRoot(sessionId) }),
         queryClient.invalidateQueries({
@@ -185,11 +198,16 @@ export function useStreaming() {
         ensureAssistantMessage(partial);
       }
       if (isAbort) {
-        useChatStore.getState().replaceLastAssistant(sessionId, partial || "Ответ остановлен.", false);
+        useChatStore.getState().replaceLastAssistant(sessionId, partial || "Ответ остановлен.", false, finalProductMeta);
       } else {
         useChatStore
           .getState()
-          .replaceLastAssistant(sessionId, partial || "Не удалось получить ответ модели. Попробуйте ещё раз.", false);
+          .replaceLastAssistant(
+            sessionId,
+            partial || "Не удалось получить ответ модели. Попробуйте ещё раз.",
+            false,
+            finalProductMeta,
+          );
       }
     } finally {
       useChatStore.getState().setThinking(false);

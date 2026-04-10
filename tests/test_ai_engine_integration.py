@@ -1828,6 +1828,26 @@ def test_math_eval_with_parentheses_words(engine):
     assert "20" in result["response"]
 
 
+def test_math_reasoning_percentage_skips_rag_and_returns_exact_answer(engine, monkeypatch: pytest.MonkeyPatch):
+    """RAG не должен перехватывать задачи на проценты раньше math pipeline."""
+    monkeypatch.setattr(
+        engine.rag,
+        "query",
+        lambda *args, **kwargs: {
+            "response": "Неверный RAG-ответ",
+            "confidence": 0.99,
+            "sources": ["rag"],
+            "method": "rag",
+        },
+    )
+
+    result = engine.chat("Сколько будет 20% от 80?", conversation_id=f"math-rag-route-{time.time_ns()}")
+
+    assert result["method"] in {"math-eval", "percentage"}
+    assert "16" in result["response"]
+    assert result["method"] != "rag"
+
+
 def test_logic_solver_syllogism(engine):
     """Логический решатель должен корректно выводить заключение из посылок."""
     conv = "logic-syllogism-test-001"
@@ -1836,6 +1856,62 @@ def test_logic_solver_syllogism(engine):
     text = result["response"].lower()
     assert "владислав" in text
     assert "смерт" in text
+
+
+def test_logic_query_skips_rag_and_prefers_logic_solver(engine, monkeypatch: pytest.MonkeyPatch):
+    """Даже при сильном RAG-ответе логическая задача должна идти в logic solver."""
+    monkeypatch.setattr(
+        engine.rag,
+        "query",
+        lambda *args, **kwargs: {
+            "response": "RAG сказал что-то общее",
+            "confidence": 0.98,
+            "sources": ["rag"],
+            "method": "rag",
+        },
+    )
+
+    result = engine.chat(
+        "Все люди смертны. Сократ — человек. Какой вывод?",
+        conversation_id=f"logic-rag-route-{time.time_ns()}",
+    )
+
+    assert result["method"] == "logic-solver"
+    assert "сократ" in result["response"].lower()
+    assert result["method"] != "rag"
+
+
+def test_code_query_skips_rag_and_prefers_code_generation(engine, monkeypatch: pytest.MonkeyPatch):
+    """Запрос на написание кода не должен уходить в retrieval вместо code-generation."""
+    monkeypatch.setattr(
+        engine.rag,
+        "query",
+        lambda *args, **kwargs: {
+            "response": "RAG нашёл описание языка, но не код.",
+            "confidence": 0.99,
+            "sources": ["rag"],
+            "method": "rag",
+        },
+    )
+    monkeypatch.setattr(
+        engine.code_gen,
+        "generate",
+        lambda message, language: {
+            "code": "def add(a, b):\n    return a + b",
+            "fitness": 0.93,
+            "genome_length": 12,
+            "duration_ms": 1.5,
+        },
+    )
+
+    result = engine.chat(
+        "Напиши код на python для сложения двух чисел",
+        conversation_id=f"code-rag-route-{time.time_ns()}",
+    )
+
+    assert result["method"] == "code-generation"
+    assert "def add" in result["response"]
+    assert result["method"] != "rag"
 
 
 def test_quality_case_rejects_placeholder(engine):

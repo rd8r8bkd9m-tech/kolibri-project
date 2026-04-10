@@ -138,12 +138,38 @@ body {
 }
 
 .kolibri-nebula::after {
-  content: none;
+  content: "";
   position: absolute;
   inset: 0;
-  background: transparent;
-  filter: none;
+  background:
+    radial-gradient(ellipse 600px 400px at 20% 50%, rgba(99, 102, 241, 0.06), transparent),
+    radial-gradient(ellipse 500px 350px at 80% 30%, rgba(56, 189, 248, 0.05), transparent),
+    radial-gradient(ellipse 400px 300px at 50% 80%, rgba(168, 85, 247, 0.04), transparent);
+  filter: blur(40px);
   pointer-events: none;
+  animation: nebula-drift 20s ease-in-out infinite alternate;
+}
+
+@keyframes nebula-drift {
+  0% {
+    transform: translateX(-20px) scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateX(10px) scale(1.05);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateX(-10px) scale(0.98);
+    opacity: 0.6;
+  }
+}
+
+.theme-dark .kolibri-nebula::after {
+  background:
+    radial-gradient(ellipse 600px 400px at 20% 50%, rgba(99, 102, 241, 0.1), transparent),
+    radial-gradient(ellipse 500px 350px at 80% 30%, rgba(56, 189, 248, 0.08), transparent),
+    radial-gradient(ellipse 400px 300px at 50% 80%, rgba(168, 85, 247, 0.06), transparent);
 }
 
 @media (max-width: 1023px) {
@@ -160,9 +186,8 @@ body {
   }
 
   .kolibri-nebula::after {
-    content: none;
-    background: transparent;
-    filter: none;
+    animation: none;
+    opacity: 0.5;
   }
 }
 

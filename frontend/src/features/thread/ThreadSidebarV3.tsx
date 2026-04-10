@@ -37,6 +37,12 @@ function formatRelativeDate(updatedAt: number) {
   return "Ранее";
 }
 
+function formatSessionPreview(value: string) {
+  const compact = value.replace(/\s+/g, " ").trim();
+  if (!compact) return "Пустой диалог";
+  return compact.length > 96 ? `${compact.slice(0, 95)}…` : compact;
+}
+
 function SessionRow({
   session,
   preview,
@@ -272,7 +278,7 @@ export function ThreadSidebarV3({ mobile = false }: { mobile?: boolean }) {
   };
 
   const renderRow = (session: ChatSession) => {
-    const preview = (messages[session.id] ?? []).at(-1)?.content ?? "Новый диалог";
+    const preview = formatSessionPreview((messages[session.id] ?? []).at(-1)?.content ?? "Новый диалог");
     return (
       <SessionRow
         key={session.id}

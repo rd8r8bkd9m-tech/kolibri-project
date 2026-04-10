@@ -1,0 +1,5 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     kolibri_http_debug
+relocations:     []
+...

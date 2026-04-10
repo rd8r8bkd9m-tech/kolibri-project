@@ -28,8 +28,9 @@ Kolibri — это не набор разрозненных фич, а одна 
                                 │
 ┌───────────────────────────────▼───────────────────────────────┐
 │ Runtime Gateway                                               │
-│ FastAPI routes, dialogue orchestration, demo and swarm API    │
-│ backend/service                                               │
+│ Current: FastAPI compatibility gateway                        │
+│ Target: canonical C runtime gateway with one shared contract  │
+│ backend/service + backend/src/kolibri_http_server.c           │
 └───────────────────────────────┬───────────────────────────────┘
                                 │
 ┌───────────────────────────────▼───────────────────────────────┐
@@ -61,9 +62,10 @@ Kolibri — это не набор разрозненных фич, а одна 
 
 ### 3.2 Backend Gateway
 
-- Chat API: `backend/service/ai_chat.py`
-- Dialogue engine: `backend/service/ai_engine.py`
-- Swarm runtime API: `backend/service/swarm_runtime_api.py`
+- Current compatibility gateway: `backend/service/ai_chat.py`
+- Current dialogue engine: `backend/service/ai_engine.py`
+- Current swarm runtime API: `backend/service/swarm_runtime_api.py`
+- C runtime gateway path: `backend/src/kolibri_http_server.c`
 
 ### 3.3 C Core
 
@@ -137,6 +139,7 @@ Kolibri — это не набор разрозненных фич, а одна 
 
 | Контур | Статус | Что это значит |
 |---|---|---|
+| `Runtime gateway` | in transition | публичный gateway ещё частично держится на FastAPI compatibility layer, при этом north star и часть runtime уже движутся к каноническому C gateway |
 | `C-core formula answers` | implemented | короткие и средние русские ответы по доменным знаниям уже идут через `c-core-formula` |
 | `Swarm runtime` | implemented | есть живой runtime, refresh, demo ingest и сравнение `1 vs 10` |
 | `WASM path` | implemented with fallback | автономный путь есть, но качество ниже backend path |

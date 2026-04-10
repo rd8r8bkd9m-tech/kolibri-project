@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { devtools, persist } from "zustand/middleware";
 import { uid } from "@/lib/utils";
 import { sanitizeAssistantText, sanitizeAssistantTurn } from "@/lib/answerSanitizer";
-import type { ChatMessage, ChatSession, ModelOption } from "@/types";
+import type { ChatMessage, ChatProductMeta, ChatSession, ModelOption } from "@/types";
 
 export type ThemeMode = "dark" | "light" | "system";
 export type AssistantPersona = "assistant" | "romantic" | "storyteller";
@@ -26,7 +26,7 @@ interface ChatState {
   deleteSession: (id: string) => void;
   addMessage: (sessionId: string, message: ChatMessage) => void;
   rewriteUserTurn: (sessionId: string, messageId: string, content: string) => void;
-  replaceLastAssistant: (sessionId: string, content: string, streaming?: boolean) => void;
+  replaceLastAssistant: (sessionId: string, content: string, streaming?: boolean, productMeta?: ChatProductMeta) => void;
   setModel: (model: ModelOption) => void;
   setTheme: (theme: ThemeMode) => void;
   setThinking: (value: boolean) => void;
@@ -69,6 +69,25 @@ function sanitizeMessage(value: unknown): ChatMessage | null {
   const editedAt = typeof raw.editedAt === "number" && Number.isFinite(raw.editedAt) ? raw.editedAt : undefined;
   const streaming = typeof raw.streaming === "boolean" ? raw.streaming : undefined;
   const imageUrl = typeof raw.imageUrl === "string" ? raw.imageUrl : undefined;
+  const productMeta =
+    raw.productMeta && typeof raw.productMeta === "object"
+      ? {
+          productMode:
+            typeof raw.productMeta.productMode === "string" ? raw.productMeta.productMode : undefined,
+          projectActive:
+            typeof raw.productMeta.projectActive === "boolean" ? raw.productMeta.projectActive : undefined,
+          domainMode:
+            typeof raw.productMeta.domainMode === "string" ? raw.productMeta.domainMode : undefined,
+          estimateStage:
+            typeof raw.productMeta.estimateStage === "string" ? raw.productMeta.estimateStage : undefined,
+          projectKind:
+            typeof raw.productMeta.projectKind === "string" ? raw.productMeta.projectKind : undefined,
+          projectAreaM2:
+            typeof raw.productMeta.projectAreaM2 === "number" && Number.isFinite(raw.productMeta.projectAreaM2)
+              ? raw.productMeta.projectAreaM2
+              : undefined,
+        }
+      : undefined;
   return {
     id: raw.id,
     role: raw.role,
@@ -77,6 +96,7 @@ function sanitizeMessage(value: unknown): ChatMessage | null {
     editedAt,
     streaming,
     imageUrl,
+    productMeta,
   };
 }
 
@@ -245,7 +265,7 @@ export const useChatStore = create<ChatState>()(
         };
       }),
 
-    replaceLastAssistant: (sessionId, content, streaming = true) =>
+    replaceLastAssistant: (sessionId, content, streaming = true, productMeta) =>
       set((state) => {
         const list = [...(state.messages[sessionId] ?? [])];
         for (let i = list.length - 1; i >= 0; i -= 1) {
@@ -258,6 +278,7 @@ export const useChatStore = create<ChatState>()(
                   ? sanitizeAssistantTurn(previous.content, content)
                   : sanitizeAssistantText(content),
               streaming,
+              productMeta: productMeta ?? list[i]?.productMeta,
             };
             break;
           }

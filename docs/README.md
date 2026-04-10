@@ -23,6 +23,7 @@
 
 ### Глубокие внутренние справочники
 
+- [plans/ROADMAP_TO_COMPETITIVE_AGI.md](plans/ROADMAP_TO_COMPETITIVE_AGI.md) — master-roadmap Kolibri True AI до конца 2027 года: `Reasoner -> Chat -> Swarm`, правила честных статусов и квартальные phase gates.
 - [plans/ROADMAP_SINGLE_SOURCE_OF_TRUTH.md](plans/ROADMAP_SINGLE_SOURCE_OF_TRUTH.md) — единый подтверждённый roadmap проекта с честными статусами `implemented/in_progress/planned`.
 - [archive/unconfirmed_reports/README.md](archive/unconfirmed_reports/README.md) — архив отчётов и документов со статусом «требует повторной верификации».
 - [kolibri_integrated_prototype.md](kolibri_integrated_prototype.md) — обзорный научный документ с изложением концепции, экспериментов и результатов.
@@ -58,6 +59,7 @@ This directory aggregates every documentation artifact required for the Kolibri 
 
 ### Deep internal references
 
+- [plans/ROADMAP_TO_COMPETITIVE_AGI.md](plans/ROADMAP_TO_COMPETITIVE_AGI.md) — Kolibri True AI master roadmap through 2027: `Reasoner -> Chat -> Swarm`, truthful status rules, and quarterly phase gates.
 - [plans/ROADMAP_SINGLE_SOURCE_OF_TRUTH.md](plans/ROADMAP_SINGLE_SOURCE_OF_TRUTH.md) — single verified roadmap with honest `implemented/in_progress/planned` statuses.
 - [archive/unconfirmed_reports/README.md](archive/unconfirmed_reports/README.md) — archive of reports/documents marked as "requires re-verification".
 - [kolibri_integrated_prototype.md](kolibri_integrated_prototype.md) — comprehensive paper-style overview with methodology and experiments.
@@ -89,6 +91,7 @@ This directory aggregates every documentation artifact required for the Kolibri 
 - [DEPLOY_RUNBOOK.md](DEPLOY_RUNBOOK.md) —— 家庭服务器与生产部署手册。
 - [public_interfaces.md](public_interfaces.md) —— 稳定公开接口。
 
+- [plans/ROADMAP_TO_COMPETITIVE_AGI.md](plans/ROADMAP_TO_COMPETITIVE_AGI.md) —— Kolibri True AI 主路线图，定义到 2027 年的 `Reasoner -> Chat -> Swarm` 发展顺序、真实状态规则与季度阶段门。
 - [kolibri_integrated_prototype.md](kolibri_integrated_prototype.md) —— 论文式综述，涵盖方法论与实验。
 - [master_prompt.md](master_prompt.md) —— “Prometheus” 主提示词，阐述理念与路线。
 - [architecture.md](architecture.md) —— 核心系统、子系统与数据流的架构说明。

@@ -80,6 +80,7 @@ add_library(kolibri_core_objects OBJECT
     backend/src/sim.c
     backend/src/semantic_digits.c
     backend/src/phoneme.c
+    backend/src/encoding_pipeline.c
     backend/src/context_window.c
     backend/src/corpus_learning.c
     backend/src/text_generation.c
@@ -116,6 +117,8 @@ add_library(kolibri_core_objects OBJECT
     backend/src/audio.c
     backend/src/auto_learn.c
     backend/src/autonomous_learning.c
+    backend/src/intent_classifier.c
+    backend/src/reinforcement_learning.c
 )
 
 target_include_directories(kolibri_core_objects
@@ -301,6 +304,7 @@ add_executable(kolibri_mass_trainer apps/kolibri_mass_trainer.c)
 add_executable(kolibri_formula_trainer apps/kolibri_formula_trainer.c)
 add_executable(kolibri_infer_cli apps/kolibri_infer_cli.c)
 add_executable(kolibri_train_kat apps/kolibri_train_kat.c)
+add_executable(kolibri_http_server backend/src/kolibri_http_server.c)
 
 target_link_libraries(kolibri_node PRIVATE kolibri_core)
 target_link_libraries(ks_compiler PRIVATE kolibri_core)
@@ -323,6 +327,7 @@ target_link_libraries(kolibri_mass_trainer PRIVATE kolibri_core)
 target_link_libraries(kolibri_formula_trainer PRIVATE kolibri_core)
 target_link_libraries(kolibri_infer_cli PRIVATE kolibri_core)
 target_link_libraries(kolibri_train_kat PRIVATE kolibri_core)
+target_link_libraries(kolibri_http_server PRIVATE kolibri_core SQLite::SQLite3 Threads::Threads m)
 
 add_custom_target(verify_digit_masking ALL
     COMMAND $<TARGET_FILE:kolibri_verify_digit_masking>
@@ -590,6 +595,21 @@ if(KOLIBRI_ENABLE_TESTS)
     target_link_libraries(test_reasoning_engine PRIVATE kolibri_core Threads::Threads m)
     add_test(NAME test_reasoning_engine COMMAND test_reasoning_engine)
 
+    # INTENT CLASSIFIER - Query intent analysis
+    add_executable(test_intent_classifier tests/test_intent_classifier.c)
+    target_link_libraries(test_intent_classifier PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_intent_classifier COMMAND test_intent_classifier)
+
+    # REINFORCEMENT LEARNING - Q-learning for action selection
+    add_executable(test_reinforcement_learning tests/test_reinforcement_learning.c)
+    target_link_libraries(test_reinforcement_learning PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_reinforcement_learning COMMAND test_reinforcement_learning)
+
+    # ENCODING PIPELINE - Unified text encoding (digits + phonemes + semantic)
+    add_executable(test_encoding_pipeline tests/test_encoding_pipeline.c)
+    target_link_libraries(test_encoding_pipeline PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_encoding_pipeline COMMAND test_encoding_pipeline)
+
     add_executable(test_pattern_discovery tests/test_pattern_discovery.c)
     target_link_libraries(test_pattern_discovery PRIVATE kolibri_core Threads::Threads m)
     add_test(NAME test_pattern_discovery COMMAND test_pattern_discovery)
@@ -660,6 +680,21 @@ if(KOLIBRI_ENABLE_TESTS)
                          ${CMAKE_CURRENT_SOURCE_DIR}/tests/run_kolibri_node_hmac.py
                          $<TARGET_FILE:kolibri_node>
                          file)
+        add_test(NAME test_kolibri_http_server_api
+                 COMMAND ${Python3_EXECUTABLE}
+                         ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_kolibri_http_server_api.py
+                         $<TARGET_FILE:kolibri_http_server>)
+        set_tests_properties(test_kolibri_http_server_api PROPERTIES TIMEOUT 90)
+        add_test(NAME test_kolibri_http_stream_api
+                 COMMAND ${Python3_EXECUTABLE}
+                         ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_kolibri_http_stream_api.py
+                         $<TARGET_FILE:kolibri_http_server>)
+        set_tests_properties(test_kolibri_http_stream_api PROPERTIES TIMEOUT 90)
+        add_test(NAME test_kolibri_http_phase1_benchmark
+                 COMMAND ${Python3_EXECUTABLE}
+                         ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_kolibri_http_phase1_benchmark.py
+                         $<TARGET_FILE:kolibri_http_server>)
+        set_tests_properties(test_kolibri_http_phase1_benchmark PROPERTIES TIMEOUT 120)
     endif()
 
     add_test(NAME kolibri_node_usage COMMAND $<TARGET_FILE:kolibri_node> --help)

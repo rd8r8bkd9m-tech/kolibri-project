@@ -153,7 +153,7 @@ export interface LearnTextDemoRequest {
 }
 
 const KOLIBRI_CLIENT_ID_KEY = "kolibri_client_id";
-const JSON_HEADERS = { "Content-Type": "application/json" } as const;
+export const JSON_HEADERS = { "Content-Type": "application/json" } as const;
 
 function getAuthToken(): string {
   return useChatStore.getState().apiToken?.trim() || "";
@@ -171,7 +171,7 @@ function buildApiHeaders(headers?: HeadersInit): Headers {
   return next;
 }
 
-async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
+export async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
   const next: RequestInit = {
     ...init,
     headers: buildApiHeaders(init.headers),

@@ -72,7 +72,7 @@ export function LearningDashboard() {
   });
 
   const uptimeFormatted = status?.metrics?.total_uptime
-    ? formatUptime(status.metrics.total_uptime)
+    ? formatUptime(status?.metrics?.total_uptime)
     : "0s";
 
   return (
@@ -214,7 +214,7 @@ export function LearningDashboard() {
             Повысить
           </Button>
         </div>
-        <CurriculumProgress level={status?.metrics.curriculum.level ?? 0} />
+        <CurriculumProgress level={status?.metrics?.curriculum?.level ?? 0} />
       </div>
     </div>
   );
