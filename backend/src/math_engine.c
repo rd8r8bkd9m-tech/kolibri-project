@@ -627,6 +627,58 @@ static inline int sscanf_two_ints(const char *s, int *a, int *b) {
 /* Helper: extract one integer from a string that may have leading non-digit text. */
 static inline int sscanf_one_int(const char *s, int *a) { return sscanf(s, "%*[^0-9]%d", a) == 1; }
 
+
+/* Parse quadratic equation: "x^2-5x+6=0" or "2x^2+3x-2=0" or "x^2-4=0" */
+static int parse_quadratic(const char *query, double *a, double *b, double *c) {
+    const char *x2 = strstr(query, "x^2");
+    if (!x2) return 0;
+    
+    *a = 1; *b = 0; *c = 0;
+    
+    /* Parse a coefficient */
+    if (x2 != query) {
+        char buf[32] = {0};
+        int len = x2 - query;
+        if (len < 31) strncpy(buf, query, len);
+        if (len == 1 && buf[0] == '-') *a = -1;
+        else if (len == 1 && buf[0] == '+') *a = 1;
+        else sscanf(buf, "%lf", a);
+    }
+    
+    /* Parse the rest after x^2 */
+    const char *p = x2 + 3;
+    if (*p == 'x') p++;
+    
+    while (*p && *p != '=') {
+        while (*p == ' ') p++;
+        if (*p == '=' || *p == '\0') break;
+        
+        double sign = 1;
+        if (*p == '+') { sign = 1; p++; }
+        else if (*p == '-') { sign = -1; p++; }
+        
+        while (*p == ' ') p++;
+        
+        double val = 0;
+        if (*p >= '0' && *p <= '9') {
+            sscanf(p, "%lf", &val);
+            while ((*p >= '0' && *p <= '9') || *p == '.') p++;
+        } else {
+            val = 1;
+        }
+        val *= sign;
+        
+        if (*p == 'x') {
+            *b = val;
+            p++;
+        } else {
+            *c = val;
+        }
+    }
+    
+    return 1;
+}
+
 int me_parse_query(const char *query, MeParsedQuery *parsed) {
     if (!query || !parsed)
         return -1;
@@ -641,8 +693,7 @@ int me_parse_query(const char *query, MeParsedQuery *parsed) {
     /* Quadratic equation */
     if (HAS("x^2") || HAS("x\xc2\xb2") || BYTES_HAS(CYB_KVADRATN) || HAS("x2=")) {
         double a = 0, b = 0, c = 0;
-        if (sscanf(query, "%lfx^2%lfx%lf", &a, &b, &c) == 3 || sscanf(query, "%lfx\xc2\xb2%lfx%lf", &a, &b, &c) == 3 ||
-            sscanf(lower, "%lfx^2%lfx%lf", &a, &b, &c) == 3) {
+        if (parse_quadratic(query, &a, &b, &c)) {
             parsed->type = ME_QUERY_QUADRATIC_EQ;
             parsed->params[0] = a;
             parsed->params[1] = b;
