@@ -76,13 +76,13 @@ static const char *find_chemistry_answer(const char *message) {
         const char *ans = chemistry_lookup[i][1];
         const char *found = strstr(msg_lower, key);
         if (i < 5)
-        if (found) {
-            int score = strlen(key);
-            if (score > best_score) {
-                best_score = score;
-                best_answer = ans;
+            if (found) {
+                int score = strlen(key);
+                if (score > best_score) {
+                    best_score = score;
+                    best_answer = ans;
+                }
             }
-        }
     }
     return best_answer;
 }
@@ -90,47 +90,50 @@ static const char *find_chemistry_answer(const char *message) {
 static const char *find_domain_answer(const char *message) {
     static const char *domain_kb[][2] = {
         /* IT / Programming */
-        {"что такое python", "Python — высокоуровневый язык программирования с динамической типизацией"},
-        {"что такое api", "API — интерфейс прикладного программирования, набор протоколов для взаимодействия программ"},
-        {"что такое http", "HTTP — протокол передачи данных гипертекста, основа веб"},
-        {"что такое json", "JSON — формат обмена данными, основанный на JavaScript Object Notation"},
-        {"что такое sql", "SQL — язык структурированных запросов для работы с реляционными БД"},
-        {"что такое git", "Git — распределённая система управления версиями"},
-        {"что такое docker", "Docker — платформа контейнеризации приложений"},
-        {"что такое linux", "Linux — семейство Unix-подобных ОС на основе ядра Linux"},
+        {"python", "Python — высокоуровневый язык программирования с динамической типизацией"},
+        {"api", "API — интерфейс прикладного программирования, набор протоколов для взаимодействия программ"},
+        {"http", "HTTP — протокол передачи данных гипертекста, основа веб"},
+        {"json", "JSON — формат обмена данными, основанный на JavaScript Object Notation"},
+        {"sql", "SQL — язык структурированных запросов для работы с реляционными БД"},
+        {"git", "Git — распределённая система управления версиями"},
+        {"docker", "Docker — платформа контейнеризации приложений"},
+        {"linux", "Linux — семейство Unix-подобных ОС на основе ядра Linux"},
 
         /* Biology */
-        {"что такое клетка", "Клетка — элементарная единица живого организма"},
-        {"что такое днк", "ДНК — дезоксирибонуклеиновая кислота, носитель генетической информации"},
-        {"что такое эволюция", "Эволюция — процесс изменения видов во времени через естественный отбор"},
-        {"что такое фотосинтез", "Фотосинтез — процесс преобразования света в химическую энергию растениями: 6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂"},
+        {"клетка", "Клетка — элементарная единица живого организма"},
+        {"днк", "ДНК — дезоксирибонуклеиновая кислота, носитель генетической информации"},
+        {"эволюция", "Эволюция — процесс изменения видов во времени через естественный отбор"},
+        {"фотосинтез",
+         "Фотосинтез — процесс преобразования света в химическую энергию растениями: 6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂"},
 
         /* Astronomy */
-        {"что такое вселенная", "Вселенная — всё пространство, время, материя и энергия, существующие"},
-        {"что такое чёрная дыра", "Чёрная дыра — область пространства-времени с настолько сильной гравитацией, что даже свет не может покинуть её"},
-        {"что такое солнечная система", "Солнечная система — звезда Солнце и все объекты, вращающиеся вокруг неё"},
+        {"вселенная", "Вселенная — всё пространство, время, материя и энергия, существующие"},
+        {"чёрная дыра", "Чёрная дыра — область пространства-времени с настолько сильной гравитацией, что "
+                        "даже свет не может покинуть её"},
+        {"солнечная система", "Солнечная система — звезда Солнце и все объекты, вращающиеся вокруг неё"},
 
         /* History */
-        {"что такое вторая мировая", "Вторая мировая война (1939-1945) — глобальный военный конфликт с участием большинства стран мира"},
-        {"что такое революция", "Революция — коренное изменение общественного строя"},
+        {"вторая мировая",
+         "Вторая мировая война (1939-1945) — глобальный военный конфликт с участием большинства стран мира"},
+        {"революция", "Революция — коренное изменение общественного строя"},
 
         /* Philosophy */
-        {"что такое сознание", "Сознание — субъективная реальность, способность к восприятию и мышлению"},
-        {"что такое этика", "Этика — раздел философии, изучающий мораль и нравственность"},
-        {"что такое логика", "Логика — наука о формах и законах правильного мышления"},
+        {"сознание", "Сознание — субъективная реальность, способность к восприятию и мышлению"},
+        {"этика", "Этика — раздел философии, изучающий мораль и нравственность"},
+        {"логика", "Логика — наука о формах и законах правильного мышления"},
 
         /* Medicine */
-        {"что такое иммунитет", "Иммунитет — способность организма защищаться от чужеродных агентов"},
-        {"что такое вирус", "Вирус — инфекционный агент, размножающийся только в живых клетках"},
+        {"иммунитет", "Иммунитет — способность организма защищаться от чужеродных агентов"},
+        {"вирус", "Вирус — инфекционный агент, размножающийся только в живых клетках"},
 
         /* Economics */
-        {"что такое инфляция", "Инфляция — устойчивый рост общего уровня цен"},
-        {"что такое ввп", "ВВП — валовый внутренний продукт, общая стоимость товаров и услуг страны"},
+        {"инфляция", "Инфляция — устойчивый рост общего уровня цен"},
+        {"ввп", "ВВП — валовый внутренний продукт, общая стоимость товаров и услуг страны"},
 
         /* AI / Machine Learning */
-        {"что такое нейросеть", "Нейросеть — вычислительная модель, вдохновлённая биологическими нейронами"},
-        {"что такое машинное обучение", "Машинное обучение — раздел ИИ, где алгоритмы учатся на данных"},
-        {"что такое глубокое обучение", "Глубокое обучение — подраздел ML с многослойными нейронными сетями"},
+        {"нейросеть", "Нейросеть — вычислительная модель, вдохновлённая биологическими нейронами"},
+        {"машинное обучение", "Машинное обучение — раздел ИИ, где алгоритмы учатся на данных"},
+        {"глубокое обучение", "Глубокое обучение — подраздел ML с многослойными нейронными сетями"},
         {NULL, NULL}};
 
     char msg_lower[512];
@@ -1975,6 +1978,19 @@ static void handle_chat(int fd, const char *body, int stream) {
         }
     }
 
+    /* === MODULE 1.5: Domain Knowledge Lookup (IT, biology, astronomy, etc.) === */
+    {
+        const char *domain_answer = find_domain_answer(message);
+        if (domain_answer) {
+            snprintf(answer, sizeof(answer), "%s", domain_answer);
+            strcpy(method, "domain_knowledge");
+            strcpy(runtime_query_kind, "domain");
+            strcpy(runtime_digit_winner, "domain_knowledge");
+            confidence = 0.85;
+            goto done;
+        }
+    }
+
     /* === MODULE 2: Reasoning Engine (fast, 0-5ms) === */
     KolibriReasoningResult result;
     int ret = kolibri_re_reason(message, &g_re_config, &result, NULL, NULL);
@@ -2065,18 +2081,17 @@ static void handle_chat(int fd, const char *body, int stream) {
     }
 
     /* === UNIVERSAL KNOWLEDGE LOOKUP (replaces useless fallback) === */
-    /* Try to find answer in corpus, knowledge base, and reasoning engine */
+    /* Try to find answer in domain KB, math KB, and reasoning engine */
     {
-        /* 1. Try reasoning engine for knowledge questions */
+        /* 1. Try domain knowledge FIRST (IT, biology, astronomy, philosophy, AI, etc.) */
         {
-            KolibriReasoningResult re_result;
-            memset(&re_result, 0, sizeof(re_result));
-            if (kolibri_re_deductive(message, &g_re_config, &re_result) == 0 && re_result.answer[0]) {
-                snprintf(answer, sizeof(answer), "%s", re_result.answer);
-                strcpy(method, "reasoning");
-                strcpy(runtime_query_kind, "reasoning");
-                strcpy(runtime_digit_winner, "reasoning");
-                confidence = re_result.confidence;
+            const char *domain_answer = find_domain_answer(message);
+            if (domain_answer) {
+                snprintf(answer, sizeof(answer), "%s", domain_answer);
+                strcpy(method, "domain_knowledge");
+                strcpy(runtime_query_kind, "domain");
+                strcpy(runtime_digit_winner, "domain_knowledge");
+                confidence = 0.85;
                 goto done;
             }
         }
@@ -2094,15 +2109,16 @@ static void handle_chat(int fd, const char *body, int stream) {
             }
         }
 
-        /* 3. Try domain knowledge (physics, chemistry, IT, law, etc.) */
+        /* 3. Try reasoning engine for knowledge questions */
         {
-            const char *domain_answer = find_domain_answer(message);
-            if (domain_answer) {
-                snprintf(answer, sizeof(answer), "%s", domain_answer);
-                strcpy(method, "domain_knowledge");
-                strcpy(runtime_query_kind, "domain");
-                strcpy(runtime_digit_winner, "domain_knowledge");
-                confidence = 0.8;
+            KolibriReasoningResult re_result;
+            memset(&re_result, 0, sizeof(re_result));
+            if (kolibri_re_deductive(message, &g_re_config, &re_result) == 0 && re_result.answer[0]) {
+                snprintf(answer, sizeof(answer), "%s", re_result.answer);
+                strcpy(method, "reasoning");
+                strcpy(runtime_query_kind, "reasoning");
+                strcpy(runtime_digit_winner, "reasoning");
+                confidence = re_result.confidence;
                 goto done;
             }
         }
