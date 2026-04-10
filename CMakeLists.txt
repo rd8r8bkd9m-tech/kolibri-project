@@ -107,6 +107,7 @@ add_library(kolibri_core_objects OBJECT
     backend/src/explanation_generator.c
     backend/src/reasoning_engine.c
     backend/src/domain_knowledge_loader.c
+    backend/src/domain_lookup.c
     backend/src/simd_ops.c
     backend/src/threaded_inference.c
     backend/src/pattern_discovery.c

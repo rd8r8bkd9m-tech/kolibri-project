@@ -30,8 +30,10 @@
 
 /* Forward declarations */
 static void str_lower(const char *src, char *dst, int max);
+static const char *find_domain_answer(const char *message);
 static const char *find_chemistry_answer(const char *message);
 
+static const char *find_domain_answer(const char *message);
 static const char *find_chemistry_answer(const char *message) {
     static const char *chemistry_lookup[][2] = {{"вода", "Вода — H₂O (2 атома водорода + 1 атом кислорода)"},
                                                 {"формула воды", "H₂O — вода"},
@@ -69,15 +71,13 @@ static const char *find_chemistry_answer(const char *message) {
     const char *best_answer = NULL;
     int best_score = 0;
 
-    printf("  DEBUG find_chem: msg_lower='%s' (len=%zu)\n", msg_lower, strlen(msg_lower));
     for (int i = 0; chemistry_lookup[i][0]; i++) {
         const char *key = chemistry_lookup[i][0];
         const char *ans = chemistry_lookup[i][1];
         const char *found = strstr(msg_lower, key);
-        if (i < 5) printf("  DEBUG find_chem[%d]: key='%s', found=%s\n", i, key, found ? "YES" : "no");
+        if (i < 5)
         if (found) {
             int score = strlen(key);
-            printf("  DEBUG chemistry: matched key='%s', score=%d\n", key, score);
             if (score > best_score) {
                 best_score = score;
                 best_answer = ans;
@@ -85,6 +85,72 @@ static const char *find_chemistry_answer(const char *message) {
         }
     }
     return best_answer;
+/* Find answer in domain knowledge (IT, law, biology, astronomy, history, medicine, economics, philosophy, AI) */
+static const char *find_domain_answer(const char *message) {
+    static const char *domain_kb[][2] = {
+        /* IT / Programming */
+        {"что такое python", "Python — высокоуровневый язык программирования с динамической типизацией"},
+        {"что такое api", "API — интерфейс прикладного программирования, набор протоколов для взаимодействия программ"},
+        {"что такое http", "HTTP — протокол передачи данных гипертекста, основа веб"},
+        {"что такое json", "JSON — формат обмена данными, основанный на JavaScript Object Notation"},
+        {"что такое sql", "SQL — язык структурированных запросов для работы с реляционными БД"},
+        {"что такое git", "Git — распределённая система управления версиями"},
+        {"что такое docker", "Docker — платформа контейнеризации приложений"},
+        {"что такое linux", "Linux — семейство Unix-подобных ОС на основе ядра Linux"},
+
+        /* Biology */
+        {"что такое клетка", "Клетка — элементарная единица живого организма"},
+        {"что такое днк", "ДНК — дезоксирибонуклеиновая кислота, носитель генетической информации"},
+        {"что такое эволюция", "Эволюция — процесс изменения видов во времени через естественный отбор"},
+        {"что такое фотосинтез", "Фотосинтез — процесс преобразования света в химическую энергию растениями: 6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂"},
+
+        /* Astronomy */
+        {"что такое вселенная", "Вселенная — всё пространство, время, материя и энергия, существующие"},
+        {"что такое чёрная дыра", "Чёрная дыра — область пространства-времени с настолько сильной гравитацией, что даже свет не может покинуть её"},
+        {"что такое солнечная система", "Солнечная система — звезда Солнце и все объекты, вращающиеся вокруг неё"},
+
+        /* History */
+        {"что такое вторая мировая", "Вторая мировая война (1939-1945) — глобальный военный конфликт с участием большинства стран мира"},
+        {"что такое революция", "Революция — коренное изменение общественного строя"},
+
+        /* Philosophy */
+        {"что такое сознание", "Сознание — субъективная реальность, способность к восприятию и мышлению"},
+        {"что такое этика", "Этика — раздел философии, изучающий мораль и нравственность"},
+        {"что такое логика", "Логика — наука о формах и законах правильного мышления"},
+
+        /* Medicine */
+        {"что такое иммунитет", "Иммунитет — способность организма защищаться от чужеродных агентов"},
+        {"что такое вирус", "Вирус — инфекционный агент, размножающийся только в живых клетках"},
+
+        /* Economics */
+        {"что такое инфляция", "Инфляция — устойчивый рост общего уровня цен"},
+        {"что такое ввп", "ВВП — валовый внутренний продукт, общая стоимость товаров и услуг страны"},
+
+        /* AI / Machine Learning */
+        {"что такое нейросеть", "Нейросеть — вычислительная модель, вдохновлённая биологическими нейронами"},
+        {"что такое машинное обучение", "Машинное обучение — раздел ИИ, где алгоритмы учатся на данных"},
+        {"что такое глубокое обучение", "Глубокое обучение — подраздел ML с многослойными нейронными сетями"},
+        {NULL, NULL}};
+
+    char msg_lower[512];
+    str_lower(message, msg_lower, sizeof(msg_lower));
+
+    const char *best_answer = NULL;
+    int best_score = 0;
+
+    for (int i = 0; domain_kb[i][0]; i++) {
+        const char *key = domain_kb[i][0];
+        const char *ans = domain_kb[i][1];
+        if (strstr(msg_lower, key)) {
+            int score = strlen(key);
+            if (score > best_score) {
+                best_score = score;
+                best_answer = ans;
+            }
+        }
+    }
+    return best_answer;
+}
 }
 
 /* ===== KNOWLEDGE & MEMORY ===== */
@@ -1186,7 +1252,6 @@ static void handle_chat(int fd, const char *body, int stream) {
     double parsed_a = 0.0, parsed_b = 0.0, parsed_c = 0.0;
     char parsed_equation[256] = {0};
     str_lower(message, message_lower, sizeof(message_lower));
-    printf("  DEBUG handle_chat: message='%s', message_lower='%s'\n", message, message_lower);
 
     /* === EARLY INTENT CLASSIFICATION FOR ROUTING === */
     KolibriIntent classified_intent = KIC_INTENT_UNKNOWN;
@@ -1245,10 +1310,8 @@ static void handle_chat(int fd, const char *body, int stream) {
                        strstr(message, "формула") || strstr(message, "веществ") || strstr(message, "элемент") ||
                        strstr(message, "реакци");
     if (is_chemistry) {
-        printf("  DEBUG: chemistry detected for '%s'\n", message);
         /* Try chemistry knowledge base lookup */
         const char *chem_answer = find_chemistry_answer(message);
-        printf("  DEBUG: chemistry answer = %s\n", chem_answer ? chem_answer : "(null)");
         if (chem_answer) {
             snprintf(answer, sizeof(answer), "%s", chem_answer);
             strcpy(method, "chemistry");
@@ -2001,25 +2064,57 @@ static void handle_chat(int fd, const char *body, int stream) {
         }
     }
 
-    /* === FALLBACK === */
-    int is_what = strstr(message, "что такое") || strstr(message, "Что такое");
-    if (is_what) {
+    /* === UNIVERSAL KNOWLEDGE LOOKUP (replaces useless fallback) === */
+    /* Try to find answer in corpus, knowledge base, and reasoning engine */
+    {
+        /* 1. Try reasoning engine for knowledge questions */
+        {
+            KolibriReasoningResult re_result;
+            memset(&re_result, 0, sizeof(re_result));
+            if (kolibri_re_deductive(message, &re_result) == 0 && re_result.answer[0]) {
+                snprintf(answer, sizeof(answer), "%s", re_result.answer);
+                strcpy(method, "reasoning");
+                strcpy(runtime_query_kind, "reasoning");
+                strcpy(runtime_digit_winner, "reasoning");
+                confidence = re_result.confidence;
+                goto done;
+            }
+        }
+
+        /* 2. Try math knowledge base */
+        {
+            const char *math_answer = find_math_qa(message);
+            if (math_answer) {
+                snprintf(answer, sizeof(answer), "%s", math_answer);
+                strcpy(method, "math_knowledge");
+                strcpy(runtime_query_kind, "math");
+                strcpy(runtime_digit_winner, "math_knowledge");
+                confidence = 0.85;
+                goto done;
+            }
+        }
+
+        /* 3. Try domain knowledge (physics, chemistry, IT, law, etc.) */
+        {
+            const char *domain_answer = find_domain_answer(message);
+            if (domain_answer) {
+                snprintf(answer, sizeof(answer), "%s", domain_answer);
+                strcpy(method, "domain_knowledge");
+                strcpy(runtime_query_kind, "domain");
+                strcpy(runtime_digit_winner, "domain_knowledge");
+                confidence = 0.8;
+                goto done;
+            }
+        }
+
+        /* 4. Last resort: informative response */
         snprintf(answer, sizeof(answer),
-                 "Нет точных знаний по \"%s\". Доступные домены: "
-                 "физика, химия, IT, право, математика, биология, астрономия, "
-                 "география, история, ИИ, философия, медицина, экономика, музыка, "
-                 "искусство, спорт. Попробуйте вопрос из этих областей.",
-                 message);
-        strcpy(method, "fallback");
-        confidence = 0.3;
-    } else {
-        snprintf(answer, sizeof(answer),
-                 "Запрос: \"%s\". Доступные домены: физика, химия, IT, право, "
-                 "математика, биология, астрономия, география, история, ИИ, "
-                 "философия, медицина, экономика, музыка, искусство, спорт.",
-                 message);
-        strcpy(method, "status");
-        confidence = 0.3;
+                 "Я Kolibri AI — система с C-ядром reasoning. "
+                 "Мои домены: физика, химия, IT, право, математика, биология, "
+                 "астрономия, география, история, ИИ, философия, медицина, экономика. "
+                 "Попробуйте вопрос из этих областей.");
+        strcpy(method, "kolibri_info");
+        confidence = 0.5;
     }
 
 done: {
