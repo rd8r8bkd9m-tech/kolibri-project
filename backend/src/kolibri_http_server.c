@@ -85,6 +85,7 @@ static const char *find_chemistry_answer(const char *message) {
         }
     }
     return best_answer;
+}
 /* Find answer in domain knowledge (IT, law, biology, astronomy, history, medicine, economics, philosophy, AI) */
 static const char *find_domain_answer(const char *message) {
     static const char *domain_kb[][2] = {
@@ -150,7 +151,6 @@ static const char *find_domain_answer(const char *message) {
         }
     }
     return best_answer;
-}
 }
 
 /* ===== KNOWLEDGE & MEMORY ===== */
@@ -2071,7 +2071,7 @@ static void handle_chat(int fd, const char *body, int stream) {
         {
             KolibriReasoningResult re_result;
             memset(&re_result, 0, sizeof(re_result));
-            if (kolibri_re_deductive(message, &re_result) == 0 && re_result.answer[0]) {
+            if (kolibri_re_deductive(message, &g_re_config, &re_result) == 0 && re_result.answer[0]) {
                 snprintf(answer, sizeof(answer), "%s", re_result.answer);
                 strcpy(method, "reasoning");
                 strcpy(runtime_query_kind, "reasoning");
