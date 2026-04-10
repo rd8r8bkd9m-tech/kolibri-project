@@ -7,16 +7,17 @@
  */
 
 #include "kolibri/math_engine.h"
+#include <ctype.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
 /* ========== EQUATION SOLVERS ========== */
 
 int me_solve_linear(double a, double b, MeEquationResult *result) {
-    if (!result) return -1;
+    if (!result)
+        return -1;
     memset(result, 0, sizeof(*result));
     strcpy(result->method, "linear");
 
@@ -44,7 +45,8 @@ int me_solve_linear(double a, double b, MeEquationResult *result) {
 }
 
 int me_solve_quadratic(double a, double b, double c, MeEquationResult *result) {
-    if (!result) return -1;
+    if (!result)
+        return -1;
     memset(result, 0, sizeof(*result));
     strcpy(result->method, "quadratic");
 
@@ -81,7 +83,8 @@ int me_solve_quadratic(double a, double b, double c, MeEquationResult *result) {
 }
 
 int me_solve_biquadratic(double a, double b, double c, MeEquationResult *result) {
-    if (!result) return -1;
+    if (!result)
+        return -1;
     memset(result, 0, sizeof(*result));
     strcpy(result->method, "biquadratic");
 
@@ -101,7 +104,8 @@ int me_solve_biquadratic(double a, double b, double c, MeEquationResult *result)
         if (quad_res.roots[i] >= 0) {
             double x = sqrt(quad_res.roots[i]);
             result->roots[result->num_roots++] = -x;
-            if (x > 0) result->roots[result->num_roots++] = x;
+            if (x > 0)
+                result->roots[result->num_roots++] = x;
             snprintf(result->steps[s++], 256, "t%d = %.6f ≥ 0: x = ±%.6f", i + 1, quad_res.roots[i], x);
         } else {
             snprintf(result->steps[s++], 256, "t%d = %.6f < 0: no real roots", i + 1, quad_res.roots[i]);
@@ -112,10 +116,9 @@ int me_solve_biquadratic(double a, double b, double c, MeEquationResult *result)
     return 0;
 }
 
-int me_solve_system_2x2(double a1, double b1, double c1,
-                        double a2, double b2, double c2,
-                        MeEquationResult *result) {
-    if (!result) return -1;
+int me_solve_system_2x2(double a1, double b1, double c1, double a2, double b2, double c2, MeEquationResult *result) {
+    if (!result)
+        return -1;
     memset(result, 0, sizeof(*result));
     strcpy(result->method, "system_2x2");
 
@@ -151,8 +154,7 @@ int me_solve_system_2x2(double a1, double b1, double c1,
 
 /* ========== DERIVATIVES ========== */
 
-int me_derivative_polynomial(const double *coeffs, int degree,
-                             double *deriv_coeffs, int *deriv_degree) {
+int me_derivative_polynomial(const double *coeffs, int degree, double *deriv_coeffs, int *deriv_degree) {
     if (degree <= 0) {
         *deriv_degree = 0;
         deriv_coeffs[0] = 0;
@@ -167,7 +169,8 @@ int me_derivative_polynomial(const double *coeffs, int degree,
 }
 
 int me_derivative_rule_power(double n, char *result) {
-    if (!result) return -1;
+    if (!result)
+        return -1;
     if (n == 0) {
         snprintf(result, 256, "d/dx(C) = 0");
     } else if (n == 1) {
@@ -183,21 +186,22 @@ int me_derivative_rule_power(double n, char *result) {
 }
 
 int me_derivative_rule_product(const char *f, const char *g, char *result) {
-    if (!result || !f || !g) return -1;
+    if (!result || !f || !g)
+        return -1;
     snprintf(result, 256, "d/dx(f·g) = f'·g + f·g' = d/dx(%s)·%s + %s·d/dx(%s)", f, g, f, g);
     return 0;
 }
 
 int me_derivative_rule_chain(const char *outer, const char *inner, char *result) {
-    if (!result || !outer || !inner) return -1;
+    if (!result || !outer || !inner)
+        return -1;
     snprintf(result, 256, "d/dx(%s(%s)) = %s'(%s) · d/dx(%s)", outer, inner, outer, inner, inner);
     return 0;
 }
 
 /* ========== INTEGRALS ========== */
 
-int me_integrate_polynomial(const double *coeffs, int degree,
-                            double *int_coeffs, int *int_degree) {
+int me_integrate_polynomial(const double *coeffs, int degree, double *int_coeffs, int *int_degree) {
     *int_degree = degree + 1;
     int_coeffs[0] = 0; /* Constant of integration C */
     for (int i = 0; i <= degree; i++) {
@@ -228,29 +232,28 @@ double me_matrix_get(const MeMatrix *m, int row, int col) {
 }
 
 double me_matrix_det(const MeMatrix *m) {
-    if (m->rows != m->cols) return 0;
+    if (m->rows != m->cols)
+        return 0;
 
-    if (m->rows == 1) return m->matrix[0][0];
+    if (m->rows == 1)
+        return m->matrix[0][0];
 
     if (m->rows == 2) {
-        return m->matrix[0][0] * m->matrix[1][1] -
-               m->matrix[0][1] * m->matrix[1][0];
+        return m->matrix[0][0] * m->matrix[1][1] - m->matrix[0][1] * m->matrix[1][0];
     }
 
     if (m->rows == 3) {
-        return m->matrix[0][0] * (m->matrix[1][1] * m->matrix[2][2] -
-                                  m->matrix[1][2] * m->matrix[2][1]) -
-               m->matrix[0][1] * (m->matrix[1][0] * m->matrix[2][2] -
-                                  m->matrix[1][2] * m->matrix[2][0]) +
-               m->matrix[0][2] * (m->matrix[1][0] * m->matrix[2][1] -
-                                  m->matrix[1][1] * m->matrix[2][0]);
+        return m->matrix[0][0] * (m->matrix[1][1] * m->matrix[2][2] - m->matrix[1][2] * m->matrix[2][1]) -
+               m->matrix[0][1] * (m->matrix[1][0] * m->matrix[2][2] - m->matrix[1][2] * m->matrix[2][0]) +
+               m->matrix[0][2] * (m->matrix[1][0] * m->matrix[2][1] - m->matrix[1][1] * m->matrix[2][0]);
     }
 
     return 0; /* Not implemented for larger matrices */
 }
 
 int me_matrix_mul(const MeMatrix *a, const MeMatrix *b, MeMatrix *result) {
-    if (a->cols != b->rows) return -1;
+    if (a->cols != b->rows)
+        return -1;
 
     me_matrix_init(result, a->rows, b->cols);
 
@@ -270,7 +273,8 @@ int me_matrix_mul(const MeMatrix *a, const MeMatrix *b, MeMatrix *result) {
 /* ========== TRIGONOMETRY ========== */
 
 int me_solve_trig_sin(double value, MeMathResult *result) {
-    if (!result) return -1;
+    if (!result)
+        return -1;
     memset(result, 0, sizeof(*result));
     result->is_symbolic = 1;
 
@@ -311,7 +315,8 @@ int me_solve_trig_sin(double value, MeMathResult *result) {
 }
 
 int me_solve_trig_cos(double value, MeMathResult *result) {
-    if (!result) return -1;
+    if (!result)
+        return -1;
     memset(result, 0, sizeof(*result));
     result->is_symbolic = 1;
 
@@ -352,7 +357,8 @@ int me_solve_trig_cos(double value, MeMathResult *result) {
 }
 
 int me_solve_trig_tan(double value, MeMathResult *result) {
-    if (!result) return -1;
+    if (!result)
+        return -1;
     memset(result, 0, sizeof(*result));
     result->is_symbolic = 1;
 
@@ -382,7 +388,8 @@ int me_solve_trig_tan(double value, MeMathResult *result) {
 /* ========== EXPONENTIAL & LOGARITHMIC ========== */
 
 int me_solve_exp(double a, double b, MeMathResult *result) {
-    if (!result) return -1;
+    if (!result)
+        return -1;
     memset(result, 0, sizeof(*result));
     result->is_symbolic = 1;
 
@@ -397,8 +404,8 @@ int me_solve_exp(double a, double b, MeMathResult *result) {
     }
 
     result->numeric_result = log(b) / log(a);
-    snprintf(result->steps[s++], 256, "x = log_%.2f(%.2f) = ln(%.2f)/ln(%.2f) = %.6f",
-             a, b, b, a, result->numeric_result);
+    snprintf(result->steps[s++], 256, "x = log_%.2f(%.2f) = ln(%.2f)/ln(%.2f) = %.6f", a, b, b, a,
+             result->numeric_result);
     snprintf(result->result, 512, "x = %.6f", result->numeric_result);
     result->num_steps = s;
 
@@ -406,7 +413,8 @@ int me_solve_exp(double a, double b, MeMathResult *result) {
 }
 
 int me_solve_log(double a, double b, MeMathResult *result) {
-    if (!result) return -1;
+    if (!result)
+        return -1;
     memset(result, 0, sizeof(*result));
     result->is_symbolic = 1;
 
@@ -431,9 +439,12 @@ int me_solve_log(double a, double b, MeMathResult *result) {
 /* ========== PROBABILITY & COMBINATORICS ========== */
 
 double me_combinations(int n, int k) {
-    if (k < 0 || k > n) return 0;
-    if (k == 0 || k == n) return 1;
-    if (k > n / 2) k = n - k;
+    if (k < 0 || k > n)
+        return 0;
+    if (k == 0 || k == n)
+        return 1;
+    if (k > n / 2)
+        k = n - k;
 
     double result = 1;
     for (int i = 0; i < k; i++) {
@@ -443,8 +454,10 @@ double me_combinations(int n, int k) {
 }
 
 double me_permutations(int n) {
-    if (n < 0) return 0;
-    if (n <= 1) return 1;
+    if (n < 0)
+        return 0;
+    if (n <= 1)
+        return 1;
 
     double result = 1;
     for (int i = 2; i <= n; i++) {
@@ -454,7 +467,8 @@ double me_permutations(int n) {
 }
 
 double me_probability(int favorable, int total) {
-    if (total <= 0) return 0;
+    if (total <= 0)
+        return 0;
     return (double)favorable / total;
 }
 
@@ -472,7 +486,8 @@ int me_gcd(int a, int b) {
 }
 
 int me_lcm(int a, int b) {
-    if (a == 0 || b == 0) return 0;
+    if (a == 0 || b == 0)
+        return 0;
     return abs(a * b) / me_gcd(a, b);
 }
 
@@ -480,7 +495,8 @@ long long me_modpow(long long base, long long exp, long long mod) {
     long long result = 1;
     base = base % mod;
     while (exp > 0) {
-        if (exp % 2 == 1) result = (result * base) % mod;
+        if (exp % 2 == 1)
+            result = (result * base) % mod;
         exp = exp >> 1;
         base = (base * base) % mod;
     }
@@ -490,7 +506,8 @@ long long me_modpow(long long base, long long exp, long long mod) {
 /* ========== EXPRESSION PARSER ========== */
 
 int me_eval_expression(const char *expr, double *result) {
-    if (!expr || !result) return -1;
+    if (!expr || !result)
+        return -1;
 
     /* Simple evaluator: handles numbers and basic operations */
     /* This is a simplified version - full parsing would need a proper parser */
@@ -505,96 +522,198 @@ static int to_lower_str(const char *src, char *dst, size_t max) {
     size_t si = 0, di = 0;
     while (src[si] && di < max - 1) {
         unsigned char c = (unsigned char)src[si];
-        if (c >= 'A' && c <= 'Z') { dst[di++] = c + 32; si++; }
-        else if (c == 0xD0 && src[si+1]) {
-            unsigned char c2 = (unsigned char)src[si+1];
-            if (c2 >= 0x90 && c2 <= 0x9F) { dst[di++] = 0xD0; dst[di++] = c2+0x20; si += 2; }
-            else if (c2 >= 0xA0 && c2 <= 0xAF) { dst[di++] = 0xD1; dst[di++] = c2-0x20; si += 2; }
-            else { dst[di++] = c; si++; }
+        if (c >= 'A' && c <= 'Z') {
+            dst[di++] = c + 32;
+            si++;
+        } else if (c == 0xD0 && src[si + 1]) {
+            unsigned char c2 = (unsigned char)src[si + 1];
+            if (c2 >= 0x90 && c2 <= 0x9F) {
+                dst[di++] = 0xD0;
+                dst[di++] = c2 + 0x20;
+                si += 2;
+            } else if (c2 >= 0xA0 && c2 <= 0xAF) {
+                dst[di++] = 0xD1;
+                dst[di++] = c2 - 0x20;
+                si += 2;
+            } else {
+                dst[di++] = c;
+                si++;
+            }
+        } else {
+            dst[di++] = c;
+            si++;
         }
-        else { dst[di++] = c; si++; }
     }
     dst[di] = '\0';
     return 0;
 }
 
+/* Byte-sequence matcher: searches for a fixed UTF-8 byte pattern in raw input.
+   This avoids compiler-dependent handling of wide/Cyrillic string literals. */
+static inline int mem_has_bytes(const unsigned char *haystack, size_t hlen, const unsigned char *needle, size_t nlen) {
+    if (nlen == 0 || nlen > hlen)
+        return 0;
+    for (size_t i = 0; i <= hlen - nlen; i++) {
+        int match = 1;
+        for (size_t j = 0; j < nlen; j++) {
+            if (haystack[i + j] != needle[j]) {
+                match = 0;
+                break;
+            }
+        }
+        if (match)
+            return 1;
+    }
+    return 0;
+}
+
+#define BYTES_HAS(bseq)                                                                                                \
+    mem_has_bytes((const unsigned char *)query, strlen(query), (const unsigned char *)(bseq), sizeof(bseq) - 1)
+
+/* Pre-computed UTF-8 byte sequences for Cyrillic keywords.
+   "выбрать"   = D0 B2 D1 8B D0 B1 D1 80 D0 B0 D1 82 D1 8C
+   "сочетан"   = D1 81 D0 BE D1 87 D0 B5 D1 82 D0 B0 D0 BD
+   "квадратн"  = D0 BA D0 B2 D0 B0 D0 B4 D1 80 D0 B0 D1 82 D0 BD
+   "уравнен"   = D1 83 D1 80 D0 B0 D0 B2 D0 BD D0 B5 D0 BD
+   "линейн"    = D0 BB D0 B8 D0 BD D0 B5 D0 B9 D0 BD
+   "линей"     = D0 BB D0 B8 D0 BD D0 B5 D0 B9
+   "перестанов"= D0 BF D0 B5 D1 80 D0 B5 D1 81 D1 82 D0 B0 D0 BD D0 BE D0 B2
+   "вероятност"= D0 B2 D0 B5 D1 80 D0 BE D1 8F D1 82 D0 BD D0 BE D1 81 D1 82
+   "факториал" = D1 84 D0 B0 D0 BA D1 82 D0 BE D1 80 D0 B8 D0 B0 D0 BB
+   "производн" = D0 BF D1 80 D0 BE D0 B8 D0 B7 D0 B2 D0 BE D0 B4 D0 BD
+   "интеграл"  = D0 B8 D0 BD D1 82 D0 B5 D0 B3 D1 80 D0 B0 D0 BB
+   "матриц"    = D0 BC D0 B0 D1 82 D1 80 D0 B8 D1 86
+   "определител"= D0 BE D0 BF D1 80 D0 B5 D0 B4 D0 B5 D0 BB D0 B8 D1 82 D0 B5 D0 BB
+   "биквадрат" = D0 B1 D0 B8 D0 BA D0 B2 D0 B0 D0 B4 D1 80 D0 B0 D1 82
+   "остаток"   = D0 BE D1 81 D1 82 D0 B0 D1 82 D0 BE D0 BA
+   "расставить"= D1 80 D0 B0 D1 81 D1 81 D1 82 D0 B0 D0 B2 D0 B8 D1 82 D1 8C
+   "систем"    = D1 81 D0 B8 D1 81 D1 82 D0 B5 D0 BC
+   "умножен"   = D1 83 D0 BC D0 BD D0 BE D0 B6 D0 B5 D0 BD
+   "произведен"= D0 BF D1 80 D0 BE D0 B8 D0 B7 D0 B2 D0 B5 D0 B4 D0 B5 D0 BD
+   "дифференцирован" = D0 B4 D0 B8 D1 84 D1 84 D0 B5 D1 80 D0 B5 D0 BD D1 86 D0 B8 D1 80 D0 BE D0 B2 D0 B0 D0 BD */
+
+#define CYB_VYBRAT "\xd0\xb2\xd1\x8b\xd0\xb1\xd1\x80\xd0\xb0\xd1\x82\xd1\x8c"
+#define CYB_SOCHETAN "\xd1\x81\xd0\xbe\xd1\x87\xd0\xb5\xd1\x82\xd0\xb0\xd0\xbd"
+#define CYB_KVADRATN "\xd0\xba\xd0\xb2\xd0\xb0\xd0\xb4\xd1\x80\xd0\xb0\xd1\x82\xd0\xbd"
+#define CYB_URAVNEN "\xd1\x83\xd1\x80\xd0\xb0\xd0\xb2\xd0\xbd\xd0\xb5\xd0\xbd"
+#define CYB_LINEYN "\xd0\xbb\xd0\xb8\xd0\xbd\xd0\xb5\xd0\xb9\xd0\xbd"
+#define CYB_LINEY "\xd0\xbb\xd0\xb8\xd0\xbd\xd0\xb5\xd0\xb9"
+#define CYB_PERESTANOV "\xd0\xbf\xd0\xb5\xd1\x80\xd0\xb5\xd1\x81\xd1\x82\xd0\xb0\xd0\xbd\xd0\xbe\xd0\xb2"
+#define CYB_VERJATNOST "\xd0\xb2\xd0\xb5\xd1\x80\xd0\xbe\xd1\x8f\xd1\x82\xd0\xbd\xd0\xbe\xd1\x81\xd1\x82"
+#define CYB_FAKTORIAL "\xd1\x84\xd0\xb0\xd0\xba\xd1\x82\xd0\xbe\xd1\x80\xd0\xb8\xd0\xb0\xd0\xbb"
+#define CYB_PROIZVODN "\xd0\xbf\xd1\x80\xd0\xbe\xd0\xb8\xd0\xb7\xd0\xb2\xd0\xbe\xd0\xb4\xd0\xbd"
+#define CYB_INTEGRAL "\xd0\xb8\xd0\xbd\xd1\x82\xd0\xb5\xd0\xb3\xd1\x80\xd0\xb0\xd0\xbb"
+#define CYB_MATRIC "\xd0\xbc\xd0\xb0\xd1\x82\xd1\x80\xd0\xb8\xd1\x86"
+#define CYB_OPREDELITEL "\xd0\xbe\xd0\xbf\xd1\x80\xd0\xb5\xd0\xb4\xd0\xb5\xd0\xbb\xd0\xb8\xd1\x82\xd0\xb5\xd0\xbb"
+#define CYB_BIKVADRAT "\xd0\xb1\xd0\xb8\xd0\xba\xd0\xb2\xd0\xb0\xd0\xb4\xd1\x80\xd0\xb0\xd1\x82"
+#define CYB_OSTATOK "\xd0\xbe\xd1\x81\xd1\x82\xd0\xb0\xd1\x82\xd0\xbe\xd0\xba"
+#define CYB_RASSTAVIT "\xd1\x80\xd0\xb0\xd1\x81\xd1\x81\xd1\x82\xd0\xb0\xd0\xb2\xd0\xb8\xd1\x82\xd1\x8c"
+#define CYB_SISTEM "\xd1\x81\xd0\xb8\xd1\x81\xd1\x82\xd0\xb5\xd0\xbc"
+#define CYB_UMNOZHEN "\xd1\x83\xd0\xbc\xd0\xbd\xd0\xbe\xd0\xb6\xd0\xb5\xd0\xbd"
+#define CYB_PROIZVEDEN "\xd0\xbf\xd1\x80\xd0\xbe\xd0\xb8\xd0\xb7\xd0\xb2\xd0\xb5\xd0\xb4\xd0\xb5\xd0\xbd"
+#define CYB_DIFFERENCI                                                                                                 \
+    "\xd0\xb4\xd0\xb8\xd1\x84\xd1\x84\xd0\xb5\xd1\x80\xd0\xb5\xd0\xbd\xd1\x86\xd0\xb8\xd1\x80\xd0\xbe\xd0\xb2\xd0\xb0" \
+    "\xd0\xbd"
+
+/* Search helper: checks ASCII via strstr, Cyrillic via byte-level match */
+#define HAS(kw) (strstr(query, kw) != NULL || strstr(lower, kw) != NULL || BYTES_HAS(kw))
+
+/* Helper: extract two integers from a string that may have leading non-digit text.
+   Uses %*[^0-9] to skip everything until first digit, then reads two ints. */
+static inline int sscanf_two_ints(const char *s, int *a, int *b) {
+    return sscanf(s, "%*[^0-9]%d%*[^0-9]%d", a, b) == 2;
+}
+
+/* Helper: extract one integer from a string that may have leading non-digit text. */
+static inline int sscanf_one_int(const char *s, int *a) { return sscanf(s, "%*[^0-9]%d", a) == 1; }
+
 int me_parse_query(const char *query, MeParsedQuery *parsed) {
-    if (!query || !parsed) return -1;
+    if (!query || !parsed)
+        return -1;
     memset(parsed, 0, sizeof(*parsed));
 
     char lower[2048];
     to_lower_str(query, lower, sizeof(lower));
 
-    /* Search helper - checks both original and lower */
-    #define HAS(kw) (strstr(query, kw) != NULL || strstr(lower, kw) != NULL)
+    size_t qlen = strlen(query);
+    (void)qlen; /* used by BYTES_HAS macro */
 
     /* Quadratic equation */
-    if (HAS("x^2") || HAS("x²") || HAS("квадратн") || HAS("x2=")) {
+    if (HAS("x^2") || HAS("x\xc2\xb2") || BYTES_HAS(CYB_KVADRATN) || HAS("x2=")) {
         double a = 0, b = 0, c = 0;
-        if (sscanf(query, "%lfx^2%lfx%lf", &a, &b, &c) == 3 ||
-            sscanf(query, "%lfx²%lfx%lf", &a, &b, &c) == 3 ||
+        if (sscanf(query, "%lfx^2%lfx%lf", &a, &b, &c) == 3 || sscanf(query, "%lfx\xc2\xb2%lfx%lf", &a, &b, &c) == 3 ||
             sscanf(lower, "%lfx^2%lfx%lf", &a, &b, &c) == 3) {
             parsed->type = ME_QUERY_QUADRATIC_EQ;
-            parsed->params[0] = a; parsed->params[1] = b; parsed->params[2] = c;
+            parsed->params[0] = a;
+            parsed->params[1] = b;
+            parsed->params[2] = c;
             parsed->num_params = 3;
             return 0;
         }
     }
 
-    /* Combinations */
-    if (HAS("сочетан") || HAS("выбрать") || HAS("C(")) {
-        int n = 0, k = 0;
-        if (sscanf(query, "%d из %d", &k, &n) == 2 ||
-            sscanf(lower, "%d из %d", &k, &n) == 2 ||
-            sscanf(query, "C(%d,%d)", &n, &k) == 2) {
+    /* Combinations -- byte-level match for "выбрать" */
+    if (HAS("C(")) {
+        int cn = 0, ck = 0;
+        if (sscanf(query, "C(%d,%d)", &cn, &ck) == 2) {
             parsed->type = ME_QUERY_COMBINATIONS;
-            parsed->params[0] = n; parsed->params[1] = k;
+            parsed->params[0] = cn;
+            parsed->params[1] = ck;
+            parsed->num_params = 2;
+            return 0;
+        }
+    }
+    if (BYTES_HAS(CYB_SOCHETAN) || BYTES_HAS(CYB_VYBRAT)) {
+        int n = 0, k = 0;
+        if (sscanf_two_ints(query, &k, &n) || sscanf_two_ints(lower, &k, &n)) {
+            parsed->type = ME_QUERY_COMBINATIONS;
+            parsed->params[0] = n;
+            parsed->params[1] = k;
             parsed->num_params = 2;
             return 0;
         }
     }
 
     /* GCD */
-    if (HAS("НОД") || HAS("нод") || HAS("gcd")) {
+    if (HAS("\xd0\x9d\xd0\x9e\xd0\x94") || HAS("\xd0\xbd\xd0\xbe\xd0\xb4") || HAS("gcd")) {
         int a = 0, b = 0;
-        if (sscanf(query, "%d и %d", &a, &b) == 2 ||
-            sscanf(lower, "%d и %d", &a, &b) == 2 ||
-            sscanf(query, "%d %d", &a, &b) == 2) {
+        if (sscanf_two_ints(query, &a, &b) || sscanf_two_ints(lower, &a, &b) || sscanf(query, "%d %d", &a, &b) == 2) {
             parsed->type = ME_QUERY_GCD;
-            parsed->params[0] = a; parsed->params[1] = b;
+            parsed->params[0] = a;
+            parsed->params[1] = b;
             parsed->num_params = 2;
             return 0;
         }
     }
 
     /* LCM */
-    if (HAS("НОК") || HAS("нок") || HAS("lcm")) {
+    if (HAS("\xd0\x9d\xd0\x9e\xd0\x9a") || HAS("\xd0\xbd\xd0\xbe\xd0\xba") || HAS("lcm")) {
         int a = 0, b = 0;
-        if (sscanf(query, "%d и %d", &a, &b) == 2 ||
-            sscanf(lower, "%d и %d", &a, &b) == 2) {
+        if (sscanf_two_ints(query, &a, &b) || sscanf_two_ints(lower, &a, &b)) {
             parsed->type = ME_QUERY_LCM;
-            parsed->params[0] = a; parsed->params[1] = b;
+            parsed->params[0] = a;
+            parsed->params[1] = b;
             parsed->num_params = 2;
             return 0;
         }
     }
 
     /* Probability */
-    if (HAS("вероятност")) {
+    if (BYTES_HAS(CYB_VERJATNOST)) {
         int fav = 0, total = 0;
-        if (sscanf(query, "%d из %d", &fav, &total) == 2 ||
-            sscanf(lower, "%d из %d", &fav, &total) == 2) {
+        if (sscanf_two_ints(query, &fav, &total) || sscanf_two_ints(lower, &fav, &total)) {
             parsed->type = ME_QUERY_PROBABILITY;
-            parsed->params[0] = fav; parsed->params[1] = total;
+            parsed->params[0] = fav;
+            parsed->params[1] = total;
             parsed->num_params = 2;
             return 0;
         }
     }
 
     /* Permutations */
-    if (HAS("перестанов") || HAS("расставить") || HAS("факториал")) {
+    if (BYTES_HAS(CYB_PERESTANOV) || BYTES_HAS(CYB_RASSTAVIT) || BYTES_HAS(CYB_FAKTORIAL)) {
         int n = 0;
-        if (sscanf(query, "%d", &n) == 1) {
+        if (sscanf_one_int(query, &n) || sscanf_one_int(lower, &n)) {
             parsed->type = ME_QUERY_PERMUTATIONS;
             parsed->params[0] = n;
             parsed->num_params = 1;
@@ -605,73 +724,83 @@ int me_parse_query(const char *query, MeParsedQuery *parsed) {
     /* Trigonometry */
     if (HAS("sin") || HAS("cos") || HAS("tan")) {
         double value = 0;
-        if (sscanf(query, "sin x=%lf", &value) == 1 ||
-            sscanf(query, "cos x=%lf", &value) == 1 ||
+        if (sscanf(query, "sin x=%lf", &value) == 1 || sscanf(query, "cos x=%lf", &value) == 1 ||
             sscanf(query, "tan x=%lf", &value) == 1) {
             parsed->type = ME_QUERY_TRIG_EQ;
             parsed->params[0] = value;
-            if (HAS("sin")) parsed->params[1] = 0;
-            else if (HAS("cos")) parsed->params[1] = 1;
-            else parsed->params[1] = 2;
+            if (HAS("sin"))
+                parsed->params[1] = 0;
+            else if (HAS("cos"))
+                parsed->params[1] = 1;
+            else
+                parsed->params[1] = 2;
             parsed->num_params = 2;
             return 0;
         }
     }
 
     /* Derivative */
-    if (HAS("производн") || HAS("дифференцирован")) {
+    if (BYTES_HAS(CYB_PROIZVODN) || BYTES_HAS(CYB_DIFFERENCI)) {
         parsed->type = ME_QUERY_DERIVATIVE;
         return 0;
     }
 
     /* Integral */
-    if (HAS("интеграл")) {
+    if (BYTES_HAS(CYB_INTEGRAL)) {
         parsed->type = ME_QUERY_INTEGRAL;
         return 0;
     }
 
     /* Matrix */
-    if (HAS("матриц") || HAS("определител") || HAS("det")) {
-        if (HAS("определител") || HAS("det")) parsed->type = ME_QUERY_MATRIX_DET;
-        else if (HAS("умножен") || HAS("произведен")) parsed->type = ME_QUERY_MATRIX_MUL;
-        else parsed->type = ME_QUERY_MATRIX_DET;
+    if (BYTES_HAS(CYB_MATRIC) || BYTES_HAS(CYB_OPREDELITEL) || HAS("det")) {
+        if (BYTES_HAS(CYB_OPREDELITEL) || HAS("det"))
+            parsed->type = ME_QUERY_MATRIX_DET;
+        else if (BYTES_HAS(CYB_UMNOZHEN) || BYTES_HAS(CYB_PROIZVEDEN))
+            parsed->type = ME_QUERY_MATRIX_MUL;
+        else
+            parsed->type = ME_QUERY_MATRIX_DET;
         return 0;
     }
 
     /* Linear equation */
-    if ((HAS("линейн") || HAS("линей")) && HAS("уравнен")) {
+    if ((BYTES_HAS(CYB_LINEYN) || BYTES_HAS(CYB_LINEY)) && BYTES_HAS(CYB_URAVNEN)) {
         double a = 0, b = 0;
         if (sscanf(query, "%lfx%lf", &a, &b) == 2) {
             parsed->type = ME_QUERY_LINEAR_EQ;
-            parsed->params[0] = a; parsed->params[1] = b;
+            parsed->params[0] = a;
+            parsed->params[1] = b;
             parsed->num_params = 2;
             return 0;
         }
     }
 
     /* System */
-    if (HAS("систем") || (HAS("x+y") && HAS("x^2+y^2"))) {
+    if (BYTES_HAS(CYB_SISTEM) || (HAS("x+y") && HAS("x^2+y^2"))) {
         parsed->type = ME_QUERY_SYSTEM_2X2;
         return 0;
     }
 
     /* Biquadratic */
-    if (HAS("x^4") || HAS("биквадрат")) {
+    if (HAS("x^4") || BYTES_HAS(CYB_BIKVADRAT)) {
         double a = 0, b = 0, c = 0;
         if (sscanf(query, "%lfx^4%lfx^2%lf", &a, &b, &c) == 3) {
             parsed->type = ME_QUERY_BIQUADRATIC_EQ;
-            parsed->params[0] = a; parsed->params[1] = b; parsed->params[2] = c;
+            parsed->params[0] = a;
+            parsed->params[1] = b;
+            parsed->params[2] = c;
             parsed->num_params = 3;
             return 0;
         }
     }
 
     /* Modulo */
-    if (HAS("mod") || HAS("остаток")) {
+    if (HAS("mod") || BYTES_HAS(CYB_OSTATOK)) {
         long long base = 0, exp = 0, mod = 0;
         if (sscanf(query, "%lld^%lld mod %lld", &base, &exp, &mod) == 3) {
             parsed->type = ME_QUERY_MODPOW;
-            parsed->params[0] = base; parsed->params[1] = exp; parsed->params[2] = mod;
+            parsed->params[0] = base;
+            parsed->params[1] = exp;
+            parsed->params[2] = mod;
             parsed->num_params = 3;
             return 0;
         }
@@ -682,7 +811,8 @@ int me_parse_query(const char *query, MeParsedQuery *parsed) {
 }
 
 int me_execute_query(const MeParsedQuery *parsed, MeMathResult *result) {
-    if (!parsed || !result) return -1;
+    if (!parsed || !result)
+        return -1;
     memset(result, 0, sizeof(*result));
 
     switch (parsed->type) {
@@ -715,13 +845,11 @@ int me_execute_query(const MeParsedQuery *parsed, MeMathResult *result) {
         double res = me_combinations((int)parsed->params[0], (int)parsed->params[1]);
         result->is_symbolic = 0;
         result->numeric_result = res;
-        snprintf(result->result, 512, "C(%d, %d) = %.0f",
-                 (int)parsed->params[0], (int)parsed->params[1], res);
+        snprintf(result->result, 512, "C(%d, %d) = %.0f", (int)parsed->params[0], (int)parsed->params[1], res);
         int s = 0;
         snprintf(result->steps[s++], 256, "Formula: C(n,k) = n! / (k!(n-k)!)");
-        snprintf(result->steps[s++], 256, "C(%d, %d) = %d! / (%d!·%d!) = %.0f",
-                 (int)parsed->params[0], (int)parsed->params[1],
-                 (int)parsed->params[0], (int)parsed->params[1],
+        snprintf(result->steps[s++], 256, "C(%d, %d) = %d! / (%d!·%d!) = %.0f", (int)parsed->params[0],
+                 (int)parsed->params[1], (int)parsed->params[0], (int)parsed->params[1],
                  (int)(parsed->params[0] - parsed->params[1]), res);
         result->num_steps = s;
         break;
@@ -741,43 +869,38 @@ int me_execute_query(const MeParsedQuery *parsed, MeMathResult *result) {
         double res = me_probability((int)parsed->params[0], (int)parsed->params[1]);
         result->is_symbolic = 0;
         result->numeric_result = res;
-        snprintf(result->result, 512, "P = %d/%d = %.4f",
-                 (int)parsed->params[0], (int)parsed->params[1], res);
+        snprintf(result->result, 512, "P = %d/%d = %.4f", (int)parsed->params[0], (int)parsed->params[1], res);
         result->num_steps = 1;
-        snprintf(result->steps[0], 256, "P = favorable/total = %d/%d = %.4f",
-                 (int)parsed->params[0], (int)parsed->params[1], res);
+        snprintf(result->steps[0], 256, "P = favorable/total = %d/%d = %.4f", (int)parsed->params[0],
+                 (int)parsed->params[1], res);
         break;
     }
     case ME_QUERY_GCD: {
         int res = me_gcd((int)parsed->params[0], (int)parsed->params[1]);
         result->is_symbolic = 0;
         result->numeric_result = res;
-        snprintf(result->result, 512, "НОД(%d, %d) = %d",
-                 (int)parsed->params[0], (int)parsed->params[1], res);
+        snprintf(result->result, 512, "НОД(%d, %d) = %d", (int)parsed->params[0], (int)parsed->params[1], res);
         result->num_steps = 1;
-        snprintf(result->steps[0], 256, "Euclidean algorithm: НОД(%d, %d) = %d",
-                 (int)parsed->params[0], (int)parsed->params[1], res);
+        snprintf(result->steps[0], 256, "Euclidean algorithm: НОД(%d, %d) = %d", (int)parsed->params[0],
+                 (int)parsed->params[1], res);
         break;
     }
     case ME_QUERY_LCM: {
         int res = me_lcm((int)parsed->params[0], (int)parsed->params[1]);
         result->is_symbolic = 0;
         result->numeric_result = res;
-        snprintf(result->result, 512, "НОК(%d, %d) = %d",
-                 (int)parsed->params[0], (int)parsed->params[1], res);
+        snprintf(result->result, 512, "НОК(%d, %d) = %d", (int)parsed->params[0], (int)parsed->params[1], res);
         result->num_steps = 1;
         snprintf(result->steps[0], 256, "НОК(a,b) = |a·b| / НОД(a,b) = %d", res);
         break;
     }
     case ME_QUERY_MODPOW: {
-        long long res = me_modpow((long long)parsed->params[0],
-                                  (long long)parsed->params[1],
-                                  (long long)parsed->params[2]);
+        long long res =
+            me_modpow((long long)parsed->params[0], (long long)parsed->params[1], (long long)parsed->params[2]);
         result->is_symbolic = 0;
         result->numeric_result = res;
-        snprintf(result->result, 512, "%lld^%lld mod %lld = %lld",
-                 (long long)parsed->params[0], (long long)parsed->params[1],
-                 (long long)parsed->params[2], res);
+        snprintf(result->result, 512, "%lld^%lld mod %lld = %lld", (long long)parsed->params[0],
+                 (long long)parsed->params[1], (long long)parsed->params[2], res);
         result->num_steps = 1;
         snprintf(result->steps[0], 256, "Binary exponentiation: result = %lld", res);
         break;
@@ -805,7 +928,8 @@ int me_execute_query(const MeParsedQuery *parsed, MeMathResult *result) {
 }
 
 int me_solve(const char *problem, MeMathResult *result) {
-    if (!problem || !result) return -1;
+    if (!problem || !result)
+        return -1;
 
     MeParsedQuery parsed;
     if (me_parse_query(problem, &parsed) == 0) {
