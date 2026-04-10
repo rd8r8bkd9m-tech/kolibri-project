@@ -24,6 +24,7 @@
 #include "kolibri/domain_knowledge_loader.h"
 #include "kolibri/explanation_generator.h"
 #include "kolibri/math_solver.h"
+#include "kolibri/math_engine.h"
 #include "kolibri/numeric_tokenizer.h"
 #include "kolibri/reasoning_engine.h"
 #include "kolibri/self_verification.h"
@@ -803,8 +804,33 @@ static int kolibri_try_compact_math(const char *message, double *result_out, cha
         snprintf(op_out, op_out_size, "%.0f x %.0f", a, b);
         return 0;
     }
+    /* "X делить на Y", "X разделить на Y" */
+    if (sscanf(lower, "%lf делить на %lf", &a, &b) == 2 ||
+        sscanf(lower, "%lf разделить на %lf", &a, &b) == 2 ||
+        sscanf(lower, "%lf поделить на %lf", &a, &b) == 2) {
+        if (b != 0) {
+            *result_out = a / b;
+            snprintf(op_out, op_out_size, "%.0f / %.0f", a, b);
+            return 0;
+        }
+    }
 
     /* "X + Y", "X - Y", "X * Y", "X / Y" */
+    /* Handle slash explicitly as sscanf %c might catch spaces */
+    const char *slash = strstr(lower, " / ");
+    if (slash) {
+        char before[64] = {0}, after[64] = {0};
+        int len = slash - lower;
+        if (len < 64) strncpy(before, lower, len);
+        strncpy(after, slash + 3, 63);
+        if (sscanf(before, "%lf", &a) == 1 && sscanf(after, "%lf", &b) == 1) {
+            if (b != 0) {
+                *result_out = a / b;
+                snprintf(op_out, op_out_size, "%.0f / %.0f", a, b);
+                return 0;
+            }
+        }
+    }
     char op_char = 0;
     if (sscanf(lower, "%lf %c %lf", &a, &op_char, &b) == 3) {
         switch (op_char) {
@@ -1294,6 +1320,35 @@ static void handle_chat(int fd, const char *body, int stream) {
             strcpy(runtime_digit_winner, "math_multiply");
             confidence = 0.99;
             goto done;
+        }
+        /* Detect Division (Words & Symbol) */
+        double div_a = 0.0, div_b = 0.0;
+        const char *slash_p = strstr(message_lower, " / ");
+        int is_symbol_div = 0;
+        if (slash_p) {
+             char p1[32]={0}, p2[32]={0};
+             int l = slash_p - message_lower;
+             if(l<32) strncpy(p1, message_lower, l);
+             strncpy(p2, slash_p+3, 31);
+             if(sscanf(p1,"%lf",&div_a)==1 && sscanf(p2,"%lf",&div_b)==1) is_symbol_div=1;
+        }
+        if (is_symbol_div ||
+            sscanf(message_lower, "%lf делить на %lf", &div_a, &div_b) == 2 ||
+            sscanf(message_lower, "%lf разделить на %lf", &div_a, &div_b) == 2 ||
+            sscanf(message_lower, "%lf поделить на %lf", &div_a, &div_b) == 2) {
+            if (div_b != 0) {
+                double div_result = div_a / div_b;
+                /* Show integer if whole, else 2 decimals */
+                if (div_result == (int)div_result)
+                    snprintf(answer, sizeof(answer), "%.0f ÷ %.0f = %.0f", div_a, div_b, div_result);
+                else
+                    snprintf(answer, sizeof(answer), "%.0f ÷ %.0f = %.2f", div_a, div_b, div_result);
+                strcpy(method, "math_division");
+                strcpy(runtime_query_kind, "math");
+                strcpy(runtime_digit_winner, "math_division");
+                confidence = 0.99;
+                goto done;
+            }
         }
     }
 
@@ -2321,6 +2376,44 @@ static void handle_reason(int fd, const char *body) {
     send_json(fd, 200, "OK", resp);
 }
 
+/* ===== MATH ENGINE HANDLER ===== */
+static void handle_math_engine(int fd, const char *body) {
+    char problem[1024] = {0};
+    if (json_get_str(body, "problem", problem, sizeof(problem)) != 0) {
+        send_json(fd, 400, "Bad Request", "{\"error\":\"missing problem\"}");
+        return;
+    }
+
+    MeMathResult result;
+    int ret = me_solve(problem, &result);
+
+    if (ret == 0) {
+        char resp[4096];
+        snprintf(resp, sizeof(resp),
+                 "{\"result\":\"%s\",\"method\":\"%s\",\"steps\":[",
+                 result.result, result.method);
+
+        for (int i = 0; i < result.num_steps && i < 10; i++) {
+            if (i > 0) strcat(resp, ",");
+            char escaped[512];
+            json_escape(escaped, result.steps[i], sizeof(escaped));
+            snprintf(resp + strlen(resp), sizeof(resp) - strlen(resp),
+                     "\"%s\"", escaped);
+        }
+
+        snprintf(resp + strlen(resp), sizeof(resp) - strlen(resp),
+                 "],\"is_symbolic\":%d,\"numeric_value\":%.6f}",
+                 result.is_symbolic, result.numeric_result);
+        send_json(fd, 200, "OK", resp);
+    } else {
+        char resp[1024];
+        snprintf(resp, sizeof(resp),
+                 "{\"result\":\"%s\",\"error\":\"could not solve\"}",
+                 result.result);
+        send_json(fd, 200, "OK", resp);
+    }
+}
+
 static void handle_solve_linear(int fd, const char *body) {
     double a = 0, b = 0, c = 0;
     json_get_dbl(body, "a", &a);
@@ -2684,6 +2777,10 @@ static void route_request(int fd, const HttpRequest *req) {
 
     if (strncmp(req->path, "/api/v1/ai/reason", 17) == 0 && strcmp(req->method, "POST") == 0) {
         handle_reason(fd, req->body);
+        return;
+    }
+    if (strcmp(req->path, "/api/v1/ai/math/solve") == 0 && strcmp(req->method, "POST") == 0) {
+        handle_math_engine(fd, req->body);
         return;
     }
     if (strncmp(req->path, "/api/v1/ai/solve/linear", 23) == 0 && strcmp(req->method, "POST") == 0) {

@@ -99,6 +99,7 @@ add_library(kolibri_core_objects OBJECT
     backend/src/numeric_tokenizer.c
     backend/src/kat_train_backprop.c
     backend/src/math_solver.c
+    backend/src/math_engine.c
     backend/src/corpus_math_trainer.c
     backend/src/evolutionary_trainer.c
     backend/src/swarm_learner.c
