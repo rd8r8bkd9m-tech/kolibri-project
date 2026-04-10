@@ -23,8 +23,8 @@
 /* ===== CORE MODULES ===== */
 #include "kolibri/domain_knowledge_loader.h"
 #include "kolibri/explanation_generator.h"
-#include "kolibri/math_solver.h"
 #include "kolibri/math_engine.h"
+#include "kolibri/math_solver.h"
 #include "kolibri/numeric_tokenizer.h"
 #include "kolibri/reasoning_engine.h"
 #include "kolibri/self_verification.h"
@@ -66,7 +66,7 @@ static const char *find_chemistry_answer(const char *message) {
                                                 {"число авогадро", "N_A = 6.022 × 10²³ моль⁻¹"},
                                                 {NULL, NULL}};
 
-    char msg_lower[512];
+    char msg_lower[4096];
     str_lower(message, msg_lower, sizeof(msg_lower));
 
     const char *best_answer = NULL;
@@ -137,7 +137,7 @@ static const char *find_domain_answer(const char *message) {
         {"глубокое обучение", "Глубокое обучение — подраздел ML с многослойными нейронными сетями"},
         {NULL, NULL}};
 
-    char msg_lower[512];
+    char msg_lower[4096];
     str_lower(message, msg_lower, sizeof(msg_lower));
 
     const char *best_answer = NULL;
@@ -197,8 +197,9 @@ static const char *find_domain_answer(const char *message) {
 
 /* Config */
 #define SERVER_PORT 8001
-#define MAX_REQUEST 8192
-#define MAX_RESPONSE 65536
+#define MAX_REQUEST 131072  /* 128KB — enough for large chat messages */
+#define MAX_RESPONSE 262144 /* 256KB — enough for large responses */
+#define MAX_BODY 65536      /* 64KB max extracted body for json parsing */
 #define STATIC_DIR_PATH "frontend/dist"
 static char g_static_dir[2048] = STATIC_DIR_PATH;
 #define MAX_CLIENTS 16
@@ -522,7 +523,7 @@ static void bg_learn_resume(void) { g_bg_learn_pause = 0; }
 typedef struct {
     char method[16];
     char path[2048];
-    char body[MAX_REQUEST];
+    char body[MAX_BODY]; /* 64KB body buffer for JSON parsing */
     int body_len;
 } HttpRequest;
 
@@ -571,14 +572,14 @@ static int parse_request(const char *raw, HttpRequest *req) {
         /* Use Content-Length if available, otherwise use strlen */
         if (content_length > 0) {
             req->body_len = content_length;
-            if (req->body_len >= MAX_REQUEST)
-                req->body_len = MAX_REQUEST - 1;
+            if (req->body_len >= MAX_BODY)
+                req->body_len = MAX_BODY - 1;
             memcpy(req->body, body_start, req->body_len);
             req->body[req->body_len] = '\0';
         } else {
             req->body_len = strlen(body_start);
-            if (req->body_len >= MAX_REQUEST)
-                req->body_len = MAX_REQUEST - 1;
+            if (req->body_len >= MAX_BODY)
+                req->body_len = MAX_BODY - 1;
             strncpy(req->body, body_start, req->body_len);
             req->body[req->body_len] = '\0';
         }
@@ -671,15 +672,73 @@ static int json_get_dbl(const char *json, const char *key, double *out) {
 }
 
 static int json_get_str(const char *json, const char *key, char *out, int out_size) {
+    /* Search for "key": " or "key":" (with optional space after colon) */
     char search[512];
-    snprintf(search, sizeof(search), "\"%s\":\"", key);
+    snprintf(search, sizeof(search), "\"%s\": \"", key);
     const char *p = strstr(json, search);
+    if (!p) {
+        snprintf(search, sizeof(search), "\"%s\":\"", key);
+        p = strstr(json, search);
+    }
     if (!p)
         return -1;
-    p += strlen(search);
+    /* p already points to the search pattern which ends with the opening quote.
+     * Move to the end of the search pattern to position at the opening quote,
+     * then move past it. */
+    p += strlen(search) - 1; /* position at the opening quote */
+    p++; /* move past the opening quote */
     int i = 0;
-    while (*p && *p != '"' && i < out_size - 1)
-        out[i++] = *p++;
+    while (*p && i < out_size - 1) {
+        if (*p == '\\') {
+            /* Handle escape sequences */
+            p++;
+            switch (*p) {
+            case '"':
+                out[i++] = '"';
+                break;
+            case '\\':
+                out[i++] = '\\';
+                break;
+            case '/':
+                out[i++] = '/';
+                break;
+            case 'n':
+                out[i++] = '\n';
+                break;
+            case 'r':
+                out[i++] = '\r';
+                break;
+            case 't':
+                out[i++] = '\t';
+                break;
+            case 'b':
+                out[i++] = '\b';
+                break;
+            case 'f':
+                out[i++] = '\f';
+                break;
+            case 'u': {
+                /* Skip \uXXXX — just copy as-is for simplicity */
+                p++; /* move past 'u' */
+                int hex_chars = 0;
+                while (hex_chars < 4 && *p && i < out_size - 1) {
+                    out[i++] = *p++;
+                    hex_chars++;
+                }
+                p--; /* back up one (loop will increment) */
+                break;
+            }
+            default:
+                out[i++] = *p;
+                break;
+            }
+        } else if (*p == '"') {
+            break; /* end of string */
+        } else {
+            out[i++] = *p;
+        }
+        p++;
+    }
     out[i] = '\0';
     return i > 0 ? 0 : -1;
 }
@@ -805,8 +864,7 @@ static int kolibri_try_compact_math(const char *message, double *result_out, cha
         return 0;
     }
     /* "X делить на Y", "X разделить на Y" */
-    if (sscanf(lower, "%lf делить на %lf", &a, &b) == 2 ||
-        sscanf(lower, "%lf разделить на %lf", &a, &b) == 2 ||
+    if (sscanf(lower, "%lf делить на %lf", &a, &b) == 2 || sscanf(lower, "%lf разделить на %lf", &a, &b) == 2 ||
         sscanf(lower, "%lf поделить на %lf", &a, &b) == 2) {
         if (b != 0) {
             *result_out = a / b;
@@ -821,7 +879,8 @@ static int kolibri_try_compact_math(const char *message, double *result_out, cha
     if (slash) {
         char before[64] = {0}, after[64] = {0};
         int len = slash - lower;
-        if (len < 64) strncpy(before, lower, len);
+        if (len < 64)
+            strncpy(before, lower, len);
         strncpy(after, slash + 3, 63);
         if (sscanf(before, "%lf", &a) == 1 && sscanf(after, "%lf", &b) == 1) {
             if (b != 0) {
@@ -1247,7 +1306,7 @@ static void build_verification_report(const char *query, const char *answer, int
 }
 
 static void handle_chat(int fd, const char *body, int stream) {
-    char message[2048] = {0}, conversation_id[256] = {0};
+    char message[65536] = {0}, conversation_id[256] = {0};
     if (json_get_str(body, "message", message, sizeof(message)) != 0) {
         send_json(fd, 400, "Bad Request", "{\"error\":\"missing message\"}");
         return;
@@ -1255,7 +1314,7 @@ static void handle_chat(int fd, const char *body, int stream) {
     json_get_str(body, "conversation_id", conversation_id, sizeof(conversation_id));
 
     double t0 = now_ms();
-    char message_lower[2048] = {0};
+    char message_lower[65536] = {0};
     char answer[4096] = {0};
     char method[64] = "reasoning";
     char runtime_query_kind[32] = "general";
@@ -1326,14 +1385,15 @@ static void handle_chat(int fd, const char *body, int stream) {
         const char *slash_p = strstr(message_lower, " / ");
         int is_symbol_div = 0;
         if (slash_p) {
-             char p1[32]={0}, p2[32]={0};
-             int l = slash_p - message_lower;
-             if(l<32) strncpy(p1, message_lower, l);
-             strncpy(p2, slash_p+3, 31);
-             if(sscanf(p1,"%lf",&div_a)==1 && sscanf(p2,"%lf",&div_b)==1) is_symbol_div=1;
+            char p1[32] = {0}, p2[32] = {0};
+            int l = slash_p - message_lower;
+            if (l < 32)
+                strncpy(p1, message_lower, l);
+            strncpy(p2, slash_p + 3, 31);
+            if (sscanf(p1, "%lf", &div_a) == 1 && sscanf(p2, "%lf", &div_b) == 1)
+                is_symbol_div = 1;
         }
-        if (is_symbol_div ||
-            sscanf(message_lower, "%lf делить на %lf", &div_a, &div_b) == 2 ||
+        if (is_symbol_div || sscanf(message_lower, "%lf делить на %lf", &div_a, &div_b) == 2 ||
             sscanf(message_lower, "%lf разделить на %lf", &div_a, &div_b) == 2 ||
             sscanf(message_lower, "%lf поделить на %lf", &div_a, &div_b) == 2) {
             if (div_b != 0) {
@@ -2389,27 +2449,22 @@ static void handle_math_engine(int fd, const char *body) {
 
     if (ret == 0) {
         char resp[4096];
-        snprintf(resp, sizeof(resp),
-                 "{\"result\":\"%s\",\"method\":\"%s\",\"steps\":[",
-                 result.result, result.method);
+        snprintf(resp, sizeof(resp), "{\"result\":\"%s\",\"method\":\"%s\",\"steps\":[", result.result, result.method);
 
         for (int i = 0; i < result.num_steps && i < 10; i++) {
-            if (i > 0) strcat(resp, ",");
+            if (i > 0)
+                strcat(resp, ",");
             char escaped[512];
             json_escape(escaped, result.steps[i], sizeof(escaped));
-            snprintf(resp + strlen(resp), sizeof(resp) - strlen(resp),
-                     "\"%s\"", escaped);
+            snprintf(resp + strlen(resp), sizeof(resp) - strlen(resp), "\"%s\"", escaped);
         }
 
-        snprintf(resp + strlen(resp), sizeof(resp) - strlen(resp),
-                 "],\"is_symbolic\":%d,\"numeric_value\":%.6f}",
+        snprintf(resp + strlen(resp), sizeof(resp) - strlen(resp), "],\"is_symbolic\":%d,\"numeric_value\":%.6f}",
                  result.is_symbolic, result.numeric_result);
         send_json(fd, 200, "OK", resp);
     } else {
         char resp[1024];
-        snprintf(resp, sizeof(resp),
-                 "{\"result\":\"%s\",\"error\":\"could not solve\"}",
-                 result.result);
+        snprintf(resp, sizeof(resp), "{\"result\":\"%s\",\"error\":\"could not solve\"}", result.result);
         send_json(fd, 200, "OK", resp);
     }
 }
@@ -3155,7 +3210,7 @@ int main(int argc, char *argv[]) {
         if (client_fd < 0)
             continue;
 
-        /* Read HTTP request - single read with Content-Length support */
+        /* Read HTTP headers first */
         memset(buffer, 0, sizeof(buffer));
         int n = read(client_fd, buffer, sizeof(buffer) - 1);
 
@@ -3164,31 +3219,37 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        /* Check if we need to read more body data */
+        /* Read remaining body data if Content-Length indicates more data */
         const char *body_start_pos = strstr(buffer, "\r\n\r\n");
         if (body_start_pos) {
             const char *cl_hdr = strcasestr(buffer, "Content-Length:");
             if (cl_hdr && cl_hdr < body_start_pos) {
                 int content_length = atoi(cl_hdr + 15);
-                int header_size = (body_start_pos - buffer) + 4;
+                int header_size = (int)(body_start_pos - buffer) + 4;
                 int body_in_buffer = n - header_size;
 
-                /* Read remaining body if needed */
-                if (body_in_buffer < content_length) {
+                /* Read remaining body in chunks if needed */
+                while (body_in_buffer < content_length && n < (int)sizeof(buffer) - 1) {
                     int to_read = content_length - body_in_buffer;
-                    if (n + to_read < (int)sizeof(buffer)) {
-                        /* Set socket timeout */
-                        struct timeval tv = {.tv_sec = 1, .tv_usec = 0};
-                        setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+                    int chunk = to_read < 8192 ? to_read : 8192;
+                    if (n + chunk >= (int)sizeof(buffer))
+                        chunk = (int)sizeof(buffer) - 1 - n;
+                    if (chunk <= 0)
+                        break;
 
-                        int extra = read(client_fd, buffer + n, to_read);
-                        if (extra > 0)
-                            n += extra;
+                    /* Set short socket timeout */
+                    struct timeval tv = {.tv_sec = 2, .tv_usec = 0};
+                    setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
-                        /* Reset timeout */
-                        struct timeval tv0 = {.tv_sec = 0, .tv_usec = 0};
-                        setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv0, sizeof(tv0));
-                    }
+                    int extra = read(client_fd, buffer + n, chunk);
+                    if (extra <= 0)
+                        break;
+                    n += extra;
+                    body_in_buffer += extra;
+
+                    /* Reset timeout */
+                    struct timeval tv0 = {.tv_sec = 0, .tv_usec = 0};
+                    setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv0, sizeof(tv0));
                 }
             }
         }
