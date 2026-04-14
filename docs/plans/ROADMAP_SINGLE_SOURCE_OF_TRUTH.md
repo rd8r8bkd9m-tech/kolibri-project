@@ -1,89 +1,90 @@
 # Kolibri Single Source Of Truth Roadmap
 
-Дата обновления: 2026-02-18  
-Статус документа: основной источник правды по прогрессу и планам.
+Дата обновления: 2026-04-10
 
-## 1) Цель проекта
+## 1. Current official contour
 
-Создать уникальный ИИ Kolibri на базе числового мышления и эволюционных формул, с оффлайн-работой, воспроизводимым обучением и промышленной инженерной дисциплиной.
+Официальным продуктом считается только следующий shipping contour:
 
-## 2) Что подтверждено кодом (`implemented`)
+`frontend/src + backend/service + backend/src + WASM + apps`
 
-### 2.1 Backend / AI engine
+Все остальные контуры должны описываться как `integration-only` или `experimental`, пока не попадают в тот же release gate.
 
-- `backend/service/ai_engine.py` — основной пайплайн ответа (retrieval, формульный слой, когнитивное обогащение, fallback).
-- `backend/service/number_mind.py` — числовое ядро: паттерны, граф знаний, формулы, эволюция.
-- `backend/service/ai_chat.py` — рабочие AI API endpoints.
-- `backend/service/cognition_api.py` и `backend/service/reasoning.py` — когнитивные и reasoning-компоненты (Python-уровень).
+## 2. Confirmed in code
 
-### 2.2 C-core
+### 2.1 Shipping gateway
 
-- `backend/src/semantic_digits.c`
-- `backend/src/context_window.c`
-- `backend/src/text_generation.c`
-- `backend/src/attention.c`
-- `backend/src/world_model.c`
-- `backend/src/predictive_compress.c`
+- `backend/service/main.py`
+- `backend/service/ai_chat.py`
+- `backend/service/ai_engine.py`
+- `backend/service/swarm_runtime_api.py`
+- `backend/service/auth.py`
+- `backend/service/account.py`
+
+### 2.2 Native core
+
+- `backend/src/formula.c`
+- `backend/src/script.c`
+- `backend/src/knowledge.c`
 - `backend/src/logical_memory.c`
+- `backend/src/context_window.c`
+- `backend/src/reasoning_engine.c`
+- `backend/src/world_model.c`
+- `backend/src/vision.c`
+- `backend/src/audio.c`
 
-### 2.3 GPU groundwork (минимальная база)
+### 2.3 Frontend and WASM
+
+- `frontend/src/App.tsx`
+- `frontend/src/api.ts`
+- `frontend/src/lib/kolibriBridge.ts`
+- `scripts/build_wasm.sh`
+- `backend/src/wasm_bridge.c`
+
+### 2.4 Product-side utilities
+
+- `apps/kolibri_node.c`
+- `apps/kolibri_infer_cli.c`
+- `apps/kolibri_ingest.c`
+- `apps/kolibri_inspect.c`
+- `apps/kolibri_learn.c`
+
+## 3. Drift corrected
+
+Подтверждено, что ранее в документах были неверно помечены как отсутствующие следующие файлы:
 
 - `engine/gpu_encoder/gpu_encoder_cuda.cu`
-- `engine/gpu_encoder/gpu_encoder_metal.mm`
-- `engine/gpu_encoder/kolibri_gpu_encoder.c`
-- `backend/service/gpu_store.py`
+- `backend/src/vision.c`
+- `backend/src/audio.c`
 
-Комментарий: наличие кода подтверждено; уровень готовности GPU-производственного контура пока не считается завершённым.
+По состоянию на эту дату всё ещё не подтверждены как существующие:
 
-## 3) Что частично реализовано (`in_progress`)
+- `backend/src/reasoning.c`
+- `backend/src/knowledge_base.c`
+- `apps/kolibri_memory.c`
 
-- Единая продуктовая архитектура AI: много компонентов уже есть, но они пока не сведены в один жёстко валидируемый production-контур с единой метрикой качества.
-- GPU-путь: есть заготовки и часть интеграций, но полноценная эксплуатация зависит от доступного железа и от доработки пайплайна тестирования.
-- Документация: много полезных материалов, но есть противоречия и дубли статусов между файлами.
+## 4. Current priorities
 
-## 4) Что пока не подтверждено в коде (`planned`)
+### Priority A: documentation truth
 
-- `apps/kolibri_memory.c` (отдельный модуль с таким именем не найден).
-- C-модули `backend/src/vision.c`, `backend/src/audio.c`, `backend/src/reasoning.c`, `backend/src/knowledge_base.c` не обнаружены.
-- Пустой план: `docs/AGI_V2_IMPLEMENTATION_PLAN.md`.
+- держать `README.md`, `docs/PRODUCT_SPEC_V2.md`, `docs/API_REFERENCE.md`, `docs/QA_ACCEPTANCE.md`, `docs/DEPLOY_RUNBOOK.md` синхронизированными с живым кодом;
+- не путать `not in shipping scope` с `not implemented`.
 
-## 5) Ограничения текущего этапа
+### Priority B: release gate parity
 
-- Основная разработка ведётся без дискретного GPU в прод-режиме; это допустимо.
-- Стратегия: GPU поддержка остаётся в roadmap, но milestone'ы привязываются к фактическому доступу к железу.
+- один локальный gate через `scripts/release_gate.sh`;
+- те же команды в `Makefile`, `scripts/run_all.sh` и `.github/workflows/ci.yml`;
+- честная проверка CTest inventory.
 
-## 6) Правило статусов (обязательно)
+### Priority C: release story
 
-Статус задачи может быть:
+- один canonical product narrative;
+- один evidence pack;
+- один список public interfaces.
 
-- `implemented` — есть код + тест(ы) + воспроизводимый запуск.
-- `in_progress` — код/дизайн есть, но нет полного подтверждения пункта выше.
-- `planned` — только план/документация/черновик без полного подтверждения.
+## 5. Status rules
 
-## 7) Ближайший план (реалистичный)
-
-### Sprint A (стабилизация, 1-2 недели)
-
-1. Зафиксировать единый список метрик AI (качество ответов, latency, устойчивость).
-2. Собрать минимальный reproducible benchmark suite.
-3. Привязать к CI: nightly прогон + сохранение отчётов.
-
-### Sprint B (проверяемость, 2-4 недели)
-
-1. Очистить документацию от конфликтующих статусов.
-2. Переносить из архива назад только после проверки "код + тест + запуск".
-3. Закрыть пустые/неактуальные планы или явно пометить их как `planned`.
-
-### Sprint C (рост качества AI, 4-8 недель)
-
-1. Усилить retrieval/knowledge quality на целевых датасетах.
-2. Укрепить reasoning на тестовых наборах.
-3. Подготовить публичный технический отчёт с воспроизводимыми метриками.
-
-## 8) Архив неподтверждённых отчётов
-
-Файлы с неподтверждёнными/спорными заявлениями перенесены в:
-
-- `docs/archive/unconfirmed_reports/`
-
-Возврат в основной контур только после повторной верификации.
+- `shipping` — код + релизный контур + release gate
+- `parity-target` — официальный target, но ещё не доказан тем же gate
+- `integration-only` — использует shipping interfaces, но не входит в релиз
+- `experimental` — код есть, но стабильность не обещана

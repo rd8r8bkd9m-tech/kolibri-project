@@ -1,40 +1,72 @@
-# Процесс подготовки релиза Kolibri
+# Kolibri Release Process
 
-## Цель
-Этот документ описывает, как выплавить финальный комплект артефактов Kolibri — ядро, загрузочный образ и сопроводительные материалы — и упаковать их в архив для публикации.
+## 1. Goal
 
-## Предварительные требования
-- Linux/macOS окружение с установленными зависимостями, перечисленными в `README.md` (включая `cmake`, `gcc`, `nasm`, `grub-mkrescue`, `emcc` для сборки WASM).
-- Сборка должна выполняться на чистом дереве Git без незакоммиченных изменений.
-- Перед релизом необходимо убедиться, что актуальны `docs/release_notes.md` и `docs/kolibri_integrated_prototype.md`.
+Релиз Kolibri должен доказывать один shipping contour, а не весь исторический репозиторий.
 
-## Быстрый сценарий
+Official release evidence pack состоит из:
+
+- `README.md`
+- `docs/PRODUCT_SPEC_V2.md`
+- `docs/API_REFERENCE.md`
+- `docs/PUBLIC_ARCHITECTURE.md`
+- `docs/public_interfaces.md`
+- `docs/QA_ACCEPTANCE.md`
+- `docs/DEPLOY_RUNBOOK.md`
+- `docs/RELEASE_CHECKLIST.md`
+- `docs/INTEGRATION_SURFACES.md`
+- `docs/release_notes.md`
+- `build/wasm/kolibri.wasm`
+- `frontend/dist`
+
+## 2. Release gate
+
+Релиз не начинается, пока не зелёны:
+
 ```bash
-./scripts/package_release.sh --skip-cluster
+./scripts/release_gate.sh all
 ```
-Скрипт выполнит полный цикл `run_all.sh`, соберёт `kolibri.wasm`, `kolibri.iso`, сгенерирует контрольные суммы и сформирует архив `build/release/kolibri-<дата>.tar.gz`. Флаги `--skip-iso`, `--skip-wasm`, `--skip-cluster` позволяют временно исключать шаги при отсутствии соответствующих инструментов.
 
-## Подробные шаги
-1. Выполнить `./scripts/run_all.sh` и убедиться, что сборка и тесты завершаются без ошибок.
-2. Проверить размер `build/wasm/kolibri.wasm` — он не должен превышать 1 МБ (гейт из `AGENTS.md`).
-3. При наличии кросс-компилятора собрать `build/kolibri.iso` и протестировать загрузку в `qemu-system-i386`:
-   ```bash
-   qemu-system-i386 -cdrom build/kolibri.iso -monitor stdio
-   ```
-4. Запустить `./scripts/package_release.sh` и дождаться сообщения `[Готово]` с путём к архиву.
-5. Содержимое архива:
-   - `kolibri.wasm`, `kolibri.wasm.sha256`
-   - `kolibri.iso`
-   - `README.md`, `LICENSE`, `release_notes.md`, `kolibri_integrated_prototype.md`
-   - `METADATA.txt` с фиксацией коммита и времени сборки
-6. Архив можно загружать в GitHub Releases, а контрольные суммы использовать для проверки целостности.
+или
 
-## Проверка на «зелёный коридор»
-- `cmake`, `ctest` — зелёные.
-- `./scripts/run_all.sh --skip-cluster --skip-iso --skip-wasm` — зелёный минимум.
-- `./scripts/package_release.sh --skip-cluster` — завершился успешно и создал архив.
+```bash
+make release-gate
+```
 
-## Советы
-- Для воспроизводимости фиксируйте `SOURCE_DATE_EPOCH` и используйте одну и ту же версию инструментов.
-- Если `grub-mkrescue` или `emcc` недоступны, запустите скрипт с `--skip-iso` или `--skip-wasm`, а затем подготовьте соответствующие артефакты на машине с нужными зависимостями.
-- Сохраняйте артефакты и метрики минимум 30 дней, как требует политика репозитория.
+## 3. Extended CI
+
+`make extended-ci` и extended jobs в GitHub Actions относятся к более широкому quality contour. Они дают дополнительные сигналы, но не подменяют release gate.
+
+## 4. CI evidence
+
+GitHub Actions делит CI на два слоя:
+
+- `release-gate-*` jobs
+- `extended-*` jobs
+
+`release-bundle` job собирает release evidence только после зелёных `release-gate-*`.
+
+## 5. Local release flow
+
+1. Выполнить bootstrap:
+
+```bash
+./scripts/release_gate.sh bootstrap
+```
+
+2. Выполнить release gate:
+
+```bash
+./scripts/release_gate.sh all
+```
+
+3. Проверить документы из evidence pack.
+4. Проверить production build frontend и актуальность `kolibri.wasm`.
+5. Подготовить или скачать CI release evidence bundle.
+6. Выполнить deploy по `docs/DEPLOY_RUNBOOK.md`.
+
+## 6. Artifact policy
+
+- `kolibri.wasm` и `frontend/dist` являются release artifacts.
+- ISO, docker smoke, fuzz, broader benchmark и прочие дополнительные материалы относятся к extended contour.
+- Наличие extended artifacts не должно использоваться как замена зелёному release gate.

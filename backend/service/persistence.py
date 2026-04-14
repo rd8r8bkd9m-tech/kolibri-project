@@ -27,7 +27,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _DEFAULT_DB_PATH = _PROJECT_ROOT / "data" / "kolibri.db"
 _DB_PATH = Path(os.getenv("KOLIBRI_DB_PATH", str(_DEFAULT_DB_PATH)))
 _PERSISTENCE_ENABLED = os.getenv("KOLIBRI_PERSISTENCE", "1").strip() != "0"
-_DB_RETRY_ATTEMPTS = max(1, int(os.getenv("KOLIBRI_DB_RETRY_ATTEMPTS", "5")))
+_DB_RETRY_ATTEMPTS = max(1, int(os.getenv("KOLIBRI_DB_RETRY_ATTEMPTS", "20")))
 _DB_RETRY_BASE_DELAY = max(0.01, float(os.getenv("KOLIBRI_DB_RETRY_BASE_DELAY", "0.05")))
 _DB_BATCH_SIZE = max(200, int(os.getenv("KOLIBRI_DB_BATCH_SIZE", "4000")))
 _DB_API_LOCK_TIMEOUT = max(0.05, float(os.getenv("KOLIBRI_DB_API_LOCK_TIMEOUT", "0.25")))

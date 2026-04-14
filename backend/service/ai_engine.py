@@ -3720,6 +3720,8 @@ class KolibriAIEngine:
             return False
         if self._is_weather_query(normalized):
             return False
+        if self._is_news_query(normalized):
+            return False
         if self._is_time_query(normalized) or self._is_currency_query(normalized) or self._is_reference_query(normalized):
             return False
         if normalized.startswith((
@@ -4650,85 +4652,10 @@ class KolibriAIEngine:
                     log.warning("Code generation failed: %s", e)
                     code_response = None
 
-            # #Фаза B2: Math Reasoning — если запрос математический
-            math_response: dict | None = None
-            if self._math_enabled and self._is_math_query(message):
-                try:
-                    exact_math = self._try_math_eval(message)
-                    if exact_math is not None:
-                        math_text = str(exact_math.get("response", "") or "")
-                        math_response = {
-                            "response": self._apply_persona_style(math_text, persona=persona),
-                            "confidence": float(exact_math.get("confidence", 1.0) or 1.0),
-                            "sources": list(exact_math.get("sources", ["math-engine"])),
-                            "conversation_id": conv.id,
-                            "knowledge_hits": int(exact_math.get("knowledge_hits", 0) or 0),
-                            "method": str(exact_math.get("method", "math-eval") or "math-eval"),
-                            "duration_ms": round((time.time() - start_time) * 1000, 1),
-                            "model_available": True,
-                            "formula_data": exact_math.get("formula_data", self._basic_formula_data()),
-                            "graph_stats": exact_math.get("graph_stats", self.graph.get_stats()),
-                            "thinking": thinking_text,
-                            "thinking_steps": [
-                                {
-                                    "type": s.step_type.name,
-                                    "content": s.description,
-                                    "result": s.result,
-                                    "confidence": s.confidence,
-                                }
-                                for s in thinking_steps
-                            ],
-                            "generation_used": False,
-                            "context_stats": context_window.get_stats(),
-                            "cached": False,
-                            "client_id": client_key,
-                        }
-                        conv.add("assistant", math_response["response"])
-                        self._persist_conversation_turn(client_key, conv.id, "assistant", math_response["response"])
-                        context_window.add_message("assistant", math_response["response"])
-                        return math_response
-
-                    math_result = self.math.solve(message)
-                    if math_result and math_result.get("confidence", 0) > 0.5:
-                        math_text = f"Решение:\n\n{math_result['response']}\n\nОтвет: {math_result.get('answer', 'N/A')}"
-                        math_text = self._apply_persona_style(math_text, persona=persona)
-                        conv.add("assistant", math_text)
-                        self._persist_conversation_turn(client_key, conv.id, "assistant", math_text)
-                        context_window.add_message("assistant", math_text)
-
-                        math_response = {
-                            "response": math_text,
-                            "confidence": math_result["confidence"],
-                            "sources": ["math-reasoning"],
-                            "conversation_id": conv.id,
-                            "knowledge_hits": 0,
-                            "method": math_result.get("method", "math"),
-                            "duration_ms": math_result.get("duration_ms", 0),
-                            "model_available": True,
-                            "formula_data": {
-                                "math_steps": math_result.get("steps", []),
-                                "math_answer": math_result.get("answer", ""),
-                            },
-                            "graph_stats": self.graph.get_stats(),
-                            "thinking": thinking_text,
-                            "thinking_steps": [
-                                {
-                                    "type": s.step_type.name,
-                                    "content": s.description,
-                                    "result": s.result,
-                                    "confidence": s.confidence,
-                                }
-                                for s in thinking_steps
-                            ],
-                            "generation_used": True,
-                            "context_stats": context_window.get_stats(),
-                            "cached": False,
-                            "client_id": client_key,
-                        }
-                        return math_response
-                except Exception as e:
-                    log.warning("Math reasoning failed: %s", e)
-                    math_response = None
+            # #Фаза B2: Math queries stay on the canonical synthesis path.
+            # Exact arithmetic and multi-step reasoning are resolved inside
+            # _synthesize_response(), which preserves runtime-vote metadata and
+            # keeps math answers aligned with the main release-gate contract.
 
             # #Фаза B3: Function Calling — если запрос требует инструмент
             fc_response: dict | None = None
@@ -4753,7 +4680,7 @@ class KolibriAIEngine:
                             "conversation_id": conv.id,
                             "knowledge_hits": 0,
                             "method": f"tool-{tool_call['tool']}",
-                            "duration_ms": 0,
+                            "duration_ms": round((time.time() - start_time) * 1000, 1),
                             "model_available": True,
                             "formula_data": {
                                 "tool_name": tool_call["tool"],
@@ -5448,7 +5375,13 @@ class KolibriAIEngine:
 
     def _should_prefer_specialized_pipeline(self, message: str) -> bool:
         """Запросы на код, математику и явную логику не должны перехватываться RAG."""
-        return self._is_code_query(message) or self._is_math_query(message) or self._is_logic_query(message)
+        return (
+            self._is_code_query(message)
+            or self._is_math_query(message)
+            or self._is_logic_query(message)
+            or self._is_c_formula_query(message)
+            or self._is_followup_only_query(message)
+        )
 
     def _is_c_formula_query(self, message: str) -> bool:
         q = (message or "").strip().lower()
@@ -5790,6 +5723,35 @@ class KolibriAIEngine:
                     return (dynamic_fallback, 0.45, dynamic_method)
                 return (dynamic_fallback, 0.4, dynamic_method)
 
+        if self._is_followup_only_query(message, q_tokens=q_tokens):
+            dynamic_fallback, dynamic_method = self._build_dynamic_no_knowledge_response(
+                message=message,
+                retrieved_sentences=retrieved_sentences,
+                graph_answer=graph_answer,
+                context_window=context_window,
+                deadline_ts=deadline_ts,
+                fast_mode=fast_mode,
+                allow_web_augment=allow_web_augment,
+            )
+            if dynamic_fallback:
+                if dynamic_method == "web-augment-weather":
+                    return (dynamic_fallback, 0.42, dynamic_method)
+                if dynamic_method == "weather-unavailable":
+                    return (dynamic_fallback, 0.72, dynamic_method)
+                if dynamic_method == "web-news":
+                    return (dynamic_fallback, 0.46, dynamic_method)
+                if dynamic_method == "web-time":
+                    return (dynamic_fallback, 0.44, dynamic_method)
+                if dynamic_method == "web-rate":
+                    return (dynamic_fallback, 0.45, dynamic_method)
+                if dynamic_method == "web-reference":
+                    return (dynamic_fallback, 0.4, dynamic_method)
+                if dynamic_method == "dialog-context":
+                    return (dynamic_fallback, 0.56, dynamic_method)
+                if dynamic_method == "dialog-fact-ack":
+                    return (dynamic_fallback, 0.78, dynamic_method)
+                return (dynamic_fallback, 0.22, dynamic_method)
+
         topic_answer = self._try_topic_overview_answer(message, fast_mode=fast_mode)
         if topic_answer:
             return (topic_answer, 0.78, "topic-overview")
@@ -6098,7 +6060,11 @@ class KolibriAIEngine:
             return None
         if self._is_architecture_intent(anchor):
             return "архитектура Kolibri"
-        focus = self._extract_topic_focus(anchor) or anchor
+        definition_focus = self._definition_focus_terms(anchor)
+        if definition_focus:
+            focus = " ".join(definition_focus[:4])
+        else:
+            focus = self._extract_topic_focus(anchor) or anchor
         focus = self._canonicalize_definition_focus_text(focus) or focus.strip()
         focus = re.sub(r"\s+", " ", focus).strip(" .,!?:;")
         return focus or None
@@ -6794,7 +6760,7 @@ class KolibriAIEngine:
             reshaped = self._summarize_followup_answer(architecture_answer, mode, topic=topic)
             return reshaped or architecture_answer
         c_followup_more_response: str | None = None
-        if self._enable_c_inference and self.c_inference.available and topic:
+        if self._enable_c_inference and self.c_inference.available and topic and mode != "compare":
             c_followup_answer = self._query_c_followup_answer(
                 topic=topic,
                 mode=mode,
@@ -6854,13 +6820,18 @@ class KolibriAIEngine:
             if reshaped:
                 return reshaped
             return topical_summary
-        if not recent_answer:
-            return None
         if mode == "more" and topic:
+            if not recent_answer:
+                return (
+                    f"По теме «{topic}» основное уже обозначено. "
+                    f"Если хотите, я могу раскрыть причину, пример или сравнение."
+                )
             return (
                 f"По теме «{topic}» основное уже обозначено. "
                 f"Если хотите, я могу раскрыть причину, пример или сравнение."
             )
+        if not recent_answer:
+            return None
         return self._summarize_followup_answer(recent_answer, mode, topic=topic)
 
     def _build_contextual_query(
@@ -7192,6 +7163,7 @@ class KolibriAIEngine:
         effective_time_query = self._is_time_query(lookup_message, q_tokens=lookup_q_tokens)
         effective_currency_query = self._is_currency_query(lookup_message, q_tokens=lookup_q_tokens)
         effective_reference_query = self._is_reference_query(lookup_message, q_tokens=lookup_q_tokens)
+        followup_only = self._is_followup_only_query(message, q_tokens=q_tokens)
 
         recap_answer, recap_method = self._build_conversation_memory_read_response(
             message=message,
@@ -7219,8 +7191,6 @@ class KolibriAIEngine:
         # Для реального времени (погода) сначала пробуем web-augment,
         # иначе локальные шумные фрагменты могут выглядеть правдоподобно.
         if effective_weather_query and allow_web_augment and self._enable_web_augment:
-            if not external_network_available():
-                return self._weather_unavailable_answer(lookup_message, q_tokens=lookup_q_tokens), "weather-unavailable"
             weather_budget = None
             if deadline_ts is not None:
                 weather_budget = max(0.0, float(deadline_ts) - time.time())
@@ -7244,6 +7214,8 @@ class KolibriAIEngine:
                 except Exception as exc:
                     log.debug("realtime weather lookup failed: %s", exc)
             if not weather_web:
+                if not external_network_available():
+                    return self._weather_unavailable_answer(lookup_message, q_tokens=lookup_q_tokens), "weather-unavailable"
                 weather_web = self._try_web_augment_answer(
                     lookup_message,
                     q_tokens=lookup_q_tokens,
@@ -7297,13 +7269,15 @@ class KolibriAIEngine:
             if reference_answer and self._answer_shape_is_valid(lookup_message, reference_answer):
                 return reference_answer, "web-reference"
 
-        if self._is_referential_query(message) and not any((
-            effective_weather_query,
-            effective_news_query,
-            effective_time_query,
-            effective_currency_query,
-            effective_reference_query,
-        )):
+        if self._is_referential_query(message) and (
+            followup_only or not any((
+                effective_weather_query,
+                effective_news_query,
+                effective_time_query,
+                effective_currency_query,
+                effective_reference_query,
+            ))
+        ):
             context_answer = self._conversation_context_fallback(
                 message=message,
                 context_window=context_window,
@@ -7581,7 +7555,7 @@ class KolibriAIEngine:
         ranked_tokens = sorted(q_tokens, key=lambda t: (-len(t), t))
         return " ".join(ranked_tokens[:5]).strip()
 
-    def _is_news_query(self, message: str, q_tokens: set[str]) -> bool:
+    def _is_news_query(self, message: str, q_tokens: set[str] | None = None) -> bool:
         lower = (message or "").strip().lower()
         if not lower:
             return False
@@ -7590,6 +7564,13 @@ class KolibriAIEngine:
         if ("в мире" in lower or "world" in lower) and ("что" in lower or "какие" in lower):
             return True
         news_roots = ("новост", "событ", "news", "headline")
+        if q_tokens is None:
+            q_tokens = self._extract_linguistic_terms(
+                message,
+                min_len=3,
+                drop_stop=True,
+                drop_generic=False,
+            )
         return any(any(t.startswith(root) for root in news_roots) for t in q_tokens)
 
     def _build_news_query(self, message: str, q_tokens: set[str]) -> str:
@@ -11375,28 +11356,42 @@ class KolibriAIEngine:
         return conv
 
     def delete_conversation(self, conv_id: str, client_id: str | None = None) -> bool:
-        removed = self.conversations.pop(conv_id, None) is not None
-        self._context_windows.pop(conv_id, None)
         client_key = self._sanitize_client_id(client_id if client_id is not None else self._active_client_id())
-        deleted_rows = 0
-        try:
-            deleted_rows = int(self._db.delete_conversation(client_key, conv_id) or 0)
-        except Exception as exc:
-            log.warning("delete conversation from db failed (%s/%s): %s", client_key, conv_id, exc)
+        raw_id = str(conv_id or "").strip()[:200]
+        if not raw_id:
+            return False
 
-        # Fallback for legacy clients without explicit client_id: infer from scoped conversation id.
-        if deleted_rows <= 0 and client_id is None and "::" in conv_id:
-            inferred_client = self._sanitize_client_id(conv_id.split("::", 1)[0])
-            if inferred_client and inferred_client != client_key:
-                try:
-                    deleted_rows = int(self._db.delete_conversation(inferred_client, conv_id) or 0)
-                except Exception as exc:
-                    log.warning(
-                        "delete conversation legacy fallback failed (%s/%s): %s",
-                        inferred_client,
-                        conv_id,
-                        exc,
-                    )
+        candidates: list[tuple[str, str]] = []
+        scoped_id = self._scoped_conversation_id(raw_id, client_key)
+        if scoped_id:
+            candidates.append((client_key, scoped_id))
+        candidates.append((client_key, raw_id))
+
+        if client_id is None and "::" in raw_id:
+            inferred_client = self._sanitize_client_id(raw_id.split("::", 1)[0])
+            if inferred_client:
+                candidates.append((inferred_client, raw_id))
+
+        removed = False
+        deleted_rows = 0
+        seen: set[tuple[str, str]] = set()
+        for candidate_client, candidate_id in candidates:
+            key = (candidate_client, candidate_id)
+            if key in seen:
+                continue
+            seen.add(key)
+            if self.conversations.pop(candidate_id, None) is not None:
+                removed = True
+            self._context_windows.pop(candidate_id, None)
+            try:
+                deleted_rows += int(self._db.delete_conversation(candidate_client, candidate_id) or 0)
+            except Exception as exc:
+                log.warning(
+                    "delete conversation from db failed (%s/%s): %s",
+                    candidate_client,
+                    candidate_id,
+                    exc,
+                )
         return removed or deleted_rows > 0
 
     def get_conversation_turns(
@@ -11437,15 +11432,15 @@ class KolibriAIEngine:
             return items
 
         for candidate in candidates:
-            conv = self.conversations.get(candidate)
-            if conv and conv.turns:
-                return candidate, _serialize(conv.turns)
-
-        for candidate in candidates:
             hydrated = self._hydrate_conversation_from_db(candidate, client_key)
             if hydrated.turns:
                 self.conversations[candidate] = hydrated
                 return candidate, _serialize(hydrated.turns)
+
+        for candidate in candidates:
+            conv = self.conversations.get(candidate)
+            if conv and conv.turns:
+                return candidate, _serialize(conv.turns)
 
         return candidates[0], []
 

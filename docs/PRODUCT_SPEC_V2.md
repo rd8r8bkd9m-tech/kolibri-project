@@ -1,79 +1,107 @@
 # Kolibri Product Spec V2
 
-## Product promise
+## 1. Product promise
 
-Kolibri is a chat-first product. The ordinary user experience is one application with one main flow:
+Kolibri сейчас shipping как один chat-first продукт с единым системным контуром:
 
-`open chats -> ask -> get an answer -> refine -> attach/teach/pack only when needed`
+`frontend/src -> backend/service -> backend/src -> WASM -> apps`
 
-Everything else is secondary:
+Ближайший релиз не обещает "весь репозиторий". Он обещает:
 
-- `Workspace` for swarm, packs, teach, quality
-- `Settings` for account, profile, theme and runtime preferences
-- `Voice` and `Imagine` as composer actions, not separate products
+- один chat shell;
+- один backend gateway;
+- один набор canonical API;
+- один release gate;
+- один demo-path вокруг chat, conversations, swarm runtime и `.kpack`.
 
-## Primary surfaces
+## 2. Runtime truth
 
-### Desktop
+- `backend/service` — текущая `shipping` truth.
+- `backend/src/kolibri_http_server.c` — `parity-target`.
+- `frontend/src/lib/kolibriBridge.ts` + `kolibri.wasm` — browser/offline runtime path того же продукта.
 
-- left sidebar with chat history
-- central thread viewport
-- secondary drawers for workspace and settings
+Из этого следует правило: никакой внешний документ не должен представлять C runtime как текущий shipping gateway, пока он не проходит тот же release gate, что и FastAPI path.
 
-### Mobile
+## 3. Primary user flow
 
-- `Chats`
-- `Ask`
+Канонический пользовательский сценарий:
 
-No other primary tabs are allowed.
+1. открыть chat shell;
+2. проверить auth status;
+3. загрузить profile и preferences;
+4. создать или выбрать conversation;
+5. отправить сообщение;
+6. использовать streaming/stop;
+7. открыть workspace;
+8. выполнить ingest / refresh / `.kpack` import-export;
+9. при необходимости использовать WASM/offline path.
 
-## Required product flows
+## 4. Shipping surfaces
 
-### Chat
+### Frontend
 
-- create/select/search/rename/pin/delete chat
-- send/stream/stop
-- edit and resend
-- copy message
-- retry on failure
+- left sidebar / conversation list
+- thread viewport
+- composer
+- settings and workspace drawers
 
-### Composer
+### Backend
 
-- attachment preview before send
-- image/text analysis
-- teach flow
-- voice flow
-- imagine flow
-- `.kpack` import/export
+- health
+- auth
+- account profile/preferences
+- chat
+- conversations
+- swarm runtime
+- `.kpack`
 
-### Account and settings
+### Native / WASM
 
-- auth status
-- login/logout
-- server-backed profile
-- server-backed preferences
-- theme/persona/memory/model preference persistence
+- C core как основное вычислительное ядро
+- browser-delivered `kolibri.wasm`
+- product-side CLI utilities из `apps/`
 
-### Workspace
+## 5. Canonical APIs
 
-- swarm status
-- refresh and background learning state
-- quality history
-- kpack import/export
-- teach ingest flows
+Канонический public surface для ближайшего релиза:
 
-## UX rules
+- `POST /api/v1/ai/chat`
+- `POST /api/v1/ai/chat/stream`
+- `GET|POST|PATCH|DELETE /api/v1/ai/conversations*`
+- `GET|PUT /api/v1/account/profile`
+- `GET|PUT /api/v1/account/preferences`
+- `GET|POST /api/v1/auth/*`
+- `GET|POST /api/v1/swarm/runtime/*`
+- `.kpack` import/export через swarm runtime
 
-- no overlap between header, thread viewport and composer
-- no dead buttons
-- no hidden broken states
-- no hard refresh recovery
-- no mixed light/dark theme state
-- no layout collapse on keyboard/safe-area changes
+## 6. Explicit non-scope
 
-## Source of truth
+Следующие контуры не входят в ближайший shipping scope:
 
-- frontend renders product state
-- backend owns semantic routing and runtime decisions
-- user-facing chat uses canonical `/api/v1/ai/chat` and `/api/v1/ai/chat/stream`
-- server is source of truth for account/profile/preferences and conversation metadata
+- `frontend/kolibri-web`
+- `mobile/kolibri-app`
+- `cloud-storage`
+- `content_factory_*`
+- `swarm`
+- `sdk/python`
+- `kernel`
+- `web-app`
+
+Они могут пользоваться интерфейсами shipping-контура, но не должны описываться как часть официального релиза.
+
+## 7. Product quality bar
+
+Релиз считается честным только если зелёны:
+
+- native release gate;
+- backend release gate;
+- wasm build;
+- frontend smoke/typecheck/build;
+- документация из `README.md`, `docs/API_REFERENCE.md`, `docs/QA_ACCEPTANCE.md`, `docs/DEPLOY_RUNBOOK.md`, `docs/RELEASE_CHECKLIST.md`.
+
+## 8. Status taxonomy
+
+- `shipping` — официально входит в релизный контур и release gate
+- `parity-target` — должен догнать shipping-контур по контракту и проверкам
+- `integration-only` — использует public interfaces, но не входит в релизный scope
+- `experimental` — код существует, но не обещан как стабильный продуктовый surface

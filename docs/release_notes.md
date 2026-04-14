@@ -1,46 +1,45 @@
-# Kolibri Release Notes / Релизные заметки / 发布说明
+# Kolibri Release Notes
 
-**Дата:** 2025-09-23  
-**Автор:** Кочуров Владислав Евгеньевич  
-**Локация:** Амстердам, Нидерланды
+## Draft release: 0.2.0 shipping contour stabilization
 
----
+Эти release notes считаются черновиком до тех пор, пока release gate не зелёный и evidence pack не собран.
 
-## Релиз 2025.09 «Техническая готовность»
+## Что входит в релиз
 
-### Основные изменения
+- один shipping web shell из `frontend/src`
+- один shipping backend gateway из `backend/service`
+- native core из `backend/src` и `backend/include/kolibri`
+- browser/offline artifact `kolibri.wasm`
+- product-side CLI utilities из `apps/`
+- единый release gate и release evidence bundle
 
-- Добавлена автоматическая сборка загрузочного образа Kolibri OS через `scripts/build_iso.sh` с поддержкой
-  fallback на системные инструменты (`gcc -m32`, `ld`).
-- Введён скрипт `scripts/build_wasm.sh`, собирающий вычислительное ядро Kolibri в `build/wasm/kolibri.wasm`
-  и контролирующий бюджет размера < 1 МБ.
-- Обновлены `Makefile` и документация: цель `make check` выполняет `ctest`, сборку ISO и wasm одним вызовом.
-- README и Руководство разработчика дополнены инструкциями по установке зависимостей, проверке артефактов и
-  запуску комплексной проверки.
-- Пайплайн CI (GitHub Actions) собирает C-ядро, коллектирует артефакты ISO/wasm и контролирует тесты Python.
+## Что изменено в этом цикле
 
-### Контрольная таблица артефактов
+- документация сведена к одному source of truth для shipping-контура;
+- release gate вынесен в `scripts/release_gate.sh`;
+- `Makefile`, `scripts/run_all.sh` и GitHub Actions разделены на `Release Gate` и `Extended CI`;
+- public docs больше не рекламируют secondary contours как часть ближайшего shipping scope;
+- FastAPI явно закреплён как текущая shipping truth, а C HTTP runtime помечен как `parity-target`.
 
-| Артефакт | Путь | Примечание |
-|----------|------|------------|
-| kolibri.iso | `build/kolibri.iso` | Создаётся `scripts/build_iso.sh`, готов к запуску в QEMU/GRUB |
-| kolibri.wasm | `build/wasm/kolibri.wasm` | Размер < 1 МБ, включает десятичное ядро и эволюцию формул |
-| SHA256 | `build/wasm/kolibri.wasm.sha256` | Контрольная сумма wasm-модуля |
-| CI лог | GitHub Actions → `Kolibri CI` | Хранит результаты тестов и сборки |
+## Что не входит в релизный scope
 
-### Рекомендуемый порядок проверки
+- `frontend/kolibri-web`
+- `mobile/kolibri-app`
+- `cloud-storage`
+- `content_factory_*`
+- `swarm`
+- `sdk/python`
+- `kernel`
+- `web-app`
 
-1. `make check` — юнит-тесты, ISO, wasm.
-2. `./kolibri.sh up` — ручной прогон одиночного узла.
-3. `./scripts/run_cluster.sh` — смоук роя (опционально).
-4. `qemu-system-i386 -cdrom build/kolibri.iso` — загрузка микроядра.
-5. Публикация `build/wasm/kolibri.wasm` на PWA-хостинге (например, GitHub Pages).
+Эти контуры остаются в репозитории как `integration-only` или `experimental`.
 
----
+## Release evidence required
 
-## История релизов
+Релизные заявления допустимы только при наличии:
 
-| Версия | Дата | Основной фокус |
-|--------|------|----------------|
-| 2025.09 | 23.09.2025 | Техническая готовность: ISO, wasm, CI |
-
+- зелёного `release-gate`
+- актуального `docs/QA_ACCEPTANCE.md`
+- актуального `docs/DEPLOY_RUNBOOK.md`
+- собранного `kolibri.wasm`
+- собранного `frontend/dist`

@@ -8,8 +8,8 @@ on:
     - cron: '0 3 * * *'
 
 jobs:
-  python-quality:
-    name: Python lint & tests
+  release-gate-backend:
+    name: Release Gate — Backend
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,142 +19,28 @@ jobs:
           python-version: '3.11'
           cache: pip
           cache-dependency-path: requirements.txt
-      - name: Установка инструментов
+      - name: Установка Python-зависимостей
         run: |
           python -m pip install --upgrade pip
-          python -m pip install ruff pyright pytest coverage pytest-anyio
-          python -m pip install -r requirements.txt || true
-      - name: Ruff
-        run: ruff check .
-      - name: Pyright
-        run: pyright
-      - name: Pytest с покрытием
-        run: |
-          coverage run -m pytest tests/ -q --tb=short
-          coverage report --show-missing --fail-under=40
+          python -m pip install -r requirements.txt
+      - name: Backend release gate
+        run: ./scripts/release_gate.sh backend
 
-  core-build:
-    name: CMake, тесты и ISO
+  release-gate-native:
+    name: Release Gate — Native Runtime
     runs-on: ubuntu-latest
-    needs: python-quality
     steps:
       - uses: actions/checkout@v4
-      - name: Установка зависимостей C/ISO
+      - name: Установка native-зависимостей
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake nasm grub-pc-bin xorriso gcc-multilib
-      - name: Конфигурация CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DKOLIBRI_ENABLE_TESTS=ON
-      - name: Сборка C-ядра
-        run: cmake --build build -j
-      - name: Проверка CTest inventory
-        run: python3 scripts/check_ctest_inventory.py --build-dir build
-      - name: Юнит-тесты C
-        run: ctest --test-dir build --output-on-failure
-      - name: Phase 1 benchmark (C runtime)
-        run: |
-          python3 tests/test_kolibri_http_phase1_benchmark.py \
-            build/kolibri_http_server \
-            --output-json build/benchmarks/kolibri_http_phase1_benchmark.json
-      - name: Сборка ISO
-        run: ./scripts/build_iso.sh
-      - name: SHA256 ISO
-        run: sha256sum build/kolibri.iso > build/kolibri.iso.sha256
-      - name: Установка cosign
-        uses: sigstore/cosign-installer@v3
-        with:
-          cosign-release: 'v2.2.4'
-      - name: Подпись ISO
-        env:
-          COSIGN_EXPERIMENTAL: "true"
-        run: cosign sign-blob --yes --output-signature build/kolibri.iso.sig build/kolibri.iso
-      - name: Подготовка ISO артефактов
-        run: |
-          mkdir -p artifacts/iso
-          cp build/kolibri.iso artifacts/iso/
-          cp build/kolibri.iso.sha256 artifacts/iso/
-          cp build/kolibri.iso.sig artifacts/iso/
-      - name: Подготовка benchmark артефакта
-        run: |
-          mkdir -p artifacts/benchmarks
-          cp build/benchmarks/kolibri_http_phase1_benchmark.json artifacts/benchmarks/
-      - name: Публикация артефакта ISO
-        uses: actions/upload-artifact@v4
-        with:
-          name: kolibri-iso
-          path: artifacts/iso
-      - name: Публикация benchmark артефакта
-        uses: actions/upload-artifact@v4
-        with:
-          name: kolibri-phase1-benchmark
-          path: artifacts/benchmarks
+          sudo apt-get install -y cmake ninja-build gcc-multilib libsqlite3-dev libssl-dev
+      - name: Native release gate
+        run: ./scripts/release_gate.sh native
 
-  wasm-build:
-    name: WebAssembly
+  release-gate-frontend:
+    name: Release Gate — Frontend + WASM
     runs-on: ubuntu-latest
-    needs: core-build
-    steps:
-      - uses: actions/checkout@v4
-      - name: Установка Emscripten
-        uses: mymindstorm/setup-emsdk@v13
-        with:
-          version: latest
-      - name: Сборка kolibri.wasm
-        run: ./scripts/build_wasm.sh
-      - name: Подготовка wasm для предпросмотра фронтенда
-        run: |
-          mkdir -p preview-artifacts
-          cp build/wasm/kolibri.wasm preview-artifacts/kolibri.wasm
-      - name: Публикация wasm для предпросмотра фронтенда
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-preview-wasm
-          path: preview-artifacts/kolibri.wasm
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Установка cosign
-        uses: sigstore/cosign-installer@v3
-        with:
-          cosign-release: 'v2.2.4'
-      - name: Подпись wasm
-        env:
-          COSIGN_EXPERIMENTAL: "true"
-        run: cosign sign-blob --yes --output-signature build/wasm/kolibri.wasm.sig build/wasm/kolibri.wasm
-      - name: Подготовка артефактов WASM
-        run: |
-          mkdir -p artifacts/wasm
-          cp build/wasm/kolibri.wasm artifacts/wasm/
-          cp build/wasm/kolibri.wasm.sha256 artifacts/wasm/
-          cp build/wasm/kolibri.wasm.txt artifacts/wasm/
-          cp build/wasm/kolibri.wasm.sig artifacts/wasm/
-      - name: Публикация артефактов WASM
-        uses: actions/upload-artifact@v4
-        with:
-          name: kolibri-wasm
-          path: artifacts/wasm
-
-  fuzz-parser:
-    name: Parser fuzz smoke
-    runs-on: ubuntu-latest
-    needs: core-build
-    steps:
-      - uses: actions/checkout@v4
-      - name: Установка Clang и зависимостей
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang cmake libsqlite3-dev libssl-dev
-      - name: Конфигурация fuzz таргета
-        run: cmake -S . -B build-fuzz -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=clang -DKOLIBRI_ENABLE_FUZZ=ON
-      - name: Сборка fuzz таргета
-        run: cmake --build build-fuzz --target kolibri_fuzz_script -j
-      - name: Smoke fuzz run
-        run: ./build-fuzz/kolibri_fuzz_script -runs=1000 -max_total_time=60
-
-  frontend-build:
-    name: Frontend build & tests
-    runs-on: ubuntu-latest
-    needs: wasm-build
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -162,45 +48,239 @@ jobs:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
-      - name: Сборка wasm (предварительно)
-        run: ./scripts/build_wasm.sh
-      - name: Установка зависимостей npm
+      - name: Установка Emscripten
+        uses: mymindstorm/setup-emsdk@v13
+        with:
+          version: latest
+      - name: Установка frontend-зависимостей
         run: npm ci
         working-directory: frontend
-      - name: Сборка фронтенда
-        run: npm run build
-        working-directory: frontend
-      - name: Frontend smoke contracts
-        run: npm run test
-        working-directory: frontend
+      - name: WASM release gate
+        run: ./scripts/release_gate.sh wasm
+      - name: Frontend release gate
+        run: ./scripts/release_gate.sh frontend
       - name: Архив dist
         run: |
           tar -czf frontend-dist.tar.gz -C frontend dist
           sha256sum frontend-dist.tar.gz > frontend-dist.tar.gz.sha256
-      - name: Установка cosign
-        uses: sigstore/cosign-installer@v3
+      - name: Публикация wasm-артефактов
+        uses: actions/upload-artifact@v4
         with:
-          cosign-release: 'v2.2.4'
-      - name: Подпись dist
-        env:
-          COSIGN_EXPERIMENTAL: "true"
-        run: cosign sign-blob --yes --output-signature frontend-dist.tar.gz.sig frontend-dist.tar.gz
-      - name: Подготовка артефактов фронтенда
-        run: |
-          mkdir -p artifacts/frontend
-          mv frontend-dist.tar.gz artifacts/frontend/
-          mv frontend-dist.tar.gz.sha256 artifacts/frontend/
-          mv frontend-dist.tar.gz.sig artifacts/frontend/
-      - name: Публикация артефакта фронтенда
+          name: kolibri-wasm
+          path: |
+            build/wasm/kolibri.wasm
+            build/wasm/kolibri.wasm.sha256
+            build/wasm/kolibri.wasm.txt
+      - name: Публикация frontend-артефактов
         uses: actions/upload-artifact@v4
         with:
           name: kolibri-frontend-dist
-          path: artifacts/frontend
+          path: |
+            frontend-dist.tar.gz
+            frontend-dist.tar.gz.sha256
 
-  docker-smoke:
-    name: Docker packaging smoke tests
+  release-bundle:
+    name: Release Evidence Bundle
     runs-on: ubuntu-latest
-    needs: frontend-build
+    needs:
+      - release-gate-backend
+      - release-gate-native
+      - release-gate-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download wasm artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: kolibri-wasm
+          path: artifacts/wasm
+      - name: Download frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: kolibri-frontend-dist
+          path: artifacts/frontend
+      - name: Prepare evidence docs
+        run: |
+          mkdir -p artifacts/docs
+          cp README.md artifacts/docs/
+          cp docs/PRODUCT_SPEC_V2.md artifacts/docs/
+          cp docs/API_REFERENCE.md artifacts/docs/
+          cp docs/PUBLIC_ARCHITECTURE.md artifacts/docs/
+          cp docs/public_interfaces.md artifacts/docs/
+          cp docs/QA_ACCEPTANCE.md artifacts/docs/
+          cp docs/DEPLOY_RUNBOOK.md artifacts/docs/
+          cp docs/RELEASE_CHECKLIST.md artifacts/docs/
+          cp docs/INTEGRATION_SURFACES.md artifacts/docs/
+          cp docs/release_notes.md artifacts/docs/
+      - name: Prepare manifest
+        run: |
+          python3 - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          version = json.loads(Path("frontend/package.json").read_text(encoding="utf-8"))["version"]
+          docs = [
+              "README.md",
+              "PRODUCT_SPEC_V2.md",
+              "API_REFERENCE.md",
+              "PUBLIC_ARCHITECTURE.md",
+              "public_interfaces.md",
+              "QA_ACCEPTANCE.md",
+              "DEPLOY_RUNBOOK.md",
+              "RELEASE_CHECKLIST.md",
+              "INTEGRATION_SURFACES.md",
+              "release_notes.md",
+          ]
+          manifest = {
+              "version": f"v{version}",
+              "date": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "gate": "release-gate",
+              "artifacts": [
+                  "artifacts/wasm/kolibri.wasm",
+                  "artifacts/wasm/kolibri.wasm.sha256",
+                  "artifacts/frontend/frontend-dist.tar.gz",
+                  "artifacts/frontend/frontend-dist.tar.gz.sha256",
+              ],
+              "docs": docs,
+          }
+          Path("artifacts/release-manifest.json").write_text(
+              json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Upload release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: kolibri-release-evidence
+          path: artifacts
+
+  extended-security-sast:
+    name: Extended CI — SAST
+    runs-on: ubuntu-latest
+    needs: release-gate-backend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Установка Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Установка Bandit + Semgrep
+        run: |
+          python -m pip install bandit semgrep
+      - name: Bandit — Python SAST
+        run: |
+          bandit -r backend/service/ -f json -o bandit-report.json \
+            --severity-level medium --confidence-level medium \
+            -s B101 || true
+          bandit -r backend/service/ --severity-level high --confidence-level high
+      - name: Semgrep — мульти-язычный SAST
+        run: |
+          semgrep --config auto --config p/python --config p/security-audit \
+            backend/service/ --json --output semgrep-report.json || true
+          semgrep --config p/python --config p/security-audit \
+            backend/service/ --error --severity ERROR
+      - name: Upload SAST отчёты
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sast-reports
+          path: |
+            bandit-report.json
+            semgrep-report.json
+
+  extended-fuzz-parser:
+    name: Extended CI — Parser fuzz smoke
+    runs-on: ubuntu-latest
+    needs: release-gate-native
+    steps:
+      - uses: actions/checkout@v4
+      - name: Установка Clang и зависимостей
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build libsqlite3-dev libssl-dev
+      - name: Конфигурация fuzz таргета
+        run: cmake -S . -B build-fuzz -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=clang -DKOLIBRI_ENABLE_FUZZ=ON
+      - name: Сборка fuzz таргета
+        run: cmake --build build-fuzz --target kolibri_fuzz_script -j
+      - name: Smoke fuzz run
+        run: ./build-fuzz/kolibri_fuzz_script -runs=1000 -max_total_time=60
+
+  extended-benchmark-regression:
+    name: Extended CI — Benchmark regression
+    runs-on: ubuntu-latest
+    needs: release-gate-native
+    steps:
+      - uses: actions/checkout@v4
+      - name: Установка зависимостей
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build gcc-multilib
+      - name: Сборка benchmark
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build --target kolibri_benchmark_suite -j
+      - name: Запуск benchmark
+        run: ./build/kolibri_benchmark_suite --json > benchmark_results.json
+      - name: Проверка регрессии
+        run: |
+          python3 - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          baseline_path = Path("benchmarks/baseline.json")
+          results_path = Path("benchmark_results.json")
+
+          if not results_path.exists():
+              print("No benchmark results found")
+              sys.exit(1)
+
+          results = json.loads(results_path.read_text())
+          if baseline_path.exists():
+              baseline = json.loads(baseline_path.read_text())
+              max_degradation = 0.10
+
+              for key, value in results.items():
+                  if key not in baseline or baseline[key] <= 0:
+                      continue
+                  degradation = (value - baseline[key]) / baseline[key]
+                  if degradation > max_degradation:
+                      print(f"REGRESSION: {key} degraded by {degradation:.1%}")
+                      sys.exit(1)
+
+          print("Benchmark regression check passed")
+          PY
+      - name: Сохранение результатов
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-results
+          path: benchmark_results.json
+
+  extended-iso-package:
+    name: Extended CI — ISO packaging
+    runs-on: ubuntu-latest
+    needs: release-gate-native
+    steps:
+      - uses: actions/checkout@v4
+      - name: Установка зависимостей C/ISO
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-multilib grub-pc-bin nasm xorriso
+      - name: Сборка ISO
+        run: ./scripts/build_iso.sh
+      - name: SHA256 ISO
+        run: sha256sum build/kolibri.iso > build/kolibri.iso.sha256
+      - name: Публикация ISO-артефактов
+        uses: actions/upload-artifact@v4
+        with:
+          name: kolibri-iso
+          path: |
+            build/kolibri.iso
+            build/kolibri.iso.sha256
+
+  extended-docker-smoke:
+    name: Extended CI — Docker packaging smoke
+    runs-on: ubuntu-latest
+    needs: release-gate-frontend
     steps:
       - uses: actions/checkout@v4
       - name: Build backend image
@@ -234,192 +314,30 @@ jobs:
           docker stop kolibri-backend kolibri-frontend
           docker rm kolibri-backend kolibri-frontend
 
-  run-all:
-    name: Release script smoke
+  extended-run-all-smoke:
+    name: Extended CI — run_all smoke
     runs-on: ubuntu-latest
-    needs: docker-smoke
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies for ISO/build
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake nasm grub-pc-bin xorriso gcc-multilib
-      - name: Execute scripts/run_all.sh
-        run: ./scripts/run_all.sh --skip-cluster
-
-  release-bundle:
-    name: Assemble release bundle
-    runs-on: ubuntu-latest
-    needs: run-all
-    steps:
-      - uses: actions/checkout@v4
-      - name: Download ISO artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: kolibri-iso
-          path: artifacts/iso
-      - name: Download wasm artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: kolibri-wasm
-          path: artifacts/wasm
-      - name: Download frontend dist
-        uses: actions/download-artifact@v4
-        with:
-          name: kolibri-frontend-dist
-          path: artifacts/frontend
-      - name: Prepare manifest
-        shell: bash
-        run: |
-          VERSION=$(jq -r '.version' frontend/package.json)
-          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          mkdir -p artifacts
-          export VERSION DATE
-          python3 - <<'PY'
-            import json
-            import os
-            from pathlib import Path
-            
-            
-            def read_sha(path: str) -> str:
-                return Path(path).read_text(encoding="utf-8").split()[0]
-            
-            
-            manifest = {
-                "version": f"v{os.environ['VERSION']}",
-                "date": os.environ["DATE"],
-                "artifacts": [
-                    {
-                        "name": "kolibri.iso",
-                        "sha256": read_sha("artifacts/iso/kolibri.iso.sha256"),
-                        "signature": "kolibri.iso.sig",
-                    },
-                    {
-                        "name": "kolibri.wasm",
-                        "sha256": read_sha("artifacts/wasm/kolibri.wasm.sha256"),
-                        "signature": "kolibri.wasm.sig",
-                    },
-                    {
-                        "name": "frontend-dist.tar.gz",
-                        "sha256": read_sha("artifacts/frontend/frontend-dist.tar.gz.sha256"),
-                        "signature": "frontend-dist.tar.gz.sig",
-                    },
-                ],
-            }
-            
-            
-            Path("artifacts/release-manifest.json").write_text(
-                json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
-            )
-          PY
-      - name: Upload release bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: kolibri-release-bundle
-          path: artifacts
-
-  security-sast:
-    name: SAST — статический анализ безопасности
-    runs-on: ubuntu-latest
-    needs: python-quality
+    needs: extended-docker-smoke
     steps:
       - uses: actions/checkout@v4
       - name: Установка Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Установка Bandit + Semgrep
-        run: |
-          python -m pip install bandit semgrep
-      - name: Bandit — Python SAST
-        run: |
-          bandit -r backend/service/ -f json -o bandit-report.json \
-            --severity-level medium --confidence-level medium \
-            -s B101 || true
-          bandit -r backend/service/ --severity-level high --confidence-level high
-      - name: Semgrep — мульти-язычный SAST
-        run: |
-          semgrep --config auto --config p/python --config p/security-audit \
-            backend/service/ --json --output semgrep-report.json || true
-          semgrep --config p/python --config p/security-audit \
-            backend/service/ --error --severity ERROR
-      - name: Upload SAST отчёты
-        uses: actions/upload-artifact@v4
-        if: always()
+      - uses: actions/setup-node@v4
         with:
-          name: sast-reports
-          path: |
-            bandit-report.json
-            semgrep-report.json
-
-  # #29. Fuzz testing для parser
-  fuzz-parser:
-    name: Parser fuzz smoke
-    runs-on: ubuntu-latest
-    needs: core-build
-    steps:
-      - uses: actions/checkout@v4
-      - name: Установка Clang и зависимостей
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - name: Установка Emscripten
+        uses: mymindstorm/setup-emsdk@v13
+        with:
+          version: latest
+      - name: Установка системных зависимостей
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake libsqlite3-dev libssl-dev
-      - name: Конфигурация fuzz таргета
-        run: cmake -S . -B build-fuzz -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=clang -DKOLIBRI_ENABLE_FUZZ=ON
-      - name: Сборка fuzz таргета
-        run: cmake --build build-fuzz --target kolibri_fuzz_script -j
-      - name: Smoke fuzz run
-        run: ./build-fuzz/kolibri_fuzz_script -runs=1000 -max_total_time=60
-
-  # #30. Benchmark regression guard
-  benchmark-regression:
-    name: Benchmark regression
-    runs-on: ubuntu-latest
-    needs: core-build
-    steps:
-      - uses: actions/checkout@v4
-      - name: Установка зависимостей
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake gcc-multilib
-      - name: Сборка benchmark
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --target kolibri_benchmark_suite -j
-      - name: Запуск benchmark
-        run: |
-          ./build/kolibri_benchmark_suite --json > benchmark_results.json
-      - name: Проверка регрессии
-        run: |
-          python3 - <<'PY'
-          import json
-          import sys
-          from pathlib import Path
-
-          BASELINE_PATH = Path("benchmarks/baseline.json")
-          RESULTS_PATH = Path("benchmark_results.json")
-
-          if not RESULTS_PATH.exists():
-              print("No benchmark results found")
-              sys.exit(1)
-
-          results = json.loads(RESULTS_PATH.read_text())
-
-          # Загружаем baseline если есть
-          if BASELINE_PATH.exists():
-              baseline = json.loads(BASELINE_PATH.read_text())
-              max_degradation = 0.10  # 10%
-
-              for key in results:
-                  if key in baseline and baseline[key] > 0:
-                      degradation = (results[key] - baseline[key]) / baseline[key]
-                      if degradation > max_degradation:
-                          print(f"REGRESSION: {key} degraded by {degradation:.1%}")
-                          sys.exit(1)
-
-          print("Benchmark regression check passed")
-          PY
-      - name: Сохранение результатов
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: benchmark-results
-          path: benchmark_results.json
+          sudo apt-get install -y cmake ninja-build gcc-multilib grub-pc-bin nasm xorriso libsqlite3-dev libssl-dev
+      - name: Bootstrap active contour
+        run: ./scripts/release_gate.sh bootstrap
+      - name: Execute scripts/run_all.sh
+        run: ./scripts/run_all.sh --skip-cluster

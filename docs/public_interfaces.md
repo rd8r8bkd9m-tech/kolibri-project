@@ -1,111 +1,126 @@
-# Kolibri Public Interfaces / Публичные интерфейсы Kolibri / Kolibri 公共接口
+# Kolibri Public Interfaces
 
-## 1. Overview / Обзор / 概述
+Этот документ фиксирует интерфейсы, которые считаются официальными для текущего shipping-контура Kolibri. Всё, что не перечислено здесь, считается `experimental`, `integration-only` или `parity-target`.
 
-This document records the interfaces that Kolibri guarantees to keep stable across
-releases. Interfaces not listed here are considered experimental and may change
-without notice. Use this document together with the versioning policy outlined in
-`docs/developer_guide.md`.
+## 1. Status taxonomy
 
-Документ фиксирует интерфейсы Kolibri с гарантией стабильности между релизами.
-Неупомянутые элементы считаются экспериментальными и могут измениться без
-предупреждения. Следуйте совместно с политикой версионирования из
-`docs/developer_guide.md`.
+- `shipping` — входит в официальный релизный контур и release gate
+- `parity-target` — должен поддержать тот же контракт, но ещё не является shipping truth
+- `integration-only` — использует shipping interfaces, но не входит в release scope
+- `experimental` — может меняться без обещания стабильности
 
-本文档描述 Kolibri 在各版本之间保证稳定的接口。未列出的接口视为试验性，
-可能随时变更。请配合 `docs/developer_guide.md` 中的版本策略使用。
+## 2. Stable C API
 
-## 2. Stable C API / Стабильный C API / 稳定 C API
+Следующие header families под `backend/include/kolibri/` считаются основным стабильным C surface для текущего продукта:
 
-The following headers under `backend/include/kolibri/` define the supported C
-interfaces. Consumers must include only the listed headers and link against the
-Kolibri runtime built for their platform.
+- `script.h`
+- `formula.h`
+- `knowledge.h`
+- `genome.h`
+- `logical_memory.h`
+- `net.h`
+- `context.h`
+- `corpus.h`
+- `corpus_trainer.h`
+- `decimal.h`
+- `digits.h`
+- `random.h`
 
-Ниже приведены заголовки, описывающие поддерживаемый C API. Используйте только
-указанные функции и структуры, подключая Kolibri runtime для целевой платформы.
+Практическое правило:
 
-下列 `backend/include/kolibri/` 头文件定义受支持的 C 接口。建议只使用列出的
-函数与结构，并链接对应平台构建的 Kolibri 运行时。
+- consumer code должен опираться только на документированные функции и типы из этого набора;
+- расширение набора допустимо только после отдельного решения и отражения в release docs;
+- остальные заголовки из `backend/include/kolibri/` могут использоваться внутренне, но не считаются обещанным внешним ABI.
 
-| Header | Stable Symbols | ABI Notes |
-|--------|----------------|----------|
-| `script.h` | `KolibriScript`, `ks_init`, `ks_free`, `ks_set_output`, `ks_load_text`, `ks_load_file`, `ks_execute` | `KolibriScript` is opaque: consumers may inspect but MUST NOT alter internal arrays directly. Struct size/layout may grow; new fields appended to the end. |
-| `knowledge.h` | `KolibriKnowledgeIndex`, `KolibriKnowledgeDocument`, `kolibri_knowledge_index_init/free/load_directory`, `kolibri_knowledge_search` | Pointers returned remain valid until `kolibri_knowledge_index_free`. Fields marked “reserved” may change; avoid direct modification. |
-| `net.h` | `KolibriNetListener`, `KolibriNetEndpoint`, helper routines | Wire protocol is backwards-compatible within a major version. Structs may gain trailing fields with default zero-initialisation. |
-| `genome.h` | `KolibriGenome`, `ReasonBlock`, `kg_open`, `kg_close`, `kg_append`, `kg_verify_file`, `kg_encode_payload` | Blocks are stored big-endian; HMAC is SHA-256. `KolibriGenome` contains FILE* members that are internal; callers interact only via API functions. |
-| `formula.h` | `KolibriGene`, `KolibriAssociation`, `KolibriFormula`, `KolibriFormulaPool`, `kf_*` helpers | Pool capacity constants define ABI; increases happen only in major releases. Struct fields may gain new trailing members reserved for future use. |
-| `decimal.h`, `digits.h`, `random.h` | Utility conversion/hash and RNG helpers | Pure functions; signatures are stable. |
+Статус:
 
-**Error handling / Обработка ошибок / 错误处理**
+- C API headers above — `shipping`
+- `backend/src/kolibri_http_server.c` as gateway runtime — `parity-target`
 
-- Functions return `0` on success and non-zero error codes on failure. Unless
-  explicitly stated, error codes use `errno` semantics.
-- Ownership: any pointer returned from an API remains owned by the runtime unless
-  documentation states otherwise. When transferring ownership, the callee is
-  responsible for freeing memory using `free`.
+## 3. HTTP API
 
-## 3. Node CLI / CLI узла / 节点 CLI
+Stable HTTP surface:
 
-Binary: `kolibri_node` (see `apps/kolibri_node.c`).
+- `/api/health`
+- `/api/knowledge/healthz`
+- `/api/v1/auth/status`
+- `/api/v1/auth/login`
+- `/api/v1/auth/logout`
+- `/api/v1/auth/register`
+- `/api/v1/account/profile`
+- `/api/v1/account/preferences`
+- `/api/v1/ai/chat`
+- `/api/v1/ai/chat/stream`
+- `/api/v1/ai/conversations`
+- `/api/v1/ai/conversations/{conversation_id}/turns`
+- `/api/v1/ai/models`
+- `/api/v1/ai/stats`
+- `/api/v1/swarm/runtime/status`
+- `/api/v1/swarm/runtime/start`
+- `/api/v1/swarm/runtime/run`
+- `/api/v1/swarm/runtime/refresh`
+- `/api/v1/swarm/runtime/ingest/text`
+- `/api/v1/swarm/runtime/ingest/url`
+- `/api/v1/swarm/runtime/kpack/export`
+- `/api/v1/swarm/runtime/kpack/download/{filename}`
+- `/api/v1/swarm/runtime/kpack/import`
+- `/api/v1/swarm/runtime/learning/status`
+- `/api/v1/swarm/runtime/learning/start`
+- `/api/v1/swarm/runtime/learning/run`
+- `/api/v1/swarm/runtime/learning/history`
+- `/api/v1/swarm/runtime/learning/sources`
 
-Параметры командной строки:
+Статус:
 
-| Option | Description | Notes |
-|--------|-------------|-------|
-| `--seed <uint64>` | RNG seed for deterministic runs | Defaults to `20250923`. |
-| `--node-id <uint32>` | Node identifier within the cluster | Must remain unique. |
-| `--listen <port>` | Enable TCP listener on the given port | Implies server mode. |
-| `--peer <host:port>` | Connect to upstream peer | Multiple peers may be supplied by repeating the flag (future enhancement). |
-| `--genome <path>` | Path to genome file to load at startup | Defaults to `genome.dat`. |
-| `--bootstrap <path>` | Optional KolibriScript file executed after startup | Script must be UTF-8 encoded. |
-| `--verify-genome` | Enable on-start genome integrity verification | Fails fast on checksum mismatch. |
+- FastAPI HTTP surface — `shipping`
+- C HTTP runtime compatibility surface — `parity-target`
 
-**Input/Output**
+## 4. Frontend and WASM interfaces
 
-- STDIN accepts interactive commands in future releases; current stable behaviour
-  is no-op.
-- STDOUT/STDERR provide log lines prefixed with `[INFO]` / `[ERROR]`. Consumers
-  should treat output as UTF-8 text.
+Stable frontend-facing surface:
 
-## 4. Python Interfaces / Python-интерфейсы / Python 接口
+- `frontend/src/api.ts`
+- `frontend/src/lib/kolibriBridge.ts`
+- `frontend/public/kolibri.wasm`
 
-The public Python module is `core.kolibri_sim`. The following items are stable:
+Статус:
 
-- `KolibriSim` class with constructor parameters `(zerno=0, hmac_klyuch=None, trace_path=None, trace_include_genome=None, genome_path=None, secrets_config=None, secrets_path=None)`.
-- Helper functions: `preobrazovat_tekst_v_cifry`, `vosstanovit_tekst_iz_cifr`,
-  `dec_hash`, `dolzhen_zapustit_repl`.
-- Data classes / typed dicts defined in `core/kolibri_sim.py` (`FormulaRecord`,
-  `ZhurnalZapis`, `ZhurnalSnapshot`, `SoakResult`, etc.) remain structurally stable.
-- Genome tooling in `core.kolibri_script.genome`:
-  `KolibriGenomeLedger`, `SecretsConfig`, `load_secrets_config`.
+- web shell contract — `shipping`
+- browser/offline WASM path — `shipping`
+- alternative frontend packages outside `frontend/src` — `integration-only`
 
-**Tracing**
+## 5. CLI / public binaries
 
-`KolibriSim` uses `JsonLinesTracer` from `core.tracing`. Trace output is UTF-8 JSONL.
-Structure is compatible within a major release; new optional fields may be added.
+Для текущего product contour публично значимыми считаются следующие binaries / utilities из `apps/`:
 
-**Language Support**
+- `kolibri_node`
+- `kolibri_infer_cli`
+- `kolibri_ingest`
+- `kolibri_inspect`
+- `kolibri_learn`
 
-Python APIs emit user-facing strings in Russian (RU). Formatting and key names
-are treated as stable; applications relying on localisation should not assume
-English translations are available at runtime.
+Их роль:
 
-## 5. Experimental Interfaces / Экспериментальные интерфейсы / 实验性接口
+- `kolibri_node` — native node/runtime utility
+- `kolibri_infer_cli` — CLI-инференс
+- `kolibri_ingest` — CLI-ingest в knowledge contour
+- `kolibri_inspect` — inspection/debug utility
+- `kolibri_learn` — learning utility
 
-The following components are subject to change without bumping the major version:
+Статус:
 
-- `core.tracing` internals beyond `JsonLinesTracer`.
-- Scripts in `scripts/` other than those explicitly referenced in this document.
-- Experimental network backends and wasm bridge helpers in `frontend/src/core/`.
-- Any struct fields marked as “reserved” within C headers.
+- перечисленные product-side utilities — `shipping`
+- остальные binaries из `apps/` — `experimental`, если не описаны отдельно в release docs
 
-Stabilisation of these interfaces will be announced in the changelog as they
-mature. Contributions relying on them should expect potential refactors.
+## 6. Secondary consumers
 
-## 6. Change Control / Управление изменениями / 变更控制
+Следующие каталоги могут использовать shipping interfaces, но сами не считаются частью ближайшего релиза:
 
-- Additions to stable APIs require at least one release candidate cycle.
-- Breaking changes are only permitted in a new major release and must be called
-  out in the changelog.
-- Deprecations must remain functional for at least one minor release, with
-  warnings emitted where possible.
+- `frontend/kolibri-web`
+- `mobile/kolibri-app`
+- `cloud-storage`
+- `content_factory_*`
+- `swarm`
+- `sdk/python`
+- `kernel`
+- `web-app`

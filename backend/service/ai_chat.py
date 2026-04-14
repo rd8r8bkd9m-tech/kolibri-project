@@ -853,7 +853,10 @@ async def _run_engine_chat(req: ChatRequest) -> ChatResponse:
     return ChatResponse(
         response=result["response"],
         confidence=result.get("confidence", 0.0),
-        conversation_id=result.get("conversation_id", ""),
+        conversation_id=_public_conversation_id(
+            result.get("conversation_id", ""),
+            str(result.get("client_id", req.client_id or "") or ""),
+        ),
         sources=result.get("sources", []),
         knowledge_hits=result.get("knowledge_hits", 0),
         method=result.get("method", "unknown"),
@@ -892,6 +895,17 @@ def _upsert_conversation_session(
     except Exception:
         # Session metadata must not break ordinary chat.
         return
+
+
+def _public_conversation_id(conversation_id: str | None, client_id: str | None = None) -> str:
+    raw = str(conversation_id or "").strip()
+    if not raw or "::" not in raw:
+        return raw
+    prefix, public_id = raw.split("::", 1)
+    engine = get_engine()
+    if client_id is None or engine._sanitize_client_id(client_id) == prefix:
+        return public_id
+    return raw
 
 
 def _format_domain_delta_line(items: list[dict[str, Any]]) -> str:
@@ -1153,7 +1167,7 @@ async def ai_chat(req: ChatRequest, request: Request) -> ChatResponse:
         return ChatResponse(
             response=answer,
             confidence=0.78,
-            conversation_id=conversation.id,
+            conversation_id=_public_conversation_id(conversation.id, client_key),
             sources=[provider] if provider else ["llm"],
             knowledge_hits=0,
             method=method,
@@ -2450,7 +2464,13 @@ async def list_conversations(
     actor = resolve_request_actor(request, client_id)
     account_id = str(actor.get("account_key", "global") or "global")
     items = [
-        ConversationSummary(**item)
+        ConversationSummary(
+            conversation_id=_public_conversation_id(item.get("conversation_id"), account_id),
+            title=str(item.get("title", "") or ""),
+            pinned=bool(item.get("pinned", False)),
+            created_at=float(item.get("created_at", 0.0) or 0.0),
+            updated_at=float(item.get("updated_at", 0.0) or 0.0),
+        )
         for item in _DB.list_conversation_sessions(account_id, limit=limit)
     ]
     return ConversationListResponse(account_id=account_id, items=items)
@@ -2547,6 +2567,7 @@ async def delete_conversation(
     _DB.delete_conversation_session(account_id, conv_id)
     if engine.delete_conversation(conv_id, client_id=account_id):
         return {"status": "deleted", "conversation_id": conv_id}
+    raise HTTPException(status_code=404, detail="conversation not found")
 
 
 # ============================================================================

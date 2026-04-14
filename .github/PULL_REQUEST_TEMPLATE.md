@@ -3,8 +3,9 @@
 
 ## Чек-лист качества
 - [ ] Сборка локально зелёная (`cmake && build` / `make`)
-- [ ] Тесты зелёные (`ctest`/`make test`)
-- [ ] Линт/типы/санитайзеры чисто
+- [ ] Release Gate зелёный (`make release-gate` или `./scripts/release_gate.sh all`)
+- [ ] Extended CI прогнан там, где он релевантен (`make extended-ci`, fuzz, docker, ISO, benchmark, SAST)
+- [ ] Линт/типы/санитайзеры чисто там, где изменение их затрагивает
 - [ ] Документация обновлена (`README.md`, `docs/*`, ADR при необходимости)
 - [ ] Soak-мини (если затрагивает цикл/память) выполнен
 - [ ] Conventional Commit с корректным `scope`

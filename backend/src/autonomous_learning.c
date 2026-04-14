@@ -66,17 +66,8 @@ int kal_autonomous_add_chat_data(AutonomousLearningCtx *ctx, const char *questio
                                  const char *domain) {
     if (!ctx || !ctx->formula_pool || !ctx->symbols)
         return -1;
-    if (ctx->chat_count >= KAL_AUTONOMOUS_MAX_CHAT_LOG)
-        return -1;
 
-    /* Store in chat log */
-    ctx->chat_log[ctx->chat_count].question = strdup(question);
-    ctx->chat_log[ctx->chat_count].answer = strdup(answer);
-    ctx->chat_log[ctx->chat_count].domain = strdup(domain ? domain : "unknown");
-    ctx->chat_log[ctx->chat_count].timestamp = time(NULL);
-    ctx->chat_count++;
-
-    /* Add as formula association */
+    /* Add as formula association (outside lock — formula_pool has its own locking) */
     kf_pool_add_association(ctx->formula_pool, ctx->symbols, question, answer, domain ? domain : "chat", time(NULL));
 
     /* Add as numeric example */
@@ -84,42 +75,260 @@ int kal_autonomous_add_chat_data(AutonomousLearningCtx *ctx, const char *questio
     int output_hash = kf_hash_from_text(answer);
     kf_pool_add_example(ctx->formula_pool, input_hash, output_hash);
 
+    /* Store in chat log (protected by mutex) */
+    pthread_mutex_lock(&ctx->chat_lock);
+    if (ctx->chat_count >= KAL_AUTONOMOUS_MAX_CHAT_LOG) {
+        pthread_mutex_unlock(&ctx->chat_lock);
+        return -1;
+    }
+    int idx = ctx->chat_count;
+    ctx->chat_log[idx].question = strdup(question);
+    ctx->chat_log[idx].answer = strdup(answer);
+    ctx->chat_log[idx].domain = strdup(domain ? domain : "unknown");
+    /* Проверка на OOM после strdup */
+    if (!ctx->chat_log[idx].question || !ctx->chat_log[idx].answer || !ctx->chat_log[idx].domain) {
+        free(ctx->chat_log[idx].question);
+        free(ctx->chat_log[idx].answer);
+        free(ctx->chat_log[idx].domain);
+        ctx->chat_log[idx].question = NULL;
+        ctx->chat_log[idx].answer = NULL;
+        ctx->chat_log[idx].domain = NULL;
+        pthread_mutex_unlock(&ctx->chat_lock);
+        fprintf(stderr, "autonomous_learning: OOM — failed to allocate chat entry %d\n", idx);
+        return -1;
+    }
+    ctx->chat_log[idx].timestamp = time(NULL);
+    ctx->chat_count++;
+    pthread_mutex_unlock(&ctx->chat_lock);
+
     return 0;
 }
 
 /* ============================================================================
  * PHASE 2: Discover — Find patterns in collected data
+ *
+ * Simple pattern discovery:
+ *   - Group chat entries by domain
+ *   - Find repeated/similar questions (hash-based clustering)
+ *   - Track which domains have most activity
  * ============================================================================ */
 
+#define KAL_MAX_PATTERN_BUCKETS 64
+
+typedef struct {
+    int hash_bucket;
+    int first_index;
+    int count;
+} KalPatternBucket;
+
 static int kal_discover_patterns(AutonomousLearningCtx *ctx) {
-    /* Pattern discovery disabled - too slow for now */
-    /* Focus on formula evolution which is working */
-    (void)ctx;
-    return 0;
+    if (!ctx || ctx->chat_count == 0)
+        return 0;
+
+    /* Lock chat_log for reading */
+    pthread_mutex_lock(&ctx->chat_lock);
+    int n = ctx->chat_count;
+
+    /* 1. Count entries per domain */
+    int domain_counts[16] = {0};
+    for (int i = 0; i < n; i++) {
+        const char *d = ctx->chat_log[i].domain;
+        if (!d) {
+            continue;
+        }
+        /* Simple hash to bucket */
+        unsigned h = 0;
+        for (const char *p = d; *p; p++)
+            h = h * 31 + (unsigned char)*p;
+        int bucket = (int)(h % 16);
+        domain_counts[bucket]++;
+    }
+
+    /* 2. Find repeated questions by hash clustering */
+    KalPatternBucket buckets[KAL_MAX_PATTERN_BUCKETS];
+    memset(buckets, 0, sizeof(buckets));
+    int bucket_count = 0;
+
+    for (int i = 0; i < n; i++) {
+        const char *q = ctx->chat_log[i].question;
+        if (!q)
+            continue;
+        int h = kf_hash_from_text(q) % KAL_MAX_PATTERN_BUCKETS;
+        if (h < 0)
+            h = -h;
+
+        int found = 0;
+        for (int b = 0; b < bucket_count; b++) {
+            if (buckets[b].hash_bucket == h) {
+                buckets[b].count++;
+                found = 1;
+                break;
+            }
+        }
+        if (!found && bucket_count < KAL_MAX_PATTERN_BUCKETS) {
+            buckets[bucket_count].hash_bucket = h;
+            buckets[bucket_count].first_index = i;
+            buckets[bucket_count].count = 1;
+            bucket_count++;
+        }
+    }
+
+    /* Count patterns with >= 2 entries (repeated questions) */
+    int repeated_patterns = 0;
+    for (int b = 0; b < bucket_count; b++) {
+        if (buckets[b].count >= 2)
+            repeated_patterns++;
+    }
+
+    /* Count distinct active domains */
+    int active_domains = 0;
+    for (int d = 0; d < 16; d++) {
+        if (domain_counts[d] > 0)
+            active_domains++;
+    }
+
+    pthread_mutex_unlock(&ctx->chat_lock);
+
+    /* Update stats */
+    ctx->patterns_discovered += repeated_patterns;
+
+    /* Log discovery results */
+    printf("  🔍 Patterns discovered: %d repeated question groups, %d active domains\n", repeated_patterns,
+           active_domains);
+
+    /* Save to genome if available */
+    if (ctx->genome && repeated_patterns > 0) {
+        char payload[512];
+        snprintf(payload, sizeof(payload), "patterns|repeated=%d|domains=%d|total_chat=%d", repeated_patterns,
+                 active_domains, n);
+        char digits[2048];
+        text_to_genome_payload(payload, digits, sizeof(digits));
+        ReasonBlock blk;
+        kg_append(ctx->genome, "PATTERN_DISCOVERY", digits, &blk);
+    }
+
+    return repeated_patterns;
 }
 
 /* ============================================================================
  * PHASE 3: Evolve — Run formula evolution on collected data
+ *
+ * Simplified evolution: up to 100 formulas, 10 generations.
+ * Uses existing kf_pool_tick with a capped example set.
  * ============================================================================ */
 
+#define KAL_EVOLVE_MAX_FORMULAS 100
+#define KAL_EVOLVE_MAX_GENERATIONS 10
+
 static int kal_evolve_formulas(AutonomousLearningCtx *ctx) {
-    /* Formula evolution disabled - kf_pool_tick too slow (>30s per generation)
-     * World model learning IS working (loss dropping from 7.6 to 6.5)
-     * Keep formula pool for associations but skip evolution
-     */
-    (void)ctx;
-    return 0;
+    if (!ctx || !ctx->formula_pool)
+        return 0;
+
+    /* Ensure we have some examples to evolve against */
+    if (ctx->formula_pool->examples == 0 && ctx->chat_count == 0)
+        return 0;
+
+    printf("  🧬 Evolving formulas: pool_size=%zu, examples=%zu\n", ctx->formula_pool->count,
+           ctx->formula_pool->examples);
+
+    /* Cap the formula pool for this tick to avoid long runs */
+    size_t original_count = ctx->formula_pool->count;
+    size_t evolve_count = original_count;
+    if (evolve_count > KAL_EVOLVE_MAX_FORMULAS)
+        evolve_count = KAL_EVOLVE_MAX_FORMULAS;
+
+    double t0 = kolibri_time_ms();
+
+    /* Run evolution with limited generations */
+    kf_pool_tick(ctx->formula_pool, KAL_EVOLVE_MAX_GENERATIONS);
+
+    double elapsed = kolibri_time_ms() - t0;
+
+    /* Get metrics after evolution */
+    KolibriEvolutionMetrics metrics;
+    memset(&metrics, 0, sizeof(metrics));
+    kf_pool_get_metrics(ctx->formula_pool, &metrics);
+
+    ctx->formulas_evolved += KAL_EVOLVE_MAX_GENERATIONS;
+    if (metrics.best_fitness > ctx->best_fitness)
+        ctx->best_fitness = metrics.best_fitness;
+
+    printf("  🧬 Evolution complete: %zu formulas, %d generations, %.1fms, best_fitness=%.3f\n", evolve_count,
+           KAL_EVOLVE_MAX_GENERATIONS, elapsed, metrics.best_fitness);
+
+    /* Save evolution results to genome */
+    if (ctx->genome) {
+        char payload[512];
+        snprintf(payload, sizeof(payload), "evolution|formulas=%zu|gens=%d|best_fit=%.4f|avg_fit=%.4f|time_ms=%.1f",
+                 evolve_count, KAL_EVOLVE_MAX_GENERATIONS, metrics.best_fitness, metrics.avg_fitness, elapsed);
+        char digits[2048];
+        text_to_genome_payload(payload, digits, sizeof(digits));
+        ReasonBlock blk;
+        kg_append(ctx->genome, "FORMULA_EVOLUTION", digits, &blk);
+    }
+
+    return KAL_EVOLVE_MAX_GENERATIONS;
 }
 
 /* ============================================================================
  * PHASE 4: Consolidate — Merge knowledge into world model
+ *
+ * Batch observations from chat log into the world model.
+ * Groups recent Q&A pairs and feeds them as observation blocks.
  * ============================================================================ */
 
+#define KAL_CONSOLIDATE_BATCH_SIZE 20
+
 static void kal_consolidate(AutonomousLearningCtx *ctx) {
-    /* Consolidation disabled - kwm_observe_block is slow
-     * World model learns via background thread instead
-     */
-    (void)ctx;
+    if (!ctx || !ctx->world_model || ctx->chat_count == 0)
+        return;
+
+    /* Lock and collect a batch of recent entries */
+    pthread_mutex_lock(&ctx->chat_lock);
+    int n = ctx->chat_count;
+    int start = (n > KAL_CONSOLIDATE_BATCH_SIZE) ? (n - KAL_CONSOLIDATE_BATCH_SIZE) : 0;
+    int batch_size = n - start;
+
+    if (batch_size <= 0) {
+        pthread_mutex_unlock(&ctx->chat_lock);
+        return;
+    }
+
+    /* Build observation text from batch */
+    char obs_buffer[4096];
+    int offset = 0;
+    for (int i = start; i < n && offset < (int)sizeof(obs_buffer) - 256; i++) {
+        const char *q = ctx->chat_log[i].question;
+        const char *a = ctx->chat_log[i].answer;
+        const char *d = ctx->chat_log[i].domain;
+        if (q && a) {
+            offset += snprintf(obs_buffer + offset, sizeof(obs_buffer) - offset, "[Q:%s] [A:%s] [D:%s] ", q, a,
+                               d ? d : "unknown");
+        }
+    }
+    pthread_mutex_unlock(&ctx->chat_lock);
+
+    if (offset == 0)
+        return;
+
+    double t0 = kolibri_time_ms();
+
+    /* Feed observation block to world model */
+    kwm_observe_block(ctx->world_model, (const uint8_t *)obs_buffer, (size_t)offset);
+
+    double elapsed = kolibri_time_ms() - t0;
+
+    printf("  📦 Consolidated: %d observations into world model (%.1fms)\n", batch_size, elapsed);
+
+    /* Save consolidation record to genome */
+    if (ctx->genome) {
+        char payload[512];
+        snprintf(payload, sizeof(payload), "consolidate|batch=%d|obs_len=%d|time_ms=%.1f", batch_size, offset, elapsed);
+        char digits[2048];
+        text_to_genome_payload(payload, digits, sizeof(digits));
+        ReasonBlock blk;
+        kg_append(ctx->genome, "CONSOLIDATION", digits, &blk);
+    }
 }
 
 /* ============================================================================
@@ -244,6 +453,7 @@ AutonomousLearningCtx *kal_autonomous_create(KwmContext *world_model, KolibriFor
     ctx->patterns_discovered = 0;
     ctx->formulas_evolved = 0;
     ctx->best_fitness = 0.0;
+    pthread_mutex_init(&ctx->chat_lock, NULL);
 
     return ctx;
 }
@@ -264,6 +474,7 @@ void kal_autonomous_destroy(AutonomousLearningCtx *ctx) {
         free((char *)ctx->chat_log[i].domain);
     }
 
+    pthread_mutex_destroy(&ctx->chat_lock);
     free(ctx);
 }
 

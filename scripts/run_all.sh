@@ -72,51 +72,35 @@ zapisat_shag() {
     echo "[Колибри] $1"
 }
 
-zapisat_shag "Подготовка каталога build: $postroika"
-cmake -S "$kornevaya" -B "$postroika" \
-    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-    -DKOLIBRI_ENABLE_TESTS=ON
+zapisat_shag "Release Gate: native runtime"
+"$kornevaya/scripts/release_gate.sh" native
 
-zapisat_shag "Сборка ядра"
-cmake --build "$postroika"
-
-zapisat_shag "Проверка честности CTest inventory"
-python3 "$kornevaya/scripts/check_ctest_inventory.py" --build-dir "$postroika"
-
-zapisat_shag "Запуск модульных тестов"
-ctest --test-dir "$postroika" --output-on-failure
-
-zapisat_shag "Phase 1 benchmark для C runtime"
-python3 "$kornevaya/tests/test_kolibri_http_phase1_benchmark.py" \
-    "$postroika/kolibri_http_server" \
-    --output-json "$postroika/benchmarks/kolibri_http_phase1_benchmark.json"
+zapisat_shag "Release Gate: backend pytest suite"
+"$kornevaya/scripts/release_gate.sh" backend
 
 if command -v npm >/dev/null 2>&1; then
-    zapisat_shag "Frontend smoke contracts"
-    (cd "$kornevaya/frontend" && npm run test)
+    if [ "$propustit_wasm" -eq 0 ]; then
+        zapisat_shag "Release Gate: kolibri.wasm"
+        "$kornevaya/scripts/release_gate.sh" wasm
+    else
+        zapisat_shag "Пропускаем пересборку kolibri.wasm по требованию"
+    fi
 
-    zapisat_shag "Frontend typecheck/build"
-    (cd "$kornevaya/frontend" && npm run lint && npm run build)
+    zapisat_shag "Release Gate: frontend smoke/typecheck/build"
+    "$kornevaya/scripts/release_gate.sh" frontend
 else
-    zapisat_shag "Пропускаем frontend smoke/typecheck: npm не найден"
-fi
-
-if [ "$propustit_wasm" -eq 0 ]; then
-    zapisat_shag "Сборка kolibri.wasm"
-    "$kornevaya/scripts/build_wasm.sh"
-else
-    zapisat_shag "Пропускаем сборку kolibri.wasm по требованию"
+    zapisat_shag "Пропускаем frontend и wasm contour: npm не найден"
 fi
 
 if [ "$propustit_iso" -eq 0 ]; then
-    zapisat_shag "Сборка загрузочного образа kolibri.iso"
+    zapisat_shag "Extended CI: сборка загрузочного образа kolibri.iso"
     "$kornevaya/scripts/build_iso.sh"
 else
     zapisat_shag "Пропускаем сборку kolibri.iso по требованию"
 fi
 
 if [ "$propustit_klaster" -eq 0 ]; then
-    zapisat_shag "Запуск локального роя на $uzly узлах"
+    zapisat_shag "Extended CI: запуск локального роя на $uzly узлах"
     "$kornevaya/scripts/run_cluster.sh" -n "$uzly" -d "$prodolzhitelnost"
 else
     zapisat_shag "Пропускаем запуск кластера по требованию"

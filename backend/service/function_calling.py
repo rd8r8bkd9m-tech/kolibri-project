@@ -146,26 +146,8 @@ class FunctionCallingPipeline:
                     "arguments": {"expression": match.group(1).strip()},
                 }
 
-        # Weather
-        if any(word in msg_lower for word in ["погод", "температур", "дождь", "снег"]):
-            match = re.search(r'(?:в|городе|город)\s+([А-Яа-яA-Za-z\s]+)', message)
-            location = match.group(1).strip() if match else "Москва"
-            return {
-                "tool": "weather",
-                "arguments": {"location": location},
-            }
-
-        # Time
-        if any(word in msg_lower for word in ["время", "который час", "сколько время"]):
-            match = re.search(r'(?:в|городе|город|часовой\s+пояс)\s+([А-Яа-яA-Za-z\s]+)', message)
-            location = match.group(1).strip() if match else "UTC"
-            return {
-                "tool": "time",
-                "arguments": {"location": location},
-            }
-
         # Search
-        if any(word in msg_lower for word in ["найди", "поищи", "что такое", "кто такой"]):
+        if any(word in msg_lower for word in ["найди", "поищи", "search"]):
             return {
                 "tool": "search",
                 "arguments": {"query": message},

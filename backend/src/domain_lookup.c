@@ -1,3 +1,27 @@
+/* Copyright (c) 2025 Кочуров Владислав Евгеньевич */
+
+#include <ctype.h>
+#include <stddef.h>
+#include <string.h>
+
+/* --- Локальные утилиты --- */
+
+static void str_lower(const char *src, char *dst, size_t max) {
+    if (!dst || max == 0) {
+        return;
+    }
+    if (!src) {
+        dst[0] = '\0';
+        return;
+    }
+
+    size_t i = 0;
+    for (; src[i] != '\0' && i + 1 < max; ++i) {
+        dst[i] = (char)tolower((unsigned char)src[i]);
+    }
+    dst[i] = '\0';
+}
+
 /* Find answer in domain knowledge (IT, law, biology, astronomy, history, medicine, economics, philosophy, AI) */
 static const char *find_domain_answer(const char *message) {
     static const char *domain_kb[][2] = {

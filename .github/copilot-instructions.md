@@ -11,9 +11,20 @@ Hybrid **C23 / Python / WASM** platform: evolutionary compression ("Number-Think
 | Executables | `apps/` | C23 | `kolibri_node.c`, `kolibri_archiver.c`, etc. → link `kolibri_core` |
 | FFI shared libs | `build/libkolibri_evolve.so`, `libkolibri_kpc.so` | C23 | Loaded by Python via `ctypes` |
 | Backend API | `backend/service/` | Python 3.10+ / FastAPI | Modular routers, Pydantic models |
-| Frontend | `frontend/` | React 18 / TypeScript / Vite | WASM bridge with LLM/fallback strategy |
+| Frontend | `frontend/src` | React 18 / TypeScript / Vite | Shipping chat PWA with WASM bridge and backend fallback |
 | Archiver research | `kolibri-archiver/` | C11, own `Makefile` | Zero-dependency, single-file compilation |
 | Content factory | `content_factory_mvp/` | Python / Docker Compose | PostgreSQL + Redis + Celery workers |
+
+Shipping contour:
+
+- `frontend/src`
+- `backend/service`
+- `backend/src`
+- `backend/include/kolibri` (stable subset for public C API)
+- `apps/`
+- `build/wasm` and `frontend/public/kolibri.wasm`
+
+Secondary contours such as `frontend/kolibri-web`, `mobile/kolibri-app`, `cloud-storage`, `content_factory_mvp*`, `kernel`, and `web-app` are integration-only or experimental unless a task explicitly targets them.
 
 ### Data flow
 
@@ -22,18 +33,21 @@ Text → DJB2 tokenisation → 64-digit numeric patterns → weighted knowledge 
 ## Build & Run (always from repo root)
 
 ```bash
-cmake -S . -B build -G Ninja && cmake --build build   # Native C
-./scripts/build_wasm.sh                                 # WASM → build/wasm/kolibri.wasm
-make frontend                                           # WASM + npm install + Vite build
+./scripts/release_gate.sh bootstrap                    # Python + frontend dependencies
+cmake -S . -B build -G Ninja && cmake --build build    # Native C
+./scripts/build_wasm.sh                                # WASM → build/wasm/kolibri.wasm
+make frontend                                          # WASM + Vite build
 cd kolibri-archiver && make                             # Standalone archiver (C11)
 ```
 
 ## Test & Quality
 
 ```bash
-make test              # CTest + pytest + ruff + pyright + Vitest (all-in-one)
-ctest --test-dir build --output-on-failure   # C tests only
-ruff check . && pyright                       # Python lint
+make release-gate     # Active contour only: native runtime + backend pytest + wasm + frontend
+./scripts/release_gate.sh all
+make extended-ci      # Release gate + broad Python/C checks
+ctest --test-dir build --output-on-failure   # Full native test inventory
+ruff check . && pyright                       # Extended Python lint/type checks
 make benchmark                                # Compression benchmarks
 ```
 
@@ -78,7 +92,10 @@ make benchmark                                # Compression benchmarks
 
 ## Frontend Conventions (TypeScript)
 
-- WASM bridge (`frontend/src/core/kolibri-bridge.ts`) uses **Strategy pattern**: `KolibriScriptBridge` (WASM) → `KolibriLLMBridge` (API proxy) → `KolibriFallbackBridge` (error message). Factory `createBridge()` picks based on `VITE_KOLIBRI_RESPONSE_MODE`.
+- Shipping frontend lives in `frontend/src`.
+- Canonical web client is `frontend/src/api.ts`.
+- Canonical WASM bridge is `frontend/src/lib/kolibriBridge.ts`.
+- Shipping shell defaults to backend-driven product flows; WASM is a compatible runtime path, not a separate product API.
 - KolibriScript programs built in TypeScript use Russian keywords: `начало:`, `переменная`, `обучить связь`, `конец.`.
 - WASM exports: `_malloc`, `_free`, `_kolibri_bridge_init`, `_kolibri_bridge_execute`, `_kolibri_bridge_reset`.
 - Includes a full **WasiAdapter** (minimal WASI shim) for browser runtime.
@@ -91,8 +108,8 @@ make benchmark                                # Compression benchmarks
 | Public API headers | `backend/include/kolibri/*.h` |
 | FFI bridge | `backend/src/evolve_ffi.c` (C) ↔ `backend/service/c_evolve.py` (Python) |
 | AI Node entry | `apps/kolibri_node.c` |
-| FastAPI main | `backend/service/main.py` (routers: `ai_chat`, `agent`, `swarm_sync`, etc.) |
-| WASM bridge | `frontend/src/core/kolibri-bridge.ts` |
+| FastAPI main | `backend/service/main.py` (shipping gateway) |
+| WASM bridge | `frontend/src/lib/kolibriBridge.ts` |
 | Test runner (C) | `tests/test_main.c` + `tests/test_<module>.c` |
 | CI policy | `scripts/policy_validate.py` (WASM size, coverage thresholds) |
 | Archiver research | `kolibri-archiver/` (separate C11 build, own Makefile) |

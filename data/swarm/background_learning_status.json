@@ -1,12 +1,12 @@
 {
   "cursor": 0,
-  "last_cycle_started_at": 1775375251.168257,
-  "last_cycle_finished_at": 1775375251.318,
+  "last_cycle_started_at": 1775847309.618783,
+  "last_cycle_finished_at": 1775847309.730229,
   "last_success_at": 0.0,
   "last_error": "",
   "latest_result": {
-    "started_at": 1775375251.168257,
-    "finished_at": 1775375251.318,
+    "started_at": 1775847309.618783,
+    "finished_at": 1775847309.730229,
     "sources_attempted": 0,
     "sources_succeeded": 0,
     "sources_skipped_backoff": 3,
@@ -15,134 +15,6 @@
     "results": []
   },
   "recent_runs": [
-    {
-      "started_at": 1775352681.406888,
-      "finished_at": 1775352682.630435,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
-    {
-      "started_at": 1775354333.1588538,
-      "finished_at": 1775354333.210786,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
-    {
-      "started_at": 1775354695.5465631,
-      "finished_at": 1775354696.3273542,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
-    {
-      "started_at": 1775355058.646404,
-      "finished_at": 1775355059.70268,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
-    {
-      "started_at": 1775355393.97316,
-      "finished_at": 1775355394.482674,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
-    {
-      "started_at": 1775355772.4238138,
-      "finished_at": 1775355772.7676108,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
-    {
-      "started_at": 1775356401.630134,
-      "finished_at": 1775356415.947896,
-      "sources_attempted": 3,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 0,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": [
-        {
-          "id": "ru-programming",
-          "url": "https://ru.wikipedia.org/wiki/%D0%9F%D1%80%D0%BE%D0%B3%D1%80%D0%B0%D0%BC%D0%BC%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5",
-          "title": "Программирование",
-          "domain": "programming",
-          "crawl": false,
-          "status": "error",
-          "error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory"
-        },
-        {
-          "id": "ru-physics",
-          "url": "https://ru.wikipedia.org/wiki/%D0%A4%D0%B8%D0%B7%D0%B8%D0%BA%D0%B0",
-          "title": "Физика",
-          "domain": "physics",
-          "crawl": false,
-          "status": "error",
-          "error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory"
-        },
-        {
-          "id": "ru-ai",
-          "url": "https://ru.wikipedia.org/wiki/%D0%98%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82",
-          "title": "Искусственный интеллект",
-          "domain": "ai",
-          "crawl": false,
-          "status": "error",
-          "error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory"
-        }
-      ]
-    },
-    {
-      "started_at": 1775356816.617756,
-      "finished_at": 1775356817.191241,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
-    {
-      "started_at": 1775357077.442364,
-      "finished_at": 1775357078.226014,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
-    {
-      "started_at": 1775357481.081794,
-      "finished_at": 1775357481.499648,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
     {
       "started_at": 1775357860.947246,
       "finished_at": 1775357861.368051,
@@ -470,6 +342,134 @@
       "saved_documents": 0,
       "domain_delta": [],
       "results": []
+    },
+    {
+      "started_at": 1775845304.327025,
+      "finished_at": 1775845314.522302,
+      "sources_attempted": 3,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 0,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": [
+        {
+          "id": "ru-ai",
+          "url": "https://ru.wikipedia.org/wiki/%D0%98%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82",
+          "title": "Искусственный интеллект",
+          "domain": "ai",
+          "crawl": false,
+          "status": "error",
+          "error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory"
+        },
+        {
+          "id": "ru-programming",
+          "url": "https://ru.wikipedia.org/wiki/%D0%9F%D1%80%D0%BE%D0%B3%D1%80%D0%B0%D0%BC%D0%BC%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5",
+          "title": "Программирование",
+          "domain": "programming",
+          "crawl": false,
+          "status": "error",
+          "error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory"
+        },
+        {
+          "id": "ru-physics",
+          "url": "https://ru.wikipedia.org/wiki/%D0%A4%D0%B8%D0%B7%D0%B8%D0%BA%D0%B0",
+          "title": "Физика",
+          "domain": "physics",
+          "crawl": false,
+          "status": "error",
+          "error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory"
+        }
+      ]
+    },
+    {
+      "started_at": 1775845557.27652,
+      "finished_at": 1775845557.321367,
+      "sources_attempted": 0,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 3,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": []
+    },
+    {
+      "started_at": 1775845800.67172,
+      "finished_at": 1775845800.691135,
+      "sources_attempted": 0,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 3,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": []
+    },
+    {
+      "started_at": 1775846044.091771,
+      "finished_at": 1775846044.211107,
+      "sources_attempted": 0,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 3,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": []
+    },
+    {
+      "started_at": 1775846287.1221771,
+      "finished_at": 1775846287.2256892,
+      "sources_attempted": 0,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 3,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": []
+    },
+    {
+      "started_at": 1775846411.888294,
+      "finished_at": 1775846411.975818,
+      "sources_attempted": 0,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 3,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": []
+    },
+    {
+      "started_at": 1775846654.745151,
+      "finished_at": 1775846654.846292,
+      "sources_attempted": 0,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 3,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": []
+    },
+    {
+      "started_at": 1775846780.480543,
+      "finished_at": 1775846780.55777,
+      "sources_attempted": 0,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 3,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": []
+    },
+    {
+      "started_at": 1775847026.88533,
+      "finished_at": 1775847026.97247,
+      "sources_attempted": 0,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 3,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": []
+    },
+    {
+      "started_at": 1775847309.618783,
+      "finished_at": 1775847309.730229,
+      "sources_attempted": 0,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 3,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": []
     }
   ],
   "source_health": {
@@ -478,54 +478,54 @@
       "url": "https://ru.wikipedia.org/wiki/%D0%98%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82",
       "title": "Искусственный интеллект",
       "domain": "ai",
-      "last_attempt_at": 1775364056.9183328,
+      "last_attempt_at": 1775845304.332412,
       "last_success_at": 0.0,
       "last_change_at": 0.0,
       "last_saved_documents": 0,
-      "total_runs": 4,
+      "total_runs": 5,
       "total_successes": 0,
-      "total_failures": 4,
+      "total_failures": 5,
       "total_saved_documents": 0,
-      "consecutive_failures": 4,
+      "consecutive_failures": 5,
       "consecutive_no_change": 0,
       "last_error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory",
-      "next_eligible_at": 1775378456.9183328
+      "next_eligible_at": 1775866904.332412
     },
     "ru-programming": {
       "source_id": "ru-programming",
       "url": "https://ru.wikipedia.org/wiki/%D0%9F%D1%80%D0%BE%D0%B3%D1%80%D0%B0%D0%BC%D0%BC%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5",
       "title": "Программирование",
       "domain": "programming",
-      "last_attempt_at": 1775364044.7780328,
+      "last_attempt_at": 1775845308.02515,
       "last_success_at": 0.0,
       "last_change_at": 0.0,
       "last_saved_documents": 0,
-      "total_runs": 4,
+      "total_runs": 5,
       "total_successes": 0,
-      "total_failures": 4,
+      "total_failures": 5,
       "total_saved_documents": 0,
-      "consecutive_failures": 4,
+      "consecutive_failures": 5,
       "consecutive_no_change": 0,
       "last_error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory",
-      "next_eligible_at": 1775378444.7780328
+      "next_eligible_at": 1775866908.02515
     },
     "ru-physics": {
       "source_id": "ru-physics",
       "url": "https://ru.wikipedia.org/wiki/%D0%A4%D0%B8%D0%B7%D0%B8%D0%BA%D0%B0",
       "title": "Физика",
       "domain": "physics",
-      "last_attempt_at": 1775364052.395617,
+      "last_attempt_at": 1775845311.254714,
       "last_success_at": 0.0,
       "last_change_at": 0.0,
       "last_saved_documents": 0,
-      "total_runs": 4,
+      "total_runs": 5,
       "total_successes": 0,
-      "total_failures": 4,
+      "total_failures": 5,
       "total_saved_documents": 0,
-      "consecutive_failures": 4,
+      "consecutive_failures": 5,
       "consecutive_no_change": 0,
       "last_error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory",
-      "next_eligible_at": 1775378452.395617
+      "next_eligible_at": 1775866911.254714
     }
   }
 }

@@ -18,6 +18,7 @@ from .background_learning import maybe_autostart_background_learning
 from .continuous_learning_daemon import get_continuous_learning_daemon
 from .swarm_runtime_api import router as swarm_runtime_router, maybe_autostart_swarm_runtime
 from .common import Settings, get_settings, InferenceRequest, perform_upstream_call
+from .cognition_api import router as cognition_router
 
 
 class HealthResponse(BaseModel):
@@ -97,6 +98,7 @@ app.include_router(auth_router)
 app.include_router(account_router)
 app.include_router(health_router)
 app.include_router(swarm_runtime_router)
+app.include_router(cognition_router)
 
 # #Фаза A1+A3: RAG Pipeline + Streaming
 from .streaming_chat import router as streaming_router
@@ -172,7 +174,6 @@ if not _env_flag("KOLIBRI_CHAT_ONLY_MODE", default=True):
     from .distributed_crawler import router as dist_crawler_router
     from .delta_sync import router as delta_sync_router
     from .archiver_service import create_archiver_router
-    from .cognition_api import router as cognition_router
 
     app.include_router(gpu_router)
     app.include_router(os_router)
@@ -182,7 +183,6 @@ if not _env_flag("KOLIBRI_CHAT_ONLY_MODE", default=True):
     app.include_router(dist_crawler_router)
     app.include_router(delta_sync_router)
     app.include_router(create_archiver_router())
-    app.include_router(cognition_router)
 
 
 @app.get("/api/health", response_model=HealthResponse)

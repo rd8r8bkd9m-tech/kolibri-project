@@ -1,57 +1,148 @@
 # Kolibri QA Acceptance
 
-## Every iteration is incomplete until all four gates pass
+## 1. Canonical rule
 
-1. docs updated
-2. targeted backend tests green
-3. frontend typecheck and build green
-4. browser or product smoke green
+Release gate для Kolibri определяется только через active shipping contour:
 
-## Frontend acceptance
+`frontend/src + backend/service + backend/src + WASM + apps`
 
-- desktop: `1280`, `1536`
-- mobile: `390`, `768`
-- light and dark theme
-- no overlap
-- no horizontal overflow
-- no dead buttons
+Никакой release note, статус-апдейт или demo claim не считается честным, если release gate этого контура не зелёный.
 
-### Required flows
+## 2. Bootstrap
 
-- create/select/rename/pin/delete chat
-- send/stream/stop
-- edit and resend
-- file/image preview
-- voice open/close
-- workspace open/close
-- settings open/close
-- login/logout/profile/preferences
+Минимальный локальный bootstrap:
 
-## Backend acceptance
+```bash
+./scripts/release_gate.sh bootstrap
+```
 
-- auth status
-- profile/preferences roundtrip
-- conversation metadata CRUD
-- chat answer path
-- math exactness
-- weather entity switching
-- 5-turn follow-up stability
+Это должно установить:
 
-## Runtime acceptance
+- Python dependencies из `requirements.txt`
+- frontend dependencies из `frontend/package-lock.json`
 
-- ingest updates memory
-- swarm status responds
-- `.kpack` import/export works
-- background learning state visible
+## 3. Release Gate
 
-## Release rule
+### 3.1 Native runtime
 
-No document or status report may claim completion if any gate above is red.
+Команда:
 
-## Reproducible Commands
+```bash
+./scripts/release_gate.sh native
+```
 
-- CTest inventory: `python3 scripts/check_ctest_inventory.py --build-dir build`
-- C runtime Phase 1 benchmark: `ctest --test-dir build -R test_kolibri_http_phase1_benchmark --output-on-failure`
-- C runtime API smoke: `ctest --test-dir build -R test_kolibri_http_server_api --output-on-failure`
-- C runtime stream smoke: `ctest --test-dir build -R test_kolibri_http_stream_api --output-on-failure`
-- Frontend smoke/typecheck/build: `cd frontend && npm run test && npm run lint && npm run build`
+Состав:
+
+- `cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DKOLIBRI_ENABLE_TESTS=ON`
+- `cmake --build build`
+- `python3 scripts/check_ctest_inventory.py --build-dir build`
+- `ctest --test-dir build -R 'test_kolibri_http_server_api|test_kolibri_http_stream_api|test_kolibri_http_phase1_benchmark' --output-on-failure`
+
+Release-blocking native tests:
+
+- `test_kolibri_http_server_api`
+- `test_kolibri_http_stream_api`
+- `test_kolibri_http_phase1_benchmark`
+
+### 3.2 Backend Python
+
+Команда:
+
+```bash
+./scripts/release_gate.sh backend
+```
+
+Targeted pytest suite:
+
+- `tests/test_auth.py`
+- `tests/test_backend_service.py`
+- `tests/test_common.py`
+- `tests/test_context_window.py`
+- `tests/test_e2e_api.py`
+- `tests/test_kpack.py`
+- `tests/test_persistence.py`
+- `tests/test_rate_limiter.py`
+- `tests/test_realtime_lookup.py`
+- `tests/test_reasoning.py`
+- `tests/test_swarm_runtime_api.py`
+- `tests/test_ai_engine_integration.py`
+
+### 3.3 WASM
+
+Команда:
+
+```bash
+./scripts/release_gate.sh wasm
+```
+
+Acceptance:
+
+- `build/wasm/kolibri.wasm` существует
+- `frontend/public/kolibri.wasm` обновлён
+- `frontend/public/kolibri.wasm.sha256` и `frontend/public/kolibri.wasm.txt` обновлены
+
+### 3.4 Frontend
+
+Команда:
+
+```bash
+./scripts/release_gate.sh frontend
+```
+
+Состав:
+
+- `npm run test --prefix frontend`
+- `npm run lint --prefix frontend`
+- `npm run build --prefix frontend`
+
+### 3.5 Combined gate
+
+```bash
+./scripts/release_gate.sh all
+```
+
+или
+
+```bash
+make release-gate
+```
+
+## 4. Manual acceptance scenarios
+
+Следующие сценарии относятся к shipping contour и должны быть воспроизводимы перед релизом:
+
+1. Frontend shell открывается на desktop и mobile breakpoints без overlap и horizontal overflow.
+2. `auth/status`, login/logout и profile/preferences roundtrip работают через backend.
+3. Conversation CRUD и turns являются server source of truth.
+4. Chat basic, follow-up, stream/stop и runtime preferences проходят без broken state.
+5. Workspace позволяет выполнять swarm runtime status, ingest, refresh и `.kpack` import/export.
+6. C runtime smoke и phase-1 benchmark проходят через CTest.
+7. WASM path собирается и поставляется во frontend assets; fallback path задокументирован.
+
+## 5. Extended CI
+
+Extended CI не расширяет официальный release scope. Он даёт дополнительные сигналы по более широкому историческому контуру.
+
+| Job | Classification | Notes |
+|---|---|---|
+| `extended-security-sast` | advisory | security signal для backend/service |
+| `extended-fuzz-parser` | advisory | parser/libFuzzer smoke |
+| `extended-benchmark-regression` | advisory | broader native performance signal |
+| `extended-iso-package` | advisory | legacy/native packaging artifact |
+| `extended-docker-smoke` | advisory | packaging/deploy smoke |
+| `extended-run-all-smoke` | advisory | historical umbrella smoke |
+
+Если extended job красный, это важно зафиксировать, но сам по себе он не должен использоваться как доказательство, что shipping contour "не существует".
+
+## 6. Acceptance alignment rule
+
+Эта страница является каноническим текстовым описанием gate.
+
+Следующие места обязаны ей соответствовать:
+
+- `scripts/release_gate.sh`
+- `Makefile`
+- `scripts/run_all.sh`
+- `.github/workflows/ci.yml`
+- `docs/DEPLOY_RUNBOOK.md`
+- `docs/RELEASE_CHECKLIST.md`
