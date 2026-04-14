@@ -10,15 +10,15 @@
 #ifndef KOLIBRI_AUTONOMOUS_LEARNING_H
 #define KOLIBRI_AUTONOMOUS_LEARNING_H
 
-#include <stdint.h>
-#include <stddef.h>
 #include <pthread.h>
+#include <stddef.h>
+#include <stdint.h>
 
-#include "kolibri/world_model.h"
 #include "kolibri/formula.h"
 #include "kolibri/genome.h"
-#include "kolibri/symbol_table.h"
 #include "kolibri/pattern_discovery.h"
+#include "kolibri/symbol_table.h"
+#include "kolibri/world_model.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,9 +28,9 @@ extern "C" {
 
 /* Chat entry log */
 typedef struct {
-    const char *question;
-    const char *answer;
-    const char *domain;
+    char *question;
+    char *answer;
+    char *domain;
     const char *method;
     double confidence;
     uint64_t timestamp;
@@ -62,17 +62,18 @@ typedef struct {
     KolibriFormulaPool *formula_pool;
     KolibriSymbolTable *symbols;
     KolibriGenome *genome;
-    
+
     /* Chat data log */
     KalChatEntry chat_log[KAL_AUTONOMOUS_MAX_CHAT_LOG];
     int chat_count;
-    
+    pthread_mutex_t chat_lock; /* Protects chat_count / chat_log */
+
     /* Cycle counters */
     uint64_t cycle_count;
     int patterns_discovered;
     int formulas_evolved;
     double best_fitness;
-    
+
     /* Thread control */
     pthread_t thread;
     int thread_running;
@@ -87,13 +88,8 @@ typedef struct {
  * ============================================================================ */
 
 /** Create autonomous learning context */
-AutonomousLearningCtx* kal_autonomous_create(
-    KwmContext *world_model,
-    KolibriFormulaPool *formula_pool,
-    KolibriSymbolTable *symbols,
-    KolibriGenome *genome,
-    uint64_t seed
-);
+AutonomousLearningCtx *kal_autonomous_create(KwmContext *world_model, KolibriFormulaPool *formula_pool,
+                                             KolibriSymbolTable *symbols, KolibriGenome *genome, uint64_t seed);
 
 /** Destroy context and free resources */
 void kal_autonomous_destroy(AutonomousLearningCtx *ctx);
@@ -125,17 +121,15 @@ void kal_autonomous_set_interval(AutonomousLearningCtx *ctx, uint64_t seconds);
  * ============================================================================ */
 
 /** Add chat Q&A to the learning pipeline */
-int kal_autonomous_add_chat_data(AutonomousLearningCtx *ctx,
-                                  const char *question, const char *answer,
-                                  const char *domain);
+int kal_autonomous_add_chat_data(AutonomousLearningCtx *ctx, const char *question, const char *answer,
+                                 const char *domain);
 
 /* ============================================================================
  * STATUS
  * ============================================================================ */
 
 /** Get current status snapshot */
-void kal_autonomous_get_status(AutonomousLearningCtx *ctx,
-                                KalAutonomousStatus *status);
+void kal_autonomous_get_status(AutonomousLearningCtx *ctx, KalAutonomousStatus *status);
 
 /* ============================================================================
  * TIME HELPER (same as in kolibri_http_server)
