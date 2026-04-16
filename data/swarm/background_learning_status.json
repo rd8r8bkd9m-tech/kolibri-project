@@ -1,12 +1,12 @@
 {
-  "cursor": 0,
-  "last_cycle_started_at": 1775847309.618783,
-  "last_cycle_finished_at": 1775847309.730229,
+  "cursor": 1,
+  "last_cycle_started_at": 1776360888.6555939,
+  "last_cycle_finished_at": 1776360888.6983209,
   "last_success_at": 0.0,
   "last_error": "",
   "latest_result": {
-    "started_at": 1775847309.618783,
-    "finished_at": 1775847309.730229,
+    "started_at": 1776360888.6555939,
+    "finished_at": 1776360888.6983209,
     "sources_attempted": 0,
     "sources_succeeded": 0,
     "sources_skipped_backoff": 3,
@@ -16,8 +16,8 @@
   },
   "recent_runs": [
     {
-      "started_at": 1775357860.947246,
-      "finished_at": 1775357861.368051,
+      "started_at": 1776016255.013695,
+      "finished_at": 1776016255.0246642,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -26,8 +26,8 @@
       "results": []
     },
     {
-      "started_at": 1775358255.431842,
-      "finished_at": 1775358255.981921,
+      "started_at": 1776016495.797598,
+      "finished_at": 1776016495.7983181,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -36,8 +36,8 @@
       "results": []
     },
     {
-      "started_at": 1775359487.8927748,
-      "finished_at": 1775359488.827073,
+      "started_at": 1776016736.486094,
+      "finished_at": 1776016736.487406,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -46,8 +46,8 @@
       "results": []
     },
     {
-      "started_at": 1775359880.164154,
-      "finished_at": 1775359880.698163,
+      "started_at": 1776016977.194574,
+      "finished_at": 1776016977.1956108,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -56,8 +56,8 @@
       "results": []
     },
     {
-      "started_at": 1775360138.8806841,
-      "finished_at": 1775360139.719563,
+      "started_at": 1776017217.906625,
+      "finished_at": 1776017217.907569,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -66,8 +66,8 @@
       "results": []
     },
     {
-      "started_at": 1775360994.499969,
-      "finished_at": 1775360995.31163,
+      "started_at": 1776017458.640617,
+      "finished_at": 1776017458.642262,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -76,8 +76,8 @@
       "results": []
     },
     {
-      "started_at": 1775361442.816566,
-      "finished_at": 1775361444.774594,
+      "started_at": 1776017699.401931,
+      "finished_at": 1776017699.404043,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -86,8 +86,8 @@
       "results": []
     },
     {
-      "started_at": 1775361891.435664,
-      "finished_at": 1775361892.9638872,
+      "started_at": 1776017940.108005,
+      "finished_at": 1776017940.108862,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -96,8 +96,8 @@
       "results": []
     },
     {
-      "started_at": 1775362356.2239401,
-      "finished_at": 1775362357.050841,
+      "started_at": 1776018180.856159,
+      "finished_at": 1776018180.857119,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -106,8 +106,8 @@
       "results": []
     },
     {
-      "started_at": 1775362820.5389178,
-      "finished_at": 1775362821.6592362,
+      "started_at": 1776018421.5954611,
+      "finished_at": 1776018421.5965781,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -116,8 +116,8 @@
       "results": []
     },
     {
-      "started_at": 1775363283.0656588,
-      "finished_at": 1775363283.834742,
+      "started_at": 1776018662.2754529,
+      "finished_at": 1776018662.2767239,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -126,8 +126,8 @@
       "results": []
     },
     {
-      "started_at": 1775363544.381639,
-      "finished_at": 1775363545.8637052,
+      "started_at": 1776018902.969255,
+      "finished_at": 1776018902.970154,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -136,23 +136,114 @@
       "results": []
     },
     {
-      "started_at": 1775364043.540352,
-      "finished_at": 1775364062.5623481,
+      "started_at": 1776019145.966466,
+      "finished_at": 1776019145.9672792,
+      "sources_attempted": 0,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 3,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": []
+    },
+    {
+      "started_at": 1776019387.700263,
+      "finished_at": 1776019387.7040908,
+      "sources_attempted": 0,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 3,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": []
+    },
+    {
+      "started_at": 1776019632.0616908,
+      "finished_at": 1776019632.071872,
+      "sources_attempted": 0,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 3,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": []
+    },
+    {
+      "started_at": 1776019874.961845,
+      "finished_at": 1776019874.966273,
+      "sources_attempted": 0,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 3,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": []
+    },
+    {
+      "started_at": 1776020117.588651,
+      "finished_at": 1776020117.59454,
+      "sources_attempted": 0,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 3,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": []
+    },
+    {
+      "started_at": 1776020362.933755,
+      "finished_at": 1776020362.950162,
+      "sources_attempted": 0,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 3,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": []
+    },
+    {
+      "started_at": 1776020621.457597,
+      "finished_at": 1776020621.481013,
+      "sources_attempted": 0,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 3,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": []
+    },
+    {
+      "started_at": 1776020876.8504078,
+      "finished_at": 1776020876.854513,
+      "sources_attempted": 0,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 3,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": []
+    },
+    {
+      "started_at": 1776021117.8663208,
+      "finished_at": 1776021117.868769,
+      "sources_attempted": 0,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 3,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": []
+    },
+    {
+      "started_at": 1776021358.652123,
+      "finished_at": 1776021358.6533859,
+      "sources_attempted": 0,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 3,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": []
+    },
+    {
+      "started_at": 1776021599.33272,
+      "finished_at": 1776021607.0705018,
       "sources_attempted": 3,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 0,
       "saved_documents": 0,
       "domain_delta": [],
       "results": [
-        {
-          "id": "ru-programming",
-          "url": "https://ru.wikipedia.org/wiki/%D0%9F%D1%80%D0%BE%D0%B3%D1%80%D0%B0%D0%BC%D0%BC%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5",
-          "title": "Программирование",
-          "domain": "programming",
-          "crawl": false,
-          "status": "error",
-          "error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory"
-        },
         {
           "id": "ru-physics",
           "url": "https://ru.wikipedia.org/wiki/%D0%A4%D0%B8%D0%B7%D0%B8%D0%BA%D0%B0",
@@ -170,12 +261,21 @@
           "crawl": false,
           "status": "error",
           "error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory"
+        },
+        {
+          "id": "ru-programming",
+          "url": "https://ru.wikipedia.org/wiki/%D0%9F%D1%80%D0%BE%D0%B3%D1%80%D0%B0%D0%BC%D0%BC%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5",
+          "title": "Программирование",
+          "domain": "programming",
+          "crawl": false,
+          "status": "error",
+          "error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory"
         }
       ]
     },
     {
-      "started_at": 1775364597.6623418,
-      "finished_at": 1775364599.872931,
+      "started_at": 1776021848.665601,
+      "finished_at": 1776021848.670617,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -184,8 +284,8 @@
       "results": []
     },
     {
-      "started_at": 1775365128.2591958,
-      "finished_at": 1775365128.89165,
+      "started_at": 1776022090.196396,
+      "finished_at": 1776022090.199359,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -194,8 +294,8 @@
       "results": []
     },
     {
-      "started_at": 1775365576.540066,
-      "finished_at": 1775365576.938091,
+      "started_at": 1776022331.224288,
+      "finished_at": 1776022331.22517,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -204,8 +304,8 @@
       "results": []
     },
     {
-      "started_at": 1775365843.187971,
-      "finished_at": 1775365843.416733,
+      "started_at": 1776022575.1414971,
+      "finished_at": 1776022575.1422982,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -214,8 +314,8 @@
       "results": []
     },
     {
-      "started_at": 1775367746.438287,
-      "finished_at": 1775367747.081126,
+      "started_at": 1776022815.834367,
+      "finished_at": 1776022815.835051,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -224,8 +324,8 @@
       "results": []
     },
     {
-      "started_at": 1775368807.0839481,
-      "finished_at": 1775368807.087998,
+      "started_at": 1776023056.471329,
+      "finished_at": 1776023056.472286,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -234,8 +334,46 @@
       "results": []
     },
     {
-      "started_at": 1775368807.1340978,
-      "finished_at": 1775368807.137857,
+      "started_at": 1776206401.872117,
+      "finished_at": 1776206409.234071,
+      "sources_attempted": 3,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 0,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": [
+        {
+          "id": "ru-physics",
+          "url": "https://ru.wikipedia.org/wiki/%D0%A4%D0%B8%D0%B7%D0%B8%D0%BA%D0%B0",
+          "title": "Физика",
+          "domain": "physics",
+          "crawl": false,
+          "status": "error",
+          "error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory"
+        },
+        {
+          "id": "ru-ai",
+          "url": "https://ru.wikipedia.org/wiki/%D0%98%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82",
+          "title": "Искусственный интеллект",
+          "domain": "ai",
+          "crawl": false,
+          "status": "error",
+          "error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory"
+        },
+        {
+          "id": "ru-programming",
+          "url": "https://ru.wikipedia.org/wiki/%D0%9F%D1%80%D0%BE%D0%B3%D1%80%D0%B0%D0%BC%D0%BC%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5",
+          "title": "Программирование",
+          "domain": "programming",
+          "crawl": false,
+          "status": "error",
+          "error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory"
+        }
+      ]
+    },
+    {
+      "started_at": 1776206657.427139,
+      "finished_at": 1776206657.512127,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -244,108 +382,8 @@
       "results": []
     },
     {
-      "started_at": 1775368807.743398,
-      "finished_at": 1775368807.7571342,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
-    {
-      "started_at": 1775368808.310273,
-      "finished_at": 1775368808.3416479,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
-    {
-      "started_at": 1775368818.463138,
-      "finished_at": 1775368818.4653819,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
-    {
-      "started_at": 1775368818.474462,
-      "finished_at": 1775368818.476918,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
-    {
-      "started_at": 1775369060.67325,
-      "finished_at": 1775369060.720683,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
-    {
-      "started_at": 1775373201.873632,
-      "finished_at": 1775373201.99517,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
-    {
-      "started_at": 1775374359.3972962,
-      "finished_at": 1775374359.44835,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
-    {
-      "started_at": 1775374696.653622,
-      "finished_at": 1775374696.778384,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
-    {
-      "started_at": 1775374974.819217,
-      "finished_at": 1775374975.1190531,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
-    {
-      "started_at": 1775375251.168257,
-      "finished_at": 1775375251.318,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
-    {
-      "started_at": 1775845304.327025,
-      "finished_at": 1775845314.522302,
+      "started_at": 1776280127.866279,
+      "finished_at": 1776280136.946804,
       "sources_attempted": 3,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 0,
@@ -382,8 +420,8 @@
       ]
     },
     {
-      "started_at": 1775845557.27652,
-      "finished_at": 1775845557.321367,
+      "started_at": 1776280388.59469,
+      "finished_at": 1776280388.6846368,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -392,8 +430,8 @@
       "results": []
     },
     {
-      "started_at": 1775845800.67172,
-      "finished_at": 1775845800.691135,
+      "started_at": 1776280912.662613,
+      "finished_at": 1776280912.701558,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -402,8 +440,8 @@
       "results": []
     },
     {
-      "started_at": 1775846044.091771,
-      "finished_at": 1775846044.211107,
+      "started_at": 1776281200.870046,
+      "finished_at": 1776281200.995708,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -412,8 +450,46 @@
       "results": []
     },
     {
-      "started_at": 1775846287.1221771,
-      "finished_at": 1775846287.2256892,
+      "started_at": 1776360086.2639968,
+      "finished_at": 1776360093.7631512,
+      "sources_attempted": 3,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 0,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": [
+        {
+          "id": "ru-ai",
+          "url": "https://ru.wikipedia.org/wiki/%D0%98%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82",
+          "title": "Искусственный интеллект",
+          "domain": "ai",
+          "crawl": false,
+          "status": "error",
+          "error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory"
+        },
+        {
+          "id": "ru-programming",
+          "url": "https://ru.wikipedia.org/wiki/%D0%9F%D1%80%D0%BE%D0%B3%D1%80%D0%B0%D0%BC%D0%BC%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5",
+          "title": "Программирование",
+          "domain": "programming",
+          "crawl": false,
+          "status": "error",
+          "error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory"
+        },
+        {
+          "id": "ru-physics",
+          "url": "https://ru.wikipedia.org/wiki/%D0%A4%D0%B8%D0%B7%D0%B8%D0%BA%D0%B0",
+          "title": "Физика",
+          "domain": "physics",
+          "crawl": false,
+          "status": "error",
+          "error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory"
+        }
+      ]
+    },
+    {
+      "started_at": 1776360335.5017118,
+      "finished_at": 1776360335.58772,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -422,8 +498,8 @@
       "results": []
     },
     {
-      "started_at": 1775846411.888294,
-      "finished_at": 1775846411.975818,
+      "started_at": 1776360554.970309,
+      "finished_at": 1776360554.971515,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -432,8 +508,8 @@
       "results": []
     },
     {
-      "started_at": 1775846654.745151,
-      "finished_at": 1775846654.846292,
+      "started_at": 1776360646.820288,
+      "finished_at": 1776360646.821312,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -442,28 +518,8 @@
       "results": []
     },
     {
-      "started_at": 1775846780.480543,
-      "finished_at": 1775846780.55777,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
-    {
-      "started_at": 1775847026.88533,
-      "finished_at": 1775847026.97247,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
-    {
-      "started_at": 1775847309.618783,
-      "finished_at": 1775847309.730229,
+      "started_at": 1776360888.6555939,
+      "finished_at": 1776360888.6983209,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,
@@ -478,54 +534,54 @@
       "url": "https://ru.wikipedia.org/wiki/%D0%98%D1%81%D0%BA%D1%83%D1%81%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9_%D0%B8%D0%BD%D1%82%D0%B5%D0%BB%D0%BB%D0%B5%D0%BA%D1%82",
       "title": "Искусственный интеллект",
       "domain": "ai",
-      "last_attempt_at": 1775845304.332412,
+      "last_attempt_at": 1776360086.2764218,
       "last_success_at": 0.0,
       "last_change_at": 0.0,
       "last_saved_documents": 0,
-      "total_runs": 5,
+      "total_runs": 15,
       "total_successes": 0,
-      "total_failures": 5,
+      "total_failures": 15,
       "total_saved_documents": 0,
-      "consecutive_failures": 5,
+      "consecutive_failures": 15,
       "consecutive_no_change": 0,
       "last_error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory",
-      "next_eligible_at": 1775866904.332412
+      "next_eligible_at": 1776381686.2764218
     },
     "ru-programming": {
       "source_id": "ru-programming",
       "url": "https://ru.wikipedia.org/wiki/%D0%9F%D1%80%D0%BE%D0%B3%D1%80%D0%B0%D0%BC%D0%BC%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5",
       "title": "Программирование",
       "domain": "programming",
-      "last_attempt_at": 1775845308.02515,
+      "last_attempt_at": 1776360089.333813,
       "last_success_at": 0.0,
       "last_change_at": 0.0,
       "last_saved_documents": 0,
-      "total_runs": 5,
+      "total_runs": 15,
       "total_successes": 0,
-      "total_failures": 5,
+      "total_failures": 15,
       "total_saved_documents": 0,
-      "consecutive_failures": 5,
+      "consecutive_failures": 15,
       "consecutive_no_change": 0,
       "last_error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory",
-      "next_eligible_at": 1775866908.02515
+      "next_eligible_at": 1776381689.333813
     },
     "ru-physics": {
       "source_id": "ru-physics",
       "url": "https://ru.wikipedia.org/wiki/%D0%A4%D0%B8%D0%B7%D0%B8%D0%BA%D0%B0",
       "title": "Физика",
       "domain": "physics",
-      "last_attempt_at": 1775845311.254714,
+      "last_attempt_at": 1776360091.4286,
       "last_success_at": 0.0,
       "last_change_at": 0.0,
       "last_saved_documents": 0,
-      "total_runs": 5,
+      "total_runs": 15,
       "total_successes": 0,
-      "total_failures": 5,
+      "total_failures": 15,
       "total_saved_documents": 0,
-      "consecutive_failures": 5,
+      "consecutive_failures": 15,
       "consecutive_no_change": 0,
       "last_error": "[formula-trainer] saved 1 documents into /Users/kolibri/Desktop/kolibri-project/data/swarm/live_formula_memory",
-      "next_eligible_at": 1775866911.254714
+      "next_eligible_at": 1776381691.4286
     }
   }
 }

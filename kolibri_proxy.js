@@ -176,10 +176,40 @@ const server = http.createServer((req, res) => {
                     if (smart) { answer = smart; method = 'smart_knowledge'; confidence = 0.9; }
                 }
                 
-                /* 4. Fallback */
+                /* 4. Fallback - proxy to C server */
                 if (!answer) {
-                    answer = `Не могу ответить на "${message}". Попробуйте спросить про столицы, математику, науку или историю.`;
-                    method = 'fallback'; confidence = 0.3;
+                    // Forward to full C server on 8001
+                    const options = {
+                        hostname: 'localhost',
+                        port: 8001,
+                        path: '/api/v1/ai/chat',
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Content-Length': Buffer.byteLength(body)
+                        }
+                    };
+                    
+                    const proxyReq = http.request(options, (proxyRes) => {
+                        let proxyBody = '';
+                        proxyRes.on('data', chunk => proxyBody += chunk);
+                        proxyRes.on('end', () => {
+                            res.writeHead(200, { 'Content-Type': 'application/json' });
+                            res.end(proxyBody);
+                        });
+                    });
+                    
+                    proxyReq.on('error', (err) => {
+                        console.error('Proxy error:', err.message);
+                        // Fallback if C server is down
+                        answer = `Не могу ответить на "${message}". Попробуйте спросить про столицы, математику, науку или историю.`;
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ response: answer, conversation_id: convId, method: 'fallback', confidence: 0.3 }));
+                    });
+                    
+                    proxyReq.write(body);
+                    proxyReq.end();
+                    return;
                 }
                 
                 res.writeHead(200, { 'Content-Type': 'application/json' });

@@ -6,12 +6,33 @@ FE="$ROOT/frontend"
 # Fix PATH — add Homebrew and Node.js paths
 export PATH="/opt/homebrew/bin:/opt/homebrew/opt/sqlite/bin:/Users/kolibri/.nvm/versions/node/v22.21.1/bin:$PATH"
 
-# Kill old
-pkill -f kolibri_http 2>/dev/null || true
-pkill -f kolibri_swarm 2>/dev/null || true
-pkill -f kolibri_mac_proxy 2>/dev/null || true
-pkill -f vite 2>/dev/null || true
-sleep 1
+# Kill old - use -9 for force kill and wait for port release
+pkill -9 -f kolibri_http 2>/dev/null || true
+pkill -9 -f kolibri_swarm 2>/dev/null || true
+pkill -9 -f kolibri_mac_proxy 2>/dev/null || true
+pkill -9 -f vite 2>/dev/null || true
+pkill -9 -f "node server.cjs" 2>/dev/null || true
+sleep 2
+
+# Wait for port 8001 to be free (max 10 seconds)
+echo "Waiting for port 8001 to be free..."
+for i in {1..10}; do
+    if ! lsof -i :8001 > /dev/null 2>&1; then
+        echo "Port 8001 is free"
+        break
+    fi
+    echo "  Waiting... ($i)"
+    sleep 1
+done
+
+# Also ensure port 3000 is free
+pkill -9 -f "python3.*3000" 2>/dev/null || true
+for i in {1..5}; do
+    if ! lsof -i :3000 > /dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+done
 
 # Compile C HTTP if missing or source is newer
 HTTP_NEED_BUILD=0
@@ -84,20 +105,18 @@ if [ -f "$ROOT/kolibri_mac_proxy.js" ]; then
 fi
 
 # Start frontend
-if command -v npx &> /dev/null; then
-    echo "🎨 Starting frontend dev server :3000..."
-    cd "$FE" && npx vite --port 3000 --host 0.0.0.0 > /tmp/vite.log 2>&1 &
+if [ -f "$FE/dist/index.html" ]; then
+    echo "🎨 Starting frontend server :3000 (with API proxy)..."
+    cd "$FE" && node server.cjs > /tmp/kolibri_frontend.log 2>&1 &
     VPID=$!
-    sleep 3
+    sleep 2
     if kill -0 $VPID 2>/dev/null; then
-        echo "✅ Frontend: http://localhost:3000"
+        echo "✅ Frontend: http://localhost:3000 (API proxy enabled)"
     else
-        echo "⚠️  Frontend failed to start. Check /tmp/vite.log"
-        echo "   Try: cd frontend && npm install && npm run dev"
+        echo "⚠️  Frontend failed to start. Check /tmp/kolibri_frontend.log"
     fi
 else
-    echo "⚠️  npx not found — skipping frontend"
-    echo "   Install Node.js: brew install node"
+    echo "⚠️  Frontend dist not found. Run: cd frontend && npm run build"
     VPID=""
 fi
 
@@ -114,6 +133,22 @@ echo "  Chat: curl -X POST http://localhost:8001/api/v1/ai/chat \\"
 echo "        -H 'Content-Type: application/json' \\"
 echo "        -d '{\"message\":\"привет\"}'"
 echo "============================================================"
+echo ""
+echo "Watchdog: auto-restart on crash every 3s"
 
-trap "kill $BPID $SWARM_PID $PROXY_PID $VPID 2>/dev/null; exit 0" INT TERM
-wait $VPID 2>/dev/null || true
+# Watchdog: auto-restart on crash
+while true; do
+    sleep 3
+    # Restart backend if dead
+    if ! kill -0 $BPID 2>/dev/null; then
+        echo "[watchdog] Backend crashed, restarting..."
+        cd "$ROOT" && ./kolibri_http 8001 &
+        BPID=$!
+    fi
+    # Restart frontend if dead
+    if ! kill -0 $VPID 2>/dev/null; then
+        echo "[watchdog] Frontend crashed, restarting..."
+        cd "$FE" && node server.cjs > /tmp/kolibri_frontend.log 2>&1 &
+        VPID=$!
+    fi
+done

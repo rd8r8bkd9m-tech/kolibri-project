@@ -1,0 +1,23 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body, #root { height: 100%; overflow: hidden; }
+
+/* 
+  Все кастомные классы удалены в соответствии с правилом "Mantine First".
+  Стилизация теперь выполняется через Style Props компонентов Mantine.
+*/
+.markdown-content h1 { font-size: var(--mantine-font-size-xl); font-weight: 600; margin-top: var(--mantine-spacing-sm); margin-bottom: var(--mantine-spacing-xs); }
+.markdown-content h2 { font-size: var(--mantine-font-size-lg); font-weight: 600; margin-top: var(--mantine-spacing-sm); margin-bottom: var(--mantine-spacing-xs); }
+.markdown-content p { margin: var(--mantine-spacing-xs) 0; }
+.markdown-content code { font-family: var(--mantine-font-family-monospace); background-color: var(--mantine-color-dark-6); padding: 2px 6px; border-radius: var(--mantine-radius-sm); }
+.markdown-content pre { background-color: var(--mantine-color-dark-7); padding: var(--mantine-spacing-md); border-radius: var(--mantine-radius-md); overflow-x: auto; margin: var(--mantine-spacing-sm) 0; }
+.markdown-content pre code { background-color: transparent; padding: 0; }
+.markdown-content ul, .markdown-content ol { padding-left: var(--mantine-spacing-xl); margin: var(--mantine-spacing-xs) 0; }
+.markdown-content a { color: var(--mantine-color-blue-4); text-decoration: none; }
+.markdown-content a:hover { text-decoration: underline; }
+
+.hover-paper { cursor: pointer; transition: background 0.2s; }
+.hover-paper:hover { background-color: var(--mantine-color-dark-5) !important; }
+
+.hover-action { transition: transform 0.2s; }
+.hover-action:hover:not(:disabled) { transform: scale(1.05); }
