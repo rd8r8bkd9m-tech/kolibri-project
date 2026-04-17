@@ -10,11 +10,12 @@
 #include <string.h>
 #include <stdlib.h>
 
-int kolibri_ae_init_loop(KolibriActionLoop *loop, const char *goal) {
+int kolibri_ae_init_loop(KolibriActionLoop *loop, const char *goal, KolibriGenome *genome) {
     if (!loop || !goal) return -1;
     memset(loop, 0, sizeof(KolibriActionLoop));
     strncpy(loop->goal, goal, sizeof(loop->goal) - 1);
     loop->overall_status = KAE_STATUS_PENDING;
+    loop->genome = genome;
     kolibri_tr_init(); /* Initialize tools */
     return 0;
 }
@@ -67,6 +68,13 @@ int kolibri_ae_execute_current(KolibriActionLoop *loop) {
     if (act->type == KAE_ACTION_TOOL_USE) {
         if (kolibri_tr_execute(act->tool_id, act->parameters, act->result, sizeof(act->result)) == 0) {
             act->status = KAE_STATUS_SUCCESS;
+            /* Log success to Genome */
+            if (loop->genome) {
+                char log_payload[KOLIBRI_PAYLOAD_SIZE];
+                snprintf(log_payload, sizeof(log_payload), "Action: %s, Tool: %s, Result: %s", 
+                         act->name, act->tool_id, act->result);
+                kg_append(loop->genome, "ACTION_SUCCESS", log_payload, NULL);
+            }
         } else {
             act->status = KAE_STATUS_FAILURE;
             snprintf(act->result, sizeof(act->result), "Tool execution failed: %s", act->tool_id);
@@ -74,6 +82,9 @@ int kolibri_ae_execute_current(KolibriActionLoop *loop) {
     } else {
         snprintf(act->result, 2047, "Reasoning step completed.");
         act->status = KAE_STATUS_SUCCESS;
+        if (loop->genome) {
+            kg_append(loop->genome, "REASON_STEP", act->reasoning_justification, NULL);
+        }
     }
     
     return 0;

@@ -11,6 +11,8 @@
 #define KOLIBRI_ACTION_ENGINE_H
 
 #include "reasoning_engine.h"
+#include "genome.h"
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -54,6 +56,7 @@ typedef struct {
     int current_action_idx;
     KolibriActionStatus overall_status;
     double progress;
+    KolibriGenome *genome; /* For provenance logging */
 } KolibriActionLoop;
 
 /* ============================================================================
@@ -63,7 +66,7 @@ typedef struct {
 /**
  * Инициализировать цикл действий для достижения цели
  */
-int kolibri_ae_init_loop(KolibriActionLoop *loop, const char *goal);
+int kolibri_ae_init_loop(KolibriActionLoop *loop, const char *goal, KolibriGenome *genome);
 
 /**
  * Спланировать следующий шаг на основе текущего состояния и reasoning
