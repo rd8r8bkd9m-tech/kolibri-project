@@ -112,6 +112,7 @@ add_library(kolibri_core_objects OBJECT
     core/random.c
     core/reasoning_engine.c
     core/action_engine.c
+    core/tool_registry.c
     core/reinforcement_learning.c
 
     core/roy.c

@@ -5,6 +5,7 @@
  */
 
 #include "kolibri/action_engine.h"
+#include "kolibri/tool_registry.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -14,6 +15,7 @@ int kolibri_ae_init_loop(KolibriActionLoop *loop, const char *goal) {
     memset(loop, 0, sizeof(KolibriActionLoop));
     strncpy(loop->goal, goal, sizeof(loop->goal) - 1);
     loop->overall_status = KAE_STATUS_PENDING;
+    kolibri_tr_init(); /* Initialize tools */
     return 0;
 }
 
@@ -22,11 +24,15 @@ int kolibri_ae_plan_step(KolibriActionLoop *loop, const KolibriReasoningResult *
 
     KolibriAction *act = &loop->actions[loop->num_actions];
     
-    /* Логика выбора действия на основе reasoning */
-    if (strstr(reasoning->answer, "ИИ") || strstr(reasoning->answer, "интеллект")) {
-        strncpy(act->name, "Search AI definitions", 63);
-        strncpy(act->tool_id, "web_search", 63);
-        snprintf(act->parameters, 1023, "{\"query\": \"%s\"}", reasoning->query);
+    /* Логика выбора действия на основе reasoning и реестра инструментов */
+    if (strstr(reasoning->answer, "расчет") || strstr(reasoning->answer, "вычисли")) {
+        strncpy(act->name, "Perform Calculation", 63);
+        strncpy(act->tool_id, "calc", 63);
+        snprintf(act->parameters, 1023, "{\"expr\": \"%s\"}", reasoning->query);
+        act->type = KAE_ACTION_TOOL_USE;
+    } else if (strstr(reasoning->answer, "система") || strstr(reasoning->answer, "версия")) {
+        strncpy(act->name, "Check System Info", 63);
+        strncpy(act->tool_id, "sys_info", 63);
         act->type = KAE_ACTION_TOOL_USE;
     } else {
         strncpy(act->name, "Internal Analysis", 63);
@@ -45,12 +51,26 @@ int kolibri_ae_execute_current(KolibriActionLoop *loop) {
     if (!loop || loop->current_action_idx >= loop->num_actions) return -1;
     
     KolibriAction *act = &loop->actions[loop->current_action_idx];
+    
+    /* Safety Check: если инструмент небезопасен, блокируем выполнение до подтверждения */
+    if (act->type == KAE_ACTION_TOOL_USE) {
+        const KolibriTool *tool = kolibri_tr_get(act->tool_id);
+        if (tool && !tool->is_safe && act->status != KAE_STATUS_EXECUTING) {
+            act->status = KAE_STATUS_BLOCKED;
+            printf("ACTION BLOCKED: Tool '%s' requires manual confirmation.\n", act->tool_id);
+            return 1;
+        }
+    }
+
     act->status = KAE_STATUS_EXECUTING;
     
-    /* Эмуляция исполнения */
     if (act->type == KAE_ACTION_TOOL_USE) {
-        snprintf(act->result, 2047, "Executed tool %s with params %s. Success.", act->tool_id, act->parameters);
-        act->status = KAE_STATUS_SUCCESS;
+        if (kolibri_tr_execute(act->tool_id, act->parameters, act->result, sizeof(act->result)) == 0) {
+            act->status = KAE_STATUS_SUCCESS;
+        } else {
+            act->status = KAE_STATUS_FAILURE;
+            snprintf(act->result, sizeof(act->result), "Tool execution failed: %s", act->tool_id);
+        }
     } else {
         snprintf(act->result, 2047, "Reasoning step completed.");
         act->status = KAE_STATUS_SUCCESS;
