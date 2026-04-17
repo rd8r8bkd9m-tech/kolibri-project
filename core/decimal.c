@@ -441,3 +441,31 @@ int k_digit_hash(const char *input, size_t len, char *out64) {
     out64[64] = '\0';
     return 0;
 }
+
+/* ========================================================================== */
+/* --- Phase 1.2: Triplet-Detection & Packing --- */
+/* ========================================================================== */
+
+int k_triplet_pack(k_digit_stream *stream) {
+    if (!stream || stream->length < 3) return 0;
+
+    /* Ищем последовательности из 3 одинаковых цифр (триплеты) */
+    /* Пример: 555 -> упаковываем как спец-код + цифра */
+    /* В данной реализации мы просто помечаем их для 'hardware-compression' */
+    
+    size_t packed_count = 0;
+    for (size_t i = 0; i <= stream->length - 3; ) {
+        if (stream->digits[i] == stream->digits[i+1] && 
+            stream->digits[i] == stream->digits[i+2]) {
+            /* Найден триплет! */
+            /* В реальной системе здесь будет вызов SIMD инструкции для сжатия блока */
+            packed_count++;
+            i += 3;
+        } else {
+            i++;
+        }
+    }
+    
+    return (int)packed_count;
+}
+

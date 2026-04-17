@@ -13,6 +13,7 @@
  */
 
 #include "kolibri/agi_pipeline.h"
+#include "kolibri/answer_composer.h"
 #include "kolibri/corpus_trainer.h"
 #include "kolibri/formula.h"
 #include "kolibri/intent_classifier.h"
@@ -183,30 +184,61 @@ static int agi_stage_formula(const char *query, const KolibriAGIConfig *config, 
                              KolibriAGIStageResult *result_out) {
     double t0 = agi_time_ms();
     agi_stage_result_init(result_out, KAGI_STAGE_FORMULA);
-    strcpy(result_out->method_name, "formula_pool_math");
-
-    /* Проверяем, есть ли математические паттерны */
+    
+    /* Сначала проверяем, является ли запрос математическим уравнением */
     double a = 0, b = 0, c = 0;
-    char equation[256] = {0};
-    snprintf(equation, sizeof(equation), "%s", query);
     KolibriEqType eq_type = kolibri_parse_equation(query, &a, &b, &c);
 
-    /* Пробуем решить уравнение */
     if (eq_type != KMS_EQ_UNKNOWN) {
+        strcpy(result_out->method_name, "math_solver");
         KolibriEquationSolution sol;
         if (kolibri_solve_linear(a, b, c, &sol) == 0) {
             snprintf(result_out->answer, sizeof(result_out->answer), "Решение: x = %.6f", sol.x1);
-            result_out->confidence = 0.98;
+            result_out->confidence = 0.99;
             result_out->success = 1;
-            snprintf(result_out->explanation, sizeof(result_out->explanation), "Линейное уравнение решено: %s",
-                     equation);
+            snprintf(result_out->explanation, sizeof(result_out->explanation), "Линейное уравнение решено: %s", query);
             result_out->duration_ms = agi_time_ms() - t0;
             return 0;
         }
     }
 
+    /* Если это не математика, используем новый Answer Composer */
+    strcpy(result_out->method_name, "answer_composer");
+    
+    // TODO: Здесь должна быть логика определения, нужен ли композиционный ответ. Пока делаем всегда.
+    
+    KolibriAnswerComposer composer;
+    kac_init(&composer);
+
+    // TODO: Здесь должна быть логика поиска N лучших ассоциаций.
+    // Пока для теста просто итерируем все и добавляем, если вопрос похож.
+    int fragments_found = 0;
+    for (size_t i = 0; i < formula_pool->association_count; ++i) {
+        const KolibriAssociation *assoc = &formula_pool->associations[i];
+        // Простое условие для демо: ищем подстроку
+        if (strstr(query, assoc->question) != NULL || strstr(assoc->question, query) != NULL) {
+            kac_add_fragment(&composer, assoc, 0.8); // Используем высокий score для теста
+            fragments_found++;
+        }
+    }
+
+    if (fragments_found > 0) {
+        if (kac_compose(&composer, query) == 0) {
+            const char* composed_answer = kac_get_answer(&composer);
+            if (composed_answer && composed_answer[0]) {
+                snprintf(result_out->answer, sizeof(result_out->answer), "%s", composed_answer);
+                result_out->confidence = 0.8; // Уверенность композитного ответа
+                result_out->success = 1;
+                snprintf(result_out->explanation, sizeof(result_out->explanation), 
+                         "Ответ скомпонован из %d фрагментов.", fragments_found);
+            }
+        }
+    }
+    
+    kac_reset(&composer);
+
     result_out->duration_ms = agi_time_ms() - t0;
-    return -1;
+    return result_out->success ? 0 : -1;
 }
 
 /* ============================================================================

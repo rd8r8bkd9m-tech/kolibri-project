@@ -77,6 +77,9 @@ export class KolibriBridge {
         abort: () => {
           throw new Error("Kolibri WASM abort");
         },
+        emscripten_notify_memory_growth: (index: number) => {
+          // memory grew
+        },
       },
     };
 

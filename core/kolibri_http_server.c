@@ -24,6 +24,7 @@
 /* ===== CORE MODULES ===== */
 #include "kolibri/domain_knowledge_loader.h"
 #include "kolibri/explanation_generator.h"
+#include "kolibri/agi_pipeline.h"
 #include "kolibri/math_engine.h"
 #include "kolibri/math_solver.h"
 #include "kolibri/numeric_tokenizer.h"
@@ -35,7 +36,6 @@ static void str_lower(const char *src, char *dst, int max);
 static const char *find_domain_answer(const char *message);
 static const char *find_chemistry_answer(const char *message);
 
-static const char *find_domain_answer(const char *message);
 static const char *find_chemistry_answer(const char *message) {
     static const char *chemistry_lookup[][2] = {{"вода", "Вода — H₂O (2 атома водорода + 1 атом кислорода)"},
                                                 {"формула воды", "H₂O — вода"},
@@ -56,7 +56,7 @@ static const char *find_chemistry_answer(const char *message) {
                                                 {"аммиак", "NH₃ — аммиак"},
                                                 {"метан", "CH₄ — метан (простейший углеводород)"},
                                                 {"этанол", "C₂H₅OH — этиловый спирт (этанол)"},
-                                                {"глюкоза", "C₆H₁₂O₆ — глюкоза"},
+                                                {"глюкоз", "C₆H₁₂O₆ — глюкоза"},
                                                 {"озон", "O₃ — озон (аллотропная модификация кислорода)"},
                                                 {"пероксид", "H₂O₂ — пероксид водорода"},
                                                 {"азот", "N₂ — молекулярный азот"},
@@ -77,14 +77,13 @@ static const char *find_chemistry_answer(const char *message) {
         const char *key = chemistry_lookup[i][0];
         const char *ans = chemistry_lookup[i][1];
         const char *found = strstr(msg_lower, key);
-        if (i < 5)
-            if (found) {
-                int score = strlen(key);
-                if (score > best_score) {
-                    best_score = score;
-                    best_answer = ans;
-                }
+        if (found) {
+            int score = strlen(key);
+            if (score > best_score) {
+                best_score = score;
+                best_answer = ans;
             }
+        }
     }
     return best_answer;
 }
@@ -195,6 +194,7 @@ static const char *find_domain_answer(const char *message) {
 
 /* ===== UTILITIES ===== */
 #include "kolibri/decimal.h"
+#include "kolibri/k_alloc.h"
 #include "kolibri/digit_text.h"
 
 /* Config */
@@ -415,6 +415,7 @@ static KolibriFormulaPool *g_formula_pool = NULL;              /* Formula-based 
 static KfmContext *g_fractal_mem = NULL;                       /* Associative memory */
 static KolibriEvoTrainer *g_evo_trainer = NULL;                /* Evolutionary formula trainer */
 static KolibriGenome *g_genome = NULL;                         /* HMAC audit log */
+static char g_genome_path[1024] = "kolibri.genome";
 static KalContext *g_auto_learn = NULL;                        /* Autonomous learning */
 static KolibriKnowledgeIndex *g_knowledge_idx = NULL;          /* Document search */
 
@@ -506,6 +507,25 @@ static int rate_limit_check(const char *client_ip) {
 }
 
 /* Background learning thread function */
+
+/* === Phase 2: Formula Evolution & Numeric Voting === */
+static double kolibri_phase2_fitness_eval(const uint8_t *digits, int length, void *data) {
+    if (length <= 0) return -1000.0;
+    
+    double score = 0.0;
+    int zeros = 0;
+    for (int i = 0; i < length; i++) {
+        if (digits[i] == 0) zeros++;
+        score += (double)digits[i];
+    }
+    
+    /* Penalize inefficient/sparse formulas (too many zeros or too short) */
+    if (zeros > length / 2) score -= 50.0;
+    if (length < 10) score -= 20.0;
+    
+    return score;
+}
+
 static void *bg_learn_loop(void *arg) {
     (void)arg;
     g_bg_learn_running = 1;
@@ -555,6 +575,8 @@ static void *bg_learn_loop(void *arg) {
         if (g_evo_ready && g_evo_trainer) {
             evo_cycle_counter++;
             if (evo_cycle_counter >= 1200) {
+                /* Phase 2: Evaluate fitness and cull inefficient formulas before step */
+                kolibri_evo_evaluate_fitness(g_evo_trainer, kolibri_phase2_fitness_eval, NULL);
                 kolibri_evo_step(g_evo_trainer);
                 printf("  🧬 Evo step: gen=%d best=%.4f avg=%.4f\n", g_evo_trainer->current_generation,
                        g_evo_trainer->best_fitness_ever, g_evo_trainer->stats.avg_fitness);
@@ -1100,6 +1122,7 @@ typedef struct {
     char last_response[4096];
     char last_formula[512];
     char last_explanation[4096];
+    char context_digits[12288]; /* Decimal representation of session context (0-9) */
 } ChatConversationState;
 
 static ChatConversationState g_chat_states[CHAT_STATE_MAX];
@@ -1164,6 +1187,13 @@ static void remember_chat_state(ChatConversationState *state, int conversation_t
     snprintf(state->last_response, sizeof(state->last_response), "%s", answer ? answer : "");
     snprintf(state->last_formula, sizeof(state->last_formula), "%s", formula ? formula : "");
     snprintf(state->last_explanation, sizeof(state->last_explanation), "%s", explanation ? explanation : "");
+
+    /* Decimal Cognition: Translate text to decimal stream and store in session context */
+    if (answer && answer[0]) {
+        k_encode_text(answer, state->context_digits, sizeof(state->context_digits));
+    } else {
+        state->context_digits[0] = '\0';
+    }
 }
 
 static int count_semantic_words(const char *text) {
@@ -1181,6 +1211,23 @@ static int count_semantic_words(const char *text) {
         }
     }
     return count > 0 ? count : 1;
+}
+
+static int is_low_quality_corpus_answer(const char *answer) {
+    if (!answer || strlen(answer) < 16) {
+        return 1;
+    }
+
+    char lower[2048] = {0};
+    str_lower(answer, lower, sizeof(lower));
+
+    if (strstr(lower, "formula") || strstr(lower, "сгенерирован") || strstr(lower, "увеличенный") ||
+        strstr(answer, "•")) {
+        return 1;
+    }
+
+    int words = count_semantic_words(answer);
+    return words < 4;
 }
 
 static int contains_inline_arithmetic(const char *text) {
@@ -1527,13 +1574,92 @@ static void build_verification_report(const char *query, const char *answer, int
     }
 }
 
+static void build_agi_trace_json(const KolibriAGIResult *agi, char *out, size_t out_size) {
+    if (!agi || !out || out_size == 0) {
+        return;
+    }
+
+    int pos = 0;
+    pos += snprintf(out + pos, out_size - pos,
+                    "{\"winning_stage\":\"%s\",\"winning_method\":\"%s\",\"stages_executed\":%d,"
+                    "\"total_duration_ms\":%.2f,\"stages\":[",
+                    kolibri_agi_stage_name(agi->winning_stage), agi->winning_method, agi->stages_executed,
+                    agi->total_duration_ms);
+
+    for (int i = 0; i < agi->stages_executed && pos < (int)out_size - 256; i++) {
+        char safe_explanation[1024] = {0};
+        json_escape(safe_explanation, agi->stages[i].explanation, sizeof(safe_explanation));
+        pos += snprintf(out + pos, out_size - pos,
+                        "%s{\"stage\":\"%s\",\"method\":\"%s\",\"success\":%s,"
+                        "\"confidence\":%.4f,\"duration_ms\":%.2f,\"explanation\":\"%s\"}",
+                        i > 0 ? "," : "", kolibri_agi_stage_name(agi->stages[i].stage), agi->stages[i].method_name,
+                        agi->stages[i].success ? "true" : "false", agi->stages[i].confidence,
+                        agi->stages[i].duration_ms, safe_explanation);
+    }
+
+    snprintf(out + pos, out_size - pos, "]}");
+}
+
+static int try_agi_pipeline_answer(const char *message, int allow_neural_generation, char *answer, size_t answer_size,
+                                   char *method,
+                                   size_t method_size, char *runtime_query_kind, size_t runtime_query_kind_size,
+                                   char *runtime_digit_winner, size_t runtime_digit_winner_size, char *explanation,
+                                   size_t explanation_size, double *confidence, int *verification_passed,
+                                   double *verification_confidence, int *explanation_steps, char *agi_trace_json,
+                                   size_t agi_trace_json_size) {
+    if (!message || !answer || !method || !confidence) {
+        return -1;
+    }
+
+    KolibriAGIConfig agi_cfg;
+    if (kolibri_agi_init(&agi_cfg) != 0) {
+        return -1;
+    }
+
+    agi_cfg.confidence_threshold = 0.75;
+    agi_cfg.max_reasoning_time_ms = 500;
+    agi_cfg.neural_temperature = 55;
+    agi_cfg.enable_neural_generation = allow_neural_generation ? 1 : 0;
+    agi_cfg.verbose = 0;
+    agi_cfg.log_each_stage = 0;
+
+    KolibriAGIResult agi;
+    memset(&agi, 0, sizeof(agi));
+    if (kolibri_agi_run(message, &agi_cfg, g_world_model, g_formula_pool, g_corpus, &agi) != 0 ||
+        !agi.final_answer[0]) {
+        return -1;
+    }
+
+    snprintf(answer, answer_size, "%s", agi.final_answer);
+    snprintf(method, method_size, "agi_pipeline:%s", agi.winning_method[0] ? agi.winning_method : "unknown");
+    snprintf(runtime_query_kind, runtime_query_kind_size, "agi");
+    snprintf(runtime_digit_winner, runtime_digit_winner_size, "%s", method);
+    snprintf(explanation, explanation_size, "%s", agi.explanation);
+    *confidence = agi.final_confidence;
+    if (verification_passed)
+        *verification_passed = agi.verification_passed;
+    if (verification_confidence)
+        *verification_confidence = agi.verification_confidence;
+    if (explanation_steps)
+        *explanation_steps = agi.stages_executed;
+    if (agi_trace_json && agi_trace_json_size > 0) {
+        build_agi_trace_json(&agi, agi_trace_json, agi_trace_json_size);
+    }
+
+    return 0;
+}
+
 static void handle_chat(int fd, const char *body, int stream) {
-    char message[65536] = {0}, conversation_id[256] = {0};
+    char message[65536] = {0}, conversation_id[256] = {0}, profile[64] = {0};
     if (json_get_str(body, "message", message, sizeof(message)) != 0) {
         send_json(fd, 400, "Bad Request", "{\"error\":\"missing message\"}");
         return;
     }
     json_get_str(body, "conversation_id", conversation_id, sizeof(conversation_id));
+    json_get_str(body, "profile", profile, sizeof(profile));
+
+    /* === Phase 1.1: Decimal Cognition On-the-fly === */
+    k_mem_block *decimal_input = k_alloc_decimal_block(message);
 
     double t0 = now_ms();
     char message_lower[65536] = {0};
@@ -1558,6 +1684,7 @@ static void handle_chat(int fd, const char *body, int stream) {
     int verification_methods = 2;
     int verification_contradictions = 0;
     char verification_recommendation[512] = {0};
+    char agi_trace_json[8192] = {0};
     double confidence = 0.0;
     double parsed_a = 0.0, parsed_b = 0.0, parsed_c = 0.0;
     char parsed_equation[256] = {0};
@@ -1748,6 +1875,48 @@ static void handle_chat(int fd, const char *body, int stream) {
             build_verification_report(message, answer, &verification_passed, &verification_confidence,
                                       &verification_methods, &verification_contradictions, verification_recommendation,
                                       sizeof(verification_recommendation));
+            goto done;
+        }
+    }
+
+    /* === PRIMARY ORCHESTRATOR: Unified AGI Pipeline === */
+    int allow_neural_generation = strcmp(profile, "deep") == 0 || strcmp(profile, "agi") == 0;
+    if (try_agi_pipeline_answer(message, allow_neural_generation, answer, sizeof(answer), method, sizeof(method),
+                                runtime_query_kind, sizeof(runtime_query_kind), runtime_digit_winner,
+                                sizeof(runtime_digit_winner), explanation, sizeof(explanation), &confidence,
+                                &verification_passed, &verification_confidence, &explanation_steps, agi_trace_json,
+                                sizeof(agi_trace_json)) == 0) {
+        build_verification_report(message, answer, &verification_passed, &verification_confidence,
+                                  &verification_methods, &verification_contradictions, verification_recommendation,
+                                  sizeof(verification_recommendation));
+        if (confidence >= 0.82 || verification_confidence >= 0.65 || allow_neural_generation) {
+            runtime_digit_votes = explanation_steps > 0 ? explanation_steps : 5;
+            goto done;
+        }
+        answer[0] = '\0';
+        method[0] = '\0';
+        explanation[0] = '\0';
+        formula[0] = '\0';
+        confidence = 0.0;
+        verification_passed = 0;
+        verification_confidence = 0.0;
+        verification_methods = 2;
+        verification_contradictions = 0;
+        verification_recommendation[0] = '\0';
+    }
+
+    /* === DOMAIN KNOWLEDGE (fast, deterministic) === */
+    {
+        const char *domain_answer = find_domain_answer(message);
+        if (domain_answer) {
+            snprintf(answer, sizeof(answer), "%s", domain_answer);
+            strcpy(method, "domain_knowledge");
+            strcpy(runtime_query_kind, "domain");
+            strcpy(runtime_digit_winner, "domain_knowledge");
+            runtime_digit_votes = 3;
+            confidence = 0.88;
+            build_generic_explanation(answer, formula, sizeof(formula), explanation, sizeof(explanation),
+                                      &explanation_steps);
             goto done;
         }
     }
@@ -2356,7 +2525,7 @@ static void handle_chat(int fd, const char *body, int stream) {
     if (g_corpus_ready && g_corpus && answer[0] == 0) {
         char corpus_ans[2048] = {0};
         klm_answer(g_corpus, message, corpus_ans, sizeof(corpus_ans));
-        if (corpus_ans[0] && strlen(corpus_ans) > 3) {
+        if (corpus_ans[0] && !is_low_quality_corpus_answer(corpus_ans)) {
             snprintf(answer, sizeof(answer), "%s", corpus_ans);
             strcpy(method, "corpus_semantic");
             confidence = 0.7;
@@ -2619,7 +2788,8 @@ done: {
                            "\"conversation_turns\":%d,\"semantic_word_count\":%d,\"explanation_steps\":%d,"
                            "\"verification_passed\":%s,\"verification_confidence\":%.4f,\"verification_methods\":%d,"
                            "\"verification_contradictions\":%d,\"verification_recommendation\":\"%s\","
-                           "\"explanation\":\"%s\",\"formula\":\"%s\",\"product_mode\":\"%s\",\"project_active\":%s,"
+                           "\"explanation\":\"%s\",\"formula\":\"%s\",\"agi_trace\":%s,"
+                           "\"product_mode\":\"%s\",\"project_active\":%s,"
                            "\"domain_mode\":\"%s\",\"estimate_stage\":\"%s\",\"project_kind\":\"%s\","
                            "\"project_area_m2\":%.2f}\n\n",
                            safe, safe, conversation_id, method, confidence, elapsed, safe, conversation_id, method,
@@ -2627,6 +2797,7 @@ done: {
                            memory_linked ? "true" : "false", conversation_turns, semantic_word_count, explanation_steps,
                            verification_passed ? "true" : "false", verification_confidence, verification_methods,
                            verification_contradictions, safe_recommendation, safe_explanation, safe_formula,
+                           agi_trace_json[0] ? agi_trace_json : "null",
                            safe_product_mode, project_active ? "true" : "false", safe_domain_mode, estimate_stage,
                            safe_project_kind, project_area_m2);
         send_response(fd, 200, "OK", "text/event-stream", sse, len);
@@ -2639,12 +2810,14 @@ done: {
                  "\"conversation_turns\":%d,\"semantic_word_count\":%d,\"explanation_steps\":%d,"
                  "\"verification_passed\":%s,\"verification_confidence\":%.4f,\"verification_methods\":%d,"
                  "\"verification_contradictions\":%d,\"verification_recommendation\":\"%s\","
-                 "\"explanation\":\"%s\",\"formula\":\"%s\",\"product_mode\":\"%s\",\"project_active\":%s,"
+                 "\"explanation\":\"%s\",\"formula\":\"%s\",\"agi_trace\":%s,"
+                 "\"product_mode\":\"%s\",\"project_active\":%s,"
                  "\"domain_mode\":\"%s\",\"estimate_stage\":\"%s\",\"project_kind\":\"%s\",\"project_area_m2\":%.2f}",
                  safe, conversation_id, method, confidence, elapsed, runtime_query_kind, runtime_digit_winner,
                  runtime_digit_votes, memory_linked ? "true" : "false", conversation_turns, semantic_word_count,
                  explanation_steps, verification_passed ? "true" : "false", verification_confidence,
                  verification_methods, verification_contradictions, safe_recommendation, safe_explanation, safe_formula,
+                 agi_trace_json[0] ? agi_trace_json : "null",
                  safe_product_mode, project_active ? "true" : "false", safe_domain_mode, estimate_stage,
                  safe_project_kind, project_area_m2);
         send_json(fd, 200, "OK", resp);
@@ -2668,6 +2841,9 @@ done: {
             fclose(lf);
         }
     }
+    
+    /* Phase 1.1: Free decimal cognition block */
+    k_free_decimal_block(decimal_input);
 }
 }
 
@@ -2823,10 +2999,10 @@ static void handle_new_modules_status(int fd) {
     char resp[1024];
     snprintf(resp, sizeof(resp),
              "{\"encoding_pipeline\":\"%s\",\"intent_classifier\":\"%s\",\"reinforcement_learning\":\"%s\","
-             "\"intent_patterns\":%d,\"rl_states\":%zu,\"rl_updates\":%zu}",
+             "\"intent_patterns\":%d,\"rl_states\":%d,\"rl_updates\":%llu}",
              g_encoding_pipeline ? "ready" : "not_ready", g_intent_classifier.num_patterns > 0 ? "ready" : "not_ready",
              g_rl_ready ? "ready" : "not_ready", g_intent_classifier.num_patterns, g_rl_context.num_states,
-             g_rl_context.stats.exploration_count + g_rl_context.stats.exploitation_count);
+             (unsigned long long)(g_rl_context.stats.exploration_count + g_rl_context.stats.exploitation_count));
     send_json(fd, 200, "OK", resp);
 }
 
@@ -3334,7 +3510,7 @@ static void handle_compression_stats(int fd) {
         /* Scan genome для HIGH_SURPRISE events с блокировкой */
         FILE *f = NULL;
         pthread_mutex_lock(&g_genome_file_mutex);
-        f = fopen("kolibri.genome", "rb");
+        f = fopen(g_genome_path, "rb");
         if (f) {
             ReasonBlock block;
             while (fread(&block, sizeof(block), 1, f) == 1) {
@@ -3362,16 +3538,31 @@ static void handle_compression_stats(int fd) {
 /* System status — all modules */
 static void handle_system_status(int fd) {
     char resp[2048];
+    const int core_static_modules = 5; /* reasoning, math, domain, verification, explanations */
+    const int encoding_ready = g_encoding_pipeline != NULL;
+    const int intent_ready = g_intent_classifier.num_patterns > 0;
+    const int autonomous_ready = g_autonomous != NULL;
+    const int total_modules = 16;
+    const int active_modules = core_static_modules + g_world_model_ready + g_corpus_ready + g_formula_ready +
+                               g_fractal_ready + g_evo_ready + g_genome_ready + g_auto_ready + autonomous_ready +
+                               encoding_ready + intent_ready + g_rl_ready;
+    char safe_genome_path[2048] = {0};
+    json_escape(safe_genome_path, g_genome_path, sizeof(safe_genome_path));
     snprintf(resp, sizeof(resp),
              "{\"modules\":{"
              "\"reasoning\":true,\"math_solver\":true,\"domain_knowledge\":true,"
              "\"self_verification\":true,\"explanation_generator\":true,"
              "\"world_model\":%s,\"corpus_trainer\":%s,\"formula_pool\":%s,"
-             "\"fractal_memory\":%s,\"auto_learn\":%s},"
-             "\"total_modules\":11,\"active_modules\":%d}",
+             "\"fractal_memory\":%s,\"evolutionary_trainer\":%s,\"genome\":%s,"
+             "\"auto_learn\":%s,\"autonomous_learning\":%s,\"encoding_pipeline\":%s,"
+             "\"intent_classifier\":%s,\"reinforcement_learning\":%s},\"genome_path\":\"%s\","
+             "\"total_modules\":%d,\"active_modules\":%d}",
              g_world_model_ready ? "true" : "false", g_corpus_ready ? "true" : "false",
-             g_formula_ready ? "true" : "false", g_fractal_ready ? "true" : "false", g_auto_ready ? "true" : "false",
-             5 + g_world_model_ready + g_corpus_ready + g_formula_ready + g_fractal_ready + g_auto_ready);
+             g_formula_ready ? "true" : "false", g_fractal_ready ? "true" : "false",
+             g_evo_ready ? "true" : "false", g_genome_ready ? "true" : "false",
+             g_auto_ready ? "true" : "false", autonomous_ready ? "true" : "false",
+             encoding_ready ? "true" : "false", intent_ready ? "true" : "false", g_rl_ready ? "true" : "false",
+             safe_genome_path, total_modules, active_modules);
     send_json(fd, 200, "OK", resp);
 }
 
@@ -3518,7 +3709,7 @@ static void route_request(int fd, const HttpRequest *req) {
         /* Stream events as JSON array */
         char buf[65536];
         int pos = snprintf(buf, sizeof(buf), "{\"events\":[");
-        FILE *f = fopen("kolibri.genome", "rb");
+        FILE *f = fopen(g_genome_path, "rb");
         if (f) {
             ReasonBlock block;
             int idx = 0;
@@ -3541,7 +3732,8 @@ static void route_request(int fd, const HttpRequest *req) {
         /* Remove trailing comma and close */
         if (pos > 0 && buf[pos - 1] == ',')
             pos--;
-        pos += snprintf(buf + pos, sizeof(buf) - pos, "],\"total\":%d}", g_genome_ready ? g_genome->next_index : 0);
+        pos += snprintf(buf + pos, sizeof(buf) - pos, "],\"total\":%llu}",
+                        (unsigned long long)(g_genome_ready ? g_genome->next_index : 0));
         send_json(fd, 200, "OK", buf);
         return;
     }
@@ -3561,7 +3753,7 @@ static void route_request(int fd, const HttpRequest *req) {
 
         int ok = 0;
         if (key_len > 0) {
-            ok = kg_verify_file("kolibri.genome", key, key_len);
+            ok = kg_verify_file(g_genome_path, key, key_len);
         }
         if (ok == 0) {
             send_json(fd, 200, "OK", "{\"integrity\":\"verified\",\"chain_valid\":true}");
@@ -3898,13 +4090,25 @@ int main(int argc, char *argv[]) {
         }
 
         g_genome = (KolibriGenome *)malloc(sizeof(KolibriGenome));
-        if (g_genome && kg_open(g_genome, "kolibri.genome", hmac_key, sizeof(hmac_key)) == 0) {
+        snprintf(g_genome_path, sizeof(g_genome_path), "%s", "kolibri.genome");
+        if (g_genome && kg_open(g_genome, g_genome_path, hmac_key, sizeof(hmac_key)) == 0) {
             g_genome_ready = 1;
-            printf("  ✅ Genome: audit log ready\n");
+            printf("  ✅ Genome: audit log ready (%s)\n", g_genome_path);
         } else {
-            free(g_genome);
-            g_genome = NULL;
-            printf("  ⚠️  Genome: failed to initialize\n");
+            if (g_genome) {
+                free(g_genome);
+            }
+            mkdir(".kolibri", 0755);
+            snprintf(g_genome_path, sizeof(g_genome_path), "%s", ".kolibri/runtime.genome");
+            g_genome = (KolibriGenome *)malloc(sizeof(KolibriGenome));
+            if (g_genome && kg_open(g_genome, g_genome_path, hmac_key, sizeof(hmac_key)) == 0) {
+                g_genome_ready = 1;
+                printf("  ✅ Genome: audit log ready (%s)\n", g_genome_path);
+            } else {
+                free(g_genome);
+                g_genome = NULL;
+                printf("  ⚠️  Genome: failed to initialize\n");
+            }
         }
     }
 
@@ -4056,3 +4260,4 @@ int main(int argc, char *argv[]) {
     close(server_fd);
     return 0;
 }
+

@@ -1,12 +1,12 @@
 {
-  "cursor": 1,
-  "last_cycle_started_at": 1776360888.6555939,
-  "last_cycle_finished_at": 1776360888.6983209,
+  "cursor": 2,
+  "last_cycle_started_at": 1776370229.627604,
+  "last_cycle_finished_at": 1776370229.629163,
   "last_success_at": 0.0,
   "last_error": "",
   "latest_result": {
-    "started_at": 1776360888.6555939,
-    "finished_at": 1776360888.6983209,
+    "started_at": 1776370229.627604,
+    "finished_at": 1776370229.629163,
     "sources_attempted": 0,
     "sources_succeeded": 0,
     "sources_skipped_backoff": 3,
@@ -15,16 +15,6 @@
     "results": []
   },
   "recent_runs": [
-    {
-      "started_at": 1776016255.013695,
-      "finished_at": 1776016255.0246642,
-      "sources_attempted": 0,
-      "sources_succeeded": 0,
-      "sources_skipped_backoff": 3,
-      "saved_documents": 0,
-      "domain_delta": [],
-      "results": []
-    },
     {
       "started_at": 1776016495.797598,
       "finished_at": 1776016495.7983181,
@@ -520,6 +510,16 @@
     {
       "started_at": 1776360888.6555939,
       "finished_at": 1776360888.6983209,
+      "sources_attempted": 0,
+      "sources_succeeded": 0,
+      "sources_skipped_backoff": 3,
+      "saved_documents": 0,
+      "domain_delta": [],
+      "results": []
+    },
+    {
+      "started_at": 1776370229.627604,
+      "finished_at": 1776370229.629163,
       "sources_attempted": 0,
       "sources_succeeded": 0,
       "sources_skipped_backoff": 3,

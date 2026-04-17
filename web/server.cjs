@@ -3,8 +3,9 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = 3000;
-const BACKEND_URL = 'http://127.0.0.1:8001';
+const PORT = Number(process.env.KOLIBRI_FRONTEND_PORT || 3000);
+const BACKEND_PORT = Number(process.env.KOLIBRI_BACKEND_PORT || 8001);
+const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
 const DIST_DIR = path.join(__dirname, 'dist');
 
 const MIME_TYPES = {
@@ -24,7 +25,7 @@ const MIME_TYPES = {
 function proxyRequest(req, res) {
     const options = {
         hostname: '127.0.0.1',
-        port: 8001,
+        port: BACKEND_PORT,
         path: req.url,
         method: req.method,
         headers: {

@@ -2,6 +2,17 @@
 
 html, body, #root { height: 100%; overflow: hidden; }
 
+:root {
+  --app-glass-bg: rgba(var(--mantine-color-dark-8-rgb), 0.5);
+  --app-glass-border: rgba(255, 255, 255, 0.05);
+}
+
+.glass-panel {
+  backdrop-filter: blur(16px);
+  background: var(--app-glass-bg) !important;
+  border: 1px solid var(--app-glass-border) !important;
+}
+
 /* 
   Все кастомные классы удалены в соответствии с правилом "Mantine First".
   Стилизация теперь выполняется через Style Props компонентов Mantine.

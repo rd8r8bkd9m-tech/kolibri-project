@@ -28,6 +28,16 @@
 #define MAX_PEERS 8
 #define MAX_PEERS_STR 256
 #define BUF_SIZE 65536
+#define MAX_SESSIONS 32
+
+typedef struct {
+    char conversation_id[256];
+    char context_digits[4096]; /* Phase 1.1: Decimal Cognition Context */
+    int active;
+    double voting_channels[10]; /* Phase 2: Numeric Voting Channels */
+} SwarmSession;
+
+static SwarmSession swarm_sessions[MAX_SESSIONS];
 
 typedef struct {
     char question[MAX_Q_LEN];
@@ -252,6 +262,19 @@ static void json_escape(char *out, const char *in, int max) {
     out[j] = 0;
 }
 
+static void swarm_encode_decimal(const char *text, char *out, int max) {
+    int i = 0, j = 0;
+    while (text[i] && j < max - 4) {
+        unsigned char c = (unsigned char)text[i];
+        int val = (int)c;
+        out[j++] = (char)('0' + (val / 100));
+        out[j++] = (char)('0' + ((val / 10) % 10));
+        out[j++] = (char)('0' + (val % 10));
+        i++;
+    }
+    out[j] = 0;
+}
+
 static void handle_chat(int fd, const char *body) {
     char message[2048] = {0}, conv[256] = {0};
     get_json_str(body, "message", message, sizeof(message));
@@ -260,6 +283,18 @@ static void handle_chat(int fd, const char *body) {
     
     char answer[MAX_A_LEN] = {0};
     int score = find_best_answer(message, answer, sizeof(answer));
+    
+    /* Phase 1.1: Store session context in digits */
+    if (answer[0]) {
+        for (int i = 0; i < MAX_SESSIONS; i++) {
+            if (!swarm_sessions[i].active || strcmp(swarm_sessions[i].conversation_id, conv) == 0) {
+                strcpy(swarm_sessions[i].conversation_id, conv);
+                swarm_encode_decimal(answer, swarm_sessions[i].context_digits, sizeof(swarm_sessions[i].context_digits));
+                swarm_sessions[i].active = 1;
+                break;
+            }
+        }
+    }
     
     char safe[MAX_A_LEN * 2] = {0};
     if (answer[0]) {
@@ -327,6 +362,17 @@ static void handle_request(int fd, const char *req) {
 }
 
 /* ─── Main ─── */
+
+/* Phase 4: Swarm Roles & Quorum */
+typedef enum {
+    SWARM_ROLE_LEARNER,
+    SWARM_ROLE_ANCHOR,
+    SWARM_ROLE_VALIDATOR
+} SwarmRole;
+
+static SwarmRole g_node_role = SWARM_ROLE_LEARNER;
+static int g_quorum_required = 6; /* 6/10 quorum requirement for validation */
+
 int main(int argc, char *argv[]) {
     int port = PORT_DEFAULT;
     

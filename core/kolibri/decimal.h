@@ -65,6 +65,9 @@ int k_validate_genome(const char *genome);
 /** Нормализует входные данные в чистые цифры (удаляет пробелы, переносы) */
 int k_normalize_input(const char *input, char *out, size_t out_len, size_t *written);
 
+/** Phase 1.2: Поиск и упаковка триплетов цифр */
+int k_triplet_pack(k_digit_stream *stream);
+
 /* --- Хеширование в цифры --- */
 
 /** Вычисляет цифровой хеш строки (64 цифры) */

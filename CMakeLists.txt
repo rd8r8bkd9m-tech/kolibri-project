@@ -64,68 +64,71 @@ if(KOLIBRI_ENABLE_GPU)
 endif()
 
 add_library(kolibri_core_objects OBJECT
-    core/decimal.c
-    core/digits.c
-    core/digit_text.c
-    core/genome.c
-    core/random.c
-    core/formula.c
-    core/roy.c
-    core/script.c
-    core/symbol_table.c
-    core/net.c
-    core/knowledge.c
-    core/knowledge_index.c
-    core/knowledge_queue.c
-    core/sim.c
-    core/semantic_digits.c
-    core/phoneme.c
-    core/encoding_pipeline.c
-    core/context_window.c
-    core/corpus_learning.c
-    core/text_generation.c
-    core/compress.c
-    core/predictive_compress.c
-    core/huffman_ans.c
+    core/agi_pipeline.c
+    core/ai_encoder.c
+    core/ai_evolution.c
+    core/ai_resonance.c
+    core/answer_composer.c
     core/async_executor.c
-    core/trace.c
-    core/formula_logic.c
-    core/logical_memory.c
-    core/inference.c
-    core/corpus_trainer.c
-    core/web_crawler.c
-    core/fractal_memory.c
     core/attention.c
-    core/numeric_tokenizer.c
-    core/kat_train_backprop.c
-    core/math_solver.c
-    core/math_engine.c
-    core/corpus_math_trainer.c
-    core/evolutionary_trainer.c
-    core/swarm_learner.c
-    core/swarm_network.c
-    core/self_verification.c
-    core/explanation_generator.c
-    core/reasoning_engine.c
-    core/domain_knowledge_loader.c
-    core/domain_lookup.c
-    core/simd_ops.c
-    core/threaded_inference.c
-    core/pattern_discovery.c
-    core/logical_solver.c
-    core/fact_extractor.c
-    core/world_model.c
-    core/vision.c
     core/audio.c
     core/auto_learn.c
     core/autonomous_learning.c
+    core/compress.c
+    core/context_window.c
+    core/corpus_learning.c
+    core/corpus_math_trainer.c
+    core/corpus_trainer.c
+    core/decimal.c
+    core/digit_text.c
+    core/digits.c
+    core/domain_knowledge_loader.c
+    core/domain_lookup.c
+    core/encoding_pipeline.c
+    core/evolutionary_trainer.c
+    core/explanation_generator.c
+    core/fact_extractor.c
+    core/formula.c
+    core/formula_logic.c
+    core/fractal_memory.c
+    core/genome.c
+    core/huffman_ans.c
+    core/inference.c
     core/intent_classifier.c
+    core/k_alloc.c
+    core/kat_train_backprop.c
+    core/knowledge.c
+    core/knowledge_index.c
+    core/knowledge_queue.c
+    core/logical_memory.c
+    core/logical_solver.c
+    core/math_engine.c
+    core/math_solver.c
+    core/net.c
+    core/numeric_tokenizer.c
+    core/pattern_discovery.c
+    core/phoneme.c
+    core/predictive_compress.c
+    core/random.c
+    core/reasoning_engine.c
     core/reinforcement_learning.c
-    core/agi_pipeline.c
-    core/ai_encoder.c
-    core/ai_resonance.c
-    core/ai_evolution.c
+
+    core/roy.c
+    core/script.c
+    core/self_verification.c
+    core/semantic_digits.c
+    core/sim.c
+    core/simd_ops.c
     core/support.c
+    core/swarm_learner.c
+    core/swarm_network.c
+    core/symbol_table.c
+    core/text_generation.c
+    core/threaded_inference.c
+    core/trace.c
+    core/vision.c
+    core/web_crawler.c
+    core/world_model.c
 )
 
 target_include_directories(kolibri_core_objects
@@ -155,7 +158,9 @@ if(APPLE AND NOT DEFINED OPENSSL_ROOT_DIR)
     endforeach()
 endif()
 find_package(OpenSSL QUIET COMPONENTS Crypto)
-find_package(SQLite3 REQUIRED)
+if(NOT EMSCRIPTEN)
+    find_package(SQLite3 REQUIRED)
+endif()
 find_package(Threads REQUIRED)
 find_package(PkgConfig QUIET)
 
@@ -198,60 +203,86 @@ if(NOT KOLIBRI_OPENSSL_TARGET)
     message(FATAL_ERROR "OpenSSL Crypto library not found. Set OPENSSL_ROOT_DIR or install openssl@3.")
 endif()
 
-set(KOLIBRI_DIVSUFSORT_TARGET "")
-if(PkgConfig_FOUND)
-    pkg_check_modules(DIVSUFSORT QUIET libdivsufsort)
-endif()
-
-if(DIVSUFSORT_FOUND)
-    add_library(kolibri_divsufsort INTERFACE)
-    target_include_directories(kolibri_divsufsort INTERFACE ${DIVSUFSORT_INCLUDE_DIRS})
-    target_link_directories(kolibri_divsufsort INTERFACE ${DIVSUFSORT_LIBRARY_DIRS})
-    target_link_libraries(kolibri_divsufsort INTERFACE ${DIVSUFSORT_LIBRARIES})
-    set(KOLIBRI_DIVSUFSORT_TARGET kolibri_divsufsort)
-else()
-    find_path(DIVSUFSORT_INCLUDE_DIR divsufsort.h
-        HINTS
-            /opt/homebrew/include
-            /opt/homebrew/opt/libdivsufsort/include
-            /usr/local/include
-            /usr/local/opt/libdivsufsort/include
-    )
-    find_library(DIVSUFSORT_LIBRARY NAMES divsufsort
-        HINTS
-            /opt/homebrew/lib
-            /opt/homebrew/opt/libdivsufsort/lib
-            /usr/local/lib
-            /usr/local/opt/libdivsufsort/lib
-    )
-    if(DIVSUFSORT_INCLUDE_DIR AND DIVSUFSORT_LIBRARY)
-        add_library(kolibri_divsufsort INTERFACE)
-        target_include_directories(kolibri_divsufsort INTERFACE ${DIVSUFSORT_INCLUDE_DIR})
-        target_link_libraries(kolibri_divsufsort INTERFACE ${DIVSUFSORT_LIBRARY})
-        set(KOLIBRI_DIVSUFSORT_TARGET kolibri_divsufsort)
+if(NOT EMSCRIPTEN)
+    set(KOLIBRI_DIVSUFSORT_TARGET "")
+    if(PkgConfig_FOUND)
+        pkg_check_modules(DIVSUFSORT QUIET libdivsufsort)
     endif()
-endif()
 
-if(NOT KOLIBRI_DIVSUFSORT_TARGET)
-    message(FATAL_ERROR "libdivsufsort not found. Install libdivsufsort or set include/library paths.")
+    if(DIVSUFSORT_FOUND)
+        add_library(kolibri_divsufsort INTERFACE)
+        target_include_directories(kolibri_divsufsort INTERFACE ${DIVSUFSORT_INCLUDE_DIRS})
+        target_link_directories(kolibri_divsufsort INTERFACE ${DIVSUFSORT_LIBRARY_DIRS})
+        target_link_libraries(kolibri_divsufsort INTERFACE ${DIVSUFSORT_LIBRARIES})
+        set(KOLIBRI_DIVSUFSORT_TARGET kolibri_divsufsort)
+    else()
+        find_path(DIVSUFSORT_INCLUDE_DIR divsufsort.h
+            HINTS
+                /opt/homebrew/include
+                /opt/homebrew/opt/libdivsufsort/include
+                /usr/local/include
+                /usr/local/opt/libdivsufsort/include
+        )
+        find_library(DIVSUFSORT_LIBRARY NAMES divsufsort
+            HINTS
+                /opt/homebrew/lib
+                /opt/homebrew/opt/libdivsufsort/lib
+                /usr/local/lib
+                /usr/local/opt/libdivsufsort/lib
+        )
+        if(DIVSUFSORT_INCLUDE_DIR AND DIVSUFSORT_LIBRARY)
+            add_library(kolibri_divsufsort INTERFACE)
+            target_include_directories(kolibri_divsufsort INTERFACE ${DIVSUFSORT_INCLUDE_DIR})
+            target_link_libraries(kolibri_divsufsort INTERFACE ${DIVSUFSORT_LIBRARY})
+            set(KOLIBRI_DIVSUFSORT_TARGET kolibri_divsufsort)
+        endif()
+    endif()
+
+    if(NOT KOLIBRI_DIVSUFSORT_TARGET)
+        message(FATAL_ERROR "libdivsufsort not found. Install libdivsufsort or set include/library paths.")
+    endif()
+else()
+    # WASM build: skip divsufsort
+    add_library(kolibri_divsufsort INTERFACE)
+    set(KOLIBRI_DIVSUFSORT_TARGET kolibri_divsufsort)
 endif()
 
 target_link_libraries(kolibri_core_objects PUBLIC ${KOLIBRI_OPENSSL_TARGET})
 target_link_libraries(kolibri_core_objects PUBLIC ${KOLIBRI_DIVSUFSORT_TARGET})
-target_link_libraries(kolibri_core PUBLIC ${KOLIBRI_OPENSSL_TARGET} SQLite::SQLite3 Threads::Threads m ${KOLIBRI_DIVSUFSORT_TARGET})
+if(NOT EMSCRIPTEN)
+    target_link_libraries(kolibri_core PUBLIC ${KOLIBRI_OPENSSL_TARGET} SQLite::SQLite3 Threads::Threads m ${KOLIBRI_DIVSUFSORT_TARGET})
+else()
+    target_link_libraries(kolibri_core PUBLIC ${KOLIBRI_OPENSSL_TARGET} Threads::Threads m ${KOLIBRI_DIVSUFSORT_TARGET})
+endif()
 
-add_library(kolibri_wasm STATIC
-    core/wasm_bridge.c
-    core/wasm_genome_stub.c
-)
+if(EMSCRIPTEN)
+    add_library(kolibri_wasm SHARED
+        core/wasm_bridge.c
+        core/wasm_genome_stub.c
+    )
+    target_link_libraries(kolibri_wasm PUBLIC kolibri_core)
+    set_target_properties(kolibri_wasm PROPERTIES
+        OUTPUT_NAME "kolibri.wasm"
+        SUFFIX ""
+    )
+    target_link_options(kolibri_wasm PRIVATE
+        -s WASM=1
+        -s EXPORTED_RUNTIME_METHODS=ccall,cwrap
+        -s MODULARIZE=1
+        -s EXPORT_NAME="createKolibriModule"
+        -s ALLOW_MEMORY_GROWTH=1
+        -s INITIAL_MEMORY=256MB
+        -s "--pre-js ../core/wasm_pre.js"
+        -s EXPORTED_FUNCTIONS=_malloc,_free,"_kwasm_*"
+    )
+else()
+    add_library(kolibri_wasm STATIC
+        core/wasm_bridge.c
+        core/wasm_genome_stub.c
+    )
+    target_link_libraries(kolibri_wasm PUBLIC kolibri_core)
+endif()
 
-target_include_directories(kolibri_wasm
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/core>
-        $<INSTALL_INTERFACE:include>
-)
-
-target_link_libraries(kolibri_wasm PUBLIC kolibri_core)
 
 # --- FFI библиотека для Python ctypes (генетический алгоритм + эмбеддинги) ---
 add_library(kolibri_evolve SHARED core/evolve_ffi.c)
@@ -277,7 +308,11 @@ set_target_properties(kolibri_kpc PROPERTIES
 add_library(kolibri_compress_ffi SHARED $<TARGET_OBJECTS:kolibri_core_objects>)
 target_include_directories(kolibri_compress_ffi PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/core)
-target_link_libraries(kolibri_compress_ffi PRIVATE ${KOLIBRI_OPENSSL_TARGET} SQLite::SQLite3 m ${KOLIBRI_DIVSUFSORT_TARGET})
+if(NOT EMSCRIPTEN)
+    target_link_libraries(kolibri_compress_ffi PRIVATE ${KOLIBRI_OPENSSL_TARGET} SQLite::SQLite3 m ${KOLIBRI_DIVSUFSORT_TARGET})
+else()
+    target_link_libraries(kolibri_compress_ffi PRIVATE ${KOLIBRI_OPENSSL_TARGET} m ${KOLIBRI_DIVSUFSORT_TARGET})
+endif()
 set_target_properties(kolibri_compress_ffi PROPERTIES
     OUTPUT_NAME "kolibri_compress"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
@@ -334,7 +369,11 @@ target_link_libraries(kolibri_mass_trainer PRIVATE kolibri_core)
 target_link_libraries(kolibri_formula_trainer PRIVATE kolibri_core)
 target_link_libraries(kolibri_infer_cli PRIVATE kolibri_core)
 target_link_libraries(kolibri_train_kat PRIVATE kolibri_core)
-target_link_libraries(kolibri_http_server PRIVATE kolibri_core SQLite::SQLite3 Threads::Threads m)
+if(NOT EMSCRIPTEN)
+    target_link_libraries(kolibri_http_server PRIVATE kolibri_core SQLite::SQLite3 Threads::Threads m)
+else()
+    target_link_libraries(kolibri_http_server PRIVATE kolibri_core Threads::Threads m)
+endif()
 
 add_custom_target(verify_digit_masking ALL
     COMMAND $<TARGET_FILE:kolibri_verify_digit_masking>

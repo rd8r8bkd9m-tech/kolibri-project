@@ -29,7 +29,8 @@ typedef enum {
     LOGIC_TRANSFORM,     /* Трансформация: transform(input, func) */
     LOGIC_CONDITIONAL,   /* Условие: if(cond, then, else) */
     LOGIC_COMPOSITION,   /* Композиция: compose(f1, f2, ...) */
-    LOGIC_RELATION       /* Отношение: relates(A, B, type) */
+    LOGIC_RELATION,      /* Отношение: relates(A, B, type) */
+    LOGIC_L5_SUPER       /* L5 Generative: 6-byte super formula */
 } LogicType;
 
 /* Логическое выражение (вместо данных!) */
@@ -87,6 +88,13 @@ typedef struct LogicExpression {
             struct LogicExpression *right;
             char relation_type[16];  /* "derives_from", "part_of", "equivalent" */
         } relation;
+        
+        /* LOGIC_L5_SUPER */
+        struct {
+            uint8_t super_type;
+            uint32_t payload_hash;
+            uint8_t checksum;
+        } l5_super;
     } data;
     
     /* Метаданные */
@@ -187,6 +195,9 @@ LogicExpression* lm_logic_conditional(
     LogicExpression *then_expr,
     LogicExpression *else_expr
 );
+
+/* Phase 3: L5 Generative Encoding */
+LogicExpression* lm_logic_l5_super(uint8_t type, uint32_t payload);
 
 /* Статистика логической памяти */
 typedef struct {

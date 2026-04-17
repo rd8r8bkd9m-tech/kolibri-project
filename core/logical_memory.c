@@ -532,6 +532,11 @@ char* lm_materialize_logic(LogicExpression* logic) {
         case LOGIC_CONSTANT:
             result = snprintf(buffer, predicted_size + 1, "%s", logic->data.constant.value);
             break;
+        case LOGIC_L5_SUPER:
+            /* Phase 3: JIT unpacking of 6-byte super formula */
+            result = snprintf(buffer, predicted_size + 1, "[L5_JIT_UNPACK: TYPE=%d PAYLOAD=%u]", 
+                              logic->data.l5_super.super_type, logic->data.l5_super.payload_hash);
+            break;
         case LOGIC_VARIABLE:
             result = materialize_variable(logic, buffer, predicted_size + 1);
             break;
@@ -580,6 +585,9 @@ int lm_logic_to_string(LogicExpression *logic, char *output, size_t output_size)
     if (!logic || !output) return -1;
 
     switch (logic->type) {
+        case LOGIC_L5_SUPER:
+            return snprintf(output, output_size, "l5_super(type=%d, payload=%u)", 
+                            logic->data.l5_super.super_type, logic->data.l5_super.payload_hash);
         case LOGIC_CONSTANT:
             return snprintf(output, output_size, "const(\"%s\")", logic->data.constant.value);
 
@@ -913,6 +921,11 @@ static void serialize_logic(FILE *f, LogicExpression *logic) {
             serialize_logic(f, logic->data.conditional.then_expr);
             serialize_logic(f, logic->data.conditional.else_expr);
             break;
+        case LOGIC_L5_SUPER:
+            fwrite(&logic->data.l5_super.super_type, 1, 1, f);
+            fwrite(&logic->data.l5_super.payload_hash, 4, 1, f);
+            fwrite(&logic->data.l5_super.checksum, 1, 1, f);
+            break;
         default:
             break;
     }
@@ -963,6 +976,11 @@ static LogicExpression* deserialize_logic(FILE *f) {
             logic->data.conditional.condition = deserialize_logic(f);
             logic->data.conditional.then_expr = deserialize_logic(f);
             logic->data.conditional.else_expr = deserialize_logic(f);
+            break;
+        case LOGIC_L5_SUPER:
+            fread(&logic->data.l5_super.super_type, 1, 1, f);
+            fread(&logic->data.l5_super.payload_hash, 4, 1, f);
+            fread(&logic->data.l5_super.checksum, 1, 1, f);
             break;
         default:
             break;
@@ -1094,3 +1112,25 @@ LogicExpression* lm_logic_conditional(
 
     return expr;
 }
+
+
+/* ========== L5 GENERATIVE ENCODING ========== */
+
+LogicExpression* lm_logic_l5_super(uint8_t type, uint32_t payload) {
+    LogicExpression *expr = calloc(1, sizeof(LogicExpression));
+    if (!expr) return NULL;
+
+    expr->type = LOGIC_L5_SUPER;
+    expr->data.l5_super.super_type = type;
+    expr->data.l5_super.payload_hash = payload;
+    /* Basic checksum: type XOR bytes of payload */
+    expr->data.l5_super.checksum = type ^ (payload & 0xFF) ^ ((payload >> 8) & 0xFF) ^ ((payload >> 16) & 0xFF) ^ ((payload >> 24) & 0xFF);
+    
+    expr->complexity = 1.0; /* Expensive to unpack */
+    expr->materialized_size = 1024; /* Estimated size of JIT unpacked data */
+    expr->creation_time = (uint64_t)time(NULL);
+
+    return expr;
+}
+
+
