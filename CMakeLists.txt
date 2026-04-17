@@ -111,6 +111,7 @@ add_library(kolibri_core_objects OBJECT
     core/predictive_compress.c
     core/random.c
     core/reasoning_engine.c
+    core/action_engine.c
     core/reinforcement_learning.c
 
     core/roy.c
@@ -893,3 +894,8 @@ endif()
 
 add_executable(kolibri_async_node apps/kolibri_async_node.c)
 target_link_libraries(kolibri_async_node PRIVATE kolibri_core ${KOLIBRI_OPENSSL_TARGET})
+
+# Testing Action Engine
+add_executable(test_action_engine infra/tests/test_action_engine.c)
+target_link_libraries(test_action_engine PRIVATE kolibri_core)
+
