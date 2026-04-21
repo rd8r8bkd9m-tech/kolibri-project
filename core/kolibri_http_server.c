@@ -511,18 +511,18 @@ static int rate_limit_check(const char *client_ip) {
 /* === Phase 2: Formula Evolution & Numeric Voting === */
 static double kolibri_phase2_fitness_eval(const uint8_t *digits, int length, void *data) {
     if (length <= 0) return -1000.0;
-    
+
     double score = 0.0;
     int zeros = 0;
     for (int i = 0; i < length; i++) {
         if (digits[i] == 0) zeros++;
         score += (double)digits[i];
     }
-    
+
     /* Penalize inefficient/sparse formulas (too many zeros or too short) */
     if (zeros > length / 2) score -= 50.0;
     if (length < 10) score -= 20.0;
-    
+
     return score;
 }
 
@@ -2841,7 +2841,7 @@ done: {
             fclose(lf);
         }
     }
-    
+
     /* Phase 1.1: Free decimal cognition block */
     k_free_decimal_block(decimal_input);
 }
@@ -3030,8 +3030,8 @@ static void handle_reason(int fd, const char *body) {
     json_escape(safe, result.answer, sizeof(safe));
     char resp[MAX_RESPONSE];
     snprintf(resp, sizeof(resp),
-             "{\"answer\":\"%s\",\"type\":\"%s\",\"confidence\":%.4f,\"steps\":%d,\"time_ms\":%.1f}", safe,
-             kolibri_re_type_name(result.primary_type), result.confidence, result.chain.num_steps,
+             "{\"query\":\"%s\",\"answer\":\"%s\",\"type\":\"%s\",\"confidence\":%.4f,\"steps\":%d,\"time_ms\":%.1f}",
+             query, safe, kolibri_re_type_name(result.primary_type), result.confidence, result.chain.num_steps,
              (double)result.reasoning_time_ms);
     send_json(fd, 200, "OK", resp);
 }
@@ -3875,8 +3875,9 @@ int main(int argc, char *argv[]) {
     g_re_config.enable_analogical = 1;
     g_re_config.enable_counterfactual = 1;
     kolibri_re_init(&g_re_config);
-    kolibri_domain_load_all(&g_re_config);
-    printf("  ✅ Reasoning: 47 facts/rules (physics, chemistry, IT, law)\n");
+    int re_total = kolibri_domain_load_all(&g_re_config);
+    printf("  ✅ Reasoning: %d facts/rules (physics, chemistry, IT, law)\n", re_total);
+    fflush(stdout);
     printf("  ✅ Math Solver: linear, quadratic, systems\n");
     printf("  ✅ Self Verification: enabled\n");
     printf("  ✅ Explanation Generator: enabled\n");
@@ -4260,4 +4261,3 @@ int main(int argc, char *argv[]) {
     close(server_fd);
     return 0;
 }
-

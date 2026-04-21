@@ -15,6 +15,16 @@ typedef struct {
     size_t cursor;
 } k_digit_stream;
 
+/* Canonical D-layer: one byte is encoded as three decimal digits 000..255. */
+size_t k_digits_for_bytes(size_t byte_len);
+size_t k_bytes_for_digits(size_t digit_len);
+int k_encode_bytes_to_digits(const uint8_t *input, size_t input_len, k_digit_stream *out);
+int k_decode_digits_to_bytes(const k_digit_stream *digits, uint8_t *out, size_t out_len, size_t *written);
+int k_validate_digit_stream(const k_digit_stream *stream);
+int k_validate_canonical_byte_digits(const k_digit_stream *stream);
+int k_digits_to_ascii(const k_digit_stream *stream, char *out, size_t out_len);
+int k_ascii_to_digits(const char *ascii, k_digit_stream *out);
+
 void k_digit_stream_init(k_digit_stream *stream, uint8_t *buffer, size_t capacity);
 void k_digit_stream_reset(k_digit_stream *stream);
 void k_digit_stream_rewind(k_digit_stream *stream);

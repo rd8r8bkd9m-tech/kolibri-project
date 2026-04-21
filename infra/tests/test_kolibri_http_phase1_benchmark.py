@@ -89,11 +89,12 @@ def main() -> int:
     port = pick_free_port()
     base_url = f"http://127.0.0.1:{port}"
 
+    server_log = open("server_benchmark.log", "w")
     proc = subprocess.Popen(
         [str(server_bin), str(port), "frontend/dist"],
         cwd=repo_root,
         env={**os.environ, "KOLIBRI_HTTP_SMOKE": "1"},
-        stdout=subprocess.PIPE,
+        stdout=server_log,
         stderr=subprocess.STDOUT,
         text=True,
         encoding="utf-8",
@@ -143,9 +144,14 @@ def main() -> int:
                 "/api/v1/ai/reason",
                 {"query": "что если Земля не вращалась"},
             )
+            # DEBUG
+            # print(f"DEBUG REASON: {reason}")
             require(reason.get("type") == "Counterfactual", f"expected Counterfactual, got {reason.get('type')}")
             answer = str(reason.get("answer", ""))
             require("измен" in answer or "затронуты" in answer, "counterfactual answer is missing causal impact")
+            if float(reason.get("confidence", 0.0)) < 0.5:
+                print(f"ERROR: confidence {reason.get('confidence')} is too low for query '{reason.get('query')}'")
+                print(f"Full response: {reason}")
             require(float(reason.get("confidence", 0.0)) >= 0.5, "counterfactual reasoning confidence too low")
             require(int(reason.get("steps", 0)) >= 5, "counterfactual reasoning should expose multiple steps")
             return {

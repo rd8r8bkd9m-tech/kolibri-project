@@ -80,6 +80,7 @@ add_library(kolibri_core_objects OBJECT
     core/corpus_math_trainer.c
     core/corpus_trainer.c
     core/decimal.c
+    core/digital_core.c
     core/digit_text.c
     core/digits.c
     core/domain_knowledge_loader.c
@@ -114,6 +115,9 @@ add_library(kolibri_core_objects OBJECT
     core/action_engine.c
     core/tool_registry.c
     core/reinforcement_learning.c
+    backend/src/reasoning.c
+    backend/src/knowledge_base.c
+    backend/src/kolibri_memory.c
 
     core/roy.c
     core/script.c
@@ -136,6 +140,7 @@ add_library(kolibri_core_objects OBJECT
 target_include_directories(kolibri_core_objects
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/core>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/backend/include>
         $<INSTALL_INTERFACE:include>
 )
 if(DEFINED OPENSSL_INCLUDE_DIR)
@@ -147,6 +152,7 @@ add_library(kolibri_core STATIC $<TARGET_OBJECTS:kolibri_core_objects>)
 target_include_directories(kolibri_core
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/core>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/backend/include>
         $<INSTALL_INTERFACE:include>
 )
 
@@ -258,31 +264,25 @@ else()
 endif()
 
 if(EMSCRIPTEN)
-    add_library(kolibri_wasm SHARED
+    add_executable(kolibri_wasm
         core/wasm_bridge.c
         core/wasm_genome_stub.c
+        wasm/kolibri_sim_wasm.c
     )
     target_link_libraries(kolibri_wasm PUBLIC kolibri_core)
     set_target_properties(kolibri_wasm PROPERTIES
-        OUTPUT_NAME "kolibri.wasm"
-        SUFFIX ""
+        OUTPUT_NAME "kolibri"
+        SUFFIX ".wasm"
     )
     target_link_options(kolibri_wasm PRIVATE
-        -s WASM=1
-        -s EXPORTED_RUNTIME_METHODS=ccall,cwrap
-        -s MODULARIZE=1
-        -s EXPORT_NAME="createKolibriModule"
+        -s STANDALONE_WASM=1
+        -s SIDE_MODULE=0
         -s ALLOW_MEMORY_GROWTH=1
-        -s INITIAL_MEMORY=256MB
-        -s "--pre-js ../core/wasm_pre.js"
-        -s EXPORTED_FUNCTIONS=_malloc,_free,"_kwasm_*"
+        -s EXPORTED_RUNTIME_METHODS=[]
+        "-sEXPORTED_FUNCTIONS=[\"_kolibri_bridge_init\",\"_kolibri_bridge_reset\",\"_kolibri_bridge_execute\",\"_kolibri_bridge_query_json\",\"_kolibri_bridge_health\",\"_kolibri_bridge_send_message\",\"_kolibri_bridge_cancel_query\",\"_kolibri_bridge_is_cancelled\",\"_kolibri_bridge_get_progress_state\",\"_kolibri_bridge_get_progress_value\",\"_kolibri_bridge_get_progress_detail\",\"_kolibri_bridge_get_thinking\",\"_kolibri_bridge_reasoning_query\",\"_kolibri_bridge_kb_search\",\"_kolibri_bridge_kb_add_fact\",\"_kolibri_sim_wasm_init\",\"_kolibri_sim_wasm_tick\",\"_kolibri_sim_wasm_get_logs\",\"_kolibri_sim_wasm_reset\",\"_kolibri_sim_wasm_free\",\"_malloc\",\"_free\"]"
+        -s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE=[]
+        --no-entry
     )
-else()
-    add_library(kolibri_wasm STATIC
-        core/wasm_bridge.c
-        core/wasm_genome_stub.c
-    )
-    target_link_libraries(kolibri_wasm PUBLIC kolibri_core)
 endif()
 
 
@@ -349,6 +349,13 @@ add_executable(kolibri_formula_trainer apps/kolibri_formula_trainer.c)
 add_executable(kolibri_infer_cli apps/kolibri_infer_cli.c)
 add_executable(kolibri_train_kat apps/kolibri_train_kat.c)
 add_executable(kolibri_http_server core/kolibri_http_server.c)
+add_executable(kolibri_cli
+    core/main_cli.c
+    core/inference.c
+    core/logical_memory.c
+    core/decimal.c
+    core/digital_core.c)
+set_target_properties(kolibri_cli PROPERTIES OUTPUT_NAME "kolibri-cli")
 
 target_link_libraries(kolibri_node PRIVATE kolibri_core)
 target_link_libraries(ks_compiler PRIVATE kolibri_core)
@@ -371,6 +378,8 @@ target_link_libraries(kolibri_mass_trainer PRIVATE kolibri_core)
 target_link_libraries(kolibri_formula_trainer PRIVATE kolibri_core)
 target_link_libraries(kolibri_infer_cli PRIVATE kolibri_core)
 target_link_libraries(kolibri_train_kat PRIVATE kolibri_core)
+target_include_directories(kolibri_cli PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core)
+target_link_libraries(kolibri_cli PRIVATE m)
 if(NOT EMSCRIPTEN)
     target_link_libraries(kolibri_http_server PRIVATE kolibri_core SQLite::SQLite3 Threads::Threads m)
 else()
@@ -401,7 +410,7 @@ if(KOLIBRI_ENABLE_TESTS)
     # Disabled: pre-existing memory corruption in test harness (not in production code)
     # add_test(NAME kolibri_tests COMMAND kolibri_tests)
     # set_tests_properties(kolibri_tests PROPERTIES TIMEOUT 120)
-    
+
     # AGI v2.0 Phase 1: Semantic module tests
     add_executable(test_semantic infra/tests/test_semantic.c)
     target_link_libraries(test_semantic PRIVATE kolibri_core Threads::Threads)
@@ -418,22 +427,22 @@ if(KOLIBRI_ENABLE_TESTS)
     add_executable(test_kod_kot infra/tests/test_kod_kot.c)
     target_link_libraries(test_kod_kot PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_kod_kot COMMAND test_kod_kot)
-    
+
     # AGI v2.0 Phase 1.2: Context window tests
     add_executable(test_context infra/tests/test_context.c)
     target_link_libraries(test_context PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_context COMMAND test_context)
-    
+
     # AGI v2.0 Phase 1.3: Corpus learning tests
     add_executable(test_corpus infra/tests/test_corpus.c)
     target_link_libraries(test_corpus PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_corpus COMMAND test_corpus)
-    
+
     # AGI v2.0 Phase 2: Text generation tests
     add_executable(test_generation infra/tests/test_generation.c)
     target_link_libraries(test_generation PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_generation COMMAND test_generation)
-    
+
     # Kolibri Archiver: Compression tests
     add_executable(test_compress infra/tests/test_compress.c)
     target_link_libraries(test_compress PRIVATE kolibri_core Threads::Threads)
@@ -448,57 +457,57 @@ if(KOLIBRI_ENABLE_TESTS)
     add_executable(test_mega_compression infra/tests/test_mega_compression.c)
     target_link_libraries(test_mega_compression PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_mega_compression COMMAND test_mega_compression)
-    
+
     # EXTREME COMPRESSION TEST - 20 МБ тест!
     add_executable(test_extreme_compression infra/tests/test_extreme_compression.c)
     target_link_libraries(test_extreme_compression PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_extreme_compression COMMAND test_extreme_compression)
-    
+
     # MULTILEVEL COMPRESSION TEST - путь к 300000x!
     add_executable(test_multilevel_compression infra/tests/test_multilevel_compression.c)
     target_link_libraries(test_multilevel_compression PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_multilevel_compression COMMAND test_multilevel_compression)
-    
+
     # MULTILEVEL DEMO - демонстрация архитектуры 300000x!
     add_executable(test_multilevel_demo infra/tests/test_multilevel_demo.c)
     target_link_libraries(test_multilevel_demo PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_multilevel_demo COMMAND test_multilevel_demo)
-    
+
     # REAL FILE COMPRESSION - тест на реальном файле!
     add_executable(test_real_file_compression infra/tests/test_real_file_compression.c)
     target_link_libraries(test_real_file_compression PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_real_file_compression COMMAND test_real_file_compression)
-    
+
     # COMPRESS PROJECT - сжатие всего проекта! (временно отключено - устаревший API)
     # add_executable(test_compress_project infra/tests/test_compress_project.c)
     # target_link_libraries(test_compress_project PRIVATE kolibri_core Threads::Threads)
     # add_test(NAME test_compress_project COMMAND test_compress_project)
-    
+
     # FULL PROJECT COMPRESSION - сжатие всего проекта (рабочая версия)!
     add_executable(test_full_project_compression infra/tests/test_full_project_compression.c)
     target_link_libraries(test_full_project_compression PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_full_project_compression COMMAND test_full_project_compression)
-    
+
     # PROJECT ARCHIVE - создание полного архива проекта!
     add_executable(test_project_archive infra/tests/test_project_archive.c)
     target_link_libraries(test_project_archive PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_project_archive COMMAND test_project_archive)
-    
+
     # MULTILEVEL ARCHIVE - многоуровневое сжатие архива!
     add_executable(test_multilevel_archive infra/tests/test_multilevel_archive.c)
     target_link_libraries(test_multilevel_archive PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_multilevel_archive COMMAND test_multilevel_archive)
-    
+
     # PREDICTIVE COMPRESS — предиктивное сжатие с формульным MLP
     add_executable(test_predictive_compress infra/tests/test_predictive_compress.c)
     target_link_libraries(test_predictive_compress PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_predictive_compress COMMAND test_predictive_compress)
-    
+
     # PROOF 300000x - доказательство компрессии 300,000x!
     add_executable(test_proof_300000x infra/tests/test_proof_300000x.c)
     target_link_libraries(test_proof_300000x PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_proof_300000x COMMAND test_proof_300000x)
-    
+
     # IMPLEMENT 300000x - реализация компрессии 300,000x!
     add_executable(test_implement_300000x infra/tests/test_implement_300000x.c)
     target_link_libraries(test_implement_300000x PRIVATE kolibri_core Threads::Threads)
@@ -733,6 +742,14 @@ if(KOLIBRI_ENABLE_TESTS)
     target_link_libraries(test_decimal_standalone PRIVATE kolibri_core Threads::Threads m)
     add_test(NAME test_decimal_standalone COMMAND test_decimal_standalone)
 
+    add_executable(test_digital_core
+        infra/tests/test_digital_core.c
+        core/digital_core.c
+        core/decimal.c)
+    target_include_directories(test_digital_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core)
+    target_link_libraries(test_digital_core PRIVATE m)
+    add_test(NAME test_digital_core COMMAND test_digital_core)
+
     add_executable(test_formula_compression infra/tests/test_formula_compression.c)
     target_link_libraries(test_formula_compression PRIVATE kolibri_core Threads::Threads m)
     add_test(NAME test_formula_compression COMMAND test_formula_compression)
@@ -758,6 +775,11 @@ if(KOLIBRI_ENABLE_TESTS)
     add_test(NAME test_image_full_cycle COMMAND test_image_full_cycle)
 
     add_executable(test_inference_demo infra/tests/test_inference_demo.c)
+
+add_executable(test_reasoning_facade infra/tests/test_reasoning_facade.c)
+    add_executable(test_knowledge_base_facade infra/tests/test_knowledge_base_facade.c)
+    target_link_libraries(test_knowledge_base_facade PRIVATE kolibri_core)
+target_link_libraries(test_reasoning_facade PRIVATE kolibri_core)
     target_link_libraries(test_inference_demo PRIVATE kolibri_core Threads::Threads m)
     add_test(NAME test_inference_demo COMMAND test_inference_demo)
 
@@ -835,6 +857,11 @@ if(KOLIBRI_ENABLE_TESTS)
                          ${CMAKE_CURRENT_SOURCE_DIR}/infra/tests/test_kolibri_http_phase1_benchmark.py
                          $<TARGET_FILE:kolibri_http_server>)
         set_tests_properties(test_kolibri_http_phase1_benchmark PROPERTIES TIMEOUT 120)
+        add_test(NAME test_kolibri_cli
+                 COMMAND ${Python3_EXECUTABLE}
+                         ${CMAKE_CURRENT_SOURCE_DIR}/infra/tests/test_kolibri_cli.py
+                         $<TARGET_FILE:kolibri_cli>)
+        set_tests_properties(test_kolibri_cli PROPERTIES TIMEOUT 60)
     endif()
 
     add_test(NAME kolibri_node_usage COMMAND $<TARGET_FILE:kolibri_node> --help)
@@ -899,4 +926,3 @@ target_link_libraries(kolibri_async_node PRIVATE kolibri_core ${KOLIBRI_OPENSSL_
 # Testing Action Engine
 add_executable(test_action_engine infra/tests/test_action_engine.c)
 target_link_libraries(test_action_engine PRIVATE kolibri_core)
-

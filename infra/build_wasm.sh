@@ -156,6 +156,27 @@ istochniki=(
     "$proekt_koren/core/wasm_bridge.c"
     "$proekt_koren/core/wasm_link_stubs.c"
     "$proekt_koren/core/sim.c"
+
+    "$proekt_koren/core/inference.c"
+    "$proekt_koren/core/logical_memory.c"
+    "$proekt_koren/core/formula_logic.c"
+    "$proekt_koren/core/reasoning_engine.c"
+    "$proekt_koren/backend/src/reasoning.c"
+    "$proekt_koren/backend/src/knowledge_base.c"
+    "$proekt_koren/core/knowledge_index.c"
+    "$proekt_koren/core/knowledge.c"
+    "$proekt_koren/core/math_solver.c"
+    "$proekt_koren/core/semantic_digits.c"
+    "$proekt_koren/core/phoneme.c"
+    "$proekt_koren/core/ai_encoder.c"
+    "$proekt_koren/core/context_window.c"
+    "$proekt_koren/core/attention.c"
+
+
+    "$proekt_koren/core/fractal_memory.c"
+    "$proekt_koren/core/numeric_tokenizer.c"
+    "$proekt_koren/core/huffman_ans.c"
+
     "$proekt_koren/wasm/kolibri_sim_wasm.c"
 )
 
@@ -172,10 +193,10 @@ flags=(
     -s SIDE_MODULE=0
     -s ALLOW_MEMORY_GROWTH=1
     -s EXPORTED_RUNTIME_METHODS='[]'
-    -s EXPORTED_FUNCTIONS='["_kolibri_bridge_init","_kolibri_bridge_reset","_kolibri_bridge_execute","_kolibri_bridge_query_json","_kolibri_bridge_health","_kolibri_bridge_send_message","_kolibri_bridge_cancel_query","_kolibri_bridge_is_cancelled","_kolibri_bridge_get_progress_state","_kolibri_bridge_get_progress_value","_kolibri_bridge_get_progress_detail","_kolibri_bridge_get_thinking","_kolibri_sim_wasm_init","_kolibri_sim_wasm_tick","_kolibri_sim_wasm_get_logs","_kolibri_sim_wasm_reset","_kolibri_sim_wasm_free","_malloc","_free"]'
+    -s EXPORTED_FUNCTIONS='["_kolibri_bridge_init","_kolibri_bridge_reasoning_query","_kolibri_bridge_kb_search","_kolibri_bridge_kb_add_fact","_kolibri_bridge_reset","_kolibri_bridge_execute","_kolibri_bridge_query_json","_kolibri_bridge_health","_kolibri_bridge_send_message","_kolibri_bridge_cancel_query","_kolibri_bridge_is_cancelled","_kolibri_bridge_get_progress_state","_kolibri_bridge_get_progress_value","_kolibri_bridge_get_progress_detail","_kolibri_bridge_get_thinking","_kolibri_sim_wasm_init","_kolibri_sim_wasm_tick","_kolibri_sim_wasm_get_logs","_kolibri_sim_wasm_reset","_kolibri_sim_wasm_free","_malloc","_free"]'
     -s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE='[]'
     --no-entry
-    -I"$proekt_koren/core"
+    -I"$proekt_koren/core" -I"$proekt_koren/backend/include"
     -o "$vyhod_wasm"
 )
 

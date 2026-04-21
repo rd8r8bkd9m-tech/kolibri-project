@@ -24,35 +24,33 @@ int kolibri_ae_plan_step(KolibriActionLoop *loop, const KolibriReasoningResult *
     if (!loop || !reasoning || loop->num_actions >= 16) return -1;
 
     KolibriAction *act = &loop->actions[loop->num_actions];
-    
-    /* Логика выбора действия на основе reasoning и реестра инструментов */
-    if (strstr(reasoning->answer, "расчет") || strstr(reasoning->answer, "вычисли")) {
-        strncpy(act->name, "Perform Calculation", 63);
-        strncpy(act->tool_id, "calc", 63);
-        snprintf(act->parameters, 1023, "{\"expr\": \"%s\"}", reasoning->query);
-        act->type = KAE_ACTION_TOOL_USE;
-    } else if (strstr(reasoning->answer, "система") || strstr(reasoning->answer, "версия")) {
-        strncpy(act->name, "Check System Info", 63);
-        strncpy(act->tool_id, "sys_info", 63);
-        act->type = KAE_ACTION_TOOL_USE;
-    } else {
-        strncpy(act->name, "Internal Analysis", 63);
-        act->type = KAE_ACTION_REASONING;
+
+    /* Если задан внешний обработчик выбора инструментов, используем его */
+    if (loop->tool_selector) {
+        if (loop->tool_selector(reasoning, act) == 0) {
+            act->status = KAE_STATUS_PENDING;
+            act->confidence = reasoning->confidence;
+            loop->num_actions++;
+            return 0;
+        }
     }
 
+    /* Логика по умолчанию (fallback) */
+    strncpy(act->name, "Internal Analysis", 63);
+    act->type = KAE_ACTION_REASONING;
     strncpy(act->reasoning_justification, reasoning->answer, 511);
     act->status = KAE_STATUS_PENDING;
     act->confidence = reasoning->confidence;
-    
+
     loop->num_actions++;
     return 0;
 }
 
 int kolibri_ae_execute_current(KolibriActionLoop *loop) {
     if (!loop || loop->current_action_idx >= loop->num_actions) return -1;
-    
+
     KolibriAction *act = &loop->actions[loop->current_action_idx];
-    
+
     /* Safety Check: если инструмент небезопасен, блокируем выполнение до подтверждения */
     if (act->type == KAE_ACTION_TOOL_USE) {
         const KolibriTool *tool = kolibri_tr_get(act->tool_id);
@@ -64,14 +62,14 @@ int kolibri_ae_execute_current(KolibriActionLoop *loop) {
     }
 
     act->status = KAE_STATUS_EXECUTING;
-    
+
     if (act->type == KAE_ACTION_TOOL_USE) {
         if (kolibri_tr_execute(act->tool_id, act->parameters, act->result, sizeof(act->result)) == 0) {
             act->status = KAE_STATUS_SUCCESS;
             /* Log success to Genome */
             if (loop->genome) {
                 char log_payload[KOLIBRI_PAYLOAD_SIZE];
-                snprintf(log_payload, sizeof(log_payload), "Action: %s, Tool: %s, Result: %s", 
+                snprintf(log_payload, sizeof(log_payload), "Action: %s, Tool: %s, Result: %s",
                          act->name, act->tool_id, act->result);
                 kg_append(loop->genome, "ACTION_SUCCESS", log_payload, NULL);
             }
@@ -86,13 +84,13 @@ int kolibri_ae_execute_current(KolibriActionLoop *loop) {
             kg_append(loop->genome, "REASON_STEP", act->reasoning_justification, NULL);
         }
     }
-    
+
     return 0;
 }
 
 int kolibri_ae_verify_last(KolibriActionLoop *loop) {
     if (!loop || loop->current_action_idx >= loop->num_actions) return -1;
-    
+
     KolibriAction *act = &loop->actions[loop->current_action_idx];
     /* Верификация: проверяем содержит ли результат успех */
     if (strstr(act->result, "Success") || strstr(act->result, "completed")) {
@@ -101,20 +99,20 @@ int kolibri_ae_verify_last(KolibriActionLoop *loop) {
         loop->progress = (double)loop->current_action_idx / loop->num_actions;
         return 0;
     }
-    
+
     act->status = KAE_STATUS_FAILURE;
     return 1;
 }
 
 int kolibri_ae_run_to_goal(KolibriActionLoop *loop, int max_steps) {
     printf("Starting Action Loop for goal: %s\n", loop->goal);
-    
+
     for (int i = 0; i < max_steps; i++) {
         if (loop->current_action_idx >= loop->num_actions && loop->num_actions > 0) {
             loop->overall_status = KAE_STATUS_SUCCESS;
             break;
         }
-        
+
         /* В реальной системе здесь был бы вызов планировщика на каждом шаге */
         if (kolibri_ae_execute_current(loop) == 0) {
             kolibri_ae_verify_last(loop);
@@ -122,6 +120,6 @@ int kolibri_ae_run_to_goal(KolibriActionLoop *loop, int max_steps) {
             break;
         }
     }
-    
+
     return (loop->overall_status == KAE_STATUS_SUCCESS) ? 0 : -1;
 }

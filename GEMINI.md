@@ -1,7 +1,7 @@
 # Kolibri AI Hive-Mind Constitution
 
 ## 1. Unified Project Concept
-Kolibri AI — это единый монорепозиторий (`UI <-> WASM <-> Python <-> C-Core`). Все агенты работают над улучшением этого единого организма. 
+Kolibri AI — это единый монорепозиторий (`UI <-> WASM <-> Python <-> C-Core`). Все агенты работают над улучшением этого единого организма.
 
 ## 2. Agent Squad (21 Neural Units)
 1. **[Kolibri-Orchestrator]**: Центральный координатор.
@@ -35,3 +35,8 @@ Kolibri AI — это единый монорепозиторий (`UI <-> WASM 
 - **No Interaction:** Решайте задачи автономно. Запрещено спрашивать пользователя, если решение можно найти в коде или документации.
 - **Zero Drift:** Код, тесты и документация должны быть синхронны.
 - **Single Source of Truth:** `docs/plans/agent-squad-plan.md` и этот файл.
+- **Mission Control Protocol:** Always check `MISSION_CONTROL.md` at the start of a session and update it at the end of a session for continuity.
+- **Session Handoff Protocol:**
+  1. **Start:** В начале каждой сессии ОБЯЗАТЕЛЬНО прочитать `MISSION_CONTROL.md`.
+  2. **Continuity:** Начинать работу строго с задач, отмеченных как `Active Tasks` в `MISSION_CONTROL.md`.
+  3. **End:** В конце сессии ОБЯЗАТЕЛЬНО обновить `MISSION_CONTROL.md`, зафиксировав прогресс, изменения в файлах и следующие шаги.

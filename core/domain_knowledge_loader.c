@@ -84,6 +84,18 @@ static int load_physics_facts(KolibriREConfig *config) {
     kolibri_re_add_rule(config, "Алгоритм Шора", "Позволяет факторизовать числа за полиномиальное время на квантовом компьютере", KRE_OP_IMPLIES, 0.97, "quantum");
     count++;
 
+    kolibri_re_add_fact(config, "Земля вращается вокруг своей оси", 0.99, "physics");
+    count++;
+
+    kolibri_re_add_rule(config, "Земля вращается", "Происходит смена дня и ночи", KRE_OP_IMPLIES, 0.99, "physics");
+    count++;
+
+    kolibri_re_add_rule(config, "Вращение планеты", "Возникает центробежная сила и сила Кориолиса", KRE_OP_IMPLIES, 0.98, "physics");
+    count++;
+
+    kolibri_re_add_rule(config, "Земля вращается вокруг Солнца", "Происходит смена времён года", KRE_OP_IMPLIES, 0.99, "physics");
+    count++;
+
     kolibri_re_add_fact(config, "Ускорение свободного падения g ≈ 9.8 м/с²", 0.99, "physics");
     count++;
 

@@ -1,3 +1,4 @@
+#ifndef EMSCRIPTEN
 #include "kolibri/knowledge_queue.h"
 
 #include <dirent.h>
@@ -387,3 +388,5 @@ int kolibri_queue_export_markdown(KolibriQueue *queue,
     }
     return SQLITE_OK;
 }
+
+#endif /* EMSCRIPTEN */

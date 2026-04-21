@@ -54,56 +54,23 @@ static uint64_t kfm_now(KfmContext *ctx)
 static KfmNode *kfm_node_alloc(KfmContext *ctx, uint8_t depth)
 {
     if (ctx->node_count >= KFM_MAX_NODES) return NULL;
+    if (!ctx->node_pool) return NULL;
 
-    KfmNode *n = (KfmNode *)calloc(1, sizeof(KfmNode));
-    if (!n) return NULL;
+    KfmNode *n = &ctx->node_pool[ctx->node_count++];
+    memset(n, 0, sizeof(KfmNode));
 
     n->depth      = depth;
     n->created_at = kfm_now(ctx);
     n->last_access = n->created_at;
     n->activation  = 0.0f;
-    ctx->node_count++;
     return n;
 }
 
 /* Итеративная очистка дерева (без рекурсии — защита от stack overflow) */
 static void kfm_node_free(KfmNode *node)
 {
-    if (!node) return;
-    /* Используем явный стек вместо рекурсии */
-    size_t cap = 256;
-    size_t top = 0;
-    KfmNode **stack = (KfmNode **)malloc(cap * sizeof(KfmNode *));
-    if (!stack) {
-        /* Fallback: если malloc не удался, хотя бы освободим корень */
-        free(node);
-        return;
-    }
-    stack[top++] = node;
-    while (top > 0) {
-        KfmNode *cur = stack[--top];
-        for (int i = 0; i < 10; i++) {
-            if (cur->children[i]) {
-                /* Расширяем стек при необходимости */
-                if (top >= cap) {
-                    size_t new_cap = cap * 2;
-                    KfmNode **tmp = (KfmNode **)realloc(stack, new_cap * sizeof(KfmNode *));
-                    if (!tmp) {
-                        /* Не можем расширить — освобождаем что можем */
-                        free(cur);
-                        while (top > 0) free(stack[--top]);
-                        free(stack);
-                        return;
-                    }
-                    stack = tmp;
-                    cap = new_cap;
-                }
-                stack[top++] = cur->children[i];
-            }
-        }
-        free(cur);
-    }
-    free(stack);
+    // OOM-safe version: we don't free individual nodes,
+    // the whole pool is freed at once in kfm_free.
 }
 
 /* --- Навигация по дереву --- */
@@ -138,10 +105,16 @@ static KfmNode *kfm_navigate(KfmContext *ctx, const uint8_t *path,
 int kfm_init(KfmContext *ctx, uint32_t seed)
 {
     if (!ctx) return -1;
-
     memset(ctx, 0, sizeof(KfmContext));
-    ctx->seed = seed ? seed : 42;
-    ctx->decay_rate = 0.05f; /* 5% затухание за тик */
+
+    ctx->seed = seed ? seed : 12345;
+    ctx->decay_rate = 0.05f;
+    ctx->tick = 0;
+
+    ctx->node_pool = (KfmNode *)calloc(KFM_MAX_NODES, sizeof(KfmNode));
+    if (!ctx->node_pool) return -1;
+
+    ctx->node_count = 0;
     ctx->root = kfm_node_alloc(ctx, 0);
     return ctx->root ? 0 : -1;
 }
@@ -149,7 +122,10 @@ int kfm_init(KfmContext *ctx, uint32_t seed)
 void kfm_free(KfmContext *ctx)
 {
     if (!ctx) return;
-    kfm_node_free(ctx->root);
+    if (ctx->node_pool) {
+        free(ctx->node_pool);
+        ctx->node_pool = NULL;
+    }
     ctx->root = NULL;
     ctx->node_count = 0;
 }

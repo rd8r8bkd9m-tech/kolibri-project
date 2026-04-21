@@ -597,6 +597,19 @@ kolibri_async_node/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/kolibri_async_node.dir/build.make CMakeFiles/kolibri_async_node.dir/build
 .PHONY : kolibri_async_node/fast
 
+#=============================================================================
+# Target rules for targets named test_action_engine
+
+# Build rule for target.
+test_action_engine: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_action_engine
+.PHONY : test_action_engine
+
+# fast build rule for target.
+test_action_engine/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_action_engine.dir/build.make CMakeFiles/test_action_engine.dir/build
+.PHONY : test_action_engine/fast
+
 apps/kolibri_archiver.o: apps/kolibri_archiver.c.o
 .PHONY : apps/kolibri_archiver.o
 
@@ -1005,6 +1018,78 @@ apps/ks_compiler.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ks_compiler.dir/build.make CMakeFiles/ks_compiler.dir/apps/ks_compiler.c.s
 .PHONY : apps/ks_compiler.c.s
 
+backend/src/knowledge_base.o: backend/src/knowledge_base.c.o
+.PHONY : backend/src/knowledge_base.o
+
+# target to build an object file
+backend/src/knowledge_base.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kolibri_core_objects.dir/build.make CMakeFiles/kolibri_core_objects.dir/backend/src/knowledge_base.c.o
+.PHONY : backend/src/knowledge_base.c.o
+
+backend/src/knowledge_base.i: backend/src/knowledge_base.c.i
+.PHONY : backend/src/knowledge_base.i
+
+# target to preprocess a source file
+backend/src/knowledge_base.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kolibri_core_objects.dir/build.make CMakeFiles/kolibri_core_objects.dir/backend/src/knowledge_base.c.i
+.PHONY : backend/src/knowledge_base.c.i
+
+backend/src/knowledge_base.s: backend/src/knowledge_base.c.s
+.PHONY : backend/src/knowledge_base.s
+
+# target to generate assembly for a file
+backend/src/knowledge_base.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kolibri_core_objects.dir/build.make CMakeFiles/kolibri_core_objects.dir/backend/src/knowledge_base.c.s
+.PHONY : backend/src/knowledge_base.c.s
+
+backend/src/kolibri_memory.o: backend/src/kolibri_memory.c.o
+.PHONY : backend/src/kolibri_memory.o
+
+# target to build an object file
+backend/src/kolibri_memory.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kolibri_core_objects.dir/build.make CMakeFiles/kolibri_core_objects.dir/backend/src/kolibri_memory.c.o
+.PHONY : backend/src/kolibri_memory.c.o
+
+backend/src/kolibri_memory.i: backend/src/kolibri_memory.c.i
+.PHONY : backend/src/kolibri_memory.i
+
+# target to preprocess a source file
+backend/src/kolibri_memory.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kolibri_core_objects.dir/build.make CMakeFiles/kolibri_core_objects.dir/backend/src/kolibri_memory.c.i
+.PHONY : backend/src/kolibri_memory.c.i
+
+backend/src/kolibri_memory.s: backend/src/kolibri_memory.c.s
+.PHONY : backend/src/kolibri_memory.s
+
+# target to generate assembly for a file
+backend/src/kolibri_memory.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kolibri_core_objects.dir/build.make CMakeFiles/kolibri_core_objects.dir/backend/src/kolibri_memory.c.s
+.PHONY : backend/src/kolibri_memory.c.s
+
+backend/src/reasoning.o: backend/src/reasoning.c.o
+.PHONY : backend/src/reasoning.o
+
+# target to build an object file
+backend/src/reasoning.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kolibri_core_objects.dir/build.make CMakeFiles/kolibri_core_objects.dir/backend/src/reasoning.c.o
+.PHONY : backend/src/reasoning.c.o
+
+backend/src/reasoning.i: backend/src/reasoning.c.i
+.PHONY : backend/src/reasoning.i
+
+# target to preprocess a source file
+backend/src/reasoning.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kolibri_core_objects.dir/build.make CMakeFiles/kolibri_core_objects.dir/backend/src/reasoning.c.i
+.PHONY : backend/src/reasoning.c.i
+
+backend/src/reasoning.s: backend/src/reasoning.c.s
+.PHONY : backend/src/reasoning.s
+
+# target to generate assembly for a file
+backend/src/reasoning.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kolibri_core_objects.dir/build.make CMakeFiles/kolibri_core_objects.dir/backend/src/reasoning.c.s
+.PHONY : backend/src/reasoning.c.s
+
 benchmarks/bench_kolibri_vs_world.o: benchmarks/bench_kolibri_vs_world.c.o
 .PHONY : benchmarks/bench_kolibri_vs_world.o
 
@@ -1124,6 +1209,30 @@ benchmarks/kolibri_swarm_knowledge_benchmark.s: benchmarks/kolibri_swarm_knowled
 benchmarks/kolibri_swarm_knowledge_benchmark.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/kolibri_swarm_knowledge_benchmark.dir/build.make CMakeFiles/kolibri_swarm_knowledge_benchmark.dir/benchmarks/kolibri_swarm_knowledge_benchmark.c.s
 .PHONY : benchmarks/kolibri_swarm_knowledge_benchmark.c.s
+
+core/action_engine.o: core/action_engine.c.o
+.PHONY : core/action_engine.o
+
+# target to build an object file
+core/action_engine.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kolibri_core_objects.dir/build.make CMakeFiles/kolibri_core_objects.dir/core/action_engine.c.o
+.PHONY : core/action_engine.c.o
+
+core/action_engine.i: core/action_engine.c.i
+.PHONY : core/action_engine.i
+
+# target to preprocess a source file
+core/action_engine.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kolibri_core_objects.dir/build.make CMakeFiles/kolibri_core_objects.dir/core/action_engine.c.i
+.PHONY : core/action_engine.c.i
+
+core/action_engine.s: core/action_engine.c.s
+.PHONY : core/action_engine.s
+
+# target to generate assembly for a file
+core/action_engine.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kolibri_core_objects.dir/build.make CMakeFiles/kolibri_core_objects.dir/core/action_engine.c.s
+.PHONY : core/action_engine.c.s
 
 core/agi_pipeline.o: core/agi_pipeline.c.o
 .PHONY : core/agi_pipeline.o
@@ -2643,6 +2752,30 @@ core/threaded_inference.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/kolibri_core_objects.dir/build.make CMakeFiles/kolibri_core_objects.dir/core/threaded_inference.c.s
 .PHONY : core/threaded_inference.c.s
 
+core/tool_registry.o: core/tool_registry.c.o
+.PHONY : core/tool_registry.o
+
+# target to build an object file
+core/tool_registry.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kolibri_core_objects.dir/build.make CMakeFiles/kolibri_core_objects.dir/core/tool_registry.c.o
+.PHONY : core/tool_registry.c.o
+
+core/tool_registry.i: core/tool_registry.c.i
+.PHONY : core/tool_registry.i
+
+# target to preprocess a source file
+core/tool_registry.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kolibri_core_objects.dir/build.make CMakeFiles/kolibri_core_objects.dir/core/tool_registry.c.i
+.PHONY : core/tool_registry.c.i
+
+core/tool_registry.s: core/tool_registry.c.s
+.PHONY : core/tool_registry.s
+
+# target to generate assembly for a file
+core/tool_registry.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kolibri_core_objects.dir/build.make CMakeFiles/kolibri_core_objects.dir/core/tool_registry.c.s
+.PHONY : core/tool_registry.c.s
+
 core/trace.o: core/trace.c.o
 .PHONY : core/trace.o
 
@@ -2835,6 +2968,30 @@ engine/gpu_encoder/kolibri_gpu_encoder.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/kolibri_gpu.dir/build.make CMakeFiles/kolibri_gpu.dir/engine/gpu_encoder/kolibri_gpu_encoder.c.s
 .PHONY : engine/gpu_encoder/kolibri_gpu_encoder.c.s
 
+infra/tests/test_action_engine.o: infra/tests/test_action_engine.c.o
+.PHONY : infra/tests/test_action_engine.o
+
+# target to build an object file
+infra/tests/test_action_engine.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_action_engine.dir/build.make CMakeFiles/test_action_engine.dir/infra/tests/test_action_engine.c.o
+.PHONY : infra/tests/test_action_engine.c.o
+
+infra/tests/test_action_engine.i: infra/tests/test_action_engine.c.i
+.PHONY : infra/tests/test_action_engine.i
+
+# target to preprocess a source file
+infra/tests/test_action_engine.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_action_engine.dir/build.make CMakeFiles/test_action_engine.dir/infra/tests/test_action_engine.c.i
+.PHONY : infra/tests/test_action_engine.c.i
+
+infra/tests/test_action_engine.s: infra/tests/test_action_engine.c.s
+.PHONY : infra/tests/test_action_engine.s
+
+# target to generate assembly for a file
+infra/tests/test_action_engine.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_action_engine.dir/build.make CMakeFiles/test_action_engine.dir/infra/tests/test_action_engine.c.s
+.PHONY : infra/tests/test_action_engine.c.s
+
 tools/kgpu_demo.o: tools/kgpu_demo.c.o
 .PHONY : tools/kgpu_demo.o
 
@@ -2976,6 +3133,7 @@ help:
 	@echo "... kolibri_verify_digit_masking"
 	@echo "... kolibri_wasm"
 	@echo "... ks_compiler"
+	@echo "... test_action_engine"
 	@echo "... apps/kolibri_archiver.o"
 	@echo "... apps/kolibri_archiver.i"
 	@echo "... apps/kolibri_archiver.s"
@@ -3027,6 +3185,15 @@ help:
 	@echo "... apps/ks_compiler.o"
 	@echo "... apps/ks_compiler.i"
 	@echo "... apps/ks_compiler.s"
+	@echo "... backend/src/knowledge_base.o"
+	@echo "... backend/src/knowledge_base.i"
+	@echo "... backend/src/knowledge_base.s"
+	@echo "... backend/src/kolibri_memory.o"
+	@echo "... backend/src/kolibri_memory.i"
+	@echo "... backend/src/kolibri_memory.s"
+	@echo "... backend/src/reasoning.o"
+	@echo "... backend/src/reasoning.i"
+	@echo "... backend/src/reasoning.s"
 	@echo "... benchmarks/bench_kolibri_vs_world.o"
 	@echo "... benchmarks/bench_kolibri_vs_world.i"
 	@echo "... benchmarks/bench_kolibri_vs_world.s"
@@ -3042,6 +3209,9 @@ help:
 	@echo "... benchmarks/kolibri_swarm_knowledge_benchmark.o"
 	@echo "... benchmarks/kolibri_swarm_knowledge_benchmark.i"
 	@echo "... benchmarks/kolibri_swarm_knowledge_benchmark.s"
+	@echo "... core/action_engine.o"
+	@echo "... core/action_engine.i"
+	@echo "... core/action_engine.s"
 	@echo "... core/agi_pipeline.o"
 	@echo "... core/agi_pipeline.i"
 	@echo "... core/agi_pipeline.s"
@@ -3231,6 +3401,9 @@ help:
 	@echo "... core/threaded_inference.o"
 	@echo "... core/threaded_inference.i"
 	@echo "... core/threaded_inference.s"
+	@echo "... core/tool_registry.o"
+	@echo "... core/tool_registry.i"
+	@echo "... core/tool_registry.s"
 	@echo "... core/trace.o"
 	@echo "... core/trace.i"
 	@echo "... core/trace.s"
@@ -3255,6 +3428,9 @@ help:
 	@echo "... engine/gpu_encoder/kolibri_gpu_encoder.o"
 	@echo "... engine/gpu_encoder/kolibri_gpu_encoder.i"
 	@echo "... engine/gpu_encoder/kolibri_gpu_encoder.s"
+	@echo "... infra/tests/test_action_engine.o"
+	@echo "... infra/tests/test_action_engine.i"
+	@echo "... infra/tests/test_action_engine.s"
 	@echo "... tools/kgpu_demo.o"
 	@echo "... tools/kgpu_demo.i"
 	@echo "... tools/kgpu_demo.s"
@@ -3280,4 +3456,3 @@ help:
 cmake_check_build_system:
 	$(CMAKE_COMMAND) -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR) --check-build-system CMakeFiles/Makefile.cmake 0
 .PHONY : cmake_check_build_system
-

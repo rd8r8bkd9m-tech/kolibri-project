@@ -12,7 +12,23 @@
 #include <stdio.h>
 #include <time.h>
 #include <math.h>
+#ifndef EMSCRIPTEN
 #include <divsufsort.h>  /* v70: BWT preprocessing via libdivsufsort */
+#endif
+
+#ifdef EMSCRIPTEN
+typedef int saidx_t;
+static int bw_transform(const unsigned char *T, unsigned char *U, saidx_t *A, saidx_t n, saidx_t *primary_index) {
+    return -1; // Fail BWT, fallback to other methods
+}
+#endif
+#ifdef EMSCRIPTEN
+static int inverse_bw_transform(const unsigned char *T, unsigned char *U, saidx_t *A, saidx_t n, saidx_t primary_index) {
+    return -1;
+}
+#endif
+
+
 
 /* v62: SIMD и многопоточность */
 #if defined(__SSE2__)
@@ -237,7 +253,7 @@ static size_t decompress_rle(const uint8_t *input, size_t input_size,
                 /* RLE sequence */
                 uint8_t count = input[in_pos + 1];
                 uint8_t value = input[in_pos + 2];
-                
+
                 for (uint8_t i = 0; i < count; i++) {
                     if (out_pos >= output_size) return 0;
                     output[out_pos++] = value;
@@ -275,9 +291,9 @@ static size_t decompress_lz77(const uint8_t *input, size_t input_size,
                 /* LZ77 sequence - distance is 2 bytes */
                 size_t distance = ((size_t)input[in_pos + 1] << 8) | (size_t)input[in_pos + 2];
                 size_t length = input[in_pos + 3];
-                
+
                 if (out_pos < distance || distance == 0) return 0;
-                
+
                 size_t copy_pos = out_pos - distance;
                 for (size_t i = 0; i < length; i++) {
                     if (out_pos >= output_size) return 0;
@@ -316,11 +332,11 @@ static size_t decompress_lz77(const uint8_t *input, size_t input_size,
 /* BWT Inverse Transform: Восстановление исходных данных из BWT */
 static int bwt_inverse(const uint8_t *L, size_t len, uint8_t *output, uint32_t primary_index) {
     if (!L || !output || primary_index >= (uint32_t)len) return -1;
-    
+
     /* Подсчёт частот */
     uint32_t count[256] = {0};
     for (size_t i = 0; i < len; i++) count[L[i]]++;
-    
+
     /* Кумулятивные частоты */
     uint32_t cumul[256];
     uint32_t sum = 0;
@@ -328,24 +344,24 @@ static int bwt_inverse(const uint8_t *L, size_t len, uint8_t *output, uint32_t p
         cumul[c] = sum;
         sum += count[c];
     }
-    
+
     /* Строим LF-mapping */
     uint32_t *LF = (uint32_t *)malloc(len * sizeof(uint32_t));
     if (!LF) return -1;
-    
+
     uint32_t running[256];
     memcpy(running, cumul, sizeof(cumul));
     for (size_t i = 0; i < len; i++) {
         LF[i] = running[L[i]]++;
     }
-    
+
     /* Восстанавливаем строку обратным обходом цепочки */
     uint32_t idx = primary_index;
     for (size_t i = len; i > 0; i--) {
         output[i - 1] = L[idx];
         idx = LF[idx];
     }
-    
+
     free(LF);
     return 0;
 }
@@ -356,11 +372,11 @@ static int bwt_inverse(const uint8_t *L, size_t len, uint8_t *output, uint32_t p
 static void mtf_decode(uint8_t *data, size_t len) {
     uint8_t table[256];
     for (int i = 0; i < 256; i++) table[i] = (uint8_t)i;
-    
+
     for (size_t i = 0; i < len; i++) {
         uint8_t rank = data[i];
         uint8_t ch = table[rank];
-        
+
         data[i] = ch;
         memmove(table + 1, table, rank);
         table[0] = ch;
@@ -368,7 +384,7 @@ static void mtf_decode(uint8_t *data, size_t len) {
 }
 
 /* ===================== Context Prediction v50 (Kolibri AI) ===================== */
-/* 
+/*
  * v50: \u0421\u043c\u0435\u0448\u0430\u043d\u043d\u043e\u0435 \u043f\u0440\u0435\u0434\u0441\u043a\u0430\u0437\u0430\u043d\u0438\u0435 Order-1 + Order-2 + \u0445\u0435\u0448\u0438\u0440\u043e\u0432\u0430\u043d\u043d\u044b\u0439 Order-3.
  * \u041a\u0430\u0436\u0434\u044b\u0439 \u043a\u043e\u043d\u0442\u0435\u043a\u0441\u0442 \u0440\u0430\u0431\u043e\u0442\u0430\u0435\u0442 \u043d\u0435\u0437\u0430\u0432\u0438\u0441\u0438\u043c\u043e \u2014 \u043f\u0440\u0435\u0434\u0441\u043a\u0430\u0437\u0430\u043d\u0438\u044f \u0441\u043c\u0435\u0448\u0438\u0432\u0430\u044e\u0442\u0441\u044f \u0441 \u0432\u0435\u0441\u0430\u043c\u0438.
  * Order-3 \u043f\u0440\u0435\u0434\u0441\u043a\u0430\u0437\u044b\u0432\u0430\u0435\u0442 \u043b\u0443\u0447\u0448\u0435 \u043d\u0430 \u0441\u0442\u0440\u0443\u043a\u0442\u0443\u0440\u0438\u0440\u043e\u0432\u0430\u043d\u043d\u044b\u0445 \u0434\u0430\u043d\u043d\u044b\u0445,
@@ -386,42 +402,42 @@ static void context_predict_decode(const uint8_t *input, size_t len, uint8_t *ou
     uint8_t *hit1  = (uint8_t *)calloc(256, 1);
     uint8_t *hit2  = (uint8_t *)calloc(CTX_TABLE_SIZE, 1);
     uint8_t *hit3  = (uint8_t *)calloc(CTX3_TABLE_SIZE, 1);
-    
+
     if (!pred1 || !pred2 || !pred3 || !hit1 || !hit2 || !hit3) {
         memcpy(output, input, len);
         free(pred1); free(pred2); free(pred3);
         free(hit1); free(hit2); free(hit3);
         return;
     }
-    
+
     if (len > 0) output[0] = input[0];
     if (len > 1) output[1] = input[1];
     if (len > 2) output[2] = input[2];
-    
+
     for (size_t i = 3; i < len; i++) {
         uint8_t ctx1_key = output[i-1];
         uint16_t ctx2_key = ((uint16_t)output[i-2] << 8) | (uint16_t)output[i-1];
         uint32_t ctx3_key = (((uint32_t)output[i-3] * 65599U) ^
                              ((uint32_t)output[i-2] * 257U) ^
                              (uint32_t)output[i-1]) & CTX3_MASK;
-        
+
         int p1 = (int)pred1[ctx1_key];
         int p2 = (int)pred2[ctx2_key];
         int p3 = (int)pred3[ctx3_key];
         int h1 = (int)hit1[ctx1_key];
         int h2 = (int)hit2[ctx2_key];
         int h3 = (int)hit3[ctx3_key];
-        
+
         int w1 = 1 + h1;
         int w2 = 2 + h2 * 2;
         int w3 = 3 + h3 * 3;
         int total_w = w1 + w2 + w3;
         int predicted = (p1 * w1 + p2 * w2 + p3 * w3 + total_w / 2) / total_w;
         predicted = predicted & 0xFF;
-        
+
         /* \u0412\u043e\u0441\u0441\u0442\u0430\u043d\u0430\u0432\u043b\u0438\u0432\u0430\u0435\u043c: real = predicted + residual */
         output[i] = (uint8_t)predicted + input[i];
-        
+
         uint8_t actual = output[i];
         if (pred1[ctx1_key] == actual && hit1[ctx1_key] < 255) hit1[ctx1_key]++;
         else { hit1[ctx1_key] = 0; }
@@ -429,12 +445,12 @@ static void context_predict_decode(const uint8_t *input, size_t len, uint8_t *ou
         else { hit2[ctx2_key] = 0; }
         if (pred3[ctx3_key] == actual && hit3[ctx3_key] < 255) hit3[ctx3_key]++;
         else { hit3[ctx3_key] = 0; }
-        
+
         pred1[ctx1_key] = actual;
         pred2[ctx2_key] = actual;
         pred3[ctx3_key] = actual;
     }
-    
+
     free(pred1); free(pred2); free(pred3);
     free(hit1); free(hit2); free(hit3);
 }
@@ -471,25 +487,25 @@ typedef struct {
  */
 static int kf_compact_predict(const KolibriCompactFormula *f, int prev_byte) {
     long long x = (long long)(prev_byte & 0xFF);
-    
+
     for (int layer = 0; layer < KF_LAYERS; layer++) {
         int off = layer * 8;
         int op    = f->digits[off] % 6;
         int slope = (int)f->digits[off+1] * 10 + (int)f->digits[off+2] - 50;
-        int bias  = (int)f->digits[off+3] * 100 + (int)f->digits[off+4] * 10 
+        int bias  = (int)f->digits[off+3] * 100 + (int)f->digits[off+4] * 10
                     + (int)f->digits[off+5] - 500;
         int aux   = (int)f->digits[off+6] * 10 + (int)f->digits[off+7];
-        
+
         long long residual = x;
         long long result;
-        
+
         switch (op) {
             case 0: /* Линейная: slope*x/100 + bias */
-                result = (long long)slope * x / 100 + bias; 
+                result = (long long)slope * x / 100 + bias;
                 break;
             case 1: /* Пороговая: if |x| < aux then bias, else slope*x/100+bias */
                 { long long ax = x < 0 ? -x : x;
-                  result = (ax < (long long)aux) ? (long long)bias 
+                  result = (ax < (long long)aux) ? (long long)bias
                            : ((long long)slope * x / 100 + bias); }
                 break;
             case 2: /* Модульная: (slope*x) % (aux+1) + bias */
@@ -501,16 +517,16 @@ static int kf_compact_predict(const KolibriCompactFormula *f, int prev_byte) {
                   result = (long long)slope * x / (100 + ax) + bias; }
                 break;
             case 4: /* Shift: (x >> (aux&3)) + bias */
-                result = (x >> ((unsigned)aux & 3)) + bias; 
+                result = (x >> ((unsigned)aux & 3)) + bias;
                 break;
             case 5: /* Масштабирование: x * aux / 100 + bias */
                 result = x * (long long)aux / 100 + bias;
                 break;
             default:
-                result = x + bias; 
+                result = x + bias;
                 break;
         }
-        
+
         /* Клиппинг + Residual Connection */
         if (result > 512LL) result = 512LL;
         if (result < -512LL) result = -512LL;
@@ -518,7 +534,7 @@ static int kf_compact_predict(const KolibriCompactFormula *f, int prev_byte) {
         if (x > 512LL) x = 512LL;
         if (x < -512LL) x = -512LL;
     }
-    
+
     return (int)(((x % 256) + 256) % 256);
 }
 
@@ -584,10 +600,10 @@ static size_t zrle_decode(const uint8_t *input, size_t compressed_len, uint8_t *
 static size_t decompress_mathematical(const uint8_t *input, size_t input_size,
                                      uint8_t *output, size_t output_size,
                                      uint32_t version) {
-    
+
     /* v50: \u043f\u043e\u0434\u0434\u0435\u0440\u0436\u043a\u0430 128KB \u0431\u043b\u043e\u043a\u043e\u0432 (v40 \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u043b 64KB) */
     size_t block_size = (version >= 50) ? MATH_BLOCK_SIZE : MATH_BLOCK_SIZE_V40;
-    
+
     size_t in_pos = 0;
     size_t out_processed = 0;
 
@@ -596,19 +612,19 @@ static size_t decompress_mathematical(const uint8_t *input, size_t input_size,
 
     while (in_pos < input_size && out_processed < output_size) {
         if (in_pos >= input_size) break;
-        
+
         uint8_t method = input[in_pos++];
         size_t remaining_out = output_size - out_processed;
         size_t block_len = MIN(block_size, remaining_out);
-        
-        /* If this is the last block, it might be smaller than MATH_BLOCK_SIZE. 
+
+        /* If this is the last block, it might be smaller than MATH_BLOCK_SIZE.
            We know exact output size, so we can clamp.
         */
-        
+
         uint8_t *out_blk = output + out_processed;
 
         if (method == 0) {
-            if (in_pos + block_len > input_size) return 0; 
+            if (in_pos + block_len > input_size) return 0;
             memcpy(out_blk, input + in_pos, block_len);
             in_pos += block_len;
         } else if (method == 1) {
@@ -621,7 +637,7 @@ static size_t decompress_mathematical(const uint8_t *input, size_t input_size,
             in_pos += block_len;
         } else if (method == 2) {
             if (in_pos + block_len > input_size) return 0;
-            const uint8_t *data = input + in_pos; 
+            const uint8_t *data = input + in_pos;
             out_blk[0] = data[0];
             out_blk[1] = data[1];
             for (size_t i = 2; i < block_len; i++) {
@@ -644,7 +660,7 @@ static size_t decompress_mathematical(const uint8_t *input, size_t input_size,
              }
              uint16_t seed = (uint16_t)input[in_pos] | ((uint16_t)input[in_pos+1] << 8);
              in_pos += 2;
-             
+
              k_rng_seed(&current_rng, seed);
              for(size_t i=0; i<block_len; i++) {
                  out_blk[i] = (uint8_t)(k_rng_next(&current_rng) % 256);
@@ -662,42 +678,42 @@ static size_t decompress_mathematical(const uint8_t *input, size_t input_size,
              }
              uint16_t seed = (uint16_t)input[in_pos] | ((uint16_t)input[in_pos+1] << 8);
              in_pos += 2;
-             
+
              KolibriRng rng;
              k_rng_seed(&rng, seed);
              const uint8_t *deltas = input + in_pos;
-             
+
              for(size_t i=0; i<block_len; i++) {
                  uint8_t gen = (uint8_t)(k_rng_next(&rng) % 256);
                  /* Restore: Real = Generator + Delta */
                  out_blk[i] = gen + deltas[i];
              }
              in_pos += block_len;
-             
+
              /* Update continuing seed state for potential next block usage */
              KolibriRng tmp; k_rng_seed(&tmp, seed);
              for(size_t k=0; k<block_len; k++) k_rng_next(&tmp);
              current_rng = tmp;
-             
+
         } else if (method == 8) {
              /* BWT + MTF + ZRLE INVERSE */
              if (in_pos + 7 > input_size) return 0;
-             
+
              uint32_t bwt_primary_d = (uint32_t)input[in_pos]
                                   | ((uint32_t)input[in_pos+1] << 8)
                                   | ((uint32_t)input[in_pos+2] << 16)
                                   | ((uint32_t)input[in_pos+3] << 24);
              in_pos += 4;
-             
+
              /* Читаем размер ZRLE данных */
              uint32_t zrle_size = (uint32_t)input[in_pos]
                                | ((uint32_t)input[in_pos+1] << 8)
                                | ((uint32_t)input[in_pos+2] << 16);
              in_pos += 3;
-             
+
              uint8_t *temp = (uint8_t *)malloc(block_len);
              if (!temp) return 0;
-             
+
              if (zrle_size == 0) {
                  /* Raw MTF данные (ZRLE не использовалась) */
                  if (in_pos + block_len > input_size) { free(temp); return 0; }
@@ -712,26 +728,26 @@ static size_t decompress_mathematical(const uint8_t *input, size_t input_size,
                  if (decoded != block_len) { free(temp); return 0; }
                  in_pos += zrle_size;
              }
-             
+
              mtf_decode(temp, block_len);
              if (bwt_inverse(temp, block_len, out_blk, bwt_primary_d) != 0) {
                  free(temp);
                  return 0;
              }
              free(temp);
-             
+
         } else if (method == 9) {
              /* CONTEXT PREDICTION + ZRLE INVERSE */
              if (in_pos + 3 > input_size) return 0;
-             
+
              uint32_t zrle_size = (uint32_t)input[in_pos]
                                | ((uint32_t)input[in_pos+1] << 8)
                                | ((uint32_t)input[in_pos+2] << 16);
              in_pos += 3;
-             
+
              uint8_t *temp = (uint8_t *)malloc(block_len);
              if (!temp) return 0;
-             
+
              if (zrle_size == 0) {
                  if (in_pos + block_len > input_size) { free(temp); return 0; }
                  context_predict_decode(input + in_pos, block_len, out_blk);
@@ -744,25 +760,25 @@ static size_t decompress_mathematical(const uint8_t *input, size_t input_size,
                  context_predict_decode(temp, block_len, out_blk);
              }
              free(temp);
-             
+
         } else if (method == 10) {
              /* BWT + MTF + CONTEXT + ZRLE INVERSE */
              if (in_pos + 7 > input_size) return 0;
-             
+
              uint32_t bwt_primary_d = (uint32_t)input[in_pos]
                                   | ((uint32_t)input[in_pos+1] << 8)
                                   | ((uint32_t)input[in_pos+2] << 16)
                                   | ((uint32_t)input[in_pos+3] << 24);
              in_pos += 4;
-             
+
              uint32_t zrle_size = (uint32_t)input[in_pos]
                                | ((uint32_t)input[in_pos+1] << 8)
                                | ((uint32_t)input[in_pos+2] << 16);
              in_pos += 3;
-             
+
              uint8_t *temp = (uint8_t *)malloc(block_len);
              if (!temp) return 0;
-             
+
              if (zrle_size == 0) {
                  if (in_pos + block_len > input_size) { free(temp); return 0; }
                  memcpy(temp, input + in_pos, block_len);
@@ -773,7 +789,7 @@ static size_t decompress_mathematical(const uint8_t *input, size_t input_size,
                  if (decoded != block_len) { free(temp); return 0; }
                  in_pos += zrle_size;
              }
-             
+
              /* Inverse Context → MTF → BWT */
              uint8_t *temp2_d = (uint8_t *)malloc(block_len);
              if (!temp2_d) { free(temp); return 0; }
@@ -785,33 +801,33 @@ static size_t decompress_mathematical(const uint8_t *input, size_t input_size,
              }
              free(temp);
              free(temp2_d);
-             
+
         } else if (method == 11) {
              /* BWT + MTF + FORMULA PREDICTION + ZRLE INVERSE
               * Формат: [BWT_primary:4] [gene_packed:32] [zrle_len:3] [zrle_data...] */
              if (in_pos + 4 + KF_GENE_PACKED + 3 > input_size) return 0;
-             
+
              uint32_t bwt_primary_d = (uint32_t)input[in_pos]
                                   | ((uint32_t)input[in_pos+1] << 8)
                                   | ((uint32_t)input[in_pos+2] << 16)
                                   | ((uint32_t)input[in_pos+3] << 24);
              in_pos += 4;
-             
+
              /* Распаковываем геном формулы: 32 байта → 64 цифры */
              KolibriCompactFormula formula_d;
              kf_unpack_gene(input + in_pos, formula_d.digits);
              in_pos += KF_GENE_PACKED;
-             
+
              /* ZRLE размер остатков */
              uint32_t zrle_size = (uint32_t)input[in_pos]
                                | ((uint32_t)input[in_pos+1] << 8)
                                | ((uint32_t)input[in_pos+2] << 16);
              in_pos += 3;
-             
+
              /* Декодируем ZRLE → остатки (residuals) */
              uint8_t *residuals = (uint8_t *)malloc(block_len);
              if (!residuals) return 0;
-             
+
              if (zrle_size == 0) {
                  if (in_pos + block_len > input_size) { free(residuals); return 0; }
                  memcpy(residuals, input + in_pos, block_len);
@@ -822,14 +838,14 @@ static size_t decompress_mathematical(const uint8_t *input, size_t input_size,
                  if (decoded != block_len) { free(residuals); return 0; }
                  in_pos += zrle_size;
              }
-             
+
              /* Восстанавливаем BWT+MTF данные: data[i] = predict(prev) + residual[i] */
              uint8_t *mtf_data = (uint8_t *)malloc(block_len);
              if (!mtf_data) { free(residuals); return 0; }
-             
+
              kf_formula_decode_block(&formula_d, residuals, block_len, mtf_data);
              free(residuals);
-             
+
              /* Inverse MTF → BWT */
              mtf_decode(mtf_data, block_len);
              if (bwt_inverse(mtf_data, block_len, out_blk, bwt_primary_d) != 0) {
@@ -837,24 +853,24 @@ static size_t decompress_mathematical(const uint8_t *input, size_t input_size,
                  return 0;
              }
              free(mtf_data);
-             
+
         } else if (method == 12) {
              /* PURE FORMULA + ZRLE INVERSE (без BWT!)
               * Формат: [gene_packed:32] [zrle_len:3] [zrle_data...] */
              if (in_pos + KF_GENE_PACKED + 3 > input_size) return 0;
-             
+
              KolibriCompactFormula formula_d;
              kf_unpack_gene(input + in_pos, formula_d.digits);
              in_pos += KF_GENE_PACKED;
-             
+
              uint32_t zrle_size = (uint32_t)input[in_pos]
                                | ((uint32_t)input[in_pos+1] << 8)
                                | ((uint32_t)input[in_pos+2] << 16);
              in_pos += 3;
-             
+
              uint8_t *residuals = (uint8_t *)malloc(block_len);
              if (!residuals) return 0;
-             
+
              if (zrle_size == 0) {
                  if (in_pos + block_len > input_size) { free(residuals); return 0; }
                  memcpy(residuals, input + in_pos, block_len);
@@ -865,16 +881,16 @@ static size_t decompress_mathematical(const uint8_t *input, size_t input_size,
                  if (decoded != block_len) { free(residuals); return 0; }
                  in_pos += zrle_size;
              }
-             
+
              /* Восстанавливаем данные напрямую: data[i] = predict(prev) + residual[i] */
              kf_formula_decode_block(&formula_d, residuals, block_len, out_blk);
              free(residuals);
-             
+
         } else {
             return 0; /* Unknown method */
         }
 
-        
+
         out_processed += block_len;
     }
 
@@ -6023,7 +6039,7 @@ int kolibri_decompress(const uint8_t *input,
     if (header->methods & KOLIBRI_COMPRESS_MATH) {
         /* Pass strict original_size as limit to ensure block logic works correctly */
         size_t math_size = decompress_mathematical(current_data, current_size, temp2, original_size, header->version);
-        
+
         if (math_size == 0 || math_size != original_size) {
             token_dict_free(&tdict);
             free(out_buf);
@@ -6268,7 +6284,7 @@ int kolibri_archive_extract_file(KolibriArchive *archive,
     /* Decompress */
     uint8_t *decompressed = NULL;
     size_t decompressed_size = 0;
-    int ret = kolibri_decompress(compressed, entry->data_size, &decompressed, 
+    int ret = kolibri_decompress(compressed, entry->data_size, &decompressed,
                                   &decompressed_size, NULL);
     free(compressed);
 
@@ -6672,4 +6688,3 @@ void kolibri_stream_destroy(KolibriStream *stream) {
     free(stream->blk_buf);
     free(stream);
 }
-

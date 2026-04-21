@@ -1,78 +1,73 @@
-# Kolibri Frontend
+# React + TypeScript + Vite
 
-`frontend/src` является единственным shipping web shell проекта Kolibri.
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-Этот README описывает только активный product contour. Каталог `frontend/kolibri-web` не относится к ближайшему release scope и рассматривается как `integration-only`.
+Currently, two official plugins are available:
 
-## Что входит в shipping frontend
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
-- `src/App.tsx` — корневой product shell
-- `src/api.ts` — canonical web client для backend surface
-- `src/lib/kolibriBridge.ts` — WASM/offline bridge
-- `public/kolibri.wasm` — browser runtime artifact, поставляемый из `scripts/build_wasm.sh`
+## React Compiler
 
-## Продуктовая модель
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-Frontend не является самостоятельным отдельным продуктом. Он является UI-слоем для одного канонического user flow:
+## Expanding the ESLint configuration
 
-1. открыть chat shell;
-2. пройти auth/profile/preferences roundtrip;
-3. создать или продолжить диалог;
-4. использовать streaming;
-5. открыть workspace для swarm/kpack/ingest;
-6. при необходимости переключиться на WASM/offline path.
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
 
-## Runtime truth
+```js
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
 
-- По умолчанию shell работает через backend gateway.
-- WASM path включается как совместимый browser runtime, а не как отдельный API surface.
-- Если локальный WASM-ответ слабый или отключён, product shell остаётся работоспособным через backend path.
+      // Remove tseslint.configs.recommended and replace with this
+      tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      tseslint.configs.stylisticTypeChecked,
 
-## Команды
-
-Установка зависимостей:
-
-```bash
-npm ci --prefix frontend
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
 ```
 
-Локальная разработка:
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
 
-```bash
-npm run dev --prefix frontend -- --host 0.0.0.0 --port 3000
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
+
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
 ```
-
-Shipping build:
-
-```bash
-./scripts/release_gate.sh wasm
-npm run build --prefix frontend
-```
-
-Release gate для frontend:
-
-```bash
-npm run test --prefix frontend
-npm run lint --prefix frontend
-npm run build --prefix frontend
-```
-
-## WASM path
-
-`scripts/build_wasm.sh` собирает `build/wasm/kolibri.wasm` и копирует:
-
-- `frontend/public/kolibri.wasm`
-- `frontend/public/kolibri.wasm.sha256`
-- `frontend/public/kolibri.wasm.txt`
-
-Shipping frontend считает WASM bridge частью того же продуктового контура, но не использует его как оправдание для расхождения между frontend и backend contract.
-
-## Что считается официальным public surface
-
-- chat shell и conversation UX
-- auth/account/preferences flows
-- streaming chat
-- workspace actions вокруг swarm runtime и `.kpack`
-- browser loading of `kolibri.wasm`
-
-Неофициальные или вторичные UI-сценарии не должны описываться как часть shipping release, пока не попадают в тот же release gate.

@@ -27,9 +27,13 @@ extern "C" {
 
 /* --- Максимальные размеры --- */
 #define KFM_MAX_DEPTH       64      /* макс. глубина дерева (= длина пути) */
-#define KFM_MAX_PAYLOAD     512     /* макс. размер данных в узле */
+#define KFM_MAX_PAYLOAD     128     /* макс. размер данных в узле */
 #define KFM_MAX_ASSOCIATIONS 16     /* макс. ассоциаций на узел */
-#define KFM_MAX_NODES       65536   /* макс. узлов в дереве */
+#ifdef EMSCRIPTEN
+#define KFM_MAX_NODES       4096
+#else
+#define KFM_MAX_NODES       65536
+#endif   /* макс. узлов в дереве */
 
 /* --- Типы узлов --- */
 typedef enum {
@@ -85,11 +89,12 @@ typedef struct {
 
 /* --- Контекст фрактальной памяти --- */
 typedef struct {
-    KfmNode *root;                       /* корень дерева */
+    struct KfmNode *root;                /* корень дерева */
     size_t   node_count;                 /* счётчик узлов */
     uint64_t tick;                       /* глобальный тик (время) */
     float    decay_rate;                 /* скорость затухания (0.01-0.1) */
     uint32_t seed;                       /* RNG seed */
+    struct KfmNode *node_pool;           /* Пул узлов */
 } KfmContext;
 
 /* === API === */

@@ -1,15 +1,13 @@
 /*
  * logical_memory.h
- * 
- * Логическая память без данных (Logic-Centric Memory)
- * 
- * Концепция: Вместо хранения данных храним ЛОГИКУ их генерации
- * - Правила (rules)
- * - Формулы (formulas)
- * - Отношения (relations)
- * - Constraints (ограничения)
- * 
- * Данные материализуются только при запросе (lazy evaluation)
+ *
+ * Логическая память без данных (Logic-Centric Memory).
+ *
+ * Инвариант цифрового ядра:
+ *   D-слой хранит обратимые цифры,
+ *   F-слой хранит формулы,
+ *   MF-слой генерирует формулы/логику,
+ *   материализация всегда должна восстанавливать исходный поток.
  */
 
 #ifndef KOLIBRI_LOGICAL_MEMORY_H
@@ -18,205 +16,177 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* ========== ЛОГИЧЕСКИЕ ПРИМИТИВЫ ========== */
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-/* Тип логического выражения */
+/* 256K ячеек для больших массивов знаний и файлов. */
+#define LM_MAX_CELLS 262144U
+
+#define LOGIC_OP_CONSTANT 0
+#define LOGIC_OP_REPEAT   1
+#define LOGIC_OP_SEQUENCE 2
+#define LOGIC_OP_NOP      3
+
 typedef enum {
-    LOGIC_CONSTANT,      /* Константа: 5, "ABC", true */
+    LOGIC_CONSTANT,      /* Константа: "ABC", "065" */
     LOGIC_VARIABLE,      /* Переменная: x, y, input */
-    LOGIC_REPEAT,        /* Повторение: repeat(pattern, N) */
-    LOGIC_SEQUENCE,      /* Последовательность: seq(start, step, count) */
-    LOGIC_TRANSFORM,     /* Трансформация: transform(input, func) */
-    LOGIC_CONDITIONAL,   /* Условие: if(cond, then, else) */
-    LOGIC_COMPOSITION,   /* Композиция: compose(f1, f2, ...) */
-    LOGIC_RELATION,      /* Отношение: relates(A, B, type) */
-    LOGIC_L5_SUPER       /* L5 Generative: 6-byte super formula */
+    LOGIC_REPEAT,        /* repeat(pattern, N) */
+    LOGIC_SEQUENCE,      /* sequence(start, step, count) */
+    LOGIC_TRANSFORM,     /* transform(input, func) */
+    LOGIC_CONDITIONAL,   /* if(cond, then, else) */
+    LOGIC_COMPOSITION,   /* compose(f1, f2, ...) */
+    LOGIC_RELATION,      /* relation(A, B, type) */
+    LOGIC_L5_SUPER,      /* L5 Generative: компактная super formula */
+    LOGIC_DIGIT_STREAM,  /* Canonical D-layer: uint8_t digits 0..9 */
+    LOGIC_NOP
 } LogicType;
 
-/* Логическое выражение (вместо данных!) */
 typedef struct LogicExpression {
     LogicType type;
-    
+
     union {
-        /* LOGIC_CONSTANT */
         struct {
             char *value;
             size_t length;
         } constant;
-        
-        /* LOGIC_VARIABLE */
+
         struct {
             char name[32];
-            struct LogicExpression *binding;  /* Связывание с другим выражением */
+            struct LogicExpression *binding;
         } variable;
-        
-        /* LOGIC_REPEAT */
+
         struct {
             struct LogicExpression *pattern;
             size_t count;
         } repeat;
-        
-        /* LOGIC_SEQUENCE */
+
         struct {
             int start;
             int step;
             size_t count;
         } sequence;
-        
-        /* LOGIC_TRANSFORM */
+
         struct {
             struct LogicExpression *input;
             int (*transform_fn)(const void*, void*);
         } transform;
-        
-        /* LOGIC_CONDITIONAL */
+
         struct {
             struct LogicExpression *condition;
             struct LogicExpression *then_expr;
             struct LogicExpression *else_expr;
         } conditional;
-        
-        /* LOGIC_COMPOSITION */
+
         struct {
             struct LogicExpression *expressions[8];
             size_t count;
         } composition;
-        
-        /* LOGIC_RELATION */
+
         struct {
             struct LogicExpression *left;
             struct LogicExpression *right;
-            char relation_type[16];  /* "derives_from", "part_of", "equivalent" */
+            char relation_type[16];
         } relation;
-        
-        /* LOGIC_L5_SUPER */
+
         struct {
             uint8_t super_type;
             uint32_t payload_hash;
             uint8_t checksum;
         } l5_super;
+
+        struct {
+            uint8_t *digits;
+            size_t length;
+        } stream;
     } data;
-    
-    /* Метаданные */
+
     uint64_t creation_time;
-    double complexity;      /* Вычислительная сложность */
-    size_t materialized_size;  /* Размер при материализации */
+    double complexity;
+    size_t materialized_size;
+
+    /* Совместимость с геновыми конструкторами lm_set_operation/lm_add_param. */
+    int param_count;
 } LogicExpression;
 
-/* Логическая ячейка памяти (memory cell) */
 typedef struct {
-    char id[64];               /* Уникальный идентификатор */
-    LogicExpression *logic;    /* Логика генерации */
-    
-    /* Кэш материализованных данных (опционально) */
+    char id[64];
+    char hash[65];
+    LogicExpression *logic;
+
     void *cached_data;
     size_t cached_size;
     uint64_t cache_timestamp;
     int cache_valid;
-    
-    /* Связи с другими ячейками */
-    char dependencies[16][64];  /* ID зависимых ячеек */
+
+    char dependencies[16][64];
     size_t dependency_count;
 } LogicCell;
 
-/* Логическая память (вместо традиционной RAM/storage) */
 typedef struct {
-    LogicCell cells[1024];     /* Ячейки логической памяти */
+    LogicCell *cells;
     size_t cell_count;
-    
-    /* Статистика */
-    size_t total_logic_size;        /* Размер логики (формул) */
-    size_t total_materialized_size; /* Размер если все материализовать */
-    double compression_ratio;       /* Коэффициент сжатия */
-    
-    /* Индексы для быстрого поиска */
+    size_t cell_capacity;
+
+    size_t total_logic_size;
+    size_t total_materialized_size;
+    double compression_ratio;
+
     int (*query_fn)(const char*, LogicCell**);
 } LogicalMemory;
 
-/* ========== API ========== */
-
-/* Создать логическую память */
 LogicalMemory* lm_create_memory(void);
-
-/* Уничтожить логическую память */
 void lm_destroy_memory(LogicalMemory *mem);
 
-/* Создать логическое выражение: constant(value) */
 LogicExpression* lm_logic_constant(const char *value);
-
-/* Создать логическое выражение: repeat(pattern, count) */
 LogicExpression* lm_logic_repeat(const char *pattern, size_t count);
-
-/* Создать логическое выражение: sequence(start, step, count) */
 LogicExpression* lm_logic_sequence(int start, int step, size_t count);
-
-/* Создать логическое выражение: compose(expr1, expr2) */
 LogicExpression* lm_logic_compose(LogicExpression *expr1, LogicExpression *expr2);
-
-/* Создать отношение между выражениями */
 LogicExpression* lm_logic_relation(LogicExpression *left, LogicExpression *right, const char *type);
-
-/* Проверить вычислительную сложность */
-double lm_compute_complexity(LogicExpression *logic);
-
-/* Оптимизировать логическое выражение */
-LogicExpression* lm_optimize_logic(LogicExpression *logic);
-
-/* Вывести логическое выражение как текст */
-int lm_logic_to_string(LogicExpression *logic, char *output, size_t output_size);
-
-/* Материализовать данные из логики (lazy evaluation) */
-int lm_materialize(LogicalMemory *mem, const char *id, void *output, size_t output_size);
-
-/* Сохранить логическое выражение в память */
-int lm_store_logic(LogicalMemory *mem, const char *id, LogicExpression *logic);
-
-/* Материализовать LogicExpression напрямую (выделяет буфер) */
-char* lm_materialize_logic(LogicExpression *logic);
-
-/* Запросить размер материализованных данных (без материализации) */
-size_t lm_predict_size(LogicalMemory *mem, const char *id);
-
-/* Уничтожить логическое выражение */
-void lm_destroy_logic(LogicExpression *logic);
-
-/* Создать логическое выражение: variable(name) */
 LogicExpression* lm_logic_variable(const char *name);
-
-/* Привязать переменную к выражению */
 int lm_logic_bind_variable(LogicExpression *variable, LogicExpression *binding);
-
-/* Создать логическое выражение: transform(input, fn) */
 LogicExpression* lm_logic_transform(LogicExpression *input, int (*fn)(const void*, void*));
-
-/* Создать логическое выражение: if(condition, then, else) */
 LogicExpression* lm_logic_conditional(
     LogicExpression *condition,
     LogicExpression *then_expr,
     LogicExpression *else_expr
 );
-
-/* Phase 3: L5 Generative Encoding */
 LogicExpression* lm_logic_l5_super(uint8_t type, uint32_t payload);
 
-/* Статистика логической памяти */
+double lm_compute_complexity(LogicExpression *logic);
+LogicExpression* lm_optimize_logic(LogicExpression *logic);
+int lm_logic_to_string(LogicExpression *logic, char *output, size_t output_size);
+int lm_materialize(LogicalMemory *mem, const char *id, void *output, size_t output_size);
+char* lm_materialize_logic(LogicExpression *logic);
+size_t lm_predict_size(LogicalMemory *mem, const char *id);
+void lm_destroy_logic(LogicExpression *logic);
+int lm_store_logic(LogicalMemory *mem, const char *id, LogicExpression *logic);
+
+/* D-layer helpers used by newer high-volume knowledge ingestion tests. */
+LogicExpression* lm_logic_stream(const uint8_t *digits, size_t len);
+int lm_emit_to_text(const LogicExpression *logic, char *out, size_t out_len);
+
+/* Compatibility constructors for 32-digit gene execution. */
+LogicExpression* lm_create_logic(void);
+void lm_set_operation(LogicExpression *expr, int op);
+void lm_add_param(LogicExpression *expr, const char *param);
+
 typedef struct {
     size_t total_cells;
     size_t logic_size_bytes;
     size_t predicted_data_size;
     double compression_ratio;
     size_t cached_cells;
-    double cache_hit_rate;  /* Доля закэшированных ячеек (0.0 – 1.0) */
+    double cache_hit_rate;
 } LogicalMemoryStats;
 
 int lm_get_stats(LogicalMemory *mem, LogicalMemoryStats *stats);
 
-/* ========== ПЕРСИСТЕНТНОСТЬ (Stage 3.1) ========== */
-
-/* Сохранить всю логическую память в файл */
 int lm_save(LogicalMemory *mem, const char *filename);
-
-/* Загрузить логическую память из файла */
 LogicalMemory* lm_load(const char *filename);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* KOLIBRI_LOGICAL_MEMORY_H */

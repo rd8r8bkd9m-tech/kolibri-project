@@ -1,184 +1,61 @@
-// // import { WASI } from "@wasmer/wasi/shim";
-
-export interface KolibriBridgeResult {
+export type KolibriBridgeResult = {
   response: string;
   confidence: number;
   method: string;
   sources: number;
   duration_ms: number;
   thinking: string;
-  conversation_id?: string;
-  message_count?: number;
-}
-
-export interface KolibriHealth {
-  status: string;
-  uptime_ms: number;
-  queries_processed: number;
-  avg_response_ms: number;
-  conversations_active: number;
-}
+};
 
 export class KolibriBridge {
+  private module: any = null;
   private ready = false;
-  private instance: WebAssembly.Instance | null = null;
-  private memory: WebAssembly.Memory | null = null;
 
-  constructor(instance: WebAssembly.Instance) {
-    this.instance = instance;
-    this.memory = (instance.exports.memory as WebAssembly.Memory) || null;
-    this.ready = true;
+  static async load(): Promise<KolibriBridge> {
+    const bridge = new KolibriBridge();
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = '/kolibri_engine.js';
+      script.onload = async () => {
+        try {
+          // @ts-ignore
+          const factory = window.createKolibriModule;
+          bridge.module = await factory();
+          bridge.module._kolibri_bridge_init();
+
+          const response = await fetch('/knowledge.json');
+          const knowledge = await response.json();
+          for (const item of knowledge.slice(0, 1000)) {
+            bridge.module.ccall('kolibri_mem_store', null, ['string', 'string', 'number'], [item.premise, item.conclusion, 1.0]);
+          }
+
+          bridge.ready = true;
+          resolve(bridge);
+        } catch (e) {
+          console.error("Bridge Init Error:", e);
+          resolve(bridge);
+        }
+      };
+      document.head.appendChild(script);
+    });
   }
 
-  static async load(url = "/kolibri.wasm"): Promise<KolibriBridge> {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Не удалось загрузить WASM по адресу ${url}: ${response.statusText}`);
+  query(text: string): KolibriBridgeResult {
+    if (!this.ready || !this.module) return { response: "Ядро загружается...", confidence: 0, method: "wait", sources: 0, duration_ms: 0, thinking: "" };
+    try {
+      const capacity = 16384;
+      const qPtr = this.module._malloc(text.length * 4 + 1);
+      this.module.stringToUTF8(text, qPtr, text.length * 4 + 1);
+      const outPtr = this.module._malloc(capacity);
+
+      this.module._kolibri_bridge_query_json(qPtr, outPtr, capacity);
+      const res = JSON.parse(this.module.UTF8ToString(outPtr));
+
+      this.module._free(qPtr);
+      this.module._free(outPtr);
+      return res;
+    } catch (e) {
+      return { response: "Ошибка ядра", confidence: 0, method: "error", sources: 0, duration_ms: 0, thinking: "" };
     }
-
-    // Minimal WASI polyfill for browser
-    const wasiImports = {
-      wasi_snapshot_preview1: {
-        proc_exit: () => {},
-        fd_write: () => {},
-        fd_read: () => {},
-        fd_close: () => {},
-        fd_seek: () => {},
-        clock_time_get: () => {},
-        random_get: () => {},
-        environ_sizes_get: () => {},
-        environ_get: () => {},
-        args_sizes_get: () => {},
-        args_get: () => {},
-        path_open: () => {},
-        path_create_directory: () => {},
-        path_remove_directory: () => {},
-        path_unlink_file: () => {},
-        path_rename: () => {},
-        path_filestat_get: () => {},
-        path_filestat_set_times: () => {},
-        fd_filestat_get: () => {},
-        fd_filestat_set_size: () => {},
-        fd_filestat_set_times: () => {},
-        fd_pread: () => {},
-        fd_pwrite: () => {},
-        fd_readdir: () => {},
-        poll_oneoff: () => {},
-        sock_accept: () => {},
-        sock_recv: () => {},
-        sock_send: () => {},
-        sock_shutdown: () => {},
-      }
-    };
-
-    const importObject = {
-      ...wasiImports,
-      env: {
-        abort: () => {
-          throw new Error("Kolibri WASM abort");
-        },
-        emscripten_notify_memory_growth: (index: number) => {
-          // memory grew
-        },
-      },
-    };
-
-    const wasmModule = await WebAssembly.instantiateStreaming(response, importObject);
-    const bridge = new KolibriBridge(wasmModule.instance);
-    bridge.init();
-    return bridge;
-  }
-
-  private get exports() {
-    return this.instance?.exports as any;
-  }
-
-  private allocString(str: string): number {
-    const encoder = new TextEncoder();
-    const bytes = encoder.encode(str);
-    const ptr = this.exports.malloc(bytes.length + 1);
-    const mem = new Uint8Array(this.memory!.buffer);
-    mem.set(bytes, ptr);
-    mem[ptr + bytes.length] = 0;
-    return ptr;
-  }
-
-  private freeString(ptr: number) {
-    this.exports.free(ptr);
-  }
-
-  private readString(ptr: number): string {
-    const mem = new Uint8Array(this.memory!.buffer);
-    let end = ptr;
-    while (mem[end] !== 0) end++;
-    const decoder = new TextDecoder();
-    return decoder.decode(mem.subarray(ptr, end));
-  }
-
-  isReady(): boolean {
-    return this.ready;
-  }
-
-  init(): number {
-    return this.exports.kolibri_bridge_init();
-  }
-
-  reset(): number {
-    return this.exports.kolibri_bridge_reset();
-  }
-
-  health(): KolibriHealth {
-    const capacity = 1024;
-    const ptr = this.exports.malloc(capacity);
-    this.exports.kolibri_bridge_health(ptr, capacity);
-    const json = this.readString(ptr);
-    this.freeString(ptr);
-    return JSON.parse(json);
-  }
-
-  queryJson(query: string): KolibriBridgeResult {
-    const qPtr = this.allocString(query);
-    const capacity = 8192;
-    const outPtr = this.exports.malloc(capacity);
-    
-    this.exports.kolibri_bridge_query_json(qPtr, outPtr, capacity);
-    
-    const json = this.readString(outPtr);
-    this.freeString(qPtr);
-    this.freeString(outPtr);
-    
-    return JSON.parse(json);
-  }
-
-  sendMessage(conversationId: string, message: string): KolibriBridgeResult {
-    const idPtr = this.allocString(conversationId);
-    const mPtr = this.allocString(message);
-    const capacity = 8192;
-    const outPtr = this.exports.malloc(capacity);
-    
-    this.exports.kolibri_bridge_send_message(idPtr, mPtr, outPtr, capacity);
-    
-    const json = this.readString(outPtr);
-    this.freeString(idPtr);
-    this.freeString(mPtr);
-    this.freeString(outPtr);
-    
-    return JSON.parse(json);
-  }
-
-  cancelQuery(): void {
-    this.exports.kolibri_bridge_cancel_query();
-  }
-
-  getProgress(): { state: string; value: number; detail: string } {
-    return {
-      state: this.readString(this.exports.kolibri_bridge_get_progress_state()),
-      value: this.exports.kolibri_bridge_get_progress_value(),
-      detail: this.readString(this.exports.kolibri_bridge_get_progress_detail()),
-    };
-  }
-
-  getThinking(): string {
-    return this.readString(this.exports.kolibri_bridge_get_thinking());
   }
 }

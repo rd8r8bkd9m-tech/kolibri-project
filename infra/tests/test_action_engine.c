@@ -12,6 +12,25 @@ static int tool_delete_files(const char *params, char *result_out, size_t max_le
     return 0;
 }
 
+/* Tool selector for testing */
+static int test_tool_selector(const KolibriReasoningResult *reasoning, KolibriAction *act) {
+    if (strstr(reasoning->answer, "расчет") || strstr(reasoning->answer, "вычисли")) {
+        strncpy(act->name, "Perform Calculation", 63);
+        strncpy(act->tool_id, "calc", 63);
+        snprintf(act->parameters, 1023, "{\"expr\": \"%s\"}", reasoning->query);
+        act->type = KAE_ACTION_TOOL_USE;
+        strncpy(act->reasoning_justification, reasoning->answer, 511);
+        return 0;
+    } else if (strstr(reasoning->answer, "система") || strstr(reasoning->answer, "версия")) {
+        strncpy(act->name, "Check System Info", 63);
+        strncpy(act->tool_id, "sys_info", 63);
+        act->type = KAE_ACTION_TOOL_USE;
+        strncpy(act->reasoning_justification, reasoning->answer, 511);
+        return 0;
+    }
+    return -1;
+}
+
 int main() {
     printf("--- Kolibri AGI Phase 4: Action Provenance with Digital Genome ---\n");
 
@@ -40,9 +59,10 @@ int main() {
     printf("\n[Test 1: Action with Provenance Logging]\n");
     KolibriReasoningResult re_result;
     kolibri_re_deductive("Выполни сложный расчет 2+2", &re_config, &re_result);
-    
+
     KolibriActionLoop loop;
     kolibri_ae_init_loop(&loop, "Solve math and log provenance", &genome);
+    loop.tool_selector = test_tool_selector;
     kolibri_ae_plan_step(&loop, &re_result);
 
     if (kolibri_ae_execute_current(&loop) == 0) {

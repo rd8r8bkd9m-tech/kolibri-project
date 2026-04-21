@@ -2,7 +2,7 @@
  * action_engine.h
  *
  * Движок действий (Action Loops) для Kolibri AGI.
- * Реализует концепцию "Reasoning-guided action": 
+ * Реализует концепцию "Reasoning-guided action":
  * ИИ не просто вызывает инструменты, а сначала обосновывает необходимость вызова,
  * планирует последовательность и верифицирует результат.
  */
@@ -57,6 +57,7 @@ typedef struct {
     KolibriActionStatus overall_status;
     double progress;
     KolibriGenome *genome; /* For provenance logging */
+    int (*tool_selector)(const KolibriReasoningResult *reasoning, KolibriAction *act); /* Callback для маппинга reasoning -> tool */
 } KolibriActionLoop;
 
 /* ============================================================================

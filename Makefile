@@ -2,7 +2,7 @@ SHELL := /bin/bash
 NINJA_BIN := $(or $(shell command -v ninja 2>/dev/null),$(shell command -v ninja-build 2>/dev/null))
 CMAKE_GENERATOR_ARGS := $(if $(NINJA_BIN),-G Ninja -DCMAKE_MAKE_PROGRAM=$(NINJA_BIN),)
 
-.PHONY: build test wasm frontend iso ci clean benchmark benchmark-quick benchmark-full report \
+.PHONY: build cli test wasm frontend iso ci clean benchmark benchmark-quick benchmark-full report \
 	release-gate-bootstrap release-gate-backend release-gate-native release-gate-wasm \
 	release-gate-frontend release-gate extended-ci
 
@@ -28,20 +28,28 @@ build:
 	cmake -S . -B build $(CMAKE_GENERATOR_ARGS) -DCMAKE_BUILD_TYPE=Release -DKOLIBRI_ENABLE_TESTS=ON
 	cmake --build build
 
+cli:
+	@if [ -z "$(NINJA_BIN)" ] && [ -f build/CMakeCache.txt ] && grep -q '^CMAKE_GENERATOR:INTERNAL=Ninja$$' build/CMakeCache.txt; then \
+		echo "[kolibri] removing stale Ninja cache from build/"; \
+		rm -rf build/CMakeCache.txt build/CMakeFiles; \
+	fi
+	cmake -S . -B build $(CMAKE_GENERATOR_ARGS) -DCMAKE_BUILD_TYPE=Release -DKOLIBRI_ENABLE_TESTS=ON
+	cmake --build build --target kolibri_cli
+
 release-gate-bootstrap:
-	./scripts/release_gate.sh bootstrap
+	./infra/release_gate.sh bootstrap
 
 release-gate-backend:
-	./scripts/release_gate.sh backend
+	./infra/release_gate.sh backend
 
 release-gate-native:
-	./scripts/release_gate.sh native
+	./infra/release_gate.sh native
 
 release-gate-wasm:
-	./scripts/release_gate.sh wasm
+	./infra/release_gate.sh wasm
 
 release-gate-frontend: release-gate-wasm
-	./scripts/release_gate.sh frontend
+	./infra/release_gate.sh frontend
 
 release-gate: release-gate-native release-gate-backend release-gate-frontend
 
