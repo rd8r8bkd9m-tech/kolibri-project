@@ -1,0 +1,2 @@
+/usr/bin/ar qc libkolibri_gpu.a CMakeFiles/kolibri_gpu.dir/engine/gpu_encoder/kolibri_gpu_encoder.c.o CMakeFiles/kolibri_gpu.dir/engine/gpu_encoder/gpu_encoder_stub.c.o
+/usr/bin/ranlib libkolibri_gpu.a

@@ -30,11 +30,15 @@ app.add_middleware(
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["POST", "OPTIONS"],
-    allow_headers=["*"]
+    allow_headers=["*"],
 )
 
 
-@app.post("/api/feedback", response_model=FeedbackResponse, status_code=status.HTTP_201_CREATED)
+@app.post(
+    "/api/feedback",
+    response_model=FeedbackResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def submit_feedback(
     payload: FeedbackPayload,
     repository: FeedbackRepository = Depends(get_repository),
@@ -45,7 +49,9 @@ async def submit_feedback(
         await repository.create_feedback(payload)
     except FeedbackStorageError as error:
         logger.exception("Feedback persistence failed: %s", error)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(error)) from error
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(error)
+        ) from error
     except Exception as error:  # pragma: no cover - defensive logging
         logger.exception("Unexpected error while handling feedback: %s", error)
         raise HTTPException(

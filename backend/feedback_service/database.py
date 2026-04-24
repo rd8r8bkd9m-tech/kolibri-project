@@ -56,7 +56,9 @@ class PostgresFeedbackStorage:
                     try:
                         self._pool = await asyncpg.create_pool(self._dsn)
                     except Exception as exc:  # pragma: no cover - network errors
-                        raise FeedbackStorageError("Не удалось подключиться к PostgreSQL.") from exc
+                        raise FeedbackStorageError(
+                            "Не удалось подключиться к PostgreSQL."
+                        ) from exc
         return self._pool
 
     async def save_feedback(self, payload: FeedbackPayload) -> FeedbackRecord:
@@ -92,7 +94,9 @@ class PostgresFeedbackStorage:
                     record.created_at,
                 )
         except Exception as exc:  # pragma: no cover - network errors
-            raise FeedbackStorageError("Не удалось сохранить отзыв в PostgreSQL.") from exc
+            raise FeedbackStorageError(
+                "Не удалось сохранить отзыв в PostgreSQL."
+            ) from exc
 
         return record
 
@@ -136,7 +140,9 @@ class ClickHouseFeedbackStorage:
                             clickhouse_connect.get_client, **self._client_kwargs()
                         )
                     except Exception as exc:  # pragma: no cover - network errors
-                        raise FeedbackStorageError("Не удалось подключиться к ClickHouse.") from exc
+                        raise FeedbackStorageError(
+                            "Не удалось подключиться к ClickHouse."
+                        ) from exc
         return self._client
 
     async def save_feedback(self, payload: FeedbackPayload) -> FeedbackRecord:
@@ -170,9 +176,13 @@ class ClickHouseFeedbackStorage:
         ]
 
         try:
-            await asyncio.to_thread(client.insert, "feedback", data, column_names=columns)
+            await asyncio.to_thread(
+                client.insert, "feedback", data, column_names=columns
+            )
         except Exception as exc:  # pragma: no cover - network errors
-            raise FeedbackStorageError("Не удалось сохранить отзыв в ClickHouse.") from exc
+            raise FeedbackStorageError(
+                "Не удалось сохранить отзыв в ClickHouse."
+            ) from exc
 
         return record
 

@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/kolibri_kgen.dir/tools/kolibri_kgen.c.o -o kolibri_kgen  libkolibri_core.a /usr/lib/x86_64-linux-gnu/libcrypto.so /usr/lib/x86_64-linux-gnu/libsqlite3.so -lm 

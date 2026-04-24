@@ -1,4 +1,50 @@
 ```
 # Documentation
 *.md
+# Environment variables
+.env
+.env.local
+.env.*
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.egg-info/
+dist/
+build/
+target/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Editor/IDE
+.vscode/
+.idea/
+*.pyc
+*.pyo
+*.pyd
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Testing and coverage
+.coverage
+coverage/
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# GitHub
+.github/
 ```

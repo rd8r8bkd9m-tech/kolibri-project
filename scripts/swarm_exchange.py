@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Fan-out Kolibri knowledge between nodes according to swarm topology."""
+
 from __future__ import annotations
 
 import argparse
@@ -39,10 +40,14 @@ def _read_offset(path: Path) -> int:
         return 0
 
 
-def relay_once(relay_bin: Path, source: dict[str, object], target: dict[str, object], offset: Path) -> dict:
+def relay_once(
+    relay_bin: Path, source: dict[str, object], target: dict[str, object], offset: Path
+) -> dict:
     genome = Path(source.get("genome", ""))
     if not genome.exists():
-        print(f"[swarm] skip {source['name']} -> {target['name']}: genome {genome} missing")
+        print(
+            f"[swarm] skip {source['name']} -> {target['name']}: genome {genome} missing"
+        )
         return {
             "ts": datetime.now(timezone.utc).isoformat(),
             "source": source.get("name"),
@@ -61,7 +66,9 @@ def relay_once(relay_bin: Path, source: dict[str, object], target: dict[str, obj
     elif key_file:
         cmd.extend(["--target-key", str(key_file)])
     else:
-        raise ValueError(f"target node {target['name']} missing hmac key (inline or file)")
+        raise ValueError(
+            f"target node {target['name']} missing hmac key (inline or file)"
+        )
     offset.parent.mkdir(parents=True, exist_ok=True)
     cmd.extend(["--offset", str(offset)])
     print(f"[swarm] {source['name']} -> {target['name']} ({targets_dir})")
@@ -95,12 +102,29 @@ def relay_once(relay_bin: Path, source: dict[str, object], target: dict[str, obj
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Kolibri swarm knowledge exchange")
-    parser.add_argument("--topology", type=Path, default=Path("swarm/nodes.json"), help="Path to swarm topology JSON")
-    parser.add_argument("--relay-binary", type=Path, default=Path("build/kolibri_knowledge_relay"))
+    parser.add_argument(
+        "--topology",
+        type=Path,
+        default=Path("swarm/nodes.json"),
+        help="Path to swarm topology JSON",
+    )
+    parser.add_argument(
+        "--relay-binary", type=Path, default=Path("build/kolibri_knowledge_relay")
+    )
     parser.add_argument("--offset-dir", type=Path, default=Path("build/swarm/offsets"))
-    parser.add_argument("--metrics-file", type=Path, default=Path("build/swarm/metrics.jsonl"))
-    parser.add_argument("--analyze", action="store_true", help="Analyze metrics and print forecasts after exchange")
-    parser.add_argument("--analyze-only", action="store_true", help="Only analyze metrics; skip exchange step")
+    parser.add_argument(
+        "--metrics-file", type=Path, default=Path("build/swarm/metrics.jsonl")
+    )
+    parser.add_argument(
+        "--analyze",
+        action="store_true",
+        help="Analyze metrics and print forecasts after exchange",
+    )
+    parser.add_argument(
+        "--analyze-only",
+        action="store_true",
+        help="Only analyze metrics; skip exchange step",
+    )
     return parser.parse_args()
 
 
@@ -145,12 +169,21 @@ def _analyze_metrics(path: Path) -> None:
         ok = [r for r in recs if r.get("ok")]
         fail = [r for r in recs if not r.get("ok")]
         bytes_list = [float(r.get("bytes", 0)) for r in ok]
-        dur_list = [float(r.get("duration_sec", 0.0)) for r in ok if r.get("duration_sec")]
+        dur_list = [
+            float(r.get("duration_sec", 0.0)) for r in ok if r.get("duration_sec")
+        ]
         total_b = int(sum(bytes_list))
         total_n = len(recs)
         succ = len(ok)
         sr = (succ / total_n) if total_n else 0.0
-        throughput = (sum(b/d if d else 0 for b, d in zip(bytes_list, dur_list)) / len(dur_list)) if dur_list else 0.0
+        throughput = (
+            (
+                sum(b / d if d else 0 for b, d in zip(bytes_list, dur_list))
+                / len(dur_list)
+            )
+            if dur_list
+            else 0.0
+        )
         forecast_b = ewma(bytes_list[-10:]) if bytes_list else 0.0
         forecast_d = ewma(dur_list[-10:]) if dur_list else 0.0
         forecast_tp = (forecast_b / forecast_d) if forecast_d else 0.0
@@ -159,21 +192,23 @@ def _analyze_metrics(path: Path) -> None:
             issue = "low success"
         elif succ >= 3 and sum(1 for r in recs[-3:] if not r.get("ok")) >= 2:
             issue = "recent failures"
-        highlights.append({
-            "src": src,
-            "dst": dst,
-            "success_rate": round(sr, 3),
-            "total_bytes": total_b,
-            "avg_throughput_bps": round(throughput, 2),
-            "forecast_bytes_next": int(forecast_b),
-            "forecast_throughput_bps": round(forecast_tp, 2),
-            "issue": issue,
-        })
+        highlights.append(
+            {
+                "src": src,
+                "dst": dst,
+                "success_rate": round(sr, 3),
+                "total_bytes": total_b,
+                "avg_throughput_bps": round(throughput, 2),
+                "forecast_bytes_next": int(forecast_b),
+                "forecast_throughput_bps": round(forecast_tp, 2),
+                "issue": issue,
+            }
+        )
 
     # Print top 5 edges likely to yield best next throughput
     highlights.sort(key=lambda r: r["forecast_throughput_bps"], reverse=True)
     for h in highlights[:5]:
-        note = f" - {h['issue']}" if h['issue'] else ""
+        note = f" - {h['issue']}" if h["issue"] else ""
         print(
             f"  {h['src']} -> {h['dst']}: sr={h['success_rate']}, total={h['total_bytes']}B, "
             f"avg_tp={h['avg_throughput_bps']}B/s, forecast: {h['forecast_bytes_next']}B @ {h['forecast_throughput_bps']}B/s{note}"
@@ -196,7 +231,9 @@ def main() -> int:
             raise ValueError(f"node {node['name']} has invalid 'peers' value")
         for peer_name in peers:
             if peer_name not in node_map:
-                raise ValueError(f"node {node['name']} references unknown peer {peer_name}")
+                raise ValueError(
+                    f"node {node['name']} references unknown peer {peer_name}"
+                )
             peer = node_map[peer_name]
             offset = args.offset_dir / f"{node['name']}__to__{peer_name}.offset"
             rec = relay_once(args.relay_binary, node, peer, offset)

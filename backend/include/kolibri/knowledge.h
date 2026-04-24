@@ -2,6 +2,7 @@
 #define KOLIBRI_KNOWLEDGE_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 typedef struct {
     char *id;
@@ -10,6 +11,16 @@ typedef struct {
     char *content_lower;
     char *source;
 } KolibriKnowledgeDocument;
+
+/**
+ * Ассоциация текст↔хеш для семантического поиска
+ */
+typedef struct {
+    char *text;                  /* Исходный текст */
+    uint32_t hash;               /* Хеш текста */
+    double semantic_weight;      /* Семантический вес */
+    size_t occurrence_count;     /* Количество встреч */
+} KolibriTextHashAssoc;
 
 typedef struct {
     KolibriKnowledgeDocument *documents;

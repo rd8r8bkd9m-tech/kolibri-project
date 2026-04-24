@@ -18,7 +18,7 @@ def encode_pure(data: bytes) -> str:
     Returns:
         Decimal string representation (e.g., b"\\x48\\x65" -> "072101")
     """
-    return ''.join(f'{b:03d}' for b in data)
+    return "".join(f"{b:03d}" for b in data)
 
 
 def decode_pure(encoded: str) -> bytes:
@@ -36,4 +36,4 @@ def decode_pure(encoded: str) -> bytes:
     """
     if len(encoded) % 3 != 0:
         raise ValueError("Encoded string length must be a multiple of 3")
-    return bytes(int(encoded[i:i+3]) for i in range(0, len(encoded), 3))
+    return bytes(int(encoded[i : i + 3]) for i in range(0, len(encoded), 3))

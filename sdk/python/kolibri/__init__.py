@@ -18,7 +18,7 @@ By default, encode() and decode() use the C extension if available,
 falling back to pure Python otherwise.
 """
 
-from kolibri.pure_python import encode_pure, decode_pure
+from kolibri.pure_python import decode_pure, encode_pure
 
 __version__ = "1.0.0"
 __all__ = [
@@ -34,6 +34,7 @@ __all__ = [
 # Try to import C extension
 try:
     from kolibri import _kolibri
+
     _HAS_C_EXTENSION = True
 except ImportError:
     _HAS_C_EXTENSION = False

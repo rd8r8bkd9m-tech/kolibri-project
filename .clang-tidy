@@ -1,0 +1,22 @@
+---
+Checks: >
+  -*,
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  portability-*,
+  readability-*
+WarningsAsErrors: ''
+HeaderFilterRegex: '.*'
+AnalyzeTemporaryDtors: false
+FormatStyle: none
+CheckOptions:
+  - key: readability-IdentifierCase.CheckCamelCase
+    value: true
+  - key: readability-IdentifierCase.CheckSnakeCase
+    value: true
+  - key: readability-Function-Cognitive-Complexity.Threshold
+    value: '25'

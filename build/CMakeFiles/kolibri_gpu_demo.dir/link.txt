@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/kolibri_gpu_demo.dir/tools/kgpu_demo.c.o -o kolibri_gpu_demo  libkolibri_gpu.a -lm 

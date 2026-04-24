@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/kolibri_node.dir/apps/kolibri_node.c.o -o kolibri_node  libkolibri_core.a /usr/lib/x86_64-linux-gnu/libcrypto.so /usr/lib/x86_64-linux-gnu/libsqlite3.so -lm 

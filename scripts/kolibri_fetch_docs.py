@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Utility to fetch external web pages and store them as training docs."""
+
 from __future__ import annotations
 
 import argparse
@@ -43,8 +44,12 @@ def extract_text(html_body: str) -> str:
 
 
 def fetch_url(url: str, timeout: float) -> str:
-    headers = {"User-Agent": "KolibriKnowledgeBot/1.0 (https://kolibrios.org/; bot@kolibrios.org)"}
-    with httpx.Client(timeout=timeout, follow_redirects=True, headers=headers) as client:
+    headers = {
+        "User-Agent": "KolibriKnowledgeBot/1.0 (https://kolibrios.org/; bot@kolibrios.org)"
+    }
+    with httpx.Client(
+        timeout=timeout, follow_redirects=True, headers=headers
+    ) as client:
         response = client.get(url)
         response.raise_for_status()
         content_type = response.headers.get("Content-Type", "")
@@ -88,8 +93,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Fetch external webpages and store them as docs for Kolibri knowledge pipeline."
     )
-    parser.add_argument("--output", type=Path, default=Path("docs/ingested"), help="Directory to store fetched docs")
-    parser.add_argument("--timeout", type=float, default=15.0, help="HTTP timeout in seconds")
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("docs/ingested"),
+        help="Directory to store fetched docs",
+    )
+    parser.add_argument(
+        "--timeout", type=float, default=15.0, help="HTTP timeout in seconds"
+    )
     parser.add_argument("--url-file", type=Path, help="File with URLs (one per line)")
     parser.add_argument("urls", nargs="*", help="URLs to fetch")
     args = parser.parse_args()

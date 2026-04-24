@@ -1,0 +1,71 @@
+name: Architecture Linting
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 4 * * 0'  # Weekly on Sunday at 4 AM
+
+jobs:
+  architecture-analysis:
+    name: Architecture Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Run architecture linter
+        run: |
+          python scripts/architecture_linter.py --output architecture_report.json
+      
+      - name: Upload architecture report
+        uses: actions/upload-artifact@v4
+        with:
+          name: architecture-report
+          path: architecture_report.json
+          retention-days: 30
+      
+      - name: Check for critical issues
+        run: |
+          python -c "
+          import json
+          with open('architecture_report.json') as f:
+              report = json.load(f)
+          errors = report['summary']['errors']
+          warnings = report['summary']['warnings']
+          print(f'Errors: {errors}, Warnings: {warnings}')
+          if errors > 0:
+              exit(1)
+          "
+
+  documentation-check:
+    name: Documentation Structure Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Count markdown files
+        run: |
+          MD_COUNT=$(find . -name "*.md" -type f | wc -l)
+          echo "Total markdown files: $MD_COUNT"
+          echo "MD_COUNT=$MD_COUNT" >> $GITHUB_ENV
+      
+      - name: Analyze documentation distribution
+        run: |
+          echo "Documentation by directory:"
+          find . -name "*.md" -type f | \
+            sed 's|^\./||' | \
+            cut -d'/' -f1 | \
+            sort | uniq -c | sort -rn | head -20
+      
+      - name: Warn on excessive fragmentation
+        if: env.MD_COUNT > 300
+        run: |
+          echo "::warning::High documentation fragmentation detected ($MD_COUNT files)"
+          echo "Consider consolidating related documentation"

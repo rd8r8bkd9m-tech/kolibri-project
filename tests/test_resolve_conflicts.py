@@ -21,8 +21,7 @@ from scripts.resolve_conflicts import (  # noqa: E402
 
 @pytest.fixture
 def agents_content() -> str:
-    return (
-        """```kolibri-policy
+    return """```kolibri-policy
 build: ours
 code: ours
 docs: ours
@@ -39,7 +38,6 @@ budgets:
   coverage_min_lines: 1
   coverage_min_branches: 1
 ```"""
-    )
 
 
 def zapisat_conflict(
@@ -87,7 +85,9 @@ def test_prefers_ours_strategy(
 def test_fallback_to_both(tmp_path: Path, agents_content: str) -> None:
     (tmp_path / "AGENTS.md").write_text(agents_content, encoding="utf-8")
     conflict = tmp_path / "notes.txt"
-    zapisat_conflict(conflict, ["ours"], ["theirs"], theirs_final_newline=False, tail=None)
+    zapisat_conflict(
+        conflict, ["ours"], ["theirs"], theirs_final_newline=False, tail=None
+    )
 
     report = postroit_otchet(tmp_path)
 
