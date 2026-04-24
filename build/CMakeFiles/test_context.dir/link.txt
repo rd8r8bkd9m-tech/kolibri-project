@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/test_context.dir/tests/test_context.c.o -o test_context  libkolibri_core.a /usr/lib/x86_64-linux-gnu/libcrypto.so /usr/lib/x86_64-linux-gnu/libsqlite3.so -lm 

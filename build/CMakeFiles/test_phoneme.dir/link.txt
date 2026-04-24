@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/test_phoneme.dir/tests/test_phoneme.c.o -o test_phoneme  libkolibri_core.a /usr/lib/x86_64-linux-gnu/libcrypto.so /usr/lib/x86_64-linux-gnu/libsqlite3.so -lm 

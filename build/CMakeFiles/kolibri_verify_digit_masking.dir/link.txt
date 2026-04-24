@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/kolibri_verify_digit_masking.dir/tools/verify_digit_masking.c.o -o kolibri_verify_digit_masking  libkolibri_core.a /usr/lib/x86_64-linux-gnu/libcrypto.so /usr/lib/x86_64-linux-gnu/libsqlite3.so -lm 

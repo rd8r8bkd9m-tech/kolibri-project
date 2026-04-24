@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/test_kod_kot.dir/tests/test_kod_kot.c.o -o test_kod_kot  libkolibri_core.a /usr/lib/x86_64-linux-gnu/libcrypto.so /usr/lib/x86_64-linux-gnu/libsqlite3.so -lm 

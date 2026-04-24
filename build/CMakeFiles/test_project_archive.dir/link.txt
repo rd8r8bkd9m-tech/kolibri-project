@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/test_project_archive.dir/tests/test_project_archive.c.o -o test_project_archive  libkolibri_core.a /usr/lib/x86_64-linux-gnu/libcrypto.so /usr/lib/x86_64-linux-gnu/libsqlite3.so -lm 
