@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -14,6 +14,8 @@ import pytest  # noqa: E402
 
 from core.kolibri_sim import (  # noqa: E402
     KolibriSim,
+    ZapisBloka,
+    ZhurnalZapis,
     dec_hash,
     dolzhen_zapustit_repl,
     obnovit_soak_state,
@@ -21,13 +23,11 @@ from core.kolibri_sim import (  # noqa: E402
     sohranit_sostoyanie,
     vosstanovit_tekst_iz_cifr,
     zagruzit_sostoyanie,
-    ZapisBloka,
-    ZhurnalZapis,
 )
 from core.tracing import JsonLinesTracer  # noqa: E402
 
-
 # --- Базовые тесты (T1–T7) -------------------------------------------------
+
 
 def test_t1_text_roundtrip() -> None:
     tekst = "Колибри живёт цифрами"
@@ -87,6 +87,7 @@ def test_t7_seed_determinism() -> None:
 
 
 # --- Дополнительные тесты (T8–T13) -----------------------------------------
+
 
 def test_t8_dec_hash_deterministic() -> None:
     cifry = "0123456789" * 3
@@ -184,7 +185,11 @@ def test_t16_persistent_journal(tmp_path: Path) -> None:
         sim.zakryt()
 
     assert journal_path.exists()
-    lines = [json.loads(line) for line in journal_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = [
+        json.loads(line)
+        for line in journal_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert any(entry["tip"] == "TEACH" for entry in lines)
     assert any(entry["tip"] == "ASK" for entry in lines)
     assert all("blok" in entry for entry in lines)
@@ -209,8 +214,8 @@ def test_t17_swarm_run_syncs_peers() -> None:
         sim_b.zakryt()
 
 
-
 # --- Трассировка и структурированные события -------------------------------
+
 
 def test_tracer_receives_journal_events() -> None:
     sim = KolibriSim(zerno=21)
@@ -236,7 +241,9 @@ def test_tracer_receives_journal_events() -> None:
     sim.sprosit("вопрос")
 
 
-def test_default_jsonl_trace_created(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_default_jsonl_trace_created(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("KOLIBRI_TRACE_PATH", raising=False)
     monkeypatch.delenv("KOLIBRI_LOG_DIR", raising=False)
@@ -249,13 +256,19 @@ def test_default_jsonl_trace_created(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert trace_path is not None
     assert trace_path.exists()
 
-    lines = [stroka for stroka in trace_path.read_text(encoding="utf-8").splitlines() if stroka.strip()]
+    lines = [
+        stroka
+        for stroka in trace_path.read_text(encoding="utf-8").splitlines()
+        if stroka.strip()
+    ]
     assert lines, "JSONL-файл должен содержать хотя бы одну запись"
     zapis = json.loads(lines[0])
     assert zapis["event"]["tip"] == "TEACH"
 
 
-def test_trace_rotation_under_long_soak(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_trace_rotation_under_long_soak(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     trace_path = tmp_path / "trace.jsonl"
     monkeypatch.setenv("KOLIBRI_TRACE_PATH", str(trace_path))
     monkeypatch.delenv("KOLIBRI_TRACE_GENOME", raising=False)
@@ -268,7 +281,11 @@ def test_trace_rotation_under_long_soak(tmp_path: Path, monkeypatch: pytest.Monk
     assert snapshot["offset"] > 0
     assert len(snapshot["zapisi"]) == 20
 
-    lines = [stroka for stroka in trace_path.read_text(encoding="utf-8").splitlines() if stroka.strip()]
+    lines = [
+        stroka
+        for stroka in trace_path.read_text(encoding="utf-8").splitlines()
+        if stroka.strip()
+    ]
     assert len(lines) >= 40
     poslednyaya = json.loads(lines[-1])
     assert "event" in poslednyaya
@@ -290,8 +307,8 @@ def test_json_lines_tracer_writes(tmp_path: Path) -> None:
     assert "genome" in first_event
 
 
-
 # --- Утилиты сохранения состояния -----------------------------------------
+
 
 def test_state_roundtrip(tmp_path: Path) -> None:
     sim = KolibriSim(zerno=1)

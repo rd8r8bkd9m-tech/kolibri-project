@@ -25,8 +25,7 @@ from core.kolibri_script.parser import (
 
 
 def test_parse_valid_program() -> None:
-    script = textwrap.dedent(
-        """
+    script = textwrap.dedent("""
         начало:
             показать "Kolibri готов к обучению"
             переменная память = "фрактал"
@@ -39,8 +38,7 @@ def test_parse_valid_program() -> None:
                 отбросить сумма
             конец
         конец.
-        """
-    ).strip()
+        """).strip()
 
     result = parse_script(script)
 
@@ -85,14 +83,12 @@ def test_parse_valid_program() -> None:
 
 
 def test_reports_mismatched_if_block() -> None:
-    script = textwrap.dedent(
-        """
+    script = textwrap.dedent("""
         начало:
             если истина тогда
                 показать "ok"
         конец.
-        """
-    ).strip()
+        """).strip()
 
     result = parse_script(script)
 
@@ -101,13 +97,11 @@ def test_reports_mismatched_if_block() -> None:
 
 
 def test_reports_unknown_command() -> None:
-    script = textwrap.dedent(
-        """
+    script = textwrap.dedent("""
         начало:
             телепортировать "Kolibri"
         конец.
-        """
-    ).strip()
+        """).strip()
 
     result = parse_script(script)
 

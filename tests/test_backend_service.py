@@ -32,7 +32,9 @@ def client() -> TestClient:
     return TestClient(app)
 
 
-def test_health_reports_response_mode(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+def test_health_reports_response_mode(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient
+) -> None:
     monkeypatch.setenv("KOLIBRI_RESPONSE_MODE", "script")
     get_settings.cache_clear()
 
@@ -42,7 +44,9 @@ def test_health_reports_response_mode(monkeypatch: pytest.MonkeyPatch, client: T
     assert payload["response_mode"] == "script"
 
 
-def test_infer_disabled_when_not_llm(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+def test_infer_disabled_when_not_llm(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient
+) -> None:
     monkeypatch.setenv("KOLIBRI_RESPONSE_MODE", "script")
     get_settings.cache_clear()
 
@@ -51,7 +55,9 @@ def test_infer_disabled_when_not_llm(monkeypatch: pytest.MonkeyPatch, client: Te
     assert response.json()["detail"] == "LLM mode is disabled"
 
 
-def test_infer_missing_endpoint(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+def test_infer_missing_endpoint(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient
+) -> None:
     monkeypatch.setenv("KOLIBRI_RESPONSE_MODE", "llm")
     get_settings.cache_clear()
 
