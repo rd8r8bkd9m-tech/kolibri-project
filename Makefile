@@ -2,23 +2,23 @@ SHELL := /bin/bash
 NINJA_BIN := $(or $(shell command -v ninja 2>/dev/null),$(shell command -v ninja-build 2>/dev/null))
 CMAKE_GENERATOR_ARGS := $(if $(NINJA_BIN),-G Ninja -DCMAKE_MAKE_PROGRAM=$(NINJA_BIN),)
 
-.PHONY: build cli test wasm frontend iso ci clean benchmark benchmark-quick benchmark-full report \
+.PHONY: build cli test wasm web frontend iso ci clean benchmark benchmark-quick benchmark-full report \
 	release-gate-bootstrap release-gate-backend release-gate-native release-gate-wasm \
 	release-gate-frontend release-gate extended-ci
 
 PYTEST_RELEASE_GATE = \
-	tests/test_auth.py \
-	tests/test_backend_service.py \
-	tests/test_common.py \
-	tests/test_context_window.py \
-	tests/test_e2e_api.py \
-	tests/test_kpack.py \
-	tests/test_persistence.py \
-	tests/test_rate_limiter.py \
-	tests/test_realtime_lookup.py \
-	tests/test_reasoning.py \
-	tests/test_swarm_runtime_api.py \
-	tests/test_ai_engine_integration.py
+	infra/tests/test_auth.py \
+	infra/tests/test_backend_service.py \
+	infra/tests/test_common.py \
+	infra/tests/test_context_window.py \
+	infra/tests/test_e2e_api.py \
+	infra/tests/test_kpack.py \
+	infra/tests/test_persistence.py \
+	infra/tests/test_rate_limiter.py \
+	infra/tests/test_realtime_lookup.py \
+	infra/tests/test_reasoning.py \
+	infra/tests/test_swarm_runtime_api.py \
+	infra/tests/test_ai_engine_integration.py
 
 build:
 	@if [ -z "$(NINJA_BIN)" ] && [ -f build/CMakeCache.txt ] && grep -q '^CMAKE_GENERATOR:INTERNAL=Ninja$$' build/CMakeCache.txt; then \
@@ -56,17 +56,20 @@ release-gate: release-gate-native release-gate-backend release-gate-frontend
 test: release-gate
 
 wasm:
-	./scripts/build_wasm.sh
+	./infra/build_wasm.sh
 
-frontend: release-gate-wasm
-	npm install --prefix frontend
-	npm run build --prefix frontend
+web: release-gate-wasm
+	npm install --prefix web
+	npm run build --prefix web
+
+# Backward-compatible alias. The active web shell is web/.
+frontend: web
 
 iso:
 	./scripts/build_iso.sh
 
 extended-ci: build release-gate
-	python3 -m pytest tests/ -q --tb=short
+	python3 -m pytest infra/tests/ -q --tb=short
 	ruff check .
 	pyright
 	ctest --test-dir build --output-on-failure
@@ -75,7 +78,7 @@ ci: extended-ci iso
 	./scripts/policy_validate.py
 
 clean:
-	rm -rf build frontend/dist frontend/node_modules
+	rm -rf build web/dist web/node_modules frontend/dist frontend/node_modules
 	$(MAKE) -C benchmarks clean
 
 # Benchmark targets
