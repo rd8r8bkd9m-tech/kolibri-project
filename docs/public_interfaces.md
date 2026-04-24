@@ -30,16 +30,16 @@
 
 - consumer code должен опираться только на документированные функции и типы из этого набора;
 - расширение набора допустимо только после отдельного решения и отражения в release docs;
-- остальные заголовки из `backend/include/kolibri/` могут использоваться внутренне, но не считаются обещанным внешним ABI.
+- остальные заголовки могут использоваться внутренне, но не считаются обещанным внешним ABI.
 
 Статус:
 
 - C API headers above — `shipping`
-- `backend/src/kolibri_http_server.c` as gateway runtime — `parity-target`
+- `core/kolibri_http_server.c` as gateway runtime — `parity-target`
 
 ## 3. HTTP API
 
-Stable HTTP surface:
+Stable HTTP surface реализуется текущим FastAPI gateway в `services/`:
 
 - `/api/health`
 - `/api/knowledge/healthz`
@@ -72,22 +72,22 @@ Stable HTTP surface:
 
 Статус:
 
-- FastAPI HTTP surface — `shipping`
-- C HTTP runtime compatibility surface — `parity-target`
+- FastAPI HTTP surface in `services/` — `shipping`
+- C HTTP runtime compatibility surface in `core/kolibri_http_server.c` — `parity-target`
 
-## 4. Frontend and WASM interfaces
+## 4. Web and WASM interfaces
 
-Stable frontend-facing surface:
+Stable web-facing surface:
 
-- `frontend/src/api.ts`
-- `frontend/src/lib/kolibriBridge.ts`
-- `frontend/public/kolibri.wasm`
+- `web/src/App.tsx`
+- `web/src/lib/kolibriBridge.ts`
+- web public WASM assets produced by `infra/build_wasm.sh`
 
 Статус:
 
 - web shell contract — `shipping`
 - browser/offline WASM path — `shipping`
-- alternative frontend packages outside `frontend/src` — `integration-only`
+- alternative frontend packages outside `web/` — `integration-only`
 
 ## 5. CLI / public binaries
 
@@ -116,7 +116,7 @@ Stable frontend-facing surface:
 
 Следующие каталоги могут использовать shipping interfaces, но сами не считаются частью ближайшего релиза:
 
-- `frontend/kolibri-web`
+- `frontend/`
 - `mobile/kolibri-app`
 - `cloud-storage`
 - `content_factory_*`
