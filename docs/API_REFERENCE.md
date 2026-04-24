@@ -2,10 +2,10 @@
 
 ## 1. Runtime status
 
-- `backend/service` — текущая `shipping` HTTP truth.
-- `backend/src/kolibri_http_server.c` — `parity-target` для того же product contract.
-- `frontend/src/api.ts` — canonical web client к этому surface.
-- `frontend/src/lib/kolibriBridge.ts` + `kolibri.wasm` — совместимый WASM/offline path.
+- `services/` — текущая `shipping` HTTP truth.
+- `core/kolibri_http_server.c` — `parity-target` для того же product contract.
+- `web/` — canonical web client к этому surface.
+- `web/src/lib/kolibriBridge.ts` плюс WASM artifacts — совместимый browser/offline path.
 
 Базовый backend URL по умолчанию:
 
@@ -47,14 +47,7 @@ http://localhost:8001/docs
 - `GET /api/v1/account/preferences`
 - `PUT /api/v1/account/preferences`
 
-Эти endpoints являются server source of truth для:
-
-- `name`
-- `facts`
-- `theme`
-- `persona`
-- `memory_enabled`
-- `model`
+Эти endpoints являются server source of truth для `name`, `facts`, `theme`, `persona`, `memory_enabled`, `model`.
 
 ### Chat
 
@@ -65,9 +58,9 @@ http://localhost:8001/docs
 
 Shipping chat contract:
 
-- sync chat должен возвращать `response`, `conversation_id`, `confidence`, `method`, `duration_ms`
-- stream endpoint должен поддерживать thinking/search/generate lifecycle без broken state в shell
-- frontend sidebar и thread должны опираться на server conversation state
+- sync chat должен возвращать `response`, `conversation_id`, `confidence`, `method`, `duration_ms`;
+- stream endpoint должен поддерживать lifecycle без broken state в shell;
+- web thread должен опираться на server conversation state.
 
 ### Conversations
 
@@ -128,6 +121,9 @@ Stable C API документируется в `docs/public_interfaces.md` и р
 - `context.h`
 - `corpus.h`
 - `corpus_trainer.h`
+- `decimal.h`
+- `digits.h`
+- `random.h`
 
 Остальные заголовки могут использоваться внутри native core, но не должны без отдельного решения рекламироваться как стабильный внешний ABI.
 
@@ -135,9 +131,9 @@ Stable C API документируется в `docs/public_interfaces.md` и р
 
 WASM path использует тот же продуктовый contour:
 
+- build path: `infra/build_wasm.sh`
 - artifact: `build/wasm/kolibri.wasm`
-- shipped copy: `frontend/public/kolibri.wasm`
-- frontend bridge: `frontend/src/lib/kolibriBridge.ts`
+- web bridge: `web/src/lib/kolibriBridge.ts`
 
 WASM path считается совместимым runtime surface, но не заменяет backend shipping truth.
 
