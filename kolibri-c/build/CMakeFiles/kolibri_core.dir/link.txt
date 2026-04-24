@@ -1,0 +1,2 @@
+/usr/bin/ar qc libkolibri_core.a CMakeFiles/kolibri_core.dir/src/kolibri_core.c.o
+/usr/bin/ranlib libkolibri_core.a

@@ -1,50 +1,67 @@
 ```
-# Documentation
-*.md
-# Environment variables
-.env
-.env.local
-.env.*
+# CMake build artifacts
+kolibri-c/build/
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+CPackConfig.cmake
+CPackSourceConfig.cmake
 
-# Dependencies
+# Compiled binaries and libraries
+kolibri-c/build/kolibri
+libkolibri_core.a
+kolibri_core.so
+*.o
+*.a.out
+
+# Generated files
+py_output.kgen
+test_output.kgen
+kolibri_core
+kolibri_core.c
+
+# Test files
+test_input.txt
+test_restored.txt
+kolibri-c/build/test_input.txt
+kolibri-c/build/test_restored.txt
+
+# Dependencies and virtual environments
 node_modules/
-.venv/
 venv/
+.venv/
 __pycache__/
 *.egg-info/
-dist/
-build/
-target/
 
 # Logs and temporary files
 *.log
 *.tmp
 *.swp
-*.swo
 
-# Editor/IDE
+# Environment variables
+.env
+.env.local
+*.env.*
+
+# Editors and IDEs
 .vscode/
 .idea/
-*.pyc
-*.pyo
-*.pyd
+*.swp
+*.swo
 
-# OS
+# OS specific
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
 
-# Testing and coverage
-.coverage
+# Coverage reports
 coverage/
 htmlcov/
-.pytest_cache/
-.mypy_cache/
+*.coverage
 
-# GitHub
-.github/
+# Distribution / packaging
+dist/
+build/
+*.tar.gz
+*.zip
 ```

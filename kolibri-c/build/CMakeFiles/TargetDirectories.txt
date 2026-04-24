@@ -1,0 +1,10 @@
+/workspace/kolibri-c/build/CMakeFiles/kolibri_core.dir
+/workspace/kolibri-c/build/CMakeFiles/kolibri.dir
+/workspace/kolibri-c/build/CMakeFiles/package.dir
+/workspace/kolibri-c/build/CMakeFiles/package_source.dir
+/workspace/kolibri-c/build/CMakeFiles/edit_cache.dir
+/workspace/kolibri-c/build/CMakeFiles/rebuild_cache.dir
+/workspace/kolibri-c/build/CMakeFiles/list_install_components.dir
+/workspace/kolibri-c/build/CMakeFiles/install.dir
+/workspace/kolibri-c/build/CMakeFiles/install/local.dir
+/workspace/kolibri-c/build/CMakeFiles/install/strip.dir
