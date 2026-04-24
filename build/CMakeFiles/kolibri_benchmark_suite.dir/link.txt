@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/kolibri_benchmark_suite.dir/benchmarks/kolibri_benchmark_suite.c.o -o kolibri_benchmark_suite  -lm 
