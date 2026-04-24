@@ -4,39 +4,39 @@
 
 Kolibri публично описывается как одна система, а не как набор репозиторных веток:
 
-`frontend/PWA -> FastAPI gateway -> C core -> knowledge/provenance/swarm -> WASM/offline -> apps`
+`web/PWA -> FastAPI services gateway -> C23 core -> knowledge/provenance/swarm -> WASM/offline -> apps`
 
 При этом текущие статусы такие:
 
-- FastAPI gateway — `shipping`
-- C HTTP runtime (`backend/src/kolibri_http_server.c`) — `parity-target`
+- FastAPI gateway in `services/` — `shipping`
+- C HTTP runtime (`core/kolibri_http_server.c`) — `parity-target`
 - secondary contours — `integration-only`
 
 ## 2. Layers
 
 ### Product surface
 
-- `frontend/src`
-- `frontend/src/api.ts`
-- `frontend/src/lib/kolibriBridge.ts`
+- `web/`
+- `web/src/App.tsx`
+- `web/src/lib/kolibriBridge.ts`
 
 ### Shipping gateway
 
-- `backend/service/main.py`
-- `backend/service/ai_chat.py`
-- `backend/service/ai_engine.py`
-- `backend/service/swarm_runtime_api.py`
+- `services/main.py`
+- `services/ai_chat.py`
+- `services/ai_engine.py`
+- `services/swarm_runtime_api.py`
 
 ### Native core
 
-- `backend/src`
-- `backend/include/kolibri`
+- `core/`
+- `backend/include/kolibri/`
 
 ### Browser/offline runtime
 
-- `scripts/build_wasm.sh`
+- `infra/build_wasm.sh`
 - `build/wasm/kolibri.wasm`
-- `frontend/public/kolibri.wasm`
+- web public assets consumed by `web/src/lib/kolibriBridge.ts`
 
 ### Product-side utilities
 
@@ -46,8 +46,8 @@ Kolibri публично описывается как одна система, 
 
 Один и тот же продукт должен быть объясним через один контракт:
 
-- frontend не придумывает отдельный продуктовый API;
-- backend/service является текущей server truth;
+- web не придумывает отдельный продуктовый API;
+- `services/` является текущей server truth;
 - C runtime обязан догонять тот же контракт, а не иметь собственную несовместимую историю;
 - WASM path является другим runtime mode того же продукта, а не отдельным приложением.
 
@@ -55,7 +55,7 @@ Kolibri публично описывается как одна система, 
 
 Следующие каталоги не входят в ближайший shipping scope:
 
-- `frontend/kolibri-web`
+- `frontend/`
 - `mobile/kolibri-app`
 - `cloud-storage`
 - `content_factory_*`
@@ -69,6 +69,8 @@ Kolibri публично описывается как одна система, 
 ## 5. Official document set
 
 - `README.md`
+- `AGENTS.md`
+- `docs/CANONICAL_REPO_CONTOUR.md`
 - `docs/PRODUCT_SPEC_V2.md`
 - `docs/API_REFERENCE.md`
 - `docs/public_interfaces.md`
