@@ -9,6 +9,7 @@ Significantly faster than pure Python (100-300x speedup, varies by hardware).
 
 try:
     from kolibri import _kolibri
+
     _HAS_C_EXTENSION = True
 except ImportError:
     _HAS_C_EXTENSION = False

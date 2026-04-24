@@ -1,18 +1,11 @@
 
-# Kolibri's Python tooling currently relies on standalone scripts.
-# This placeholder keeps GitHub Actions' pip cache step happy by
-# presenting a dependency manifest even though no runtime packages
-# are required.
-
-# Инструменты Python, используемые Kolibri OS для тестов и статического анализа.
+# Kolibri's Python tooling - dependencies for tests and static analysis
 asyncpg>=0.29,<0.30
 clickhouse-connect>=0.6,<0.7
 coverage[toml]>=7.4,<8
 fastapi>=0.110,<0.112
+httpx>=0.27,<0.28
 pyright>=1.1.350,<1.2
 pytest>=7.4,<9
 ruff>=0.4.0,<0.5
-fastapi>=0.110,<0.112
 uvicorn[standard]>=0.29,<0.31
-httpx>=0.27,<0.28
-uvicorn[standard]>=0.29,<0.30

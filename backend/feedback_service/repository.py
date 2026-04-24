@@ -14,7 +14,9 @@ from .schemas import FeedbackPayload, FeedbackRecord
 class FeedbackRepository:
     """High level orchestrator combining database storage and RLHF export."""
 
-    def __init__(self, storage: FeedbackStorage, dataset_writer: RLHFDatasetWriter) -> None:
+    def __init__(
+        self, storage: FeedbackStorage, dataset_writer: RLHFDatasetWriter
+    ) -> None:
         self._storage = storage
         self._dataset_writer = dataset_writer
 

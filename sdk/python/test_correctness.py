@@ -10,14 +10,14 @@ Tests to verify that:
 Run with: pytest test_correctness.py -v
 """
 
-import sys
 import os
+import sys
 
 # Ensure we import from the local package
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from kolibri import encode, decode, is_c_extension_available
-from kolibri.pure_python import encode_pure, decode_pure
+from kolibri import decode, encode, is_c_extension_available
+from kolibri.pure_python import decode_pure, encode_pure
 
 
 class TestPurePython:
@@ -136,13 +136,13 @@ class TestCExtension:
         for data in test_cases:
             c_encoded = encode(data)
             pure_encoded = encode_pure(data)
-            assert c_encoded == pure_encoded, \
-                f"Encoding mismatch for {data!r}: C={c_encoded!r}, Pure={pure_encoded!r}"
+            assert (
+                c_encoded == pure_encoded
+            ), f"Encoding mismatch for {data!r}: C={c_encoded!r}, Pure={pure_encoded!r}"
 
             c_decoded = decode(c_encoded)
             pure_decoded = decode_pure(pure_encoded)
-            assert c_decoded == pure_decoded, \
-                f"Decoding mismatch for {c_encoded!r}"
+            assert c_decoded == pure_decoded, f"Decoding mismatch for {c_encoded!r}"
 
     def test_c_extension_large_data(self):
         """C extension should handle large data correctly."""
@@ -169,7 +169,7 @@ def run_tests():
         instance = test_class()
 
         for method_name in dir(instance):
-            if not method_name.startswith('test_'):
+            if not method_name.startswith("test_"):
                 continue
 
             method = getattr(instance, method_name)
@@ -197,6 +197,7 @@ if __name__ == "__main__":
     # Check if pytest is available
     try:
         import pytest
+
         sys.exit(pytest.main([__file__, "-v"]))
     except ImportError:
         # Fall back to simple test runner

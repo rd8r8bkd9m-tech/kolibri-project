@@ -13,9 +13,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.kolibri_script.genome import (  # noqa: E402
+    KolibriGenomeLedger,
     KsdBlock,
     KsdValidationError,
-    KolibriGenomeLedger,
     deserialize_ksd,
     load_secrets_config,
     serialize_ksd,

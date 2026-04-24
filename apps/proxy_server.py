@@ -1,17 +1,18 @@
 import http.server
 import socketserver
-import urllib.request
+import sys
 import urllib.error
 import urllib.parse
-import sys
+import urllib.request
 
 PORT = 8081
 BACKEND_PORT = 8000
 BACKEND_URL = f"http://localhost:{BACKEND_PORT}"
 
+
 class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
-        if self.path.startswith('/api/'):
+        if self.path.startswith("/api/"):
             # Proxy to the C backend
             target_url = f"{BACKEND_URL}{self.path}"
             print(f"Proxying {self.path} to {target_url}")
@@ -31,10 +32,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 self.send_response(500)
                 self.end_headers()
-                self.wfile.write(f"Proxy Error: {str(e)}".encode('utf-8'))
+                self.wfile.write(f"Proxy Error: {str(e)}".encode("utf-8"))
         else:
             # Serve static files
             super().do_GET()
+
 
 if __name__ == "__main__":
     # Allow reuse address to avoid "Address already in use"

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Проверка блока политики в AGENTS.md."""
+
 import re
 from pathlib import Path
 

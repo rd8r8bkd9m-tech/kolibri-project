@@ -131,7 +131,12 @@ def serialize_ksd(records: Sequence[Mapping[str, Any]], secrets: SecretsConfig) 
         json.dumps(tokens, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     )
     payload_digits = _text_to_digits(
-        json.dumps(normalized_records, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        json.dumps(
+            normalized_records,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
     )
     body = _build_body(table_digits, payload_digits)
     signature = _compute_signature(body, secrets.hmac_key)
@@ -203,7 +208,9 @@ class KolibriGenomeLedger:
             for record in block.records:
                 yield dict(record)
 
-    def append(self, block: Mapping[str, Any], journal_entry: Mapping[str, Any]) -> None:
+    def append(
+        self, block: Mapping[str, Any], journal_entry: Mapping[str, Any]
+    ) -> None:
         """Добавляет запись в журнал, не переписывая предыдущие блоки."""
 
         block_dict = dict(_ensure_plain_mapping(block))
@@ -258,7 +265,9 @@ def _deserialize_journal(digits: str, secrets: SecretsConfig) -> KsdDocument:
     for block in blocks:
         aggregated_records.extend(dict(record) for record in block.records)
 
-    return KsdDocument(tokens=tokens_order, records=aggregated_records, blocks=tuple(blocks))
+    return KsdDocument(
+        tokens=tokens_order, records=aggregated_records, blocks=tuple(blocks)
+    )
 
 
 def _decode_single_payload(
@@ -375,6 +384,8 @@ def _iter_ledger_blocks(path: Path, secrets: SecretsConfig) -> Iterator[KsdBlock
                 tokens=tuple(tokens),
                 records=record_dicts,
             )
+
+
 def _ensure_plain_mapping(value: Any) -> Mapping[str, Any]:
     plain = _to_plain(value)
     if not isinstance(plain, Mapping):

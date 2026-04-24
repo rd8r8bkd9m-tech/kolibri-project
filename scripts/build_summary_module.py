@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Convert KolibriSim JSONL traces into a Markdown knowledge module."""
+
 from __future__ import annotations
 
 import argparse
@@ -83,9 +84,21 @@ def build_module(input_path: Path, output_path: Path) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Generate Markdown module from Kolibri JSONL trace")
-    parser.add_argument("--input", type=Path, default=Path("build/training/auto_trace.jsonl"), help="Path to JSONL trace")
-    parser.add_argument("--output", type=Path, default=Path("docs/generated/kolibri_summary_module.md"), help="Output Markdown file")
+    parser = argparse.ArgumentParser(
+        description="Generate Markdown module from Kolibri JSONL trace"
+    )
+    parser.add_argument(
+        "--input",
+        type=Path,
+        default=Path("build/training/auto_trace.jsonl"),
+        help="Path to JSONL trace",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("docs/generated/kolibri_summary_module.md"),
+        help="Output Markdown file",
+    )
     args = parser.parse_args()
 
     try:

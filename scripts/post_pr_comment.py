@@ -28,7 +28,11 @@ def otpravit_kommentarij(repo: str, pr: int, tekst: str, token: str | None) -> N
         print(tekst)
         return
     url = f"{API_BASE}/repos/{repo}/issues/{pr}/comments"
-    zapros = Request(url, data=json.dumps({"body": tekst}).encode("utf-8"), headers=_get_headers(token))
+    zapros = Request(
+        url,
+        data=json.dumps({"body": tekst}).encode("utf-8"),
+        headers=_get_headers(token),
+    )
     with urlopen(zapros) as response:
         print(f"Комментарий опубликован, статус: {response.status}")
 
@@ -64,7 +68,9 @@ def main(argv: List[str]) -> int:
     parser.add_argument("--pr", type=int, help="номер PR")
     parser.add_argument("--body", help="текст комментария")
     parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY", ""))
-    parser.add_argument("--watchdog", action="store_true", help="сформировать отчёт без указания PR")
+    parser.add_argument(
+        "--watchdog", action="store_true", help="сформировать отчёт без указания PR"
+    )
     args = parser.parse_args(argv)
 
     token = os.environ.get("GITHUB_TOKEN")
