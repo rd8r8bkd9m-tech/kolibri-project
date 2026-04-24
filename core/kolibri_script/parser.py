@@ -1,4 +1,5 @@
 """LL(1)-парсер KolibriScript с диагностикой."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -198,7 +199,9 @@ class Lexer:
                 self.column += 1
                 yield token
                 continue
-            raise ValueError(f"Unexpected character {ch!r} at {self.line}:{self.column}")
+            raise ValueError(
+                f"Unexpected character {ch!r} at {self.line}:{self.column}"
+            )
         yield Token("EOF", "", SourceSpan(self._location(), self._location()))
 
     def _advance(self, ch: str) -> None:
@@ -233,7 +236,10 @@ class Lexer:
                 end_location = SourceLocation(self.line, self.column)
                 self.index += 1
                 self.column += 1
-                span = SourceSpan(start_location, SourceLocation(end_location.line, end_location.column))
+                span = SourceSpan(
+                    start_location,
+                    SourceLocation(end_location.line, end_location.column),
+                )
                 literal = '"' + "".join(value_chars) + '"'
                 return Token("STRING", literal, span)
             if ch == "\n":
@@ -246,20 +252,26 @@ class Lexer:
     def _read_number(self) -> Token:
         start_location = SourceLocation(self.line, self.column)
         value_chars: List[str] = []
-        while self.index < self.length and (self.source[self.index].isdigit() or self.source[self.index] == "."):
+        while self.index < self.length and (
+            self.source[self.index].isdigit() or self.source[self.index] == "."
+        ):
             value_chars.append(self.source[self.index])
             self.index += 1
             self.column += 1
         end_location = SourceLocation(self.line, self.column - 1)
-        return Token("NUMBER", "".join(value_chars), SourceSpan(start_location, end_location))
+        return Token(
+            "NUMBER", "".join(value_chars), SourceSpan(start_location, end_location)
+        )
 
     def _read_identifier(self) -> Token:
         start_index = self.index
         start_column = self.column
-        while self.index < self.length and (self.source[self.index].isalnum() or self.source[self.index] == "_"):
+        while self.index < self.length and (
+            self.source[self.index].isalnum() or self.source[self.index] == "_"
+        ):
             self.index += 1
             self.column += 1
-        value = self.source[start_index:self.index]
+        value = self.source[start_index : self.index]
         type_ = "KEYWORD" if value in self.KEYWORDS else "IDENT"
         start = SourceLocation(self.line, start_column)
         end = SourceLocation(self.line, self.column - 1)
@@ -289,7 +301,9 @@ class Parser:
         end_token = self._current()
         if not self._match_keyword("конец"):
             self._report_mismatch(end_token)
-            return Program(statements=statements, span=SourceSpan(start, end_token.span.end))
+            return Program(
+                statements=statements, span=SourceSpan(start, end_token.span.end)
+            )
         end_token = self._previous()
         if self._match("DOT"):
             end_token = self._previous()
@@ -445,7 +459,9 @@ class Parser:
         if self._check("DOT"):
             self._report_mismatch(start_token)
         span = SourceSpan(start_token.span.start, self._previous().span.end)
-        return IfStatement(span=span, condition=condition, then_body=then_body, else_body=else_body)
+        return IfStatement(
+            span=span, condition=condition, then_body=then_body, else_body=else_body
+        )
 
     def _parse_while(self) -> Optional[Node]:
         start_token = self._advance()
@@ -476,28 +492,38 @@ class Parser:
         if not self._match_keyword("в") or not self._match_keyword("геном"):
             self._report_unknown(self._current())
             return None
-        return SaveFormula(span=SourceSpan(start_token.span.start, self._previous().span.end), name=name_token.value)
+        return SaveFormula(
+            span=SourceSpan(start_token.span.start, self._previous().span.end),
+            name=name_token.value,
+        )
 
     def _parse_drop(self) -> Optional[Node]:
         start_token = self._advance()
         name_token = self._expect("IDENT")
         if name_token is None:
             return None
-        return DropFormula(span=SourceSpan(start_token.span.start, name_token.span.end), name=name_token.value)
+        return DropFormula(
+            span=SourceSpan(start_token.span.start, name_token.span.end),
+            name=name_token.value,
+        )
 
     def _parse_call_evolution(self) -> Optional[Node]:
         start_token = self._advance()
         if not self._match_keyword("эволюцию"):
             self._report_unknown(self._current())
             return None
-        return CallEvolution(span=SourceSpan(start_token.span.start, self._previous().span.end))
+        return CallEvolution(
+            span=SourceSpan(start_token.span.start, self._previous().span.end)
+        )
 
     def _parse_print_canvas(self) -> Optional[Node]:
         start_token = self._advance()
         if not self._match_keyword("канву"):
             self._report_unknown(self._current())
             return None
-        return PrintCanvas(span=SourceSpan(start_token.span.start, self._previous().span.end))
+        return PrintCanvas(
+            span=SourceSpan(start_token.span.start, self._previous().span.end)
+        )
 
     def _parse_swarm_send(self) -> Optional[Node]:
         start_token = self._advance()
@@ -507,9 +533,14 @@ class Parser:
         name_token = self._expect("IDENT")
         if name_token is None:
             return None
-        return SwarmSend(span=SourceSpan(start_token.span.start, name_token.span.end), name=name_token.value)
+        return SwarmSend(
+            span=SourceSpan(start_token.span.start, name_token.span.end),
+            name=name_token.value,
+        )
 
-    def _parse_expression_until(self, terminators: Iterable[str]) -> Optional[Expression]:
+    def _parse_expression_until(
+        self, terminators: Iterable[str]
+    ) -> Optional[Expression]:
         terms = set(terminators)
         parts: List[str] = []
         start_token: Optional[Token] = None

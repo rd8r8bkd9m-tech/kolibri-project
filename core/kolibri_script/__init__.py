@@ -1,5 +1,14 @@
 """Parsers and genome helpers for KolibriScript."""
 
+from .genome import (
+    KolibriGenomeLedger,
+    KsdBlock,
+    KsdValidationError,
+    SecretsConfig,
+    deserialize_ksd,
+    load_secrets_config,
+    serialize_ksd,
+)
 from .parser import (
     CallEvolution,
     CreateFormula,
@@ -20,15 +29,6 @@ from .parser import (
     VariableDeclaration,
     WhileStatement,
     parse_script,
-)
-from .genome import (
-    KsdBlock,
-    KsdValidationError,
-    KolibriGenomeLedger,
-    SecretsConfig,
-    deserialize_ksd,
-    load_secrets_config,
-    serialize_ksd,
 )
 
 __all__ = [
@@ -56,8 +56,8 @@ __all__ = [
 # Интеграция KolibriScript с цифровым геном и форматами .ksd.
 
 from .genome import (
-    KsdValidationError,
     KolibriGenomeLedger,
+    KsdValidationError,
     SecretsConfig,
     deserialize_ksd,
     load_secrets_config,

@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/kolibri_formula_archiver.dir/tools/kolibri_formula_archiver.c.o -o kolibri_formula_archiver  libkolibri_core.a libkolibri_gpu.a /usr/lib/x86_64-linux-gnu/libcrypto.so /usr/lib/x86_64-linux-gnu/libsqlite3.so -lm 

@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/compare_with_competitors.dir/benchmarks/compare_with_competitors.c.o -o compare_with_competitors  -lm 

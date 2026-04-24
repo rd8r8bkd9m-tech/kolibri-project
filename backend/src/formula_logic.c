@@ -494,5 +494,128 @@ MetaFormula* mf_infer_meta(
         return generalized;
     }
     
+    /* ========== НОВЫЕ ПРАВИЛА ВЫВОДА ========== */
+    
+    if (strcmp(rule, "modus_ponens") == 0 && input_count >= 2) {
+        /* Modus Ponens: A, A→B ⊢ B */
+        const MetaFormula *implication = NULL;
+        const MetaFormula *premise = NULL;
+        
+        for (size_t i = 0; i < input_count; i++) {
+            if (input_metas[i]->operation == META_DERIVE_RELATION) {
+                implication = input_metas[i];
+            } else {
+                premise = input_metas[i];
+            }
+        }
+        
+        if (implication && premise) {
+            MetaFormula *conclusion = mf_create_meta_formula();
+            if (conclusion) {
+                conclusion->operation = META_TRANSFORM_LOGIC;
+                strncpy(conclusion->params.transform.input_logic_id,
+                        premise->params.derive.right_logic_id, 63);
+                strncpy(conclusion->params.transform.transform_rule,
+                        "modus_ponens_conclusion", 127);
+                conclusion->generation = premise->generation + 1;
+                conclusion->complexity_score = premise->complexity_score * 0.9;
+                
+                printf("[META] Modus Ponens applied successfully\n");
+                return conclusion;
+            }
+        }
+    }
+    
+    if (strcmp(rule, "hypothetical_syllogism") == 0 && input_count >= 2) {
+        /* Hypothetical Syllogism: A→B, B→C ⊢ A→C */
+        const MetaFormula *mf1 = input_metas[0];
+        const MetaFormula *mf2 = input_metas[1];
+        
+        if (strcmp(mf1->params.derive.right_logic_id, 
+                   mf2->params.derive.left_logic_id) == 0) {
+            
+            MetaFormula *chain = mf_create_meta_formula();
+            if (chain) {
+                chain->operation = META_DERIVE_RELATION;
+                strncpy(chain->params.derive.left_logic_id,
+                        mf1->params.derive.left_logic_id, 63);
+                strncpy(chain->params.derive.right_logic_id,
+                        mf2->params.derive.right_logic_id, 63);
+                strncpy(chain->params.derive.inference_rule,
+                        "hypothetical_syllogism", 127);
+                chain->generation = (mf1->generation > mf2->generation ? 
+                                    mf1->generation : mf2->generation) + 1;
+                chain->complexity_score = (mf1->complexity_score + mf2->complexity_score) / 2.0;
+                
+                printf("[META] Hypothetical Syllogism: %s → %s\n",
+                       chain->params.derive.left_logic_id,
+                       chain->params.derive.right_logic_id);
+                return chain;
+            }
+        }
+    }
+    
+    if (strcmp(rule, "conjunction_intro") == 0 && input_count >= 2) {
+        /* Conjunction Introduction: A, B ⊢ A∧B */
+        MetaFormula *conjunction = mf_create_meta_formula();
+        if (conjunction) {
+            conjunction->operation = META_COMPRESS_LOGIC;
+            strncpy(conjunction->params.compress.target_logic_id,
+                    "conjunction_result", 63);
+            strncpy(conjunction->params.compress.compression_strategy,
+                    "and_combination", 63);
+            conjunction->generation = 0;
+            for (size_t i = 0; i < input_count; i++) {
+                if (input_metas[i]->generation > conjunction->generation) {
+                    conjunction->generation = input_metas[i]->generation;
+                }
+            }
+            conjunction->generation++;
+            conjunction->complexity_score = 1.5;
+            
+            printf("[META] Conjunction Introduction: combined %zu formulas\n", input_count);
+            return conjunction;
+        }
+    }
+    
+    if (strcmp(rule, "reductio_ad_absurdum") == 0 && input_count >= 1) {
+        /* Reductio ad Absurdum: ¬A → ⊥ ⊢ A */
+        MetaFormula *proof = mf_create_meta_formula();
+        if (proof) {
+            proof->operation = META_DERIVE_RELATION;
+            strncpy(proof->params.derive.left_logic_id,
+                    "negation_assumption", 63);
+            strncpy(proof->params.derive.right_logic_id,
+                    "contradiction_found", 63);
+            strncpy(proof->params.derive.inference_rule,
+                    "reductio_ad_absurdum", 127);
+            proof->generation = input_metas[0]->generation + 1;
+            proof->complexity_score = 2.0;
+            
+            printf("[META] Reductio ad Absurdum proof constructed\n");
+            return proof;
+        }
+    }
+    
+    if (strcmp(rule, "induction") == 0 && input_count >= 2) {
+        /* Mathematical Induction: P(0), ∀n.P(n)→P(n+1) ⊢ ∀n.P(n) */
+        const MetaFormula *base_case = input_metas[0];
+        const MetaFormula *inductive_step = input_metas[1];
+        
+        MetaFormula *induction = mf_evolve_meta(base_case, 0.1);
+        if (induction) {
+            induction->operation = META_EVOLVE_PATTERN;
+            induction->params.evolve.generations = 1000;
+            induction->params.evolve.mutation_rate = 0.01;
+            strncpy(induction->params.evolve.source_pattern_id,
+                    inductive_step->params.derive.left_logic_id, 63);
+            induction->generation = base_case->generation + inductive_step->generation + 1;
+            induction->complexity_score = 3.0;
+            
+            printf("[META] Mathematical Induction principle applied\n");
+            return induction;
+        }
+    }
+
     return NULL;
 }

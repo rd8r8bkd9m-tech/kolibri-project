@@ -9,16 +9,16 @@ Compares encoding/decoding speed between:
 Run with: python benchmark.py
 """
 
-import time
+import os
 import statistics
 import sys
-import os
+import time
 
 # Ensure we import from the local package
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from kolibri import encode, decode, is_c_extension_available
-from kolibri.pure_python import encode_pure, decode_pure
+from kolibri import decode, encode, is_c_extension_available
+from kolibri.pure_python import decode_pure, encode_pure
 
 
 def format_throughput(bytes_per_second: float) -> str:
@@ -60,52 +60,56 @@ def benchmark(func, data, iterations=10, warmup=3):
     data_size = len(data)
 
     return {
-        'min': min(times),
-        'max': max(times),
-        'avg': avg_time,
-        'stddev': statistics.stdev(times) if len(times) > 1 else 0,
-        'throughput_b_s': data_size / avg_time if avg_time > 0 else 0,
-        'throughput_mb_s': data_size / avg_time / 1024 / 1024 if avg_time > 0 else 0,
-        'throughput_gb_s': data_size / avg_time / 1024 / 1024 / 1024 if avg_time > 0 else 0,
+        "min": min(times),
+        "max": max(times),
+        "avg": avg_time,
+        "stddev": statistics.stdev(times) if len(times) > 1 else 0,
+        "throughput_b_s": data_size / avg_time if avg_time > 0 else 0,
+        "throughput_mb_s": data_size / avg_time / 1024 / 1024 if avg_time > 0 else 0,
+        "throughput_gb_s": (
+            data_size / avg_time / 1024 / 1024 / 1024 if avg_time > 0 else 0
+        ),
     }
 
 
 def print_result(name: str, result: dict):
     """Print benchmark result in a formatted way."""
-    throughput = format_throughput(result['throughput_b_s'])
-    print(f"  {name:20s}: {throughput:>12s} "
-          f"(avg: {result['avg']*1000:.2f}ms, stddev: {result['stddev']*1000:.2f}ms)")
+    throughput = format_throughput(result["throughput_b_s"])
+    print(
+        f"  {name:20s}: {throughput:>12s} "
+        f"(avg: {result['avg']*1000:.2f}ms, stddev: {result['stddev']*1000:.2f}ms)"
+    )
 
 
 def run_encode_benchmark(data: bytes, size_name: str):
     """Run encoding benchmarks for both implementations."""
     print(f"\n{'='*60}")
     print(f"ENCODE Benchmark: {size_name} ({len(data):,} bytes)")
-    print('='*60)
+    print("=" * 60)
 
     results = {}
 
     # Pure Python
     try:
-        iters = 3 if len(data) > 1024*1024 else 10
-        results['pure'] = benchmark(encode_pure, data, iterations=iters, warmup=1)
-        print_result("Pure Python", results['pure'])
+        iters = 3 if len(data) > 1024 * 1024 else 10
+        results["pure"] = benchmark(encode_pure, data, iterations=iters, warmup=1)
+        print_result("Pure Python", results["pure"])
     except Exception as e:
         print(f"  Pure Python: SKIP ({e})")
 
     # C Extension
     if is_c_extension_available():
         try:
-            results['c'] = benchmark(encode, data, iterations=10, warmup=3)
-            print_result("C Extension", results['c'])
+            results["c"] = benchmark(encode, data, iterations=10, warmup=3)
+            print_result("C Extension", results["c"])
         except Exception as e:
             print(f"  C Extension: ERROR ({e})")
     else:
         print("  C Extension: NOT AVAILABLE (run 'pip install -e .' to build)")
 
     # Speedup
-    if 'pure' in results and 'c' in results:
-        speedup = results['c']['throughput_b_s'] / results['pure']['throughput_b_s']
+    if "pure" in results and "c" in results:
+        speedup = results["c"]["throughput_b_s"] / results["pure"]["throughput_b_s"]
         print(f"\n  Speedup: {speedup:.1f}x faster!")
 
     return results
@@ -115,31 +119,31 @@ def run_decode_benchmark(encoded: str, size_name: str):
     """Run decoding benchmarks for both implementations."""
     print(f"\n{'='*60}")
     print(f"DECODE Benchmark: {size_name} ({len(encoded):,} chars)")
-    print('='*60)
+    print("=" * 60)
 
     results = {}
 
     # Pure Python
     try:
-        iters = 3 if len(encoded) > 3*1024*1024 else 10
-        results['pure'] = benchmark(decode_pure, encoded, iterations=iters, warmup=1)
-        print_result("Pure Python", results['pure'])
+        iters = 3 if len(encoded) > 3 * 1024 * 1024 else 10
+        results["pure"] = benchmark(decode_pure, encoded, iterations=iters, warmup=1)
+        print_result("Pure Python", results["pure"])
     except Exception as e:
         print(f"  Pure Python: SKIP ({e})")
 
     # C Extension
     if is_c_extension_available():
         try:
-            results['c'] = benchmark(decode, encoded, iterations=10, warmup=3)
-            print_result("C Extension", results['c'])
+            results["c"] = benchmark(decode, encoded, iterations=10, warmup=3)
+            print_result("C Extension", results["c"])
         except Exception as e:
             print(f"  C Extension: ERROR ({e})")
     else:
         print("  C Extension: NOT AVAILABLE")
 
     # Speedup
-    if 'pure' in results and 'c' in results:
-        speedup = results['c']['throughput_b_s'] / results['pure']['throughput_b_s']
+    if "pure" in results and "c" in results:
+        speedup = results["c"]["throughput_b_s"] / results["pure"]["throughput_b_s"]
         print(f"\n  Speedup: {speedup:.1f}x faster!")
 
     return results
@@ -167,10 +171,12 @@ def main():
 
     # Add larger sizes only if C extension is available
     if is_c_extension_available():
-        sizes.extend([
-            ("10 MB", 10 * 1024 * 1024),
-            ("100 MB", 100 * 1024 * 1024),
-        ])
+        sizes.extend(
+            [
+                ("10 MB", 10 * 1024 * 1024),
+                ("100 MB", 100 * 1024 * 1024),
+            ]
+        )
 
     all_encode_results = {}
     all_decode_results = {}
@@ -202,11 +208,15 @@ def main():
         print("├─────────────┼────────────────┼────────────────┼──────────┤")
 
         for name, results in all_encode_results.items():
-            if 'pure' in results and 'c' in results:
-                pure_tp = format_throughput(results['pure']['throughput_b_s'])
-                c_tp = format_throughput(results['c']['throughput_b_s'])
-                speedup = results['c']['throughput_b_s'] / results['pure']['throughput_b_s']
-                print(f"│ {name:11s} │ {pure_tp:>14s} │ {c_tp:>14s} │ {speedup:>6.1f}x │")
+            if "pure" in results and "c" in results:
+                pure_tp = format_throughput(results["pure"]["throughput_b_s"])
+                c_tp = format_throughput(results["c"]["throughput_b_s"])
+                speedup = (
+                    results["c"]["throughput_b_s"] / results["pure"]["throughput_b_s"]
+                )
+                print(
+                    f"│ {name:11s} │ {pure_tp:>14s} │ {c_tp:>14s} │ {speedup:>6.1f}x │"
+                )
 
         print("└─────────────┴────────────────┴────────────────┴──────────┘")
     else:

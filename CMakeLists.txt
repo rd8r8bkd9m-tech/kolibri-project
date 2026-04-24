@@ -58,7 +58,10 @@ add_library(kolibri_core_objects OBJECT
     backend/src/context_window.c
     backend/src/corpus_learning.c
     backend/src/text_generation.c
+    backend/src/code_gen.c
+    backend/src/formula_logic.c
     backend/src/compress.c
+    backend/src/kgen_parser.c
 )
 
 target_include_directories(kolibri_core_objects
@@ -152,19 +155,23 @@ add_executable(kolibri_knowledge_server backend/src/knowledge_server.c)
 add_executable(kolibri_indexer apps/kolibri_indexer.c)
 add_executable(kolibri_queue apps/kolibri_queue.c)
 add_executable(kolibri_sim apps/kolibri_sim_cli.c)
+add_executable(kolibri_assistant apps/kolibri_assistant_cli.c)
 add_executable(kolibri_coordinator apps/kolibri_coordinator.c)
 add_executable(kolibri_knowledge_relay apps/kolibri_knowledge_relay.c)
 add_executable(kolibri_verify_digit_masking tools/verify_digit_masking.c)
 add_executable(kolibri_archiver apps/kolibri_archiver.c)
 add_executable(kolibri_formula_archiver tools/kolibri_formula_archiver.c)
 add_executable(kolibri_meta_archiver tools/kolibri_meta_archiver.c)
+add_executable(kolibri_kgen tools/kolibri_kgen.c)
 
 target_link_libraries(kolibri_node PRIVATE kolibri_core)
 target_link_libraries(ks_compiler PRIVATE kolibri_core)
 target_link_libraries(kolibri_knowledge_server PRIVATE kolibri_core)
+target_link_libraries(kolibri_kgen PRIVATE kolibri_core)
 target_link_libraries(kolibri_indexer PRIVATE kolibri_core)
 target_link_libraries(kolibri_queue PRIVATE kolibri_core)
 target_link_libraries(kolibri_sim PRIVATE kolibri_core)
+target_link_libraries(kolibri_assistant PRIVATE kolibri_core readline)
 target_link_libraries(kolibri_coordinator PRIVATE kolibri_core)
 target_link_libraries(kolibri_knowledge_relay PRIVATE kolibri_core)
 target_link_libraries(kolibri_verify_digit_masking PRIVATE kolibri_core)

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Builds spectral fingerprints for Kolibri knowledge documents."""
+
 from __future__ import annotations
 
 import argparse
@@ -10,6 +11,7 @@ from pathlib import Path
 from typing import Iterable
 
 TEXT_EXT = {".md", ".txt", ".ks", ".json", ".c", ".h", ".py"}
+
 
 def calc_entropy(data: bytes) -> float:
     if not data:
@@ -26,6 +28,7 @@ def calc_entropy(data: bytes) -> float:
         entropy -= p * math.log2(p)
     return round(entropy, 5)
 
+
 def classify(path: Path, data: bytes) -> str:
     suffix = path.suffix.lower()
     if suffix in {".c", ".h", ".cpp", ".hpp", ".py"}:
@@ -40,6 +43,7 @@ def classify(path: Path, data: bytes) -> str:
         return "image"
     return "binary"
 
+
 def iter_files(roots: Iterable[Path]) -> Iterable[Path]:
     for root in roots:
         if root.is_file():
@@ -48,6 +52,7 @@ def iter_files(roots: Iterable[Path]) -> Iterable[Path]:
             for path in root.rglob("*"):
                 if path.is_file():
                     yield path
+
 
 def fingerprint(paths: Iterable[Path]) -> list[dict]:
     results = []
@@ -67,8 +72,11 @@ def fingerprint(paths: Iterable[Path]) -> list[dict]:
         results.append(profile)
     return results
 
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Kolibri spectral fingerprint pipeline")
+    parser = argparse.ArgumentParser(
+        description="Kolibri spectral fingerprint pipeline"
+    )
     parser.add_argument("roots", nargs="+", help="Directories/files to scan")
     parser.add_argument("--output", required=True, help="Destination JSON file")
     args = parser.parse_args()
@@ -80,6 +88,7 @@ def main() -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="utf-8") as fh:
         json.dump({"profiles": profiles}, fh, ensure_ascii=False, indent=2)
+
 
 if __name__ == "__main__":
     main()

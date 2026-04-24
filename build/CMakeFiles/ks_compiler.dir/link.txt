@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/ks_compiler.dir/apps/ks_compiler.c.o -o ks_compiler  libkolibri_core.a /usr/lib/x86_64-linux-gnu/libcrypto.so /usr/lib/x86_64-linux-gnu/libsqlite3.so -lm 

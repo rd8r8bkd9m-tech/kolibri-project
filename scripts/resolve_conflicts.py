@@ -10,6 +10,7 @@ import sys
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+
 from scripts.policy_validate import zagruzit_blok
 
 KONFLIKT_START = "<<<<<<<"
@@ -252,13 +253,17 @@ def postroit_otchet(root: Path) -> Dict[str, object]:
 
 def main(argv: List[str]) -> int:
     parser = argparse.ArgumentParser(description="Автоконфликт Kolibri")
-    parser.add_argument("--report", type=Path, default=None, help="путь для JSON-отчёта")
+    parser.add_argument(
+        "--report", type=Path, default=None, help="путь для JSON-отчёта"
+    )
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     koren = Path.cwd()
     otchet = postroit_otchet(koren)
     if args.report:
-        args.report.write_text(json.dumps(otchet, ensure_ascii=False, indent=2), encoding="utf-8")
+        args.report.write_text(
+            json.dumps(otchet, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
     print(json.dumps(otchet, ensure_ascii=False, indent=2))
     return 0
 
