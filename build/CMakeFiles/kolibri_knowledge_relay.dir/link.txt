@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/kolibri_knowledge_relay.dir/apps/kolibri_knowledge_relay.c.o -o kolibri_knowledge_relay  libkolibri_core.a /usr/lib/x86_64-linux-gnu/libcrypto.so /usr/lib/x86_64-linux-gnu/libsqlite3.so -lm 

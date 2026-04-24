@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/test_proof_300000x.dir/tests/test_proof_300000x.c.o -o test_proof_300000x  libkolibri_core.a /usr/lib/x86_64-linux-gnu/libcrypto.so /usr/lib/x86_64-linux-gnu/libsqlite3.so -lm 

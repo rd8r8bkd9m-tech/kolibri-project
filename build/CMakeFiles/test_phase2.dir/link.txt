@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/test_phase2.dir/tests/test_phase2_phonetic.c.o -o test_phase2  libkolibri_core.a /usr/lib/x86_64-linux-gnu/libcrypto.so /usr/lib/x86_64-linux-gnu/libsqlite3.so -lm 
