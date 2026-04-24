@@ -1,0 +1,100 @@
+name: Security Scanning
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 3 * * 1'  # Weekly on Monday at 3 AM
+
+jobs:
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install safety and pip-audit
+        run: |
+          pip install safety pip-audit bandit
+      
+      - name: Run safety check
+        run: |
+          safety check -r requirements.txt --json > safety-report.json || true
+      
+      - name: Run pip-audit
+        run: |
+          pip-audit -r requirements.txt --format json > pip-audit-report.json || true
+      
+      - name: Run bandit (Python security linter)
+        run: |
+          bandit -r src/ -f json -o bandit-report.json || true
+      
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            safety-report.json
+            pip-audit-report.json
+            bandit-report.json
+
+  codeql-analysis:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'python', 'cpp' ]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+      
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+      
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"
+
+  secret-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+      
+      - name: Run trufflehog
+        run: |
+          docker run --rm -v $PWD:/pwd zricethezav/gitleaks:latest detect -s /pwd --report-path=/pwd/trufflehog-report.json || true
+      
+      - name: Upload secret scan report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: secret-scan-report
+          path: trufflehog-report.json

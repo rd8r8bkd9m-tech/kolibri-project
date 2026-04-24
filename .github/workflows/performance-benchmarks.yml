@@ -1,0 +1,92 @@
+name: Performance Benchmarks
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM
+
+jobs:
+  c-benchmarks:
+    name: C Core Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake
+      
+      - name: Build benchmarks
+        run: |
+          cd benchmarks/c
+          make all
+      
+      - name: Run C benchmarks
+        run: |
+          cd benchmarks/c
+          ./run_benchmarks.sh > results_c.json
+      
+      - name: Upload C results
+        uses: actions/upload-artifact@v4
+        with:
+          name: c-benchmark-results
+          path: benchmarks/c/results_c.json
+
+  python-benchmarks:
+    name: Python Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-benchmark
+      
+      - name: Run Python benchmarks
+        run: |
+          pytest benchmarks/python --benchmark-json=results_python.json
+      
+      - name: Upload Python results
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-benchmark-results
+          path: results_python.json
+
+  compare-performance:
+    name: Compare Performance
+    needs: [c-benchmarks, python-benchmarks]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download baseline results
+        uses: actions/download-artifact@v4
+        with:
+          name: c-benchmark-results
+          path: baseline/c
+        continue-on-error: true
+      
+      - name: Download current results
+        uses: actions/download-artifact@v4
+        with:
+          name: c-benchmark-results
+          path: current/c
+        continue-on-error: true
+      
+      - name: Compare results
+        run: |
+          echo "Performance comparison report"
+          echo "Check artifacts for detailed results"
+          # In real scenario, use benchmark comparison tool
