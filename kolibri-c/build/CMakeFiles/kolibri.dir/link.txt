@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/kolibri.dir/src/main.c.o -o kolibri  libkolibri_core.a 

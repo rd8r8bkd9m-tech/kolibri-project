@@ -1,0 +1,1 @@
+Hello Kolibri C! This is a test file for compression.
