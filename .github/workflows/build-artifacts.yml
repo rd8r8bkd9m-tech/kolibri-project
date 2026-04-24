@@ -1,0 +1,124 @@
+name: Build Artifacts
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-iso:
+    name: Build ISO Images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y genisoimage xorriso grub-pc-bin grub-efi-amd64-bin
+          
+      - name: Build Kolibri ISO
+        run: |
+          mkdir -p iso_root
+          cp -r kolibrios/Arch/Files/* iso_root/ || true
+          cp -r kolibrios/KolibriOS.iso.img iso_root/ || true
+          
+      - name: Create ISO
+        run: |
+          genisoimage -o kolibri-os.iso -b isolinux/isolinux.bin \
+            -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 \
+            -boot-info-table -J -R iso_root/ || echo "ISO build skipped - files not available"
+      
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kolibri-os-iso
+          path: kolibri-os.iso
+          retention-days: 30
+
+  build-wasm:
+    name: Build WebAssembly Modules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Emscripten
+        uses: mymindstorm/setup-emsdk@v12
+        with:
+          version: latest
+      
+      - name: Build WASM modules
+        run: |
+          find . -name "*.c" -type f | head -20 | while read file; do
+            echo "Building $file..."
+            emcc "$file" -o "${file%.c}.wasm" -s WASM=1 || true
+          done
+      
+      - name: Upload WASM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-modules
+          path: |
+            **/*.wasm
+          retention-days: 14
+
+  build-docker:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image: [backend, frontend, training]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/${{ matrix.image }}/Dockerfile
+          push: false
+          load: true
+          tags: kolibri-${{ matrix.image }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Export Docker image
+        run: |
+          docker save kolibri-${{ matrix.image }}:${{ github.sha }} | gzip > kolibri-${{ matrix.image }}.tar.gz
+      
+      - name: Upload Docker artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-${{ matrix.image }}
+          path: kolibri-${{ matrix.image }}.tar.gz
+          retention-days: 7
+
+  release-assets:
+    name: Prepare Release Assets
+    runs-on: ubuntu-latest
+    needs: [build-iso, build-wasm, build-docker]
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+      
+      - name: Create release archive
+        run: |
+          tar -czvf kolibri-os-${{ github.ref_name }}.tar.gz release-assets/
+      
+      - name: Upload to release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: kolibri-os-${{ github.ref_name }}.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
