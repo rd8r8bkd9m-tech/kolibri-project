@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Autonomous crawler that feeds docs/ingested for Kolibri training."""
+
 from __future__ import annotations
 
 import argparse
@@ -57,7 +58,11 @@ class LinkExtractor(HTMLParser):
         if not href:
             return
         href = href.strip()
-        if href.startswith("#") or href.startswith("mailto:") or href.startswith("javascript:"):
+        if (
+            href.startswith("#")
+            or href.startswith("mailto:")
+            or href.startswith("javascript:")
+        ):
             return
         absolute = urllib.parse.urljoin(self.base_url, href)
         self.links.append(absolute)
@@ -82,16 +87,14 @@ def normalize_url(url: str) -> str | None:
 
 
 def ensure_db(conn: sqlite3.Connection) -> None:
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS pages (
             url TEXT PRIMARY KEY,
             status TEXT NOT NULL,
             depth INTEGER NOT NULL,
             last_fetch REAL
         )
-        """
-    )
+        """)
     conn.commit()
 
 
@@ -134,7 +137,9 @@ def update_status(conn: sqlite3.Connection, url: str, status: str) -> None:
     conn.commit()
 
 
-def robots_allowed(url: str, robot_cache: dict[str, urllib.robotparser.RobotFileParser]) -> bool:
+def robots_allowed(
+    url: str, robot_cache: dict[str, urllib.robotparser.RobotFileParser]
+) -> bool:
     parsed = urllib.parse.urlsplit(url)
     base = f"{parsed.scheme}://{parsed.netloc}"
     parser = robot_cache.get(base)
@@ -172,7 +177,10 @@ def within_domains(url: str, allow_domains: set[str]) -> bool:
     if not allow_domains:
         return True
     hostname = urllib.parse.urlsplit(url).hostname or ""
-    return any(hostname == domain or hostname.endswith(f".{domain}") for domain in allow_domains)
+    return any(
+        hostname == domain or hostname.endswith(f".{domain}")
+        for domain in allow_domains
+    )
 
 
 def crawl_once(
@@ -214,7 +222,11 @@ def crawl_once(
 
         try:
             LOGGER.info("Fetching %s (depth=%s)", url, depth)
-            with httpx.Client(timeout=timeout, follow_redirects=True, headers={"User-Agent": USER_AGENT}) as client:
+            with httpx.Client(
+                timeout=timeout,
+                follow_redirects=True,
+                headers={"User-Agent": USER_AGENT},
+            ) as client:
                 response = client.get(url)
                 response.raise_for_status()
                 content_type = response.headers.get("Content-Type", "")
@@ -246,15 +258,40 @@ def crawl_once(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Kolibri autonomous crawler")
-    parser.add_argument("--output", type=Path, default=Path("docs/ingested"), help="Directory to store documents")
-    parser.add_argument("--db", type=Path, default=Path("build/crawler/crawler.db"), help="SQLite DB path for queue")
-    parser.add_argument("--max-pages", type=int, default=20, help="Maximum pages to fetch per run")
-    parser.add_argument("--max-depth", type=int, default=2, help="Maximum crawl depth from seeds")
-    parser.add_argument("--timeout", type=float, default=15.0, help="HTTP timeout per request")
-    parser.add_argument("--allow-domain", action="append", default=[], help="Allowed domain (repeatable). Empty=any.")
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("docs/ingested"),
+        help="Directory to store documents",
+    )
+    parser.add_argument(
+        "--db",
+        type=Path,
+        default=Path("build/crawler/crawler.db"),
+        help="SQLite DB path for queue",
+    )
+    parser.add_argument(
+        "--max-pages", type=int, default=20, help="Maximum pages to fetch per run"
+    )
+    parser.add_argument(
+        "--max-depth", type=int, default=2, help="Maximum crawl depth from seeds"
+    )
+    parser.add_argument(
+        "--timeout", type=float, default=15.0, help="HTTP timeout per request"
+    )
+    parser.add_argument(
+        "--allow-domain",
+        action="append",
+        default=[],
+        help="Allowed domain (repeatable). Empty=any.",
+    )
     parser.add_argument("--seeds", nargs="*", default=[], help="Seed URLs to enqueue")
-    parser.add_argument("--seed-file", type=Path, help="File with seed URLs (one per line)")
-    parser.add_argument("--log-level", default="INFO", help="Logging level (default: INFO)")
+    parser.add_argument(
+        "--seed-file", type=Path, help="File with seed URLs (one per line)"
+    )
+    parser.add_argument(
+        "--log-level", default="INFO", help="Logging level (default: INFO)"
+    )
     return parser.parse_args()
 
 
@@ -274,7 +311,9 @@ def load_seed_file(path: Path | None) -> list[str]:
 
 def main() -> int:
     args = parse_args()
-    logging.basicConfig(level=args.log_level.upper(), format="[%(levelname)s] %(message)s")
+    logging.basicConfig(
+        level=args.log_level.upper(), format="[%(levelname)s] %(message)s"
+    )
     seeds = list(args.seeds)
     seeds.extend(load_seed_file(args.seed_file))
     if not seeds:

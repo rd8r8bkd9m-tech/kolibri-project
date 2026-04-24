@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Collect seed URLs from official catalogs and write them into crawler_seeds.txt."""
+
 from __future__ import annotations
 
 import argparse
@@ -74,15 +75,33 @@ def load_catalog(path: Path) -> list[dict[str, object]]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Collect seed URLs from curated catalogs.")
-    parser.add_argument("--catalog", type=Path, default=Path("seeds/catalog.json"), help="Path to catalog JSON")
-    parser.add_argument("--output", type=Path, default=Path("crawler_seeds.txt"), help="Output file for seeds")
-    parser.add_argument("--per-source", type=int, default=25, help="Max links per source")
-    parser.add_argument("--min-links", type=int, default=5, help="Minimum links to include a source")
+    parser = argparse.ArgumentParser(
+        description="Collect seed URLs from curated catalogs."
+    )
+    parser.add_argument(
+        "--catalog",
+        type=Path,
+        default=Path("seeds/catalog.json"),
+        help="Path to catalog JSON",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("crawler_seeds.txt"),
+        help="Output file for seeds",
+    )
+    parser.add_argument(
+        "--per-source", type=int, default=25, help="Max links per source"
+    )
+    parser.add_argument(
+        "--min-links", type=int, default=5, help="Minimum links to include a source"
+    )
     args = parser.parse_args()
 
     if not args.catalog.exists():
-        print(f"[collect-seeds] catalog file not found: {args.catalog}", file=sys.stderr)
+        print(
+            f"[collect-seeds] catalog file not found: {args.catalog}", file=sys.stderr
+        )
         return 1
 
     sources = load_catalog(args.catalog)
@@ -97,7 +116,9 @@ def main() -> int:
             print(f"[collect-seeds] skip {name}: missing index URL", file=sys.stderr)
             continue
         if not isinstance(allow_domains, list) or not allow_domains:
-            print(f"[collect-seeds] skip {name}: missing allow_domains", file=sys.stderr)
+            print(
+                f"[collect-seeds] skip {name}: missing allow_domains", file=sys.stderr
+            )
             continue
 
         links = fetch_links(index_url)
@@ -113,7 +134,10 @@ def main() -> int:
                 break
 
         if len(curated) < args.min_links:
-            print(f"[collect-seeds] skip {name}: only {len(curated)} links after filtering", file=sys.stderr)
+            print(
+                f"[collect-seeds] skip {name}: only {len(curated)} links after filtering",
+                file=sys.stderr,
+            )
             continue
 
         print(f"[collect-seeds] {name}: {len(curated)} links")

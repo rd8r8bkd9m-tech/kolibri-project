@@ -18,7 +18,6 @@ import urllib.parse
 import urllib.request
 from typing import Any, Dict
 
-
 _TORCH_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
@@ -29,7 +28,12 @@ class TorchModelNameError(ValueError):
 def _validate_torch_model_name(model_name: str) -> None:
     """Гарантирует, что идентификатор подходит для Hugging Face/локальной папки."""
 
-    if ":" in model_name and "/" not in model_name and not model_name.startswith("./") and not model_name.startswith("../"):
+    if (
+        ":" in model_name
+        and "/" not in model_name
+        and not model_name.startswith("./")
+        and not model_name.startswith("../")
+    ):
         raise TorchModelNameError(
             "Имя модели содержит ':' (например, 'gemma:2b'). Такие теги относятся к Ollama. "
             "Используйте --backend http для Ollama или укажите репозиторий Hugging Face вроде "
@@ -37,7 +41,9 @@ def _validate_torch_model_name(model_name: str) -> None:
         )
 
 
-def call_llm_http(url: str, model: str, prompt: str, temperature: float, system_prompt: str) -> str:
+def call_llm_http(
+    url: str, model: str, prompt: str, temperature: float, system_prompt: str
+) -> str:
     payload: Dict[str, Any] = {
         "model": model,
         "prompt": prompt,
@@ -66,17 +72,21 @@ def call_llm_http(url: str, model: str, prompt: str, temperature: float, system_
     raise RuntimeError(f"LLM response did not contain text: {body[:200]}")
 
 
-def call_llm_torch(model_name: str,
-                   prompt: str,
-                   temperature: float,
-                   max_new_tokens: int,
-                   device: str,
-                   system_prompt: str) -> str:
+def call_llm_torch(
+    model_name: str,
+    prompt: str,
+    temperature: float,
+    max_new_tokens: int,
+    device: str,
+    system_prompt: str,
+) -> str:
     try:
         import torch  # type: ignore
         from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
     except Exception as exc:  # noqa: BLE001
-        raise RuntimeError("Для режима torch нужны пакеты torch и transformers") from exc
+        raise RuntimeError(
+            "Для режима torch нужны пакеты torch и transformers"
+        ) from exc
 
     _validate_torch_model_name(model_name)
 
@@ -114,7 +124,7 @@ def call_llm_torch(model_name: str,
     with torch.no_grad():  # type: ignore[attr-defined]
         output = model.generate(input_ids, **generate_kwargs)
 
-    generated = output[0][input_ids.shape[1]:]
+    generated = output[0][input_ids.shape[1] :]
     text = tokenizer.decode(generated, skip_special_tokens=True)
     return text.strip()
 
@@ -187,10 +197,19 @@ def main(argv: list[str]) -> int:
         print("Empty question is not allowed", file=sys.stderr)
         return 1
 
-    print(f"[kolibri-llm-teacher] Asking LLM ({args.backend}:{args.llm_model})...", file=sys.stderr)
+    print(
+        f"[kolibri-llm-teacher] Asking LLM ({args.backend}:{args.llm_model})...",
+        file=sys.stderr,
+    )
     try:
         if args.backend == "http":
-            answer = call_llm_http(args.llm_url, args.llm_model, question, args.temperature, args.system_prompt)
+            answer = call_llm_http(
+                args.llm_url,
+                args.llm_model,
+                question,
+                args.temperature,
+                args.system_prompt,
+            )
         else:
             answer = call_llm_torch(
                 args.llm_model,
@@ -215,7 +234,10 @@ def main(argv: list[str]) -> int:
     try:
         teach_answer(args.kolibri_url, question, answer)
     except Exception as exc:  # noqa: BLE001
-        print(f"[kolibri-llm-teacher] Failed to send teach/feedback: {exc}", file=sys.stderr)
+        print(
+            f"[kolibri-llm-teacher] Failed to send teach/feedback: {exc}",
+            file=sys.stderr,
+        )
         return 1
 
     print("[kolibri-llm-teacher] Teach + feedback completed", file=sys.stderr)

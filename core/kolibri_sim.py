@@ -12,7 +12,18 @@ import os
 import random
 import time
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Protocol, Sequence, TypedDict, cast
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Protocol,
+    Sequence,
+    TypedDict,
+    cast,
+)
 
 from .kolibri_script.genome import (
     KolibriGenomeLedger,
@@ -111,7 +122,7 @@ def vosstanovit_tekst_iz_cifr(cifry: str) -> str:
 
     if len(cifry) % 3 != 0:
         raise ValueError("длина цепочки цифр должна делиться на три")
-    bayty = bytearray(int(cifry[ind:ind + 3]) for ind in range(0, len(cifry), 3))
+    bayty = bytearray(int(cifry[ind : ind + 3]) for ind in range(0, len(cifry), 3))
     return bayty.decode("utf-8")
 
 
@@ -198,8 +209,12 @@ class KolibriSim:
             "dannye": dict(dannye),
             "metka": len(self.genom),
         }
-        payload = preobrazovat_tekst_v_cifry(json.dumps(zapis, ensure_ascii=False, sort_keys=True))
-        pred_hash = self.genom[-1].itogovy_hash if self.genom else dec_hash("kolibri-genesis")
+        payload = preobrazovat_tekst_v_cifry(
+            json.dumps(zapis, ensure_ascii=False, sort_keys=True)
+        )
+        pred_hash = (
+            self.genom[-1].itogovy_hash if self.genom else dec_hash("kolibri-genesis")
+        )
         hmac_summa = _poschitat_hmac(self._poluchit_klyuch(), pred_hash, payload)
         itogovy_hash = dec_hash(payload + hmac_summa + pred_hash)
         blok = ZapisBloka(len(self.genom), pred_hash, payload, hmac_summa, itogovy_hash)
@@ -305,8 +320,12 @@ class KolibriSim:
             blok_dlya_tracinga = blok if self._tracer_include_genome else None
             try:
                 tracer.zapisat(zapis, blok_dlya_tracinga)
-            except Exception as oshibka:  # pragma: no cover - ошибки трассера должны быть видимы
-                raise RuntimeError("KolibriSim tracer не смог обработать событие") from oshibka
+            except (
+                Exception
+            ) as oshibka:  # pragma: no cover - ошибки трассера должны быть видимы
+                raise RuntimeError(
+                    "KolibriSim tracer не смог обработать событие"
+                ) from oshibka
         self._persist_journal(zapis, blok)
 
     def _persist_journal(self, zapis: ZhurnalZapis, blok: ZapisBloka) -> None:
@@ -376,7 +395,9 @@ class KolibriSim:
     def _evaluate_ast(self, uzel: ast.AST) -> int:
         """Рекурсивный интерпретатор арифметических выражений для команд REPL."""
 
-        if isinstance(uzel, ast.BinOp) and isinstance(uzel.op, (ast.Add, ast.Sub, ast.Mult, ast.Pow)):
+        if isinstance(uzel, ast.BinOp) and isinstance(
+            uzel.op, (ast.Add, ast.Sub, ast.Mult, ast.Pow)
+        ):
             levy = self._evaluate_ast(uzel.left)
             pravy = self._evaluate_ast(uzel.right)
             if isinstance(uzel.op, ast.Add):
@@ -385,7 +406,7 @@ class KolibriSim:
                 return levy - pravy
             if isinstance(uzel.op, ast.Mult):
                 return levy * pravy
-            return levy ** pravy
+            return levy**pravy
         if isinstance(uzel, ast.UnaryOp) and isinstance(uzel.op, (ast.UAdd, ast.USub)):
             znachenie = self._evaluate_ast(uzel.operand)
             return znachenie if isinstance(uzel.op, ast.UAdd) else -znachenie
@@ -446,7 +467,9 @@ class KolibriSim:
         for blok in self.genom:
             if blok.pred_hash != pred_hash:
                 return False
-            ozhidaemyj_hmac = _poschitat_hmac(self._poluchit_klyuch(), pred_hash, blok.payload)
+            ozhidaemyj_hmac = _poschitat_hmac(
+                self._poluchit_klyuch(), pred_hash, blok.payload
+            )
             if blok.hmac_summa != ozhidaemyj_hmac:
                 return False
             ozhidaemyj_hash = dec_hash(blok.payload + blok.hmac_summa + pred_hash)
@@ -502,13 +525,15 @@ class KolibriSim:
     def poluchit_canvas(self, glubina: int = 3) -> List[List[int]]:
         """Формирует числовое представление фрактальной памяти для визуализации."""
 
-        osnova = "".join(preobrazovat_tekst_v_cifry(znachenie) for znachenie in self.znanija.values())
+        osnova = "".join(
+            preobrazovat_tekst_v_cifry(znachenie) for znachenie in self.znanija.values()
+        )
         if not osnova:
             osnova = "0123456789"
         sloi: List[List[int]] = []
         for uroven in range(glubina):
             start = (uroven * 10) % len(osnova)
-            segment = osnova[start:start + 10]
+            segment = osnova[start : start + 10]
             if len(segment) < 10:
                 segment = (segment + osnova)[:10]
             sloi.append([int(simbol) for simbol in segment])
@@ -535,7 +560,9 @@ class KolibriSim:
 
         return {"offset": self._zhurnal_sdvig, "zapisi": list(self.zhurnal)}
 
-    def ustanovit_tracer(self, tracer: Optional[ZhurnalTracer], *, vkljuchat_genom: bool = False) -> None:
+    def ustanovit_tracer(
+        self, tracer: Optional[ZhurnalTracer], *, vkljuchat_genom: bool = False
+    ) -> None:
         """Настраивает обработчик событий журнала и управление блоками генома."""
 
         self._tracer = tracer
@@ -588,7 +615,9 @@ class KolibriSim:
 
         return {"events": len(self.genom) - nachalnyj_razmer, "metrics": metrika}
 
-    def zapustit_roj(self, peers: Sequence["KolibriSim"], cikly: int = 1) -> Dict[str, int]:
+    def zapustit_roj(
+        self, peers: Sequence["KolibriSim"], cikly: int = 1
+    ) -> Dict[str, int]:
         """Оркестрирует обмен знаниями и формулами между текущим симом и списком пиров."""
 
         if cikly <= 0:
@@ -620,7 +649,11 @@ class KolibriSim:
             "SWARM",
             f"rounds={cikly},knowledge={knowledge_total},formulas={formulas_total}",
         )
-        return {"rounds": cikly, "knowledge": knowledge_total, "formulas": formulas_total}
+        return {
+            "rounds": cikly,
+            "knowledge": knowledge_total,
+            "formulas": formulas_total,
+        }
 
     def zakryt(self) -> None:
         """Закрывает ресурсы файлового журнала и цифрового генома."""
@@ -648,7 +681,10 @@ def sohranit_sostoyanie(path: Path, sostoyanie: Mapping[str, Any]) -> None:
         k: preobrazovat_tekst_v_cifry(json.dumps(v, ensure_ascii=False, sort_keys=True))
         for k, v in sostoyanie.items()
     }
-    path.write_text(json.dumps(serializovannoe, ensure_ascii=False, sort_keys=True), encoding="utf-8")
+    path.write_text(
+        json.dumps(serializovannoe, ensure_ascii=False, sort_keys=True),
+        encoding="utf-8",
+    )
 
 
 def zagruzit_sostoyanie(path: Path) -> Dict[str, Any]:

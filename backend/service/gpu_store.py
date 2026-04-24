@@ -1,4 +1,5 @@
 """Local GPU knowledge base service (stub)."""
+
 from __future__ import annotations
 
 import sqlite3

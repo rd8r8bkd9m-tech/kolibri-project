@@ -17,7 +17,9 @@ def project_root() -> Path:
 def run() -> None:
     parser = argparse.ArgumentParser(description="Kolibri knowledge ingestion helper")
     parser.add_argument("query", nargs="?", default="", help="Search query to execute")
-    parser.add_argument("--limit", type=int, default=5, help="Number of snippets to return")
+    parser.add_argument(
+        "--limit", type=int, default=5, help="Number of snippets to return"
+    )
     parser.add_argument(
         "--export",
         type=Path,
@@ -37,7 +39,9 @@ def run() -> None:
             )
             payload = Path(tmpdir) / "index.json"
             if payload.exists():
-                args.export.write_text(payload.read_text(encoding="utf-8"), encoding="utf-8")
+                args.export.write_text(
+                    payload.read_text(encoding="utf-8"), encoding="utf-8"
+                )
                 print(f"Exported index snapshot to {args.export}")
 
     query = args.query.strip()
