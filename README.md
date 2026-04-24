@@ -2,32 +2,32 @@
 
 Kolibri сейчас официально описывается как один продуктовый контур:
 
-`frontend/src -> backend/service -> backend/src -> WASM -> apps`
+`web -> services -> core -> WASM -> apps`
 
 Это означает следующее:
 
-- `frontend/src` является единственным shipping web shell.
-- `backend/service` является текущим shipping gateway и source of truth для chat/account/preferences/conversations/swarm runtime.
-- `backend/src` и `backend/include/kolibri` являются основным native core.
-- `build/wasm/kolibri.wasm` и `frontend/public/kolibri.wasm` являются browser/offline runtime path того же продукта.
+- `web/` является текущим shipping web shell.
+- `services/` является текущим shipping FastAPI gateway и source of truth для chat/account/preferences/conversations/swarm runtime.
+- `core/` и `backend/include/kolibri/` являются основным native C23 core и стабильным public C surface.
+- `infra/build_wasm.sh`, `build/wasm/kolibri.wasm` и web public assets являются browser/offline runtime path того же продукта.
 - `apps/` содержит поддерживаемые CLI и product-side native utilities.
 
-`backend/src/kolibri_http_server.c` остаётся важным runtime-path, но до прохождения того же release gate считается `parity-target`, а не shipping gateway.
+`core/kolibri_http_server.c` остаётся важным runtime-path, но до прохождения того же release gate считается `parity-target`, а не shipping gateway.
 
 ## Официальный scope
 
 ### Shipping contour
 
-- `frontend/src`
-- `backend/service`
-- `backend/src`
-- `backend/include/kolibri`
-- `scripts/build_wasm.sh`
+- `web/`
+- `services/`
+- `core/`
+- `backend/include/kolibri/`
+- `infra/`
 - `apps/`
 
 ### Integration-only / secondary contours
 
-- `frontend/kolibri-web`
+- `frontend/`
 - `mobile/kolibri-app`
 - `cloud-storage`
 - `content_factory_*`
@@ -43,20 +43,20 @@ Kolibri сейчас официально описывается как один
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-./scripts/release_gate.sh bootstrap
+./infra/release_gate.sh bootstrap
 
-python3 -m uvicorn backend.service.main:app --host 0.0.0.0 --port 8001
-npm run dev --prefix frontend -- --host 0.0.0.0 --port 3000
+python3 -m uvicorn services.main:app --host 0.0.0.0 --port 8001
+npm run dev --prefix web -- --host 0.0.0.0 --port 3000
 ```
 
-Frontend ожидает backend на `http://localhost:8001` и использует server-backed flows для auth, profile, preferences, conversations и chat.
+Web shell ожидает backend на `http://localhost:8001` и использует server-backed flows для auth, profile, preferences, conversations и chat. Browser/offline режим идёт через WASM bridge.
 
 ## Release Gate
 
 Канонический локальный gate для shipping-контура:
 
 ```bash
-./scripts/release_gate.sh all
+./infra/release_gate.sh all
 ```
 
 Или через `make`:
@@ -67,10 +67,10 @@ make release-gate
 
 Состав release gate:
 
-- native: `test_kolibri_http_server_api`, `test_kolibri_http_stream_api`, `test_kolibri_http_phase1_benchmark`
-- backend: целевой pytest-набор для auth/account/preferences/chat/swarm/kpack/rate limiting
-- wasm: сборка `kolibri.wasm` и обновление `frontend/public`
-- frontend: `npm run test`, `npm run lint`, `npm run build`
+- native: CMake build + release-blocking CTest inventory;
+- backend: целевой pytest-набор для auth/account/preferences/chat/swarm/kpack/rate limiting;
+- wasm: сборка `kolibri.wasm` и обновление web public artifacts;
+- frontend: `npm run test`, `npm run lint`, `npm run build` через `web/`.
 
 Всё остальное относится к `Extended CI`:
 
@@ -82,6 +82,7 @@ make extended-ci
 
 ### Product truth
 
+- `docs/CANONICAL_REPO_CONTOUR.md`
 - `docs/PRODUCT_SPEC_V2.md`
 - `docs/API_REFERENCE.md`
 - `docs/PUBLIC_ARCHITECTURE.md`
@@ -93,6 +94,7 @@ make extended-ci
 - `docs/DEPLOY_RUNBOOK.md`
 - `docs/RELEASE_CHECKLIST.md`
 - `docs/release_process.md`
+- `AGENTS.md`
 
 ### Integration truth
 
@@ -101,14 +103,13 @@ make extended-ci
 
 ## Основные entrypoints
 
-- frontend shell: `frontend/src/App.tsx`
-- frontend API client: `frontend/src/api.ts`
-- frontend WASM bridge: `frontend/src/lib/kolibriBridge.ts`
-- backend app: `backend/service/main.py`
-- backend chat router: `backend/service/ai_chat.py`
-- backend engine: `backend/service/ai_engine.py`
-- backend swarm runtime: `backend/service/swarm_runtime_api.py`
-- native HTTP runtime: `backend/src/kolibri_http_server.c`
+- web shell: `web/src/App.tsx`
+- web WASM bridge: `web/src/lib/kolibriBridge.ts`
+- backend app: `services/main.py`
+- backend chat router: `services/ai_chat.py`
+- backend engine: `services/ai_engine.py`
+- backend swarm runtime: `services/swarm_runtime_api.py`
+- native HTTP runtime: `core/kolibri_http_server.c`
 
 ## Статусы
 
