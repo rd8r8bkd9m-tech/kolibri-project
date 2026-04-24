@@ -1,6 +1,6 @@
 # Kolibri Backend Service
 
-`backend/service` является текущим shipping gateway проекта Kolibri.
+`services/` является текущим shipping gateway проекта Kolibri.
 
 Это означает:
 
@@ -13,7 +13,7 @@
 - `main.py` — приложение FastAPI и composition root
 - `ai_chat.py` — chat, conversations, quality, vision, imagine, knowledge helpers
 - `ai_engine.py` — singleton runtime engine
-- `swarm_runtime_api.py` — swarm runtime, ingest, refresh, `.kpack`, background learning
+- `swarm_runtime_api.py` — swarm runtime, ingest, refresh, kpack, background learning
 
 ## Shipping routers
 
@@ -40,19 +40,19 @@
 Локальный запуск:
 
 ```bash
-python3 -m uvicorn backend.service.main:app --host 0.0.0.0 --port 8001
+python3 -m uvicorn services.main:app --host 0.0.0.0 --port 8001
 ```
 
 Release gate backend:
 
 ```bash
-./scripts/release_gate.sh backend
+./infra/release_gate.sh backend
 ```
 
 Полный shipping gate:
 
 ```bash
-./scripts/release_gate.sh all
+./infra/release_gate.sh all
 ```
 
 ## Shipping contract
@@ -65,6 +65,6 @@ Backend обязан быть source of truth для:
 - sync chat response
 - streaming chat
 - swarm runtime status / ingest / refresh
-- `.kpack` import/export
+- kpack import/export
 
 Если endpoint не относится к этому списку и не проходит release gate, он не должен рекламироваться в public docs как стабильный продуктовый API.
