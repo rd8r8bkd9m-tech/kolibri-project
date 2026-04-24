@@ -1,42 +1,4 @@
-```gitignore
-# Dependencies
-node_modules/
-
-# Build artifacts
-dist/
-build/
-*.min.js
-*.min.css
-*.bundle.js
-
-# Environment
-.env
-.env.local
-.env.*
-
-# Editors
-.vscode/
-.idea/
-
-# Logs
-*.log
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-.venv/
-.ENV
-.python-version
-
-# Temporary files
-*.tmp
-*.temp
-*~
-.DS_Store
-Thumbs.db
+```
+# Documentation
+*.md
 ```
