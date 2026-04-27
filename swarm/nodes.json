@@ -1,18 +1,354 @@
 {
   "nodes": [
     {
-      "name": "node_a",
-      "genome": "build/knowledge/approved/node_a/knowledge_genome.dat",
-      "receive_dir": "build/swarm/inbox/node_a",
-      "hmac_key_inline": "kolibri-knowledge",
-      "peers": ["node_b"]
+      "name": "node_00",
+      "genome": "build/knowledge/approved/node_00/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_00",
+      "hmac_key_inline": "kolibri-knowledge-00",
+      "peers": ["node_01", "node_49"]
     },
     {
-      "name": "node_b",
-      "genome": "build/knowledge/approved/node_b/knowledge_genome.dat",
-      "receive_dir": "build/swarm/inbox/node_b",
-      "hmac_key_inline": "kolibri-knowledge",
-      "peers": ["node_a"]
+      "name": "node_01",
+      "genome": "build/knowledge/approved/node_01/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_01",
+      "hmac_key_inline": "kolibri-knowledge-01",
+      "peers": ["node_00", "node_02"]
+    },
+    {
+      "name": "node_02",
+      "genome": "build/knowledge/approved/node_02/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_02",
+      "hmac_key_inline": "kolibri-knowledge-02",
+      "peers": ["node_01", "node_03"]
+    },
+    {
+      "name": "node_03",
+      "genome": "build/knowledge/approved/node_03/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_03",
+      "hmac_key_inline": "kolibri-knowledge-03",
+      "peers": ["node_02", "node_04"]
+    },
+    {
+      "name": "node_04",
+      "genome": "build/knowledge/approved/node_04/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_04",
+      "hmac_key_inline": "kolibri-knowledge-04",
+      "peers": ["node_03", "node_05"]
+    },
+    {
+      "name": "node_05",
+      "genome": "build/knowledge/approved/node_05/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_05",
+      "hmac_key_inline": "kolibri-knowledge-05",
+      "peers": ["node_04", "node_06"]
+    },
+    {
+      "name": "node_06",
+      "genome": "build/knowledge/approved/node_06/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_06",
+      "hmac_key_inline": "kolibri-knowledge-06",
+      "peers": ["node_05", "node_07"]
+    },
+    {
+      "name": "node_07",
+      "genome": "build/knowledge/approved/node_07/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_07",
+      "hmac_key_inline": "kolibri-knowledge-07",
+      "peers": ["node_06", "node_08"]
+    },
+    {
+      "name": "node_08",
+      "genome": "build/knowledge/approved/node_08/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_08",
+      "hmac_key_inline": "kolibri-knowledge-08",
+      "peers": ["node_07", "node_09"]
+    },
+    {
+      "name": "node_09",
+      "genome": "build/knowledge/approved/node_09/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_09",
+      "hmac_key_inline": "kolibri-knowledge-09",
+      "peers": ["node_08", "node_10"]
+    },
+    {
+      "name": "node_10",
+      "genome": "build/knowledge/approved/node_10/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_10",
+      "hmac_key_inline": "kolibri-knowledge-10",
+      "peers": ["node_09", "node_11"]
+    },
+    {
+      "name": "node_11",
+      "genome": "build/knowledge/approved/node_11/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_11",
+      "hmac_key_inline": "kolibri-knowledge-11",
+      "peers": ["node_10", "node_12"]
+    },
+    {
+      "name": "node_12",
+      "genome": "build/knowledge/approved/node_12/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_12",
+      "hmac_key_inline": "kolibri-knowledge-12",
+      "peers": ["node_11", "node_13"]
+    },
+    {
+      "name": "node_13",
+      "genome": "build/knowledge/approved/node_13/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_13",
+      "hmac_key_inline": "kolibri-knowledge-13",
+      "peers": ["node_12", "node_14"]
+    },
+    {
+      "name": "node_14",
+      "genome": "build/knowledge/approved/node_14/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_14",
+      "hmac_key_inline": "kolibri-knowledge-14",
+      "peers": ["node_13", "node_15"]
+    },
+    {
+      "name": "node_15",
+      "genome": "build/knowledge/approved/node_15/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_15",
+      "hmac_key_inline": "kolibri-knowledge-15",
+      "peers": ["node_14", "node_16"]
+    },
+    {
+      "name": "node_16",
+      "genome": "build/knowledge/approved/node_16/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_16",
+      "hmac_key_inline": "kolibri-knowledge-16",
+      "peers": ["node_15", "node_17"]
+    },
+    {
+      "name": "node_17",
+      "genome": "build/knowledge/approved/node_17/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_17",
+      "hmac_key_inline": "kolibri-knowledge-17",
+      "peers": ["node_16", "node_18"]
+    },
+    {
+      "name": "node_18",
+      "genome": "build/knowledge/approved/node_18/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_18",
+      "hmac_key_inline": "kolibri-knowledge-18",
+      "peers": ["node_17", "node_19"]
+    },
+    {
+      "name": "node_19",
+      "genome": "build/knowledge/approved/node_19/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_19",
+      "hmac_key_inline": "kolibri-knowledge-19",
+      "peers": ["node_18", "node_20"]
+    },
+    {
+      "name": "node_20",
+      "genome": "build/knowledge/approved/node_20/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_20",
+      "hmac_key_inline": "kolibri-knowledge-20",
+      "peers": ["node_19", "node_21"]
+    },
+    {
+      "name": "node_21",
+      "genome": "build/knowledge/approved/node_21/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_21",
+      "hmac_key_inline": "kolibri-knowledge-21",
+      "peers": ["node_20", "node_22"]
+    },
+    {
+      "name": "node_22",
+      "genome": "build/knowledge/approved/node_22/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_22",
+      "hmac_key_inline": "kolibri-knowledge-22",
+      "peers": ["node_21", "node_23"]
+    },
+    {
+      "name": "node_23",
+      "genome": "build/knowledge/approved/node_23/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_23",
+      "hmac_key_inline": "kolibri-knowledge-23",
+      "peers": ["node_22", "node_24"]
+    },
+    {
+      "name": "node_24",
+      "genome": "build/knowledge/approved/node_24/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_24",
+      "hmac_key_inline": "kolibri-knowledge-24",
+      "peers": ["node_23", "node_25"]
+    },
+    {
+      "name": "node_25",
+      "genome": "build/knowledge/approved/node_25/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_25",
+      "hmac_key_inline": "kolibri-knowledge-25",
+      "peers": ["node_24", "node_26"]
+    },
+    {
+      "name": "node_26",
+      "genome": "build/knowledge/approved/node_26/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_26",
+      "hmac_key_inline": "kolibri-knowledge-26",
+      "peers": ["node_25", "node_27"]
+    },
+    {
+      "name": "node_27",
+      "genome": "build/knowledge/approved/node_27/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_27",
+      "hmac_key_inline": "kolibri-knowledge-27",
+      "peers": ["node_26", "node_28"]
+    },
+    {
+      "name": "node_28",
+      "genome": "build/knowledge/approved/node_28/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_28",
+      "hmac_key_inline": "kolibri-knowledge-28",
+      "peers": ["node_27", "node_29"]
+    },
+    {
+      "name": "node_29",
+      "genome": "build/knowledge/approved/node_29/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_29",
+      "hmac_key_inline": "kolibri-knowledge-29",
+      "peers": ["node_28", "node_30"]
+    },
+    {
+      "name": "node_30",
+      "genome": "build/knowledge/approved/node_30/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_30",
+      "hmac_key_inline": "kolibri-knowledge-30",
+      "peers": ["node_29", "node_31"]
+    },
+    {
+      "name": "node_31",
+      "genome": "build/knowledge/approved/node_31/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_31",
+      "hmac_key_inline": "kolibri-knowledge-31",
+      "peers": ["node_30", "node_32"]
+    },
+    {
+      "name": "node_32",
+      "genome": "build/knowledge/approved/node_32/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_32",
+      "hmac_key_inline": "kolibri-knowledge-32",
+      "peers": ["node_31", "node_33"]
+    },
+    {
+      "name": "node_33",
+      "genome": "build/knowledge/approved/node_33/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_33",
+      "hmac_key_inline": "kolibri-knowledge-33",
+      "peers": ["node_32", "node_34"]
+    },
+    {
+      "name": "node_34",
+      "genome": "build/knowledge/approved/node_34/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_34",
+      "hmac_key_inline": "kolibri-knowledge-34",
+      "peers": ["node_33", "node_35"]
+    },
+    {
+      "name": "node_35",
+      "genome": "build/knowledge/approved/node_35/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_35",
+      "hmac_key_inline": "kolibri-knowledge-35",
+      "peers": ["node_34", "node_36"]
+    },
+    {
+      "name": "node_36",
+      "genome": "build/knowledge/approved/node_36/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_36",
+      "hmac_key_inline": "kolibri-knowledge-36",
+      "peers": ["node_35", "node_37"]
+    },
+    {
+      "name": "node_37",
+      "genome": "build/knowledge/approved/node_37/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_37",
+      "hmac_key_inline": "kolibri-knowledge-37",
+      "peers": ["node_36", "node_38"]
+    },
+    {
+      "name": "node_38",
+      "genome": "build/knowledge/approved/node_38/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_38",
+      "hmac_key_inline": "kolibri-knowledge-38",
+      "peers": ["node_37", "node_39"]
+    },
+    {
+      "name": "node_39",
+      "genome": "build/knowledge/approved/node_39/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_39",
+      "hmac_key_inline": "kolibri-knowledge-39",
+      "peers": ["node_38", "node_40"]
+    },
+    {
+      "name": "node_40",
+      "genome": "build/knowledge/approved/node_40/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_40",
+      "hmac_key_inline": "kolibri-knowledge-40",
+      "peers": ["node_39", "node_41"]
+    },
+    {
+      "name": "node_41",
+      "genome": "build/knowledge/approved/node_41/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_41",
+      "hmac_key_inline": "kolibri-knowledge-41",
+      "peers": ["node_40", "node_42"]
+    },
+    {
+      "name": "node_42",
+      "genome": "build/knowledge/approved/node_42/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_42",
+      "hmac_key_inline": "kolibri-knowledge-42",
+      "peers": ["node_41", "node_43"]
+    },
+    {
+      "name": "node_43",
+      "genome": "build/knowledge/approved/node_43/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_43",
+      "hmac_key_inline": "kolibri-knowledge-43",
+      "peers": ["node_42", "node_44"]
+    },
+    {
+      "name": "node_44",
+      "genome": "build/knowledge/approved/node_44/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_44",
+      "hmac_key_inline": "kolibri-knowledge-44",
+      "peers": ["node_43", "node_45"]
+    },
+    {
+      "name": "node_45",
+      "genome": "build/knowledge/approved/node_45/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_45",
+      "hmac_key_inline": "kolibri-knowledge-45",
+      "peers": ["node_44", "node_46"]
+    },
+    {
+      "name": "node_46",
+      "genome": "build/knowledge/approved/node_46/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_46",
+      "hmac_key_inline": "kolibri-knowledge-46",
+      "peers": ["node_45", "node_47"]
+    },
+    {
+      "name": "node_47",
+      "genome": "build/knowledge/approved/node_47/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_47",
+      "hmac_key_inline": "kolibri-knowledge-47",
+      "peers": ["node_46", "node_48"]
+    },
+    {
+      "name": "node_48",
+      "genome": "build/knowledge/approved/node_48/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_48",
+      "hmac_key_inline": "kolibri-knowledge-48",
+      "peers": ["node_47", "node_49"]
+    },
+    {
+      "name": "node_49",
+      "genome": "build/knowledge/approved/node_49/knowledge_genome.dat",
+      "receive_dir": "build/swarm/inbox/node_49",
+      "hmac_key_inline": "kolibri-knowledge-49",
+      "peers": ["node_48", "node_00"]
     }
   ]
 }

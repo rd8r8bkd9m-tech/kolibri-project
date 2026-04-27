@@ -59,6 +59,8 @@ add_library(kolibri_core_objects OBJECT
     backend/src/corpus_learning.c
     backend/src/text_generation.c
     backend/src/compress.c
+    kernel/semantic_core.c
+    kernel/support.c
 )
 
 target_include_directories(kolibri_core_objects
@@ -201,6 +203,11 @@ if(KOLIBRI_ENABLE_TESTS)
     add_executable(test_semantic tests/test_semantic.c)
     target_link_libraries(test_semantic PRIVATE kolibri_core Threads::Threads)
     add_test(NAME test_semantic COMMAND test_semantic)
+
+    # Kolibri Semantic Core - True AI with Self-Learning tests
+    add_executable(test_semantic_core tests/test_semantic_core.c)
+    target_link_libraries(test_semantic_core PRIVATE kolibri_core Threads::Threads)
+    add_test(NAME test_semantic_core COMMAND test_semantic_core)
 
     add_executable(test_phoneme tests/test_phoneme.c)
     target_link_libraries(test_phoneme PRIVATE kolibri_core Threads::Threads)

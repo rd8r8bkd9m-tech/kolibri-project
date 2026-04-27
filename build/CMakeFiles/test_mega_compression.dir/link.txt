@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/test_mega_compression.dir/tests/test_mega_compression.c.o -o test_mega_compression  libkolibri_core.a /usr/lib/x86_64-linux-gnu/libcrypto.so /usr/lib/x86_64-linux-gnu/libsqlite3.so -lm 

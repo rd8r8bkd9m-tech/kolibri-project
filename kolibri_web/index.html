@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kolibri AI Core | Настоящий ИИ</title>
+    <style>
+        :root {
+            --bg-color: #050505;
+            --text-color: #00ff41;
+            --dim-color: #008f11;
+            --alert-color: #ff3333;
+            --panel-bg: #0a0a0a;
+            --border-color: #1a1a1a;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 300px 1fr 300px;
+            grid-template-rows: auto 1fr auto;
+            gap: 20px;
+            height: 100vh;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        header {
+            grid-column: 1 / -1;
+            border-bottom: 2px solid var(--text-color);
+            padding-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 { margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 2px; }
+        .status { font-size: 12px; color: var(--dim-color); }
+        .status.active { color: var(--text-color); animation: blink 2s infinite; }
+
+        .panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .panel-title {
+            color: #fff;
+            font-size: 14px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid var(--dim-color);
+            padding-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        /* Semantic Patterns Grid */
+        #semantic-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 2px;
+            font-size: 10px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+        .pattern-cell {
+            background: #000;
+            color: var(--dim-color);
+            padding: 2px;
+            text-align: right;
+            border: 1px solid #111;
+        }
+        .pattern-cell.active {
+            color: var(--text-color);
+            background: #002200;
+            box-shadow: 0 0 5px var(--text-color);
+        }
+
+        /* Main Visualization */
+        #main-display {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .idea-box {
+            flex-grow: 1;
+            border: 1px solid var(--text-color);
+            padding: 20px;
+            font-size: 18px;
+            line-height: 1.5;
+            background: rgba(0, 255, 65, 0.05);
+            overflow-y: auto;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            background: transparent;
+            border: 1px solid var(--text-color);
+            color: var(--text-color);
+            padding: 10px 20px;
+            cursor: pointer;
+            font-family: inherit;
+            text-transform: uppercase;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: var(--text-color);
+            color: #000;
+            box-shadow: 0 0 15px var(--text-color);
+        }
+
+        /* Evolution Graph */
+        canvas {
+            width: 100%;
+            height: 150px;
+            background: #000;
+            border: 1px solid var(--dim-color);
+        }
+
+        /* Console Log */
+        #console-log {
+            font-size: 12px;
+            color: #aaa;
+            overflow-y: auto;
+            flex-grow: 1;
+            white-space: pre-wrap;
+        }
+        .log-entry { margin-bottom: 4px; }
+        .log-info { color: #00ccff; }
+        .log-success { color: var(--text-color); }
+        .log-warn { color: #ffcc00; }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Responsive */
+        @media (max-width: 1000px) {
+            body { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; overflow: auto; }
+            .panel { height: 400px; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div>
+        <h1>Kolibri AI Core v2.0</h1>
+        <div class="status active" id="system-status">SYSTEM ONLINE: SELF-LEARNING ACTIVE</div>
+    </div>
+    <div style="text-align: right;">
+        <div>NODES: <span id="node-count">50</span></div>
+        <div>GENERATION: <span id="gen-count">0</span></div>
+        <div>FITNESS: <span id="fitness-score">0.00%</span></div>
+    </div>
+</header>
+
+<!-- Left Panel: Semantic Patterns -->
+<div class="panel">
+    <div class="panel-title">64-bit Semantic Patterns (Hex)</div>
+    <div id="semantic-grid"></div>
+</div>
+
+<!-- Center Panel: Main Interaction -->
+<div class="panel" id="main-display">
+    <div class="panel-title">Generative Idea Engine</div>
+    <div class="idea-box" id="idea-output">
+        > Ожидание ввода контекста...<br>
+        > Ядро готово к эволюционной оптимизации смыслов.
+    </div>
+    <div class="controls">
+        <button onclick="core.generateIdea()">Сгенерировать идею</button>
+        <button onclick="core.evolveStep()">Шаг эволюции</button>
+        <button onclick="core.analyzeContext()">Анализ контекста</button>
+    </div>
+    <div class="panel-title" style="margin-top: 20px;">Evolution Fitness History</div>
+    <canvas id="evolution-chart"></canvas>
+</div>
+
+<!-- Right Panel: System Logs -->
+<div class="panel">
+    <div class="panel-title">Kernel Console (Real-time)</div>
+    <div id="console-log"></div>
+</div>
+
+<script>
+/**
+ * Kolibri AI Core Simulation
+ * Emulates the C-based deterministic kernel with self-learning capabilities.
+ */
+
+class KolibriCore {
+    constructor() {
+        this.generation = 0;
+        this.fitness = 0.0;
+        this.nodes = 50;
+        this.contextWindow = [];
+        this.semanticVocabulary = new Map();
+        this.fitnessHistory = [];
+        this.isLearning = true;
+        
+        // Initialize UI elements
+        this.ui = {
+            grid: document.getElementById('semantic-grid'),
+            output: document.getElementById('idea-output'),
+            log: document.getElementById('console-log'),
+            genCount: document.getElementById('gen-count'),
+            fitnessScore: document.getElementById('fitness-score'),
+            canvas: document.getElementById('evolution-chart')
+        };
+
+        this.ctx = this.ui.canvas.getContext('2d');
+        this.ui.canvas.width = this.ui.canvas.offsetWidth;
+        this.ui.canvas.height = this.ui.canvas.offsetHeight;
+
+        this.init();
+    }
+
+    init() {
+        this.log("INIT", "Загрузка ядра Kolibri OS...", "info");
+        this.log("INIT", "Выделение памяти для 64-значных паттернов...", "info");
+        this.renderGrid();
+        this.startEvolutionLoop();
+    }
+
+    // Generate deterministic 64-digit semantic pattern based on input
+    generatePattern(seed) {
+        let hash = 0;
+        for (let i = 0; i < seed.length; i++) {
+            hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+            hash |= 0;
+        }
+        // Create a pseudo-64 digit hex string representation
+        let pattern = "";
+        let val = Math.abs(hash);
+        for(let i=0; i<16; i++) { // Shortened for visual display, represents 64 bits
+            pattern += (val % 16).toString(16).toUpperCase();
+            val = (val * 9301 + 49297) % 233280; 
+        }
+        return pattern;
+    }
+
+    renderGrid() {
+        this.ui.grid.innerHTML = '';
+        for (let i = 0; i < 64; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'pattern-cell';
+            cell.id = `cell-${i}`;
+            cell.innerText = '00';
+            this.ui.grid.appendChild(cell);
+        }
+    }
+
+    updateGrid(pattern) {
+        for (let i = 0; i < 64; i++) {
+            const cell = document.getElementById(`cell-${i}`);
+            if (cell) {
+                // Simulate changing values based on pattern
+                const val = pattern.substring(i % pattern.length, (i % pattern.length) + 2) || '00';
+                cell.innerText = val;
+                cell.classList.add('active');
+                setTimeout(() => cell.classList.remove('active'), 200);
+            }
+        }
+    }
+
+    log(source, message, type = 'info') {
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+        const timestamp = new Date().toLocaleTimeString();
+        entry.innerHTML = `<span style="color:#666">[${timestamp}]</span> <span style="color:${type === 'success' ? '#00ff41' : type === 'warn' ? '#ffcc00' : '#00ccff'}">${source}</span>: ${message}`;
+        this.ui.log.prepend(entry);
+        
+        // Keep log clean
+        if (this.ui.log.children.length > 50) {
+            this.ui.log.lastChild.remove();
+        }
+    }
+
+    // Evolutionary Algorithm Simulation
+    evolveStep() {
+        this.generation++;
+        this.ui.genCount.innerText = this.generation;
+
+        // Simulate fitness improvement with some noise
+        const improvement = (Math.random() * 0.05) + (this.fitness < 0.9 ? 0.02 : 0.001);
+        this.fitness = Math.min(0.9999, this.fitness + improvement);
+        
+        this.ui.fitnessScore.innerText = (this.fitness * 100).toFixed(4) + '%';
+        
+        // Update Chart
+        this.fitnessHistory.push(this.fitness);
+        if (this.fitnessHistory.length > 50) this.fitnessHistory.shift();
+        this.drawChart();
+
+        // Randomly activate grid cells to show "thinking"
+        const pattern = this.generatePattern(`gen_${this.generation}_seed_${Math.random()}`);
+        this.updateGrid(pattern);
+
+        if (this.generation % 10 === 0) {
+            this.log("EVOLUTION", `Поколение ${this.generation}: Оптимизация весов завершена. Fitness: ${this.fitness.toFixed(4)}`, "success");
+        }
+    }
+
+    startEvolutionLoop() {
+        setInterval(() => {
+            if (this.isLearning) this.evolveStep();
+        }, 200); // Fast evolution for demo
+    }
+
+    drawChart() {
+        const w = this.ui.canvas.width;
+        const h = this.ui.canvas.height;
+        this.ctx.clearRect(0, 0, w, h);
+        
+        this.ctx.strokeStyle = '#00ff41';
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+
+        const step = w / (this.fitnessHistory.length - 1 || 1);
+        
+        this.fitnessHistory.forEach((val, index) => {
+            const x = index * step;
+            const y = h - (val * h);
+            if (index === 0) this.ctx.moveTo(x, y);
+            else this.ctx.lineTo(x, y);
+        });
+        this.ctx.stroke();
+    }
+
+    // Semantic Analysis & Idea Generation
+    analyzeContext() {
+        const inputs = ["смысл", "число", "эволюция", "память", "даль"];
+        const randomInput = inputs[Math.floor(Math.random() * inputs.length)];
+        
+        this.log("CONTEXT", `Анализ токена: "${randomInput}"`, "info");
+        
+        // Simulate attention mechanism
+        const pattern = this.generatePattern(randomInput);
+        this.updateGrid(pattern);
+        
+        setTimeout(() => {
+            this.log("ATTENTION", `Векторное представление построено. Связей найдено: ${Math.floor(Math.random() * 100)}`, "success");
+        }, 300);
+    }
+
+    generateIdea() {
+        const concepts = [
+            { k: "время", v: "циклический поток данных" },
+            { k: "знание", v: "структурированный шум" },
+            { k: "сознание", v: "рекурсивный алгоритм" },
+            { k: "истина", v: "оптимальная точка сходимости" },
+            { k: "язык", v: "протокол сжатия реальности" }
+        ];
+
+        const c1 = concepts[Math.floor(Math.random() * concepts.length)];
+        const c2 = concepts[Math.floor(Math.random() * concepts.length)];
+        
+        const ideaText = `> НОВАЯ ИДЕЯ ГЕНЕРИРОВАНА:\nКомбинация "${c1.k}" (${c1.v}) и "${c2.k}" (${c2.v}) создает новый семантический кластер: "Адаптивный ${c1.k}-${c2.k} протокол".\nКоэффициент новизны: ${(Math.random() * 0.5 + 0.5).toFixed(2)}`;
+        
+        this.ui.output.innerHTML = ideaText.replace(/\n/g, '<br>');
+        this.log("GENERATOR", "Сгенерирована новая смысловая связь через эвристический поиск.", "success");
+        
+        // Visual flare
+        this.ui.output.style.borderColor = '#fff';
+        setTimeout(() => this.ui.output.style.borderColor = '#00ff41', 200);
+    }
+}
+
+// Start the core
+const core = new KolibriCore();
+
+</script>
+</body>
+</html>

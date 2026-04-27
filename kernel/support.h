@@ -12,6 +12,10 @@ char *k_strncpy(char *dest, const char *src, size_t n);
 size_t k_strlcpy(char *dest, const char *src, size_t n);
 int k_strcmp(const char *lhs, const char *rhs);
 
+/* Функции управления памятью (заглушки для kernel mode) */
+void *k_malloc(size_t size);
+void k_free(void *ptr);
+
 static inline uint16_t k_htons(uint16_t value) {
     return (uint16_t)((value << 8) | (value >> 8));
 }

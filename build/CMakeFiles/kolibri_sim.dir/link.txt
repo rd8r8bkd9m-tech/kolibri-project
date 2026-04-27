@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/kolibri_sim.dir/apps/kolibri_sim_cli.c.o -o kolibri_sim  libkolibri_core.a /usr/lib/x86_64-linux-gnu/libcrypto.so /usr/lib/x86_64-linux-gnu/libsqlite3.so -lm 

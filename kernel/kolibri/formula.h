@@ -18,12 +18,14 @@ typedef struct {
 } KolibriFormula;
 
 typedef struct {
-    KolibriFormula formulas[16];
-    size_t count;
-    KolibriRng rng;
-    int inputs[32];
-    int targets[32];
-    size_t examples;
+    KolibriFormula *formulas;           /* Динамический массив формул */
+    size_t formulas_capacity;           /* Вместимость массива формул */
+    size_t count;                       /* Текущее количество формул */
+    KolibriRng rng;                     /* RNG для детерминизма */
+    int *inputs;                        /* Динамический массив входов */
+    int *targets;                       /* Динамический массив целей */
+    size_t inputs_capacity;             /* Вместимость массивов входов/целей */
+    size_t examples;                    /* Количество примеров */
 } KolibriFormulaPool;
 
 void kf_pool_init(KolibriFormulaPool *pool, uint64_t seed);

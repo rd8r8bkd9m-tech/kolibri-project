@@ -1,0 +1,25 @@
+{"event": {"metka": 1776966365.190568, "soobshenie": "привет->здравствуй", "tip": "TEACH"}}
+{"event": {"metka": 1776966365.1908748, "soobshenie": "привет->здравствуй", "tip": "ASK"}}
+{"event": {"metka": 1776966369.0516248, "soobshenie": "кошка->животное", "tip": "TEACH"}}
+{"event": {"metka": 1776966369.0530944, "soobshenie": "собака->животное", "tip": "TEACH"}}
+{"event": {"metka": 1776966369.0532966, "soobshenie": "кот->мяукает", "tip": "TEACH"}}
+{"event": {"metka": 1776966369.0534415, "soobshenie": "что такое кошка?->Кошка это животное", "tip": "TEACH"}}
+{"event": {"metka": 1776966369.0536263, "soobshenie": "F0001:f(x)=2*x+0", "tip": "FORMULA"}}
+{"event": {"metka": 1776966369.0537944, "soobshenie": "F0001:0.510", "tip": "FITNESS"}}
+{"event": {"metka": 1776966369.0539525, "soobshenie": "что такое кошка?->Кошка это животное", "tip": "ASK"}}
+{"event": {"metka": 1776966369.0541406, "soobshenie": "неизвестный вопрос->...", "tip": "ASK"}}
+{"event": {"metka": 1776966737.9316485, "soobshenie": "искусственный интеллект->детерминированная система паттернов", "tip": "TEACH"}}
+{"event": {"metka": 1776966737.932988, "soobshenie": "нейросеть->статистическая модель", "tip": "TEACH"}}
+{"event": {"metka": 1776966737.9332874, "soobshenie": "искусственный интеллект->детерминированная система паттернов", "tip": "ASK"}}
+{"event": {"metka": 1776966737.9335642, "soobshenie": "F0001:f(x)=7*x+6", "tip": "FORMULA"}}
+{"event": {"metka": 1776966750.0530155, "soobshenie": "искусственный интеллект->детерминированная система", "tip": "TEACH"}}
+{"event": {"metka": 1776966750.0645509, "soobshenie": "нейросеть->статистическая модель", "tip": "TEACH"}}
+{"event": {"metka": 1776966750.0647833, "soobshenie": "обучение->эволюция формул", "tip": "TEACH"}}
+{"event": {"metka": 1776966750.0649383, "soobshenie": "память->ассоциативные связи", "tip": "TEACH"}}
+{"event": {"metka": 1776966750.0651176, "soobshenie": "мышление->поиск паттернов", "tip": "TEACH"}}
+{"event": {"metka": 1776966750.0653906, "soobshenie": "искусственный интеллект->детерминированная система", "tip": "ASK"}}
+{"event": {"metka": 1776966750.0657792, "soobshenie": "нейросеть->статистическая модель", "tip": "ASK"}}
+{"event": {"metka": 1776966750.0660918, "soobshenie": "обучение->эволюция формул", "tip": "ASK"}}
+{"event": {"metka": 1776966750.0664485, "soobshenie": "F0001:f(x)=7*x+6", "tip": "FORMULA"}}
+{"event": {"metka": 1776966750.0667205, "soobshenie": "F0002:f(x)=5*x+8", "tip": "FORMULA"}}
+{"event": {"metka": 1776966750.0669322, "soobshenie": "F0003:f(x)=5*x+7", "tip": "FORMULA"}}
