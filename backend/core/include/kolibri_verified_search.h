@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "kolibri_hash_128.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -46,10 +47,10 @@ typedef uint32_t (*KolibriHashFn32)(uint32_t key);
 
 typedef struct {
     uint32_t target_hash;
-    uint32_t known_target_key;
+    uint64_t known_target_key;
     bool has_known_target_key;
-    uint32_t range_start;
-    uint32_t range_end;
+    uint64_t range_start;
+    uint64_t range_end;
     uint32_t threads;
     uint64_t timeout_ms;
     KolibriHashId hash_id;
@@ -67,7 +68,7 @@ typedef struct {
     bool timed_out;
     bool candidate_equals_known_target_key;
     bool candidate_hash_equals_target_hash;
-    uint32_t candidate_key;
+    uint64_t candidate_key;
     uint32_t candidate_hash;
     uint32_t target_hash;
     uint32_t hamming_distance;
@@ -77,12 +78,53 @@ typedef struct {
     double time_ms;
     double keys_per_second;
     uint32_t threads;
-    uint32_t range_start;
-    uint32_t range_end;
+    uint64_t range_start;
+    uint64_t range_end;
 } KolibriReverseHashResult;
 
 /* Helpers for JSON serialization and routing */
 const char* kolibri_search_status_to_string(KolibriSearchStatus status);
+
+/* 128-bit Partial Key Recovery (Known High Prefix) */
+typedef struct {
+    KolibriSearchStatus status;
+    KolibriSearchMethod method;
+    KolibriSearchPolicy policy;
+
+    bool found;
+    bool verified;
+    bool timed_out;
+
+    uint64_t known_high;
+    uint64_t recovered_low;
+
+    KolibriKey128 recovered_key;
+    KolibriHash128 candidate_hash;
+    KolibriHash128 target_hash;
+
+    uint64_t low_start;
+    uint64_t low_end;
+    uint64_t attempts;
+    uint64_t space_size;
+
+    double time_ms;
+    double keys_per_second;
+
+    uint32_t threads;
+} KolibriPartial128Result;
+
+KolibriPartial128Result kolibri_recover_low64_with_known_high(
+    uint64_t known_high,
+    KolibriHash128 target_hash,
+    uint64_t low_start,
+    uint64_t low_end,
+    uint32_t threads,
+    KolibriSearchPolicy policy
+);
+
+const char* kolibri_partial128_status_to_string(KolibriSearchStatus status);
+const char* kolibri_partial128_method_to_string(KolibriSearchMethod method);
+const char* kolibri_partial128_policy_to_string(KolibriSearchPolicy policy);
 const char* kolibri_search_method_to_string(KolibriSearchMethod method);
 const char* kolibri_result_type_to_string(KolibriResultType type);
 const char* kolibri_search_policy_to_string(KolibriSearchPolicy policy);

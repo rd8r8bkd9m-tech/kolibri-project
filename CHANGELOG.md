@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- **Partial Key Recovery 128-bit:** New C-core function `kolibri_recover_low64_with_known_high` for recovering unknown low 64-bit part when high 64-bit prefix is known.
+- **Infeasible Guard:** Automatic rejection of search spaces larger than $2^{40}$ to prevent infeasible brute-force requests.
+- **API Extension:** `/solve/hybrid` endpoint now supports `task: "partial_key_recovery_128"` with hex-formatted inputs and detailed JSON response.
+- **Python Wrapper:** `KolibriAI.recover_low64_with_known_high()` method added to `kolibri_wrapper.py`.
+- **Benchmarks & Tests:** New test suite `test_partial_key_recovery.py` covering small-window, not-found, and 32-bit stress scenarios.
+- **Documentation:** Updated `docs/benchmarks/reverse_hash/README.md` and new `docs/hash_128/README.md` describing partial recovery architecture.
 - Formalised public interface overview in `docs/public_interfaces.md`.
 - Documented semantic versioning and changelog policy in `docs/developer_guide.md`.
 - Multi-stage GitHub Actions pipeline with cosign signing, Docker packaging smoke tests, and release bundle assembly (`.github/workflows/ci.yml`).

@@ -9,7 +9,8 @@
       "Bash(curl *)",
       "Bash(cat *)",
       "Bash(pkill *)",
-      "Bash(uvicorn *)"
+      "Bash(uvicorn *)",
+      "Bash(git add *)"
     ]
   },
   "$version": 3

@@ -159,13 +159,12 @@ KolibriReverseHashResult kolibri_reverse_hash_bruteforce_u32(
 
             #pragma omp for schedule(static)
             for (uint64_t x = start; x <= end; x++) {
-                uint32_t key = (uint32_t)x;
-                uint32_t h = hash_fn(key);
+                uint32_t h = hash_fn((uint32_t)x);
                 local_attempts++;
                 
                 if (h == req->target_hash) {
-                    if (!local_found || key < local_min_key) {
-                        local_min_key = key;
+                    if (!local_found || x < local_min_key) {
+                        local_min_key = x;
                         local_found = true;
                     }
                 }
@@ -195,10 +194,9 @@ KolibriReverseHashResult kolibri_reverse_hash_bruteforce_u32(
         {
             #pragma omp for schedule(dynamic, 10000) nowait
             for (uint64_t x = start; x <= end; x++) {
-                if (found) continue; // Soft exit check
+                if (found) continue;
 
-                uint32_t key = (uint32_t)x;
-                uint32_t h = hash_fn(key);
+                uint32_t h = hash_fn((uint32_t)x);
                 
                 #pragma omp atomic
                 attempts++;
@@ -208,7 +206,7 @@ KolibriReverseHashResult kolibri_reverse_hash_bruteforce_u32(
                     {
                         if (!found) {
                             found = true;
-                            best_key = key;
+                            best_key = x;
                         }
                     }
                 }
@@ -273,6 +271,204 @@ KolibriReverseHashResult kolibri_reverse_hash_bruteforce_u32(
         result.candidate_hash = 0;
         result.hamming_distance = 32;
         result.matching_bits = 0;
+    }
+
+    return result;
+}
+
+/* --- 128-bit Partial Key Recovery Helpers --- */
+
+const char* kolibri_partial128_status_to_string(KolibriSearchStatus status) {
+    return kolibri_search_status_to_string(status);
+}
+
+const char* kolibri_partial128_method_to_string(KolibriSearchMethod method) {
+    switch (method) {
+        case KOLIBRI_METHOD_BRUTEFORCE_C_PARALLEL: return "bruteforce_c_parallel";
+        default: return "unknown";
+    }
+}
+
+const char* kolibri_partial128_policy_to_string(KolibriSearchPolicy policy) {
+    return kolibri_search_policy_to_string(policy);
+}
+
+/* --- Infeasible Guard Constants --- */
+#define KOLIBRI_MAX_SEARCH_SPACE_BITS 40
+#define KOLIBRI_MAX_SEARCH_SPACE_SIZE (1ULL << KOLIBRI_MAX_SEARCH_SPACE_BITS)
+
+/* --- 128-bit Partial Key Recovery Implementation --- */
+
+KolibriPartial128Result kolibri_recover_low64_with_known_high(
+    uint64_t known_high,
+    KolibriHash128 target_hash,
+    uint64_t low_start,
+    uint64_t low_end,
+    uint32_t threads,
+    KolibriSearchPolicy policy
+) {
+    KolibriPartial128Result result = {0};
+
+    // Validation
+    if (low_end < low_start) {
+        result.status = KOLIBRI_SEARCH_INVALID_ARGUMENT;
+        result.method = KOLIBRI_METHOD_BRUTEFORCE_C_PARALLEL;
+        result.policy = policy;
+        return result;
+    }
+
+    // Infeasible guard: reject searches with space > 2^40
+    uint64_t space_size = ((uint64_t)low_end - (uint64_t)low_start) + 1ULL;
+    if (space_size > KOLIBRI_MAX_SEARCH_SPACE_SIZE) {
+        result.status = KOLIBRI_SEARCH_INVALID_ARGUMENT;
+        result.method = KOLIBRI_METHOD_BRUTEFORCE_C_PARALLEL;
+        result.policy = policy;
+        result.space_size = space_size;
+        return result;
+    }
+
+    // Init Result Fields
+    result.status = KOLIBRI_SEARCH_NOT_FOUND;
+    result.method = KOLIBRI_METHOD_BRUTEFORCE_C_PARALLEL;
+    result.policy = (policy == KOLIBRI_SEARCH_POLICY_DEFAULT)
+                    ? KOLIBRI_SEARCH_POLICY_FIRST_FOUND_FAST
+                    : policy;
+    result.known_high = known_high;
+    result.low_start = low_start;
+    result.low_end = low_end;
+    result.target_hash = target_hash;
+    result.space_size = space_size;
+
+    volatile bool found = false;
+    uint64_t best_low = 0;
+    uint64_t attempts = 0;
+    double t0 = get_time_ms();
+
+#ifdef _OPENMP
+    if (threads > 0) {
+        omp_set_num_threads((int)threads);
+    }
+
+    if (result.policy == KOLIBRI_SEARCH_POLICY_LOWEST_KEY_IN_RANGE) {
+        // Deterministic Policy: Find absolute minimum low in range
+        uint64_t global_min_low = UINT64_MAX;
+        bool global_found = false;
+
+        #pragma omp parallel
+        {
+            uint64_t local_min_low = UINT64_MAX;
+            bool local_found = false;
+            uint64_t local_attempts = 0;
+
+            #pragma omp for schedule(static)
+            for (uint64_t x = low_start; x <= low_end; x++) {
+                KolibriKey128 candidate;
+                candidate.low = x;
+                candidate.high = known_high;
+
+                KolibriHash128 h = kolibri_hash_128(candidate);
+                local_attempts++;
+
+                if (h.low == target_hash.low && h.high == target_hash.high) {
+                    if (!local_found || x < local_min_low) {
+                        local_min_low = x;
+                        local_found = true;
+                    }
+                }
+            }
+
+            #pragma omp atomic
+            attempts += local_attempts;
+
+            #pragma omp critical
+            {
+                if (local_found) {
+                    if (!global_found || local_min_low < global_min_low) {
+                        global_min_low = local_min_low;
+                        global_found = true;
+                    }
+                }
+            }
+        }
+
+        if (global_found) {
+            found = true;
+            best_low = global_min_low;
+        }
+    } else {
+        // Fast Policy: First found wins (Early Exit)
+        #pragma omp parallel shared(found, best_low, attempts)
+        {
+            #pragma omp for schedule(dynamic, 10000) nowait
+            for (uint64_t x = low_start; x <= low_end; x++) {
+                if (found) continue;
+
+                KolibriKey128 candidate;
+                candidate.low = x;
+                candidate.high = known_high;
+
+                KolibriHash128 h = kolibri_hash_128(candidate);
+
+                #pragma omp atomic
+                attempts++;
+
+                if (h.low == target_hash.low && h.high == target_hash.high) {
+                    #pragma omp critical
+                    {
+                        if (!found) {
+                            found = true;
+                            best_low = x;
+                        }
+                    }
+                }
+            }
+        }
+    }
+#else
+    // Fallback for single-thread execution
+    for (uint64_t x = low_start; x <= low_end; x++) {
+        KolibriKey128 candidate;
+        candidate.low = x;
+        candidate.high = known_high;
+
+        KolibriHash128 h = kolibri_hash_128(candidate);
+        attempts++;
+
+        if (h.low == target_hash.low && h.high == target_hash.high) {
+            found = true;
+            best_low = x;
+            break;
+        }
+        if (x == UINT64_MAX) break;
+    }
+#endif
+
+    double t1 = get_time_ms();
+    result.time_ms = t1 - t0;
+    result.attempts = attempts;
+    result.keys_per_second = (result.time_ms > 0.0) ? ((double)attempts / (result.time_ms / 1000.0)) : 0.0;
+    result.threads = (threads > 0) ? threads : 1;
+
+    if (found) {
+        KolibriKey128 recovered_key;
+        recovered_key.low = best_low;
+        recovered_key.high = known_high;
+
+        KolibriHash128 candidate_hash = kolibri_hash_128(recovered_key);
+
+        result.status = KOLIBRI_SEARCH_OK;
+        result.found = true;
+        result.verified = (candidate_hash.low == target_hash.low && candidate_hash.high == target_hash.high);
+        result.recovered_low = best_low;
+        result.recovered_key = recovered_key;
+        result.candidate_hash = candidate_hash;
+    } else {
+        result.status = KOLIBRI_SEARCH_NOT_FOUND;
+        result.found = false;
+        result.verified = false;
+        result.recovered_low = 0;
+        memset(&result.recovered_key, 0, sizeof(result.recovered_key));
+        memset(&result.candidate_hash, 0, sizeof(result.candidate_hash));
     }
 
     return result;

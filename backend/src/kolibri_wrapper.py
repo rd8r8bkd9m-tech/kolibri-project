@@ -2,6 +2,34 @@ import ctypes
 import os
 from ctypes import c_uint32, c_uint64, c_double, c_bool, c_int, c_void_p, Structure, POINTER
 
+class KolibriKey128(Structure):
+    _fields_ = [("low", c_uint64), ("high", c_uint64)]
+
+class KolibriHash128(Structure):
+    _fields_ = [("low", c_uint64), ("high", c_uint64)]
+
+class KolibriPartial128Result(Structure):
+    _fields_ = [
+        ("status", c_int),       # KolibriSearchStatus
+        ("method", c_int),       # KolibriSearchMethod
+        ("policy", c_int),       # KolibriSearchPolicy
+        ("found", c_bool),
+        ("verified", c_bool),
+        ("timed_out", c_bool),
+        ("known_high", c_uint64),
+        ("recovered_low", c_uint64),
+        ("recovered_key", KolibriKey128),
+        ("candidate_hash", KolibriHash128),
+        ("target_hash", KolibriHash128),
+        ("low_start", c_uint64),
+        ("low_end", c_uint64),
+        ("attempts", c_uint64),
+        ("space_size", c_uint64),
+        ("time_ms", c_double),
+        ("keys_per_second", c_double),
+        ("threads", c_uint32),
+    ]
+
 class KolibriReverseHashResult(Structure):
     _fields_ = [
         ("status", c_int),
@@ -13,7 +41,7 @@ class KolibriReverseHashResult(Structure):
         ("timed_out", c_bool),
         ("candidate_equals_known_target_key", c_bool),
         ("candidate_hash_equals_target_hash", c_bool),
-        ("candidate_key", c_uint32),
+        ("candidate_key", c_uint64),
         ("candidate_hash", c_uint32),
         ("target_hash", c_uint32),
         ("hamming_distance", c_uint32),
@@ -23,17 +51,17 @@ class KolibriReverseHashResult(Structure):
         ("time_ms", c_double),
         ("keys_per_second", c_double),
         ("threads", c_uint32),
-        ("range_start", c_uint32),
-        ("range_end", c_uint32),
+        ("range_start", c_uint64),
+        ("range_end", c_uint64),
     ]
 
 class KolibriReverseHashRequest(Structure):
     _fields_ = [
         ("target_hash", c_uint32),
-        ("known_target_key", c_uint32),
+        ("known_target_key", c_uint64),
         ("has_known_target_key", c_bool),
-        ("range_start", c_uint32),
-        ("range_end", c_uint32),
+        ("range_start", c_uint64),
+        ("range_end", c_uint64),
         ("threads", c_uint32),
         ("timeout_ms", c_uint64),
         ("hash_id", c_int),
@@ -56,6 +84,21 @@ class KolibriAI:
         # Setup kolibri_simple_hash_v1
         self.lib.kolibri_simple_hash_v1.restype = c_uint32
         self.lib.kolibri_simple_hash_v1.argtypes = [c_uint32]
+
+        # Setup kolibri_recover_low64_with_known_high
+        self.lib.kolibri_recover_low64_with_known_high.restype = KolibriPartial128Result
+        self.lib.kolibri_recover_low64_with_known_high.argtypes = [
+            c_uint64,          # known_high
+            KolibriHash128,    # target_hash
+            c_uint64,          # low_start
+            c_uint64,          # low_end
+            c_uint32,          # threads
+            c_int              # policy
+        ]
+
+        # Setup kolibri_hash_128
+        self.lib.kolibri_hash_128.restype = KolibriHash128
+        self.lib.kolibri_hash_128.argtypes = [KolibriKey128]
 
     def bruteforce_hash(self, min_key, max_key, target_hash, threads=8, policy=2):
         req = KolibriReverseHashRequest(
@@ -81,3 +124,16 @@ class KolibriAI:
                 "kps": result.keys_per_second
             }
         return None
+
+    def recover_low64_with_known_high(self, known_high, target_hash_low, target_hash_high,
+                                       low_start, low_end, threads=8, policy=2):
+        target_hash = KolibriHash128(low=target_hash_low, high=target_hash_high)
+        result = self.lib.kolibri_recover_low64_with_known_high(
+            known_high,
+            target_hash,
+            low_start,
+            low_end,
+            threads,
+            policy
+        )
+        return result

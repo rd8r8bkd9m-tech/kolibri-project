@@ -67,6 +67,7 @@ endif()
 
 add_library(kolibri_core_objects OBJECT
     backend/core/src/verified_search.c
+    backend/core/src/kolibri_hash_128.c
     backend/src/decimal.c
     backend/src/digits.c
     backend/src/digit_text.c

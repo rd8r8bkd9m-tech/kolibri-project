@@ -6,6 +6,7 @@
 
 #include "kolibri/decimal.h"
 #include "kolibri/symbol_table.h"
+#include "kolibri/spectral.h"
 
 #include <ctype.h>
 #include <limits.h>
@@ -516,6 +517,59 @@ static void mutate_gene(KolibriFormulaPool *pool, KolibriGene *gene) {
     }
 }
 
+/* Спектрально-направленная мутация: использует FFT для поиска периодов в геноме
+ * и применяет направленные изменения вместо случайных */
+static void spectral_guided_mutation(KolibriFormulaPool *pool, KolibriGene *gene) {
+    if (!gene || gene->length < 8) {
+        /* Для коротких генов fallback на обычную мутацию */
+        mutate_gene(pool, gene);
+        return;
+    }
+
+    /* Шаг 1: Преобразуем геном в сигнал для спектрального анализа */
+    double *signal = (double *)malloc(gene->length * sizeof(double));
+    if (!signal) {
+        mutate_gene(pool, gene);
+        return;
+    }
+    for (size_t i = 0; i < gene->length; ++i) {
+        signal[i] = (double)gene->digits[i];
+    }
+
+    /* Шаг 2: Ищем доминирующий период через FFT */
+    size_t period = kolibri_find_dominant_period(signal, gene->length);
+    free(signal);
+
+    /* Шаг 3: Если найден значимый период — используем его для направленной мутации */
+    if (period > 1 && period < gene->length / 2) {
+        /* Копируем паттерн периода на другие участки генома */
+        size_t mutations = gene->length / (period * 4);
+        if (mutations == 0) mutations = 1;
+
+        for (size_t m = 0; m < mutations; ++m) {
+            /* Выбираем случайную позицию внутри периода */
+            size_t src_pos = (size_t)(k_rng_next(&pool->rng) % period);
+            size_t dst_pos = src_pos + period * (1 + (k_rng_next(&pool->rng) % (gene->length / period - 1)));
+
+            if (dst_pos < gene->length) {
+                /* Копируем значение с учётом периода */
+                gene->digits[dst_pos] = gene->digits[src_pos];
+            }
+        }
+
+        /* Добавляем небольшую случайную компоненту для разнообразия */
+        size_t random_mutations = gene->length / 64;
+        if (random_mutations == 0) random_mutations = 1;
+        for (size_t m = 0; m < random_mutations; ++m) {
+            size_t index = (size_t)(k_rng_next(&pool->rng) % gene->length);
+            gene->digits[index] = random_digit(pool);
+        }
+    } else {
+        /* Если период не найден — fallback на обычную мутацию */
+        mutate_gene(pool, gene);
+    }
+}
+
 static void crossover(KolibriFormulaPool *pool, const KolibriGene *parent_a, const KolibriGene *parent_b, KolibriGene *child) {
     (void)pool;
     if (!parent_a || !parent_b || !child) {
@@ -555,7 +609,7 @@ static void reproduce(KolibriFormulaPool *pool) {
         KolibriGene child;
         crossover(pool, &pool->formulas[parent_a_index].gene,
                   &pool->formulas[parent_b_index].gene, &child);
-        mutate_gene(pool, &child);
+        spectral_guided_mutation(pool, &child);
         gene_copy(&child, &pool->formulas[i].gene);
         pool->formulas[i].fitness = 0.0;
         pool->formulas[i].feedback = 0.0;
@@ -642,7 +696,7 @@ void kf_pool_refine_best(KolibriFormulaPool *pool) {
         
         /* Делаем направленную мутацию */
         KolibriGene backup = best->gene;
-        mutate_gene(pool, &best->gene);
+        spectral_guided_mutation(pool, &best->gene);
         
         /* Проверяем, стало ли лучше */
         double new_error = 0.0;
