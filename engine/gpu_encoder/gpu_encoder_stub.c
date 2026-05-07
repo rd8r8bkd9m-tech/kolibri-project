@@ -4,6 +4,35 @@
 #include <stdio.h>
 #include <string.h>
 
+/* Metal backend stubs (fallback when Metal is unavailable) */
+int kolibri_gpu_metal_init(const kolibri_gpu_config_t *config) {
+    (void)config;
+    fprintf(stderr, "[kolibri-gpu] metal stub backend active (CPU fallback)\n");
+    return 0;
+}
+
+void kolibri_gpu_metal_shutdown(void) {}
+
+int kolibri_gpu_metal_encode(const kolibri_gpu_reason_batch_t *input,
+                             kolibri_gpu_embedding_batch_t *output) {
+    /* Delegate to stub implementation */
+    extern int kolibri_gpu_stub_encode(const kolibri_gpu_reason_batch_t *, kolibri_gpu_embedding_batch_t *);
+    return kolibri_gpu_stub_encode(input, output);
+}
+
+int kolibri_gpu_metal_decode(const kolibri_gpu_embedding_batch_t *input,
+                             kolibri_gpu_reason_batch_t *output) {
+    extern int kolibri_gpu_stub_decode(const kolibri_gpu_embedding_batch_t *, kolibri_gpu_reason_batch_t *);
+    return kolibri_gpu_stub_decode(input, output);
+}
+
+int kolibri_gpu_metal_embed_tokens(const uint16_t *tokens,
+                                   size_t token_count,
+                                   kolibri_gpu_embedding_batch_t *output) {
+    extern int kolibri_gpu_stub_embed_tokens(const uint16_t *, size_t, kolibri_gpu_embedding_batch_t *);
+    return kolibri_gpu_stub_embed_tokens(tokens, token_count, output);
+}
+
 static int g_stub_initialized = 0;
 
 int kolibri_gpu_stub_init(const kolibri_gpu_config_t *config) {

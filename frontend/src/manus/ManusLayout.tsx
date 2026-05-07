@@ -10,11 +10,14 @@ import { ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   Archive,
   Bot,
+  Box,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Cpu,
   Database,
   Globe,
+  HardDrive,
   ListTodo,
   Menu,
   MessageSquare,
@@ -31,6 +34,9 @@ export type TabId =
   | 'chat'
   | 'voice'
   | 'tasks'
+  | 'core'
+  | 'gpu'
+  | 'factory'
   | 'crawler'
   | 'knowledge'
   | 'archiver'
@@ -55,6 +61,9 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
   { id: 'chat', label: 'Чаты', icon: <MessageSquare size={18} /> },
   { id: 'voice', label: 'Компаньоны', icon: <Mic size={18} /> },
   { id: 'tasks', label: 'Задачи', icon: <ListTodo size={18} /> },
+  { id: 'core', label: 'Ядро', icon: <Cpu size={18} /> },
+  { id: 'gpu', label: 'GPU Store', icon: <HardDrive size={18} /> },
+  { id: 'factory', label: 'Фабрика', icon: <Box size={18} /> },
   { id: 'crawler', label: 'AI Агент', icon: <Globe size={18} /> },
   { id: 'knowledge', label: 'Знания', icon: <Database size={18} /> },
   { id: 'archiver', label: 'Архиватор', icon: <Archive size={18} /> },
@@ -302,6 +311,20 @@ export const ManusLayout = ({
                 <span>Компаньоны</span>
               </button>
             </div>
+
+            <nav className="gx-mobile-module-grid" aria-label="Модули">
+              {SIDEBAR_ITEMS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`gx-mobile-module ${activeTab === item.id ? 'is-active' : ''}`}
+                  onClick={() => handleTabChange(item.id)}
+                >
+                  <span aria-hidden="true">{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </nav>
 
             <div className="gx-mobile-conversations-head">
               <span>Разговоры</span>

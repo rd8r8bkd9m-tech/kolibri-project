@@ -1,0 +1,41 @@
+{
+  "layoutState": {
+    "viewport": {
+      "width": 390,
+      "height": 664
+    },
+    "shellDisplay": "grid",
+    "mobileBottomVisible": true,
+    "url": "https://kolibriai.ru/"
+  },
+  "agentState": {
+    "controlsVisible": true,
+    "dashboardVisible": false,
+    "mobileSwitchVisible": true
+  },
+  "voiceState": {
+    "status": "Серверный голос: Voice API key missing",
+    "modeBtns": [
+      {
+        "text": "Серверный",
+        "disabled": true,
+        "active": false
+      },
+      {
+        "text": "Браузерный",
+        "disabled": false,
+        "active": true
+      }
+    ],
+    "actionBtns": [
+      "Начать слушать",
+      "Отправить текст",
+      "Отправить и слушать",
+      "Автоозвучка ON",
+      "Озвучить ответ"
+    ]
+  },
+  "errorCount": 0,
+  "errors": [],
+  "logs": []
+}

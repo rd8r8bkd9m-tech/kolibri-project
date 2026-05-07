@@ -14,15 +14,18 @@ from .os_bridge import router as os_router
 from .crawler import router as crawler_router
 from .agent import router as agent_router
 from .ai_chat import router as ai_router
+from .ai_voice import router as ai_voice_router
 from .ai_engine import pre_init_engine
 from .swarm_sync import swarm_router
 from .distributed_crawler import router as dist_crawler_router
 from .delta_sync import router as delta_sync_router
 from .archiver_service import create_archiver_router
 from .cognition_api import router as cognition_router
+from .concept_api import router as concept_router
 from .auth import router as auth_router
 from .rate_limiter import RateLimitMiddleware
 from .health import router as health_router
+from .knowledge_builder import router as knowledge_router
 from .common import Settings, get_settings, InferenceRequest, perform_upstream_call
 
 
@@ -78,13 +81,16 @@ app.include_router(os_router)
 app.include_router(crawler_router)
 app.include_router(agent_router)
 app.include_router(ai_router)
+app.include_router(ai_voice_router)
 app.include_router(swarm_router)
 app.include_router(dist_crawler_router)
 app.include_router(delta_sync_router)
 app.include_router(create_archiver_router())
 app.include_router(cognition_router)
+app.include_router(concept_router)
 app.include_router(auth_router)
 app.include_router(health_router)
+app.include_router(knowledge_router)
 
 
 @app.get("/api/health", response_model=HealthResponse)

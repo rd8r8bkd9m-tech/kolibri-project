@@ -17,6 +17,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from .gpu_store import search_text_documents
+
 # --- Конфигурация ---
 KNOWLEDGE_DB_PATH = Path("build/knowledge/knowledge.db")
 KNOWLEDGE_INDEX_PATH = Path("build/knowledge/index.json")
@@ -70,6 +72,18 @@ class ContextResult(BaseModel):
     snippet: str
 
 
+class KnowledgeSnippet(BaseModel):
+    id: str
+    title: str
+    content: str
+    source: Optional[str] = None
+    score: float = 0.0
+
+
+class KnowledgeSearchResponse(BaseModel):
+    snippets: list[KnowledgeSnippet]
+
+
 # --- База данных ---
 def init_db() -> sqlite3.Connection:
     """Инициализирует SQLite базу знаний."""
@@ -110,6 +124,14 @@ def init_db() -> sqlite3.Connection:
             genome_position INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (doc_id) REFERENCES documents(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS feedback_events (
+            id TEXT PRIMARY KEY,
+            question TEXT NOT NULL,
+            answer TEXT NOT NULL,
+            rating TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         
         CREATE INDEX IF NOT EXISTS idx_docs_type ON documents(doc_type);
@@ -168,6 +190,75 @@ def extract_keywords(content: str) -> list[str]:
 router = APIRouter(prefix="/api/knowledge", tags=["Knowledge Graph"])
 
 
+@router.get("/search", response_model=KnowledgeSearchResponse)
+async def search_knowledge(
+    q: str,
+    limit: int = 5,
+    db: sqlite3.Connection = Depends(get_db),
+) -> KnowledgeSearchResponse:
+    """Простой текстовый поиск, совместимый с фронтенд-клиентом."""
+    query = q.strip()
+    if not query:
+        return KnowledgeSearchResponse(snippets=[])
+
+    terms = [term for term in query.lower().split() if term]
+    rows = db.execute("""
+        SELECT id, title, content, source_path
+        FROM documents
+        ORDER BY created_at DESC
+        LIMIT 200
+    """).fetchall()
+
+    snippets: list[KnowledgeSnippet] = []
+    for row in rows:
+        title = row["title"] or ""
+        content = row["content"] or ""
+        haystack = f"{title}\n{content}".lower()
+        score = 0.0
+        for term in terms:
+            if term in title.lower():
+                score += 3.0
+            if term in haystack:
+                score += 1.0
+        if score <= 0.0:
+            continue
+        snippets.append(
+            KnowledgeSnippet(
+                id=row["id"],
+                title=title or "Без названия",
+                content=content[:400],
+                source=row["source_path"],
+                score=score,
+            )
+        )
+
+    snippets.sort(key=lambda item: item.score, reverse=True)
+    try:
+        gpu_hits = search_text_documents(query, limit=max(1, min(limit, 20)), min_score=0.05)
+    except Exception:
+        gpu_hits = []
+
+    seen_ids = {snippet.id for snippet in snippets}
+    for hit in gpu_hits:
+        snippet_id = f"gpu:{hit.get('doc_id', '')}"
+        content = str(hit.get("snippet") or "").strip()
+        if not content or snippet_id in seen_ids:
+            continue
+        snippets.append(
+            KnowledgeSnippet(
+                id=snippet_id,
+                title=str(hit.get("path") or "GPU Store document"),
+                content=content[:400],
+                source=str(hit.get("path") or ""),
+                score=float(hit.get("score") or 0.0) * 10.0,
+            )
+        )
+        seen_ids.add(snippet_id)
+
+    snippets.sort(key=lambda item: item.score, reverse=True)
+    return KnowledgeSearchResponse(snippets=snippets[: max(1, min(limit, 20))])
+
+
 @router.post("/doc", response_model=KnowledgeDoc)
 async def add_document(req: KnowledgeDocRequest, db: sqlite3.Connection = Depends(get_db)):
     """Добавляет документ в граф знаний."""
@@ -203,6 +294,64 @@ async def add_document(req: KnowledgeDocRequest, db: sqlite3.Connection = Depend
         entropy=entropy,
         created_at=datetime.datetime.now(datetime.UTC)
     )
+
+
+@router.get("/teach")
+async def teach_pair(
+    q: str,
+    a: str,
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Сохраняет Q/A пару из UI как документ знаний."""
+    question = q.strip()
+    answer = a.strip()
+    if not question or not answer:
+        raise HTTPException(400, "question and answer are required")
+
+    content = f"Q: {question}\nA: {answer}"
+    content_hash = hashlib.sha256(content.encode()).hexdigest()
+    existing = db.execute(
+        "SELECT id FROM documents WHERE content_hash = ?",
+        (content_hash,),
+    ).fetchone()
+    if existing:
+        return {"status": "exists", "id": existing["id"]}
+
+    doc_id = str(uuid.uuid4())
+    tags = extract_keywords(f"{question} {answer}")
+    db.execute("""
+        INSERT INTO documents (id, title, content, content_hash, doc_type, tags, entropy, source_path)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        doc_id,
+        question[:120],
+        content,
+        content_hash,
+        "chat",
+        json.dumps(tags),
+        calc_entropy(content),
+        "chat://frontend",
+    ))
+    db.commit()
+    return {"status": "stored", "id": doc_id}
+
+
+@router.get("/feedback")
+async def store_feedback(
+    rating: str,
+    q: str,
+    a: str,
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Принимает feedback из UI и пишет лёгкий журнал событий."""
+    if rating not in {"good", "bad"}:
+        raise HTTPException(400, "rating must be 'good' or 'bad'")
+    db.execute("""
+        INSERT INTO feedback_events (id, question, answer, rating)
+        VALUES (?, ?, ?, ?)
+    """, (str(uuid.uuid4()), q.strip(), a.strip(), rating))
+    db.commit()
+    return {"status": "accepted"}
 
 
 @router.get("/context", response_model=list[ContextResult])

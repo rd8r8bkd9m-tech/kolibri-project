@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -43,6 +44,7 @@ class SwarmNode:
     last_heartbeat: float = 0.0
     epoch: int = 0
     status: str = "active"
+    role: str = "learner"
 
     def is_alive(self) -> bool:
         """Узел жив если heartbeat был менее 60 секунд назад."""
@@ -57,6 +59,7 @@ class NodeRegisterRequest(BaseModel):
     patterns_count: int = Field(default=0)
     edges_count: int = Field(default=0)
     epoch: int = Field(default=0)
+    role: str = Field(default="learner", description="anchor|learner|validator")
 
 
 class SyncRequest(BaseModel):
@@ -104,6 +107,12 @@ class SwarmManager:
         self.local_node_id: str = f"kolibri-{uuid.uuid4().hex[:12]}"
         self.sync_history: list[dict] = []
         self._knowledge_graph: Optional[object] = None
+        self.target_total = int(os.getenv("KOLIBRI_SWARM_TARGET", "50"))
+        self.target_roles = {
+            "anchor": int(os.getenv("KOLIBRI_SWARM_TARGET_ANCHOR", "10")),
+            "learner": int(os.getenv("KOLIBRI_SWARM_TARGET_LEARNER", "30")),
+            "validator": int(os.getenv("KOLIBRI_SWARM_TARGET_VALIDATOR", "10")),
+        }
     
     def set_knowledge_graph(self, graph: object) -> None:
         """Привязать локальный граф знаний."""
@@ -122,6 +131,7 @@ class SwarmManager:
             epoch=req.epoch,
             last_heartbeat=time.time(),
             status="active",
+            role=req.role or "learner",
         )
         self.nodes[node_id] = node
         return node
@@ -146,6 +156,7 @@ class SwarmManager:
                 "epoch": node.epoch,
                 "alive": node.is_alive(),
                 "last_sync": node.last_sync,
+                "role": node.role,
             })
         return result
     
@@ -215,7 +226,19 @@ class SwarmManager:
         active_count = sum(1 for n in self.nodes.values() if n.is_alive())
         total_patterns = sum(n.patterns_count for n in self.nodes.values())
         total_edges = sum(n.edges_count for n in self.nodes.values())
-        
+        role_counts: dict[str, int] = {"anchor": 0, "learner": 0, "validator": 0, "other": 0}
+        active_role_counts: dict[str, int] = {"anchor": 0, "learner": 0, "validator": 0, "other": 0}
+        for node in self.nodes.values():
+            role = node.role if node.role in role_counts else "other"
+            role_counts[role] += 1
+            if node.is_alive():
+                active_role_counts[role] += 1
+        missing_roles = {
+            role: max(0, self.target_roles.get(role, 0) - active_role_counts.get(role, 0))
+            for role in self.target_roles
+        }
+        missing_total = max(0, self.target_total - active_count)
+
         return {
             "local_node_id": self.local_node_id,
             "total_nodes": len(self.nodes),
@@ -225,6 +248,12 @@ class SwarmManager:
             "sync_events": len(self.sync_history),
             "last_sync": self.sync_history[-1] if self.sync_history else None,
             "nodes": self.get_active_peers(),
+            "target_nodes": self.target_total,
+            "target_roles": self.target_roles,
+            "roles": role_counts,
+            "active_roles": active_role_counts,
+            "missing_roles": missing_roles,
+            "missing_total": missing_total,
         }
 
 

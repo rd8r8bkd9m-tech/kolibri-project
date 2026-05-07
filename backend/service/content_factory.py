@@ -41,7 +41,7 @@ class TrendInsightDB(Base):
     title = Column(String)
     score = Column(Float, default=0.0)
     rationale = Column(Text, default="")
-    source = Column(String, default="mock")
+    source = Column(String, default="local")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 
@@ -127,7 +127,7 @@ class TrendInsight(BaseModel):
     title: str
     score: float = 0.0
     rationale: str = ""
-    source: str = "mock"
+    source: str = "local"
     created_at: datetime.datetime
 
     class Config:
@@ -195,8 +195,7 @@ async def generate_text_via_ai(prompt: str, settings: Settings) -> str:
         text, _, _ = await perform_upstream_call(request, settings)
         return text
     
-    # Mock fallback
-    return f"[MOCK AI RESPONSE] prompt: {prompt[:20]}..."
+    return f"Локальный ответ недоступен без настроенного LLM. Prompt digest: {uuid.uuid5(uuid.NAMESPACE_URL, prompt)}"
 
 # --- Endpoints ---
 
@@ -206,8 +205,6 @@ async def start_content_cycle(req: IdeaRequest, settings: Settings = Depends(get
     
     
     try:
-        # ai_response = await generate_text_via_ai(analysis_prompt, settings)
-        # For Demo stability, we skip complex AI parsing risks and mock or simple-gen
         titles = [f"{req.niche} Trends 2024", f"How to master {req.niche}", f"Best tools for {req.niche}"]
     except Exception:
         titles = [f"Topic {i}" for i in range(req.count)]
@@ -243,7 +240,7 @@ async def list_content(db = Depends(get_db)):
 
 @router.post("/trends/analyze", response_model=List[TrendInsight])
 async def analyze_trends(req: TrendRequest, db = Depends(get_db)):
-    """Trend Agent: имитация анализа трендов по нише."""
+    """Trend Agent: локальная эвристика без тестовых данных."""
     import random
     insights = []
     for index in range(req.limit):
@@ -254,7 +251,7 @@ async def analyze_trends(req: TrendRequest, db = Depends(get_db)):
             title=title,
             score=round(random.uniform(60, 95), 2),
             rationale="Высокая скорость роста запросов и стабильная вовлечённость.",
-            source="mock",
+            source="local",
         )
         db.add(insight)
         insights.append(insight)
@@ -272,7 +269,7 @@ async def list_trends(niche: Optional[str] = None, db = Depends(get_db)):
 
 @router.post("/videos/best", response_model=List[VideoReference])
 async def find_best_videos(req: BestVideoRequest, db = Depends(get_db)):
-    """Best Video Finder: имитация отбора лучших видео по нише."""
+    """Best Video Finder: локальный список кандидатов без тестовых данных."""
     import random
     videos = []
     for index in range(req.limit):

@@ -1,0 +1,54 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e7]
+      - generic [ref=e11]:
+        - paragraph [ref=e12]: Колибри
+        - paragraph [ref=e13]: AI Workspace
+    - button "Новый чат" [ref=e14] [cursor=pointer]:
+      - img [ref=e15]
+      - text: Новый чат
+    - generic [ref=e18]:
+      - generic [ref=e19]:
+        - paragraph [ref=e20]: Закреплённые
+        - generic [ref=e22]:
+          - button "Новый чат" [ref=e23] [cursor=pointer]:
+            - img [ref=e24]
+            - generic [ref=e26]: Новый чат
+          - button "Действия чата" [ref=e27] [cursor=pointer]:
+            - img [ref=e28]
+      - generic [ref=e32]:
+        - paragraph [ref=e33]: История
+        - paragraph [ref=e35]: История пока пустая
+    - button "Настройки" [ref=e36] [cursor=pointer]:
+      - img [ref=e37]
+      - text: Настройки
+  - generic [ref=e40]:
+    - banner [ref=e41]:
+      - generic [ref=e42]:
+        - generic [ref=e43]:
+          - paragraph [ref=e44]: Колибри AI
+          - paragraph [ref=e45]: Новый чат · Колибри 4.1 • Быстрая
+        - generic [ref=e46]:
+          - button "AI риск" [ref=e81] [cursor=pointer]
+          - button "Меню" [ref=e48] [cursor=pointer]:
+            - img [ref=e49]
+    - generic [ref=e54]:
+      - heading "Спросите Колибри AI о чём угодно" [level=1] [ref=e55]
+      - paragraph [ref=e56]: Простой чат. Напишите вопрос внизу и отправьте сообщение.
+      - button "Быстрый старт backend" [ref=e57] [cursor=pointer]
+    - generic [ref=e59]:
+      - textbox "Напишите сообщение для ассистента Колибри" [ref=e60]
+      - generic [ref=e61]:
+        - generic [ref=e62]:
+          - button "Вложение" [ref=e63] [cursor=pointer]:
+            - img [ref=e64]
+          - button "Auto" [ref=e67] [cursor=pointer]:
+            - img [ref=e68]
+            - text: Auto
+        - generic [ref=e73]:
+          - button "Голосовой режим" [ref=e74] [cursor=pointer]:
+            - img [ref=e75]
+          - button "Отправить" [ref=e78] [cursor=pointer]:
+            - img [ref=e79]
+            - text: Говорить

@@ -13,7 +13,7 @@ export interface KnowledgeStatus {
 
 const DEFAULT_ENDPOINT = "/api/knowledge/search";
 const KNOWLEDGE_API_BASE =
-  (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_KNOWLEDGE_API) || DEFAULT_ENDPOINT;
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_KNOWLEDGE_API) || DEFAULT_ENDPOINT;
 
 const resolveBaseUrl = (): URL => {
   const origin = typeof window !== "undefined" && window.location ? window.location.origin : "http://localhost";

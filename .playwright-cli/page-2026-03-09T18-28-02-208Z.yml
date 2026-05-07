@@ -1,0 +1,109 @@
+- generic [ref=e101]:
+  - complementary [ref=e102]:
+    - generic [ref=e103]:
+      - generic [ref=e104]:
+        - button "Колибри AI Workspace" [ref=e105] [cursor=pointer]:
+          - img [ref=e107]
+          - generic [ref=e110]:
+            - generic [ref=e111]: Колибри
+            - generic [ref=e112]: AI Workspace
+        - button "Свернуть сайдбар" [ref=e113] [cursor=pointer]:
+          - img [ref=e114]
+      - button "Новый чат" [ref=e116] [cursor=pointer]:
+        - img [ref=e117]
+        - generic [ref=e120]: Новый чат
+      - generic "Поиск чатов" [ref=e121]:
+        - img [ref=e122]
+        - textbox "Поиск чатов" [ref=e125]:
+          - /placeholder: Поиск по истории
+    - navigation "Разделы" [ref=e126]:
+      - button "Чаты" [ref=e127] [cursor=pointer]:
+        - img [ref=e129]
+        - generic [ref=e131]: Чаты
+      - button "Компаньоны" [ref=e132] [cursor=pointer]:
+        - img [ref=e134]
+        - generic [ref=e137]: Компаньоны
+      - button "Задачи" [ref=e138] [cursor=pointer]:
+        - img [ref=e140]
+        - generic [ref=e143]: Задачи
+      - button "AI Агент" [ref=e144] [cursor=pointer]:
+        - img [ref=e146]
+        - generic [ref=e149]: AI Агент
+      - button "Знания" [ref=e150] [cursor=pointer]:
+        - img [ref=e152]
+        - generic [ref=e156]: Знания
+      - button "Архиватор" [ref=e157] [cursor=pointer]:
+        - img [ref=e159]
+        - generic [ref=e162]: Архиватор
+      - button "Терминал" [ref=e163] [cursor=pointer]:
+        - img [ref=e165]
+        - generic [ref=e167]: Терминал
+      - button "Настройки" [ref=e168] [cursor=pointer]:
+        - img [ref=e170]
+        - generic [ref=e173]: Настройки
+    - region "История чатов" [ref=e174]:
+      - generic [ref=e175]:
+        - generic [ref=e176]: История
+        - generic [ref=e177]: "1"
+      - button "С Составь план релиза на эту неделю. Составь план релиза на эту неделю. 21:27" [ref=e252] [cursor=pointer]:
+        - generic [ref=e253]: С
+        - generic [ref=e254]:
+          - generic [ref=e255]: Составь план релиза на эту неделю.
+          - generic [ref=e256]: Составь план релиза на эту неделю.
+        - generic [ref=e257]: 21:27
+  - main [ref=e179]:
+    - generic [ref=e181]:
+      - generic [ref=e182]:
+        - generic [ref=e183]:
+          - heading "Колибри AI" [level=1] [ref=e184]
+          - paragraph [ref=e185]: Модель отвечает
+          - tablist "Режим ответа" [ref=e186]:
+            - tab "Auto" [selected] [ref=e187] [cursor=pointer]
+            - tab "Глубоко" [ref=e188] [cursor=pointer]
+            - tab "Креатив" [ref=e189] [cursor=pointer]
+        - generic [ref=e190]:
+          - button "Очистить" [ref=e191] [cursor=pointer]:
+            - img [ref=e192]
+            - generic [ref=e195]: Очистить
+          - button "Запустить голосовой ввод" [ref=e196] [cursor=pointer]:
+            - img [ref=e197]
+            - generic [ref=e200]: Голос
+          - button "Отключить автоозвучку" [ref=e201] [cursor=pointer]:
+            - img [ref=e202]
+            - generic [ref=e206]: Озвучка ON
+      - log [ref=e207]:
+        - generic [ref=e208]:
+          - article [ref=e258]:
+            - paragraph [ref=e260]: Составь план релиза на эту неделю.
+          - article [ref=e261]:
+            - img [ref=e263]
+            - generic [ref=e267]:
+              - img [ref=e268]
+              - generic [ref=e270]: Формирую ответ...
+      - generic [ref=e221]:
+        - generic [ref=e271]:
+          - generic [ref=e272]: Tap here to change the voice or personality
+          - generic [ref=e273]:
+            - button [ref=e274] [cursor=pointer]:
+              - img [ref=e275]
+            - button [ref=e278] [cursor=pointer]:
+              - img [ref=e279]
+            - button [ref=e283] [cursor=pointer]:
+              - img [ref=e284]
+            - button [ref=e287] [cursor=pointer]:
+              - img [ref=e288]
+        - generic [ref=e222]:
+          - textbox "Спрашивай что угодно" [disabled] [ref=e223]
+          - generic [ref=e224]:
+            - generic [ref=e225]:
+              - button "Прикрепить файл" [ref=e226] [cursor=pointer]:
+                - img [ref=e227]
+              - button "Auto" [ref=e230] [cursor=pointer]:
+                - img [ref=e231]
+                - generic [ref=e236]: Auto
+            - generic [ref=e237]:
+              - button "Голосовой ввод" [disabled] [ref=e238]:
+                - img [ref=e239]
+              - button "Остановить" [active] [ref=e291] [cursor=pointer]:
+                - img [ref=e292]
+                - generic [ref=e247]: Остановить

@@ -74,6 +74,8 @@ class TrainStatusResponse(BaseModel):
 
 # --- Глобальное состояние текущей задачи ---
 _current_task: dict | None = None
+_URL_IDLE_TIMEOUT_SEC = 30.0
+_CRAWL_IDLE_TIMEOUT_SEC = 45.0
 
 
 def _parse_trainer_output(output: str) -> dict:
@@ -168,9 +170,19 @@ async def start_crawl(req: CrawlRequest) -> CrawlResult:
 
         full_output = ""
         assert proc.stdout is not None
+        idle_timeout = _CRAWL_IDLE_TIMEOUT_SEC if req.mode == "crawl" else _URL_IDLE_TIMEOUT_SEC
 
         while True:
-            line = await proc.stdout.readline()
+            try:
+                line = await asyncio.wait_for(proc.stdout.readline(), timeout=idle_timeout)
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.wait()
+                _current_task = None
+                raise HTTPException(
+                    status_code=504,
+                    detail=f"kolibri_mass_trainer не прислал вывод за {idle_timeout:.0f} сек",
+                )
             if not line:
                 break
             decoded = line.decode("utf-8", errors="replace").rstrip()

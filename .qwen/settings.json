@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmake *)",
+      "Bash(python *)",
+      "Bash(npm install)",
+      "Bash(npx *)",
+      "Bash(sleep *)",
+      "Bash(curl *)",
+      "Bash(cat *)",
+      "Bash(pkill *)",
+      "Bash(uvicorn *)"
+    ]
+  },
+  "$version": 3
+}

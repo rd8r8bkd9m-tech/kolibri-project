@@ -11,8 +11,10 @@ import {
   Bot,
   Check,
   Copy,
+  Database,
   Ellipsis,
   Loader2,
+  ListTodo,
   Mic,
   Paperclip,
   RefreshCw,
@@ -28,19 +30,31 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { ChatHistoryItem } from '../ManusLayout';
+import type { ChatHistoryItem, TabId } from '../ManusLayout';
 import { KolibriBrandMark } from '../components/KolibriBrandMark';
+import kolibriBridge from '../../core/kolibri-bridge';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  gpuContext?: GpuContextHit[];
 }
 
 interface AIResponse {
   response: string;
   conversation_id: string;
+  gpu_context?: GpuContextHit[];
+}
+
+interface GpuContextHit {
+  doc_id: number;
+  score: number;
+  path: string;
+  class?: string;
+  bytes?: number;
+  snippet: string;
 }
 
 interface VoiceHealthResponse {
@@ -57,6 +71,32 @@ interface ChatTabProps {
   resetToken?: number;
   activeChatId?: string;
   onChatActivity?: (item: ChatHistoryItem) => void;
+  onNavigate?: (tab: TabId) => void;
+}
+
+interface SpeechRecognitionAlternativeLike {
+  transcript: string;
+  confidence?: number;
+}
+
+interface SpeechRecognitionResultLike {
+  readonly isFinal: boolean;
+  readonly length: number;
+  [index: number]: SpeechRecognitionAlternativeLike;
+}
+
+interface SpeechRecognitionResultListLike {
+  readonly length: number;
+  [index: number]: SpeechRecognitionResultLike;
+}
+
+interface SpeechRecognitionResultEventLike {
+  readonly resultIndex: number;
+  readonly results: SpeechRecognitionResultListLike;
+}
+
+interface SpeechRecognitionErrorEventLike {
+  readonly error?: string;
 }
 
 type SpeechRecognitionCtor = new () => {
@@ -65,8 +105,8 @@ type SpeechRecognitionCtor = new () => {
   interimResults: boolean;
   start: () => void;
   stop: () => void;
-  onresult: ((event: any) => void) | null;
-  onerror: ((event: any) => void) | null;
+  onresult: ((event: SpeechRecognitionResultEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
   onend: (() => void) | null;
 };
 
@@ -145,6 +185,57 @@ async function parseErrorMessage(response: Response, fallback: string): Promise<
   return fallback;
 }
 
+const resolveBridgeModeLabel = (temperature: number): string => {
+  if (temperature <= 0.5) {
+    return 'Глубоко';
+  }
+  if (temperature >= 0.85) {
+    return 'Креатив';
+  }
+  return 'Auto';
+};
+
+async function sendApiAIMessage(message: string, conversationId: string | null, temperature: number): Promise<AIResponse> {
+  const response = await fetchWithRetry(`${API}/v1/ai/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message,
+      conversation_id: conversationId,
+      temperature,
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await parseErrorMessage(response, `AI endpoint error (${response.status})`);
+    throw new Error(detail);
+  }
+
+  const payload = await response.json();
+  const rawContext = Array.isArray(payload.gpu_context) ? payload.gpu_context : [];
+  return {
+    response: payload.response ?? '',
+    conversation_id: payload.conversation_id ?? conversationId ?? '',
+    gpu_context: rawContext
+      .map((item: unknown) => {
+        if (!item || typeof item !== 'object') return null;
+        const hit = item as Record<string, unknown>;
+        const snippet = typeof hit.snippet === 'string' ? hit.snippet.trim() : '';
+        const path = typeof hit.path === 'string' ? hit.path.trim() : '';
+        if (!snippet || !path) return null;
+        return {
+          doc_id: Number(hit.doc_id ?? 0),
+          score: Number(hit.score ?? 0),
+          path,
+          class: typeof hit.class === 'string' ? hit.class : undefined,
+          bytes: Number(hit.bytes ?? 0),
+          snippet,
+        } satisfies GpuContextHit;
+      })
+      .filter((item: GpuContextHit | null): item is GpuContextHit => Boolean(item)),
+  };
+}
+
 async function sendAIMessage(message: string, conversationId: string | null, temperature: number): Promise<AIResponse> {
   const urlMatch = message.match(/https?:\/\/\S+/i);
   if (urlMatch && (message.toLowerCase().includes('обучи') || message.toLowerCase().includes('обход'))) {
@@ -180,26 +271,17 @@ async function sendAIMessage(message: string, conversationId: string | null, tem
     };
   }
 
-  const response = await fetchWithRetry(`${API}/v1/ai/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      message,
-      conversation_id: conversationId,
-      temperature,
-    }),
-  });
-
-  if (!response.ok) {
-    const detail = await parseErrorMessage(response, `AI endpoint error (${response.status})`);
-    throw new Error(detail);
+  try {
+    return await sendApiAIMessage(message, conversationId, temperature);
+  } catch (apiError) {
+    console.warn('[ChatTab] Backend AI недоступен, используем локальный KolibriBridge fallback.', apiError);
+    const response = await kolibriBridge.ask(message, resolveBridgeModeLabel(temperature));
+    return {
+      response,
+      conversation_id: conversationId || globalThis.crypto.randomUUID(),
+      gpu_context: [],
+    };
   }
-
-  const payload = await response.json();
-  return {
-    response: payload.response ?? '',
-    conversation_id: payload.conversation_id ?? conversationId ?? '',
-  };
 }
 
 const resolveRecognitionCtor = (): SpeechRecognitionCtor | null => {
@@ -238,7 +320,7 @@ const canUseSpeechSynthesis = (): boolean => {
   return typeof window.speechSynthesis !== 'undefined' && typeof window.SpeechSynthesisUtterance !== 'undefined';
 };
 
-export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTabProps) => {
+export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity, onNavigate }: ChatTabProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -287,7 +369,7 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
       const parsed = JSON.parse(raw) as Record<
         string,
         {
-          messages: Array<{ id: string; role: 'user' | 'assistant'; content: string; timestamp: string }>;
+          messages: Array<{ id: string; role: 'user' | 'assistant'; content: string; timestamp: string; gpuContext?: GpuContextHit[] }>;
           conversationId: string | null;
         }
       >;
@@ -302,6 +384,7 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
           role: item.role,
           content: item.content,
           timestamp: new Date(item.timestamp),
+          gpuContext: Array.isArray(item.gpuContext) ? item.gpuContext : undefined,
         })),
       };
     } catch {
@@ -316,7 +399,7 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
         ? (JSON.parse(raw) as Record<
             string,
             {
-              messages: Array<{ id: string; role: 'user' | 'assistant'; content: string; timestamp: string }>;
+              messages: Array<{ id: string; role: 'user' | 'assistant'; content: string; timestamp: string; gpuContext?: GpuContextHit[] }>;
               conversationId: string | null;
             }
           >)
@@ -329,6 +412,7 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
           role: item.role,
           content: item.content,
           timestamp: item.timestamp.toISOString(),
+          gpuContext: item.gpuContext,
         })),
       };
 
@@ -515,7 +599,7 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
       recognition.lang = browserLang?.toLowerCase().startsWith('ru') ? 'ru-RU' : browserLang || 'ru-RU';
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.onresult = (event: any) => {
+      recognition.onresult = (event) => {
         let interim = '';
         for (let i = event.resultIndex; i < event.results.length; i += 1) {
           const value = event.results[i][0].transcript || '';
@@ -528,8 +612,8 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
         const nextText = `${finalTranscriptRef.current} ${interim}`.trim();
         setInput(nextText);
       };
-      recognition.onerror = (event: any) => {
-        setVoiceError(mapSpeechError(event?.error || 'unknown'));
+      recognition.onerror = (event) => {
+        setVoiceError(mapSpeechError(event.error || 'unknown'));
         setIsListening(false);
       };
       recognition.onend = () => {
@@ -708,6 +792,7 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
           role: 'assistant',
           content: result.response || 'Не удалось сформировать ответ.',
           timestamp: new Date(),
+          gpuContext: result.gpu_context,
         };
 
         setMessages((previous) => [...previous, assistantMessage]);
@@ -898,6 +983,24 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
                     <p>{message.content}</p>
                   )}
 
+                  {isAssistant && message.gpuContext && message.gpuContext.length > 0 && (
+                    <div className="gx-gpu-context" aria-label="GPU Store context">
+                      <div className="gx-gpu-context-head">
+                        <Database size={14} />
+                        <span>GPU Store: {message.gpuContext.length} источника</span>
+                      </div>
+                      <div className="gx-gpu-context-list">
+                        {message.gpuContext.slice(0, 4).map((hit) => (
+                          <div key={`${hit.doc_id}-${hit.path}`} className="gx-gpu-context-item">
+                            <strong>{hit.path}</strong>
+                            <span>{hit.score.toFixed(3)}</span>
+                            <p>{hit.snippet}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {isAssistant && (
                     <div className="gx-message-action-row">
                       <button
@@ -992,6 +1095,42 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
       </section>
 
       <footer className="gx-composer-wrap">
+        {messages.length === 0 && !isProcessing && !voiceSession && (
+          <div className="gx-cta-row" aria-label="Быстрые действия">
+            <button
+              type="button"
+              className="gx-cta-btn gx-cta-pro"
+              onClick={() => {
+                if (onNavigate) {
+                  onNavigate('settings');
+                  return;
+                }
+                handleSuggestionClick('Расскажи про Колибри Pro и что в нём будет.');
+              }}
+            >
+              <span className="gx-cta-icon" aria-hidden="true">
+                <KolibriBrandMark size={18} />
+              </span>
+              <span>Получить Колибри Pro</span>
+            </button>
+
+            <button
+              type="button"
+              className="gx-cta-btn gx-cta-create"
+              onClick={() => {
+                if (onNavigate) {
+                  onNavigate('tasks');
+                  return;
+                }
+                handleSuggestionClick('Создай задачу на сегодня и напомни мне вечером.');
+              }}
+            >
+              <ListTodo size={18} aria-hidden="true" />
+              <span>Создать задачу</span>
+            </button>
+          </div>
+        )}
+
         {latestAssistantReply && (
           <div className="gx-think-wrap">
             <button type="button" className="gx-think-btn" onClick={() => setChatMode('deep')}>
@@ -1028,7 +1167,7 @@ export const ChatTab = ({ resetToken = 0, activeChatId, onChatActivity }: ChatTa
             value={input}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={handleInputKeyDown}
-            placeholder="Напишите сообщение для ассистента Колибри"
+            placeholder="Спрашивай что угодно"
             disabled={isProcessing}
             rows={1}
           />

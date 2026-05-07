@@ -1,0 +1,93 @@
+- generic [ref=e101]:
+  - complementary [ref=e102]:
+    - generic [ref=e103]:
+      - generic [ref=e104]:
+        - button "Колибри AI Workspace" [ref=e105] [cursor=pointer]:
+          - img [ref=e107]
+          - generic [ref=e110]:
+            - generic [ref=e111]: Колибри
+            - generic [ref=e112]: AI Workspace
+        - button "Свернуть сайдбар" [ref=e113] [cursor=pointer]:
+          - img [ref=e114]
+      - button "Новый чат" [ref=e116] [cursor=pointer]:
+        - img [ref=e117]
+        - generic [ref=e120]: Новый чат
+      - generic "Поиск чатов" [ref=e121]:
+        - img [ref=e122]
+        - textbox "Поиск чатов" [ref=e125]:
+          - /placeholder: Поиск по истории
+    - navigation "Разделы" [ref=e126]:
+      - button "Чаты" [active] [ref=e127] [cursor=pointer]:
+        - img [ref=e129]
+        - generic [ref=e131]: Чаты
+      - button "Компаньоны" [ref=e132] [cursor=pointer]:
+        - img [ref=e134]
+        - generic [ref=e137]: Компаньоны
+      - button "Задачи" [ref=e138] [cursor=pointer]:
+        - img [ref=e140]
+        - generic [ref=e143]: Задачи
+      - button "AI Агент" [ref=e144] [cursor=pointer]:
+        - img [ref=e146]
+        - generic [ref=e149]: AI Агент
+      - button "Знания" [ref=e150] [cursor=pointer]:
+        - img [ref=e152]
+        - generic [ref=e156]: Знания
+      - button "Архиватор" [ref=e157] [cursor=pointer]:
+        - img [ref=e159]
+        - generic [ref=e162]: Архиватор
+      - button "Терминал" [ref=e163] [cursor=pointer]:
+        - img [ref=e165]
+        - generic [ref=e167]: Терминал
+      - button "Настройки" [ref=e168] [cursor=pointer]:
+        - img [ref=e170]
+        - generic [ref=e173]: Настройки
+    - region "История чатов" [ref=e174]:
+      - generic [ref=e175]:
+        - generic [ref=e176]: История
+        - generic [ref=e177]: "0"
+      - paragraph [ref=e178]: Начните новый диалог
+  - main [ref=e179]:
+    - generic [ref=e393]:
+      - generic [ref=e394]:
+        - generic [ref=e395]:
+          - heading "Колибри AI" [level=1] [ref=e396]
+          - paragraph [ref=e397]: Готово к запросу
+          - tablist "Режим ответа" [ref=e398]:
+            - tab "Auto" [selected] [ref=e399] [cursor=pointer]
+            - tab "Глубоко" [ref=e400] [cursor=pointer]
+            - tab "Креатив" [ref=e401] [cursor=pointer]
+        - generic [ref=e402]:
+          - button "Очистить" [ref=e403] [cursor=pointer]:
+            - img [ref=e404]
+            - generic [ref=e407]: Очистить
+          - button "Запустить голосовой ввод" [ref=e408] [cursor=pointer]:
+            - img [ref=e409]
+            - generic [ref=e412]: Голос
+          - button "Отключить автоозвучку" [ref=e413] [cursor=pointer]:
+            - img [ref=e414]
+            - generic [ref=e418]: Озвучка ON
+      - log [ref=e419]:
+        - generic [ref=e421]:
+          - img [ref=e423]
+          - generic [ref=e426]:
+            - heading "Чем помочь в этом чате?" [level=2] [ref=e427]
+            - generic [ref=e428]:
+              - button "Сделай быстрый статус backend и frontend." [ref=e429] [cursor=pointer]
+              - button "Покажи 5 рисков текущей архитектуры и решения." [ref=e430] [cursor=pointer]
+              - button "Обучи модель на https://en.wikipedia.org/wiki/Neural_network" [ref=e431] [cursor=pointer]
+              - button "Составь план релиза на эту неделю." [ref=e432] [cursor=pointer]
+      - generic [ref=e434]:
+        - textbox "Спрашивай что угодно" [ref=e435]
+        - generic [ref=e436]:
+          - generic [ref=e437]:
+            - button "Прикрепить файл" [ref=e438] [cursor=pointer]:
+              - img [ref=e439]
+            - button "Auto" [ref=e442] [cursor=pointer]:
+              - img [ref=e443]
+              - generic [ref=e448]: Auto
+          - generic [ref=e449]:
+            - button "Голосовой ввод" [ref=e450] [cursor=pointer]:
+              - img [ref=e451]
+            - button "Говорить" [ref=e454] [cursor=pointer]:
+              - img [ref=e455]
+              - generic [ref=e459]: Говорить

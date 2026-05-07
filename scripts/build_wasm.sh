@@ -202,6 +202,12 @@ EOF_INFO
 
 zapisat_sha256 "$vyhod_wasm" "$vyhod_dir/kolibri.wasm.sha256"
 
+frontend_public_dir="$proekt_koren/frontend/public"
+if [[ -d "$frontend_public_dir" ]]; then
+    cp "$vyhod_wasm" "$frontend_public_dir/kolibri.wasm"
+    cp "$ekport_info" "$frontend_public_dir/kolibri.wasm.txt"
+fi
+
 rm -f "$vremennaja_js" "$vremennaja_map"
 
 echo "[ГОТОВО] kolibri.wasm собрано: $vyhod_wasm"

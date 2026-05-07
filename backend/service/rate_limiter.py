@@ -29,10 +29,24 @@ _ENABLED = os.getenv("KOLIBRI_RATE_LIMIT_ENABLED", "1").strip() != "0"
 # Пути, освобождённые от rate limit
 _EXEMPT_PATHS = {
     "/api/health",
+    "/api/archiver/project/status",
+    "/api/factory/items",
+    "/api/fs/genome",
+    "/api/gpu/status",
+    "/api/knowledge/stats",
+    "/api/observer/nodes",
+    "/api/system/stats",
     "/api/knowledge/healthz",
     "/api/v1/auth/login",
+    "/api/v1/agent/status",
+    "/api/v1/ai/stats",
+    "/api/v1/ai/voice/health",
     "/api/v1/health/live",
     "/api/v1/health/ready",
+    "/api/v1/health/detail",
+    "/api/v1/model/stats",
+    "/api/v1/swarm/status",
+    "/api/v1/sync/status",
 }
 
 

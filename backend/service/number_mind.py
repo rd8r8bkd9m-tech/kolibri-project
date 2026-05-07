@@ -1524,7 +1524,7 @@ class KnowledgeGraph:
             if len(t) < 2:
                 continue
             h = djb2_hash(t)
-            for n in self._adj.get(h, set()):
+            for n in tuple(self._adj.get(h, ())):
                 if n in q_hashes:
                     continue
                 key = (min(h, n), max(h, n))
@@ -1538,7 +1538,7 @@ class KnowledgeGraph:
         for hop in range(1, depth):
             nf: dict[int, float] = {}
             for h1, sc in sorted(frontier.items(), key=lambda x: -x[1])[:30]:
-                for n in self._adj.get(h1, set()):
+                for n in tuple(self._adj.get(h1, ())):
                     if n in q_hashes:
                         continue
                     key = (min(h1, n), max(h1, n))

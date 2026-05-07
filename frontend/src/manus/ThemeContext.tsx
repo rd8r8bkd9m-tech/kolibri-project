@@ -5,6 +5,8 @@
  * Сохраняет выбор в localStorage, реагирует на системные изменения.
  */
 
+/* eslint-disable react-refresh/only-export-components */
+
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -122,7 +124,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
-    } catch {}
+    } catch {
+      // ignore storage errors
+    }
     return 'dark';
   });
 
@@ -132,7 +136,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     setModeState(newMode);
     try {
       localStorage.setItem(STORAGE_KEY, newMode);
-    } catch {}
+    } catch {
+      // ignore storage errors
+    }
   }, []);
 
   // Применяем тему при изменении mode или системных настроек
@@ -155,11 +161,6 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, [mode]);
-
-  // Применяем при монтировании
-  useEffect(() => {
-    applyThemeVars(resolved);
-  }, []);
 
   return (
     <ThemeContext.Provider value={{ mode, resolved, setMode }}>

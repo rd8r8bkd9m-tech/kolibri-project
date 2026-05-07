@@ -80,18 +80,6 @@ export const useManusAgent = (): UseManusAgentReturn => {
     return message;
   }, []);
 
-  // Создать задачу
-  const addTask = useCallback((title: string): Task => {
-    const task: Task = {
-      id: generateId(),
-      title,
-      status: 'pending',
-      startedAt: new Date(),
-    };
-    setTasks((prev) => [...prev, task]);
-    return task;
-  }, []);
-
   // Обновить статус задачи
   const updateTask = useCallback((id: string, updates: Partial<Task>) => {
     setTasks((prev) =>

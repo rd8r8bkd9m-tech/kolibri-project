@@ -1,0 +1,98 @@
+- generic [ref=e101]:
+  - complementary [ref=e102]:
+    - generic [ref=e103]:
+      - generic [ref=e104]:
+        - button "Колибри AI Workspace" [ref=e105] [cursor=pointer]:
+          - img [ref=e107]
+          - generic [ref=e110]:
+            - generic [ref=e111]: Колибри
+            - generic [ref=e112]: AI Workspace
+        - button "Свернуть сайдбар" [ref=e113] [cursor=pointer]:
+          - img [ref=e114]
+      - button "Новый чат" [ref=e116] [cursor=pointer]:
+        - img [ref=e117]
+        - generic [ref=e120]: Новый чат
+      - generic "Поиск чатов" [ref=e121]:
+        - img [ref=e122]
+        - textbox "Поиск чатов" [ref=e125]:
+          - /placeholder: Поиск по истории
+    - navigation "Разделы" [ref=e126]:
+      - button "Чаты" [ref=e127] [cursor=pointer]:
+        - img [ref=e129]
+        - generic [ref=e131]: Чаты
+      - button "Компаньоны" [ref=e132] [cursor=pointer]:
+        - img [ref=e134]
+        - generic [ref=e137]: Компаньоны
+      - button "Задачи" [ref=e138] [cursor=pointer]:
+        - img [ref=e140]
+        - generic [ref=e143]: Задачи
+      - button "AI Агент" [ref=e144] [cursor=pointer]:
+        - img [ref=e146]
+        - generic [ref=e149]: AI Агент
+      - button "Знания" [active] [ref=e150] [cursor=pointer]:
+        - img [ref=e152]
+        - generic [ref=e156]: Знания
+      - button "Архиватор" [ref=e157] [cursor=pointer]:
+        - img [ref=e159]
+        - generic [ref=e162]: Архиватор
+      - button "Терминал" [ref=e163] [cursor=pointer]:
+        - img [ref=e165]
+        - generic [ref=e167]: Терминал
+      - button "Настройки" [ref=e168] [cursor=pointer]:
+        - img [ref=e170]
+        - generic [ref=e173]: Настройки
+    - region "История чатов" [ref=e174]:
+      - generic [ref=e175]:
+        - generic [ref=e176]: История
+        - generic [ref=e177]: "0"
+      - paragraph [ref=e178]: Начните новый диалог
+  - main [ref=e179]:
+    - generic [ref=e248]:
+      - generic [ref=e249]:
+        - generic [ref=e250]:
+          - heading "База знаний" [level=1] [ref=e251]
+          - generic [ref=e252]:
+            - img [ref=e253]
+            - generic [ref=e257]: 0 паттернов
+        - button "Обновить" [ref=e258] [cursor=pointer]:
+          - img [ref=e259]
+          - generic [ref=e264]: Обновить
+      - generic [ref=e265]:
+        - button "Обзор" [ref=e266] [cursor=pointer]:
+          - img [ref=e267]
+          - generic [ref=e269]: Обзор
+        - button "Запрос к модели" [ref=e270] [cursor=pointer]:
+          - img [ref=e271]
+          - generic [ref=e274]: Запрос к модели
+        - button "Модели" [ref=e275] [cursor=pointer]:
+          - img [ref=e276]
+          - generic [ref=e278]: Модели
+      - generic [ref=e279]:
+        - generic [ref=e280]:
+          - generic [ref=e281]:
+            - img [ref=e283]
+            - generic [ref=e287]:
+              - generic [ref=e288]: "0"
+              - generic [ref=e289]: Паттернов
+              - generic [ref=e291]: 0% от 131 072
+          - generic [ref=e292]:
+            - img [ref=e294]
+            - generic [ref=e299]:
+              - generic [ref=e300]: "0"
+              - generic [ref=e301]: Связей
+              - generic [ref=e303]: 0% от 262 144
+          - generic [ref=e304]:
+            - img [ref=e306]
+            - generic [ref=e308]:
+              - generic [ref=e309]: 27.31 МБ
+              - generic [ref=e310]: Размер модели
+              - generic [ref=e313]: "Лимит: 50 МБ"
+          - generic [ref=e314]:
+            - img [ref=e316]
+            - generic [ref=e319]:
+              - generic [ref=e320]: "0"
+              - generic [ref=e321]: Связей / паттерн
+              - generic [ref=e322]: Разреженная сеть
+        - generic [ref=e323]:
+          - img [ref=e324]
+          - generic [ref=e327]: /Users/kolibri/Projects/kolibri-project/data/models/kolibri_web.klm

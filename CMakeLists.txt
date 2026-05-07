@@ -5,6 +5,33 @@ set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# OpenMP support for parallel evolution
+set(KOLIBRI_OPENMP_COMPILE_FLAGS "")
+set(KOLIBRI_OPENMP_LINK_LIBS "")
+
+if(APPLE)
+    # macOS: пробуем стандартные пути Homebrew
+    foreach(prefix "/opt/homebrew/opt/libomp" "/usr/local/opt/libomp")
+        if(EXISTS "${prefix}/include/omp.h")
+            set(KOLIBRI_OPENMP_COMPILE_FLAGS "-Xpreprocessor;-fopenmp;-I${prefix}/include")
+            set(KOLIBRI_OPENMP_LINK_LIBS "${prefix}/lib/libomp.dylib")
+            message(STATUS "OpenMP found at ${prefix} - parallel evolution enabled")
+            break()
+        endif()
+    endforeach()
+endif()
+
+if(NOT KOLIBRI_OPENMP_COMPILE_FLAGS)
+    find_package(OpenMP QUIET)
+    if(OpenMP_C_FOUND)
+        set(KOLIBRI_OPENMP_COMPILE_FLAGS ${OpenMP_C_FLAGS})
+        set(KOLIBRI_OPENMP_LINK_LIBS OpenMP::OpenMP_C)
+        message(STATUS "OpenMP found - parallel evolution enabled")
+    else()
+        message(STATUS "OpenMP not found - using sequential evolution (install libomp for parallel speedup)")
+    endif()
+endif()
+
 option(KOLIBRI_ENABLE_TESTS "Enable Kolibri tests" ON)
 option(KOLIBRI_ENABLE_FUZZ "Enable Kolibri fuzz targets" OFF)
 option(KOLIBRI_ENABLE_GPU "Enable Kolibri GPU acceleration components" ON)
@@ -39,12 +66,15 @@ if(KOLIBRI_ENABLE_GPU)
 endif()
 
 add_library(kolibri_core_objects OBJECT
+    backend/core/src/verified_search.c
     backend/src/decimal.c
     backend/src/digits.c
     backend/src/digit_text.c
     backend/src/genome.c
     backend/src/random.c
     backend/src/formula.c
+    backend/src/swarm.c
+    backend/src/spectral.c
     backend/src/roy.c
     backend/src/script.c
     backend/src/symbol_table.c
@@ -77,13 +107,52 @@ add_library(kolibri_core_objects OBJECT
 target_include_directories(kolibri_core_objects
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/backend/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/backend/core/include>
         $<INSTALL_INTERFACE:include>
 )
 if(DEFINED OPENSSL_INCLUDE_DIR)
     target_include_directories(kolibri_core_objects PRIVATE ${OPENSSL_INCLUDE_DIR})
 endif()
+if(KOLIBRI_OPENMP_COMPILE_FLAGS)
+    # Разделяем строку на список аргументов
+    string(REPLACE ";" " " _openmp_c_flags_str "${KOLIBRI_OPENMP_COMPILE_FLAGS}")
+    target_compile_options(kolibri_core_objects PUBLIC ${KOLIBRI_OPENMP_COMPILE_FLAGS})
+endif()
+if(KOLIBRI_OPENMP_LINK_LIBS)
+    if(KOLIBRI_OPENMP_LINK_LIBS MATCHES "OpenMP::")
+        target_link_libraries(kolibri_core_objects PUBLIC ${KOLIBRI_OPENMP_LINK_LIBS})
+    else()
+        target_link_libraries(kolibri_core_objects PUBLIC "${KOLIBRI_OPENMP_LINK_LIBS}")
+    endif()
+endif()
 
 add_library(kolibri_core STATIC $<TARGET_OBJECTS:kolibri_core_objects>)
+
+# Динамическая библиотека для Python-обертки
+add_library(kolibri_core_shared SHARED $<TARGET_OBJECTS:kolibri_core_objects>)
+target_include_directories(kolibri_core_shared
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/backend/include>
+        $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(kolibri_core_shared PUBLIC ${KOLIBRI_OPENSSL_TARGET} SQLite::SQLite3 Threads::Threads m)
+# Явно добавляем libcrypto для macOS, если она не подхватилась через таргет
+if(APPLE AND EXISTS "/opt/homebrew/opt/openssl@3/lib/libcrypto.dylib")
+    target_link_libraries(kolibri_core_shared PUBLIC "/opt/homebrew/opt/openssl@3/lib/libcrypto.dylib")
+elseif(APPLE AND EXISTS "/usr/local/opt/openssl@3/lib/libcrypto.dylib")
+    target_link_libraries(kolibri_core_shared PUBLIC "/usr/local/opt/openssl@3/lib/libcrypto.dylib")
+endif()
+if(KOLIBRI_OPENMP_LINK_LIBS)
+    if(KOLIBRI_OPENMP_LINK_LIBS MATCHES "OpenMP::")
+        target_link_libraries(kolibri_core_shared PUBLIC ${KOLIBRI_OPENMP_LINK_LIBS})
+    else()
+        target_link_libraries(kolibri_core_shared PUBLIC "${KOLIBRI_OPENMP_LINK_LIBS}")
+    endif()
+endif()
+set_target_properties(kolibri_core_shared PROPERTIES
+    OUTPUT_NAME "kolibri_core"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+)
 
 target_include_directories(kolibri_core
     PUBLIC
@@ -184,6 +253,13 @@ add_library(kolibri_compress_ffi SHARED $<TARGET_OBJECTS:kolibri_core_objects>)
 target_include_directories(kolibri_compress_ffi PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/backend/include)
 target_link_libraries(kolibri_compress_ffi PRIVATE ${KOLIBRI_OPENSSL_TARGET} SQLite::SQLite3 m)
+if(KOLIBRI_OPENMP_LINK_LIBS)
+    if(KOLIBRI_OPENMP_LINK_LIBS MATCHES "OpenMP::")
+        target_link_libraries(kolibri_compress_ffi PUBLIC ${KOLIBRI_OPENMP_LINK_LIBS})
+    else()
+        target_link_libraries(kolibri_compress_ffi PUBLIC "${KOLIBRI_OPENMP_LINK_LIBS}")
+    endif()
+endif()
 set_target_properties(kolibri_compress_ffi PROPERTIES
     OUTPUT_NAME "kolibri_compress"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
@@ -255,7 +331,17 @@ if(KOLIBRI_ENABLE_TESTS)
         tests/test_sim.c
         tests/test_public_api.c
     )
-    target_link_libraries(kolibri_tests PRIVATE kolibri_core Threads::Threads)
+    target_link_libraries(kolibri_tests PRIVATE kolibri_core Threads::Threads m)
+    if(KOLIBRI_OPENMP_LINK_LIBS)
+        if(KOLIBRI_OPENMP_LINK_LIBS MATCHES "OpenMP::")
+            target_link_libraries(kolibri_tests PUBLIC ${KOLIBRI_OPENMP_LINK_LIBS})
+        else()
+            target_link_libraries(kolibri_tests PUBLIC "${KOLIBRI_OPENMP_LINK_LIBS}")
+        endif()
+    endif()
+    if(KOLIBRI_OPENMP_COMPILE_FLAGS)
+        target_compile_options(kolibri_tests PUBLIC ${KOLIBRI_OPENMP_COMPILE_FLAGS})
+    endif()
     add_test(NAME kolibri_tests COMMAND kolibri_tests)
     
     # AGI v2.0 Phase 1: Semantic module tests
@@ -405,10 +491,159 @@ if(KOLIBRI_ENABLE_TESTS)
     target_link_libraries(test_formula_logic PRIVATE kolibri_core Threads::Threads m)
     add_test(NAME test_formula_logic COMMAND test_formula_logic)
 
+    # ONLINE LEARNING TEST - доказательство обучения на лету
+    add_executable(test_online_learning tests/test_online_learning.c)
+    target_link_libraries(test_online_learning PRIVATE kolibri_core Threads::Threads m)
+    if(KOLIBRI_OPENMP_LINK_LIBS)
+        if(KOLIBRI_OPENMP_LINK_LIBS MATCHES "OpenMP::")
+            target_link_libraries(test_online_learning PUBLIC ${KOLIBRI_OPENMP_LINK_LIBS})
+        else()
+            target_link_libraries(test_online_learning PUBLIC "${KOLIBRI_OPENMP_LINK_LIBS}")
+        endif()
+    endif()
+    add_test(NAME test_online_learning COMMAND test_online_learning)
+
+    # HYBRID LEARNING TEST - эволюция + локальная настройка
+    add_executable(test_hybrid_learning tests/test_hybrid_learning.c)
+    target_link_libraries(test_hybrid_learning PRIVATE kolibri_core Threads::Threads m)
+    if(KOLIBRI_OPENMP_LINK_LIBS)
+        if(KOLIBRI_OPENMP_LINK_LIBS MATCHES "OpenMP::")
+            target_link_libraries(test_hybrid_learning PUBLIC ${KOLIBRI_OPENMP_LINK_LIBS})
+        else()
+            target_link_libraries(test_hybrid_learning PUBLIC "${KOLIBRI_OPENMP_LINK_LIBS}")
+        endif()
+    endif()
+    add_test(NAME test_hybrid_learning COMMAND test_hybrid_learning)
+
+    # SHOR NONLINEAR TEST - применение метода Шора к сложным задачам
+    add_executable(test_shor_nonlinear tests/test_shor_nonlinear.c)
+    target_link_libraries(test_shor_nonlinear PRIVATE kolibri_core Threads::Threads m)
+    if(KOLIBRI_OPENMP_LINK_LIBS)
+        if(KOLIBRI_OPENMP_LINK_LIBS MATCHES "OpenMP::")
+            target_link_libraries(test_shor_nonlinear PUBLIC ${KOLIBRI_OPENMP_LINK_LIBS})
+        else()
+            target_link_libraries(test_shor_nonlinear PUBLIC "${KOLIBRI_OPENMP_LINK_LIBS}")
+        endif()
+    endif()
+    add_test(NAME test_shor_nonlinear COMMAND test_shor_nonlinear)
+
+    # GF(2) LOGIC SOLVER - мгновенное решение XOR-задач
+    add_executable(test_gf2_logic tests/test_gf2_logic.c)
+    target_link_libraries(test_gf2_logic PRIVATE kolibri_core Threads::Threads m)
+    if(KOLIBRI_OPENMP_LINK_LIBS)
+        if(KOLIBRI_OPENMP_LINK_LIBS MATCHES "OpenMP::")
+            target_link_libraries(test_gf2_logic PUBLIC ${KOLIBRI_OPENMP_LINK_LIBS})
+        else()
+            target_link_libraries(test_gf2_logic PUBLIC "${KOLIBRI_OPENMP_LINK_LIBS}")
+        endif()
+    endif()
+    add_test(NAME test_gf2_logic COMMAND test_gf2_logic)
+
+    # FULL HYBRID SYSTEM TEST - интеграция аналитики и роя
+    add_executable(test_full_hybrid_system tests/test_full_hybrid_system.c)
+    target_link_libraries(test_full_hybrid_system PRIVATE kolibri_core Threads::Threads m)
+    if(KOLIBRI_OPENMP_LINK_LIBS)
+        if(KOLIBRI_OPENMP_LINK_LIBS MATCHES "OpenMP::")
+            target_link_libraries(test_full_hybrid_system PUBLIC ${KOLIBRI_OPENMP_LINK_LIBS})
+        else()
+            target_link_libraries(test_full_hybrid_system PUBLIC "${KOLIBRI_OPENMP_LINK_LIBS}")
+        endif()
+    endif()
+    add_test(NAME test_full_hybrid_system COMMAND test_full_hybrid_system)
+
+    # HARD NONLINEAR TEST - проверка роя на сложных задачах
+    add_executable(test_hard_nonlinear tests/test_hard_nonlinear.c)
+    target_link_libraries(test_hard_nonlinear PRIVATE kolibri_core Threads::Threads m)
+    if(KOLIBRI_OPENMP_LINK_LIBS)
+        if(KOLIBRI_OPENMP_LINK_LIBS MATCHES "OpenMP::")
+            target_link_libraries(test_hard_nonlinear PUBLIC ${KOLIBRI_OPENMP_LINK_LIBS})
+        else()
+            target_link_libraries(test_hard_nonlinear PUBLIC "${KOLIBRI_OPENMP_LINK_LIBS}")
+        endif()
+    endif()
+    add_test(NAME test_hard_nonlinear COMMAND test_hard_nonlinear)
+
+    # SWARM HASH STRESS TEST - проверка роя на криптографической задаче
+    add_executable(test_swarm_hash tests/test_swarm_hash.c)
+    target_link_libraries(test_swarm_hash PRIVATE kolibri_core Threads::Threads m)
+    if(KOLIBRI_OPENMP_LINK_LIBS)
+        if(KOLIBRI_OPENMP_LINK_LIBS MATCHES "OpenMP::")
+            target_link_libraries(test_swarm_hash PUBLIC ${KOLIBRI_OPENMP_LINK_LIBS})
+        else()
+            target_link_libraries(test_swarm_hash PUBLIC "${KOLIBRI_OPENMP_LINK_LIBS}")
+        endif()
+    endif()
+    add_test(NAME test_swarm_hash COMMAND test_swarm_hash)
+
+    # PARITY LEARNING TEST - обучение логической функции (XOR/четность)
+    add_executable(test_parity_learning tests/test_parity_learning.c)
+    target_link_libraries(test_parity_learning PRIVATE kolibri_core Threads::Threads m)
+    if(KOLIBRI_OPENMP_LINK_LIBS)
+        if(KOLIBRI_OPENMP_LINK_LIBS MATCHES "OpenMP::")
+            target_link_libraries(test_parity_learning PUBLIC ${KOLIBRI_OPENMP_LINK_LIBS})
+        else()
+            target_link_libraries(test_parity_learning PUBLIC "${KOLIBRI_OPENMP_LINK_LIBS}")
+        endif()
+    endif()
+    add_test(NAME test_parity_learning COMMAND test_parity_learning)
+
+    # SWARM LEARNING TEST - роевая архитектура для ускорения эволюции
+    add_executable(test_swarm_learning tests/test_swarm_learning.c)
+    target_link_libraries(test_swarm_learning PRIVATE kolibri_core Threads::Threads m)
+    if(KOLIBRI_OPENMP_LINK_LIBS)
+        if(KOLIBRI_OPENMP_LINK_LIBS MATCHES "OpenMP::")
+            target_link_libraries(test_swarm_learning PUBLIC ${KOLIBRI_OPENMP_LINK_LIBS})
+        else()
+            target_link_libraries(test_swarm_learning PUBLIC "${KOLIBRI_OPENMP_LINK_LIBS}")
+        endif()
+    endif()
+    add_test(NAME test_swarm_learning COMMAND test_swarm_learning)
+
+    # CORE PERFORMANCE TEST - демонстрация скорости C-ядра
+    add_executable(test_core_performance tests/test_core_performance.c)
+    target_link_libraries(test_core_performance PRIVATE kolibri_core Threads::Threads m)
+    if(KOLIBRI_OPENMP_LINK_LIBS)
+        if(KOLIBRI_OPENMP_LINK_LIBS MATCHES "OpenMP::")
+            target_link_libraries(test_core_performance PUBLIC ${KOLIBRI_OPENMP_LINK_LIBS})
+        else()
+            target_link_libraries(test_core_performance PUBLIC "${KOLIBRI_OPENMP_LINK_LIBS}")
+        endif()
+    endif()
+    add_test(NAME test_core_performance COMMAND test_core_performance)
+
+    # SWARM VS SINGLE - сравнительный тест архитектур
+    add_executable(test_swarm_vs_single tests/test_swarm_vs_single.c)
+    target_link_libraries(test_swarm_vs_single PRIVATE kolibri_core Threads::Threads m)
+    if(KOLIBRI_OPENMP_LINK_LIBS)
+        if(KOLIBRI_OPENMP_LINK_LIBS MATCHES "OpenMP::")
+            target_link_libraries(test_swarm_vs_single PUBLIC ${KOLIBRI_OPENMP_LINK_LIBS})
+        else()
+            target_link_libraries(test_swarm_vs_single PUBLIC "${KOLIBRI_OPENMP_LINK_LIBS}")
+        endif()
+    endif()
+    add_test(NAME test_swarm_vs_single COMMAND test_swarm_vs_single)
+
+    # SPECTRAL SHOR TEST - поиск периода через FFT
+    add_executable(test_spectral_shor tests/test_spectral_shor.c)
+    target_link_libraries(test_spectral_shor PRIVATE kolibri_core Threads::Threads m)
+    if(KOLIBRI_OPENMP_LINK_LIBS)
+        if(KOLIBRI_OPENMP_LINK_LIBS MATCHES "OpenMP::")
+            target_link_libraries(test_spectral_shor PUBLIC ${KOLIBRI_OPENMP_LINK_LIBS})
+        else()
+            target_link_libraries(test_spectral_shor PUBLIC "${KOLIBRI_OPENMP_LINK_LIBS}")
+        endif()
+    endif()
+    add_test(NAME test_spectral_shor COMMAND test_spectral_shor)
+
     # LOGICAL MEMORY - логическая память
     add_executable(test_logical_memory tests/test_logical_memory.c)
     target_link_libraries(test_logical_memory PRIVATE kolibri_core Threads::Threads m)
     add_test(NAME test_logical_memory COMMAND test_logical_memory)
+
+    # LOGICAL REASONING - логический вывод через граф
+    add_executable(test_logical_reasoning tests/test_logical_reasoning.c)
+    target_link_libraries(test_logical_reasoning PRIVATE kolibri_core Threads::Threads m)
+    add_test(NAME test_logical_reasoning COMMAND test_logical_reasoning)
 
     # INFERENCE - модуль инференса
     add_executable(test_inference tests/test_inference.c)

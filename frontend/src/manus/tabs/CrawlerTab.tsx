@@ -276,13 +276,20 @@ export const CrawlerTab = () => {
         }),
       });
 
-      const data: CrawlResult = await r.json();
+      const raw = (await r.json()) as unknown;
       if (!r.ok) {
-        setError((data as any).detail || 'Ошибка');
-        setIsCrawling(false);
+        const detail =
+          typeof raw === 'object' &&
+          raw !== null &&
+          'detail' in raw &&
+          typeof (raw as { detail?: unknown }).detail === 'string'
+            ? (raw as { detail: string }).detail
+            : 'Ошибка';
+        setError(detail);
         return;
       }
 
+      const data = raw as CrawlResult;
       setCrawlResult(data);
       fetchModel();
     } catch (e) {

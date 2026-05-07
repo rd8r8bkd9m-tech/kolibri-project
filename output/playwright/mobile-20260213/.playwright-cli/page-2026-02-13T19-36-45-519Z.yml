@@ -1,0 +1,93 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - button "Колибри AI Workspace" [ref=e7] [cursor=pointer]:
+          - img [ref=e9]
+          - generic [ref=e12]:
+            - generic [ref=e13]: Колибри
+            - generic [ref=e14]: AI Workspace
+        - button "Свернуть сайдбар" [ref=e15] [cursor=pointer]:
+          - img [ref=e16]
+      - button "Новый чат" [ref=e18] [cursor=pointer]:
+        - img [ref=e19]
+        - generic [ref=e22]: Новый чат
+      - generic "Поиск чатов" [ref=e23]:
+        - img [ref=e24]
+        - textbox "Поиск чатов" [ref=e27]:
+          - /placeholder: Поиск по истории
+    - navigation "Разделы" [ref=e28]:
+      - button "Чаты" [ref=e29] [cursor=pointer]:
+        - img [ref=e31]
+        - generic [ref=e33]: Чаты
+      - button "Компаньоны" [ref=e34] [cursor=pointer]:
+        - img [ref=e36]
+        - generic [ref=e39]: Компаньоны
+      - button "Задачи" [ref=e40] [cursor=pointer]:
+        - img [ref=e42]
+        - generic [ref=e45]: Задачи
+      - button "AI Агент" [ref=e46] [cursor=pointer]:
+        - img [ref=e48]
+        - generic [ref=e51]: AI Агент
+      - button "Знания" [ref=e52] [cursor=pointer]:
+        - img [ref=e54]
+        - generic [ref=e58]: Знания
+      - button "Архиватор" [ref=e59] [cursor=pointer]:
+        - img [ref=e61]
+        - generic [ref=e64]: Архиватор
+      - button "Терминал" [ref=e65] [cursor=pointer]:
+        - img [ref=e67]
+        - generic [ref=e69]: Терминал
+      - button "Настройки" [ref=e70] [cursor=pointer]:
+        - img [ref=e72]
+        - generic [ref=e75]: Настройки
+    - region "История чатов" [ref=e76]:
+      - generic [ref=e77]:
+        - generic [ref=e78]: История
+        - generic [ref=e79]: "0"
+      - paragraph [ref=e80]: Начните новый диалог
+  - main [ref=e81]:
+    - generic [ref=e83]:
+      - generic [ref=e84]:
+        - generic [ref=e85]:
+          - heading "Колибри AI" [level=1] [ref=e86]
+          - paragraph [ref=e87]: Готово к запросу
+          - tablist "Режим ответа" [ref=e88]:
+            - tab "Auto" [selected] [ref=e89] [cursor=pointer]
+            - tab "Глубоко" [ref=e90] [cursor=pointer]
+            - tab "Креатив" [ref=e91] [cursor=pointer]
+        - generic [ref=e92]:
+          - button "Очистить" [ref=e93] [cursor=pointer]:
+            - img [ref=e94]
+            - generic [ref=e97]: Очистить
+          - button "Запустить голосовой ввод" [ref=e98] [cursor=pointer]:
+            - img [ref=e99]
+            - generic [ref=e102]: Голос
+          - button "Отключить автоозвучку" [ref=e103] [cursor=pointer]:
+            - img [ref=e104]
+            - generic [ref=e108]: Озвучка ON
+      - log [ref=e109]:
+        - generic [ref=e111]:
+          - img [ref=e113]
+          - generic [ref=e116]:
+            - heading "Чем помочь в этом чате?" [level=2] [ref=e117]
+            - generic [ref=e118]:
+              - button "Сделай быстрый статус backend и frontend." [ref=e119] [cursor=pointer]
+              - button "Покажи 5 рисков текущей архитектуры и решения." [ref=e120] [cursor=pointer]
+              - button "Обучи модель на https://en.wikipedia.org/wiki/Neural_network" [ref=e121] [cursor=pointer]
+              - button "Составь план релиза на эту неделю." [ref=e122] [cursor=pointer]
+      - generic [ref=e124]:
+        - textbox "Спрашивай что угодно" [ref=e125]
+        - generic [ref=e126]:
+          - generic [ref=e127]:
+            - button "Прикрепить файл" [ref=e128] [cursor=pointer]:
+              - img [ref=e129]
+            - button "Auto" [ref=e132] [cursor=pointer]:
+              - img [ref=e133]
+              - generic [ref=e138]: Auto
+          - generic [ref=e139]:
+            - button "Голосовой ввод" [ref=e140] [cursor=pointer]:
+              - img [ref=e141]
+            - button "Говорить" [ref=e144] [cursor=pointer]:
+              - img [ref=e145]
+              - generic [ref=e149]: Говорить

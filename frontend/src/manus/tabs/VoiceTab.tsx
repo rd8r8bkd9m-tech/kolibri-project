@@ -40,14 +40,39 @@ interface VoiceSpeakResponse {
 
 type VoiceMode = 'server' | 'browser';
 
+interface SpeechRecognitionAlternativeLike {
+  transcript: string;
+  confidence?: number;
+}
+
+interface SpeechRecognitionResultLike {
+  readonly isFinal: boolean;
+  readonly length: number;
+  [index: number]: SpeechRecognitionAlternativeLike;
+}
+
+interface SpeechRecognitionResultListLike {
+  readonly length: number;
+  [index: number]: SpeechRecognitionResultLike;
+}
+
+interface SpeechRecognitionResultEventLike {
+  readonly resultIndex: number;
+  readonly results: SpeechRecognitionResultListLike;
+}
+
+interface SpeechRecognitionErrorEventLike {
+  readonly error?: string;
+}
+
 type SpeechRecognitionCtor = new () => {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
   start: () => void;
   stop: () => void;
-  onresult: ((event: any) => void) | null;
-  onerror: ((event: any) => void) | null;
+  onresult: ((event: SpeechRecognitionResultEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
   onend: (() => void) | null;
 };
 
@@ -346,7 +371,7 @@ export const VoiceTab = () => {
       rec.lang = browserLang?.toLowerCase().startsWith('ru') ? 'ru-RU' : browserLang || 'ru-RU';
       rec.continuous = true;
       rec.interimResults = true;
-      rec.onresult = (event: any) => {
+      rec.onresult = (event) => {
         let interim = '';
         for (let i = event.resultIndex; i < event.results.length; i += 1) {
           const value = event.results[i][0].transcript || '';
@@ -358,8 +383,8 @@ export const VoiceTab = () => {
         }
         setTranscript(`${finalTranscriptRef.current} ${interim}`.trim());
       };
-      rec.onerror = (event: any) => {
-        setError(mapSpeechError(event?.error || 'unknown'));
+      rec.onerror = (event) => {
+        setError(mapSpeechError(event.error || 'unknown'));
         setIsListening(false);
       };
       rec.onend = () => {

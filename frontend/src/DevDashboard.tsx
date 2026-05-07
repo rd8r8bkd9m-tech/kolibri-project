@@ -1,9 +1,21 @@
 import { useState, useEffect } from "react";
-import { 
-  Bot, Zap, FileText, PenTool, Search, 
-  Share2, Globe, Video, Image as ImageIcon, 
-  Layers, Database, Play, Settings, RefreshCw, CheckCircle, BarChart3, X, Save
+import {
+  BarChart3,
+  Bot,
+  CheckCircle,
+  FileText,
+  Layers,
+  PenTool,
+  Play,
+  RefreshCw,
+  Save,
+  Search,
+  Share2,
+  Video,
+  X,
+  Zap,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 // --- Types ---
 interface ContentItem {
@@ -43,7 +55,7 @@ interface NodeType {
   type: "event" | "agent" | "service" | "output";
   label: string;
   subLabel?: string;
-  icon: any;
+  icon: LucideIcon;
   x: number;
   y: number;
   color: string;
@@ -165,7 +177,7 @@ export function DevDashboard() {
       try {
           const res = await fetch("/api/factory/items");
           if(res.ok) {
-              const data = await res.json();
+              const data = (await res.json()) as ContentItem[];
               setItems(data);
           }
       } catch (e) {
@@ -221,7 +233,7 @@ export function DevDashboard() {
               body: JSON.stringify({ niche, limit: 5 })
           });
           if (res.ok) {
-              const data = await res.json();
+              const data = (await res.json()) as TrendInsight[];
               setTrends(data);
           }
       } finally {
@@ -238,7 +250,7 @@ export function DevDashboard() {
               body: JSON.stringify({ niche, limit: 5 })
           });
           if (res.ok) {
-              const data = await res.json();
+              const data = (await res.json()) as VideoReference[];
               setVideos(data);
           }
       } finally {

@@ -1,0 +1,105 @@
+{
+  "desktop": {
+    "chat": {
+      "innerWidth": 1366,
+      "scrollWidth": 1366,
+      "bodyScrollWidth": 1366,
+      "overflowPx": 0,
+      "bodyOverflowPx": 0
+    },
+    "tasks": {
+      "innerWidth": 1366,
+      "scrollWidth": 1366,
+      "bodyScrollWidth": 1366,
+      "overflowPx": 0,
+      "bodyOverflowPx": 0
+    },
+    "crawler": {
+      "innerWidth": 1366,
+      "scrollWidth": 1366,
+      "bodyScrollWidth": 1366,
+      "overflowPx": 0,
+      "bodyOverflowPx": 0
+    },
+    "knowledge": {
+      "innerWidth": 1366,
+      "scrollWidth": 1366,
+      "bodyScrollWidth": 1366,
+      "overflowPx": 0,
+      "bodyOverflowPx": 0
+    },
+    "archiver": {
+      "innerWidth": 1366,
+      "scrollWidth": 1366,
+      "bodyScrollWidth": 1366,
+      "overflowPx": 0,
+      "bodyOverflowPx": 0
+    },
+    "terminal": {
+      "innerWidth": 1366,
+      "scrollWidth": 1366,
+      "bodyScrollWidth": 1366,
+      "overflowPx": 0,
+      "bodyOverflowPx": 0
+    },
+    "settings": {
+      "innerWidth": 1366,
+      "scrollWidth": 1366,
+      "bodyScrollWidth": 1366,
+      "overflowPx": 0,
+      "bodyOverflowPx": 0
+    },
+    "chat_return": {
+      "innerWidth": 1366,
+      "scrollWidth": 1366,
+      "bodyScrollWidth": 1366,
+      "overflowPx": 0,
+      "bodyOverflowPx": 0
+    }
+  },
+  "mobile": {
+    "chat": {
+      "innerWidth": 390,
+      "scrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "overflowPx": 0,
+      "bodyOverflowPx": 0
+    },
+    "menu": {
+      "innerWidth": 390,
+      "scrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "overflowPx": 0,
+      "bodyOverflowPx": 0
+    },
+    "settings": {
+      "innerWidth": 390,
+      "scrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "overflowPx": 0,
+      "bodyOverflowPx": 0
+    },
+    "appearance": {
+      "innerWidth": 390,
+      "scrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "overflowPx": 0,
+      "bodyOverflowPx": 0
+    },
+    "appearance_light": {
+      "innerWidth": 390,
+      "scrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "overflowPx": 0,
+      "bodyOverflowPx": 0
+    },
+    "appearance_dark": {
+      "innerWidth": 390,
+      "scrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "overflowPx": 0,
+      "bodyOverflowPx": 0
+    }
+  },
+  "errors": []
+}

@@ -164,6 +164,9 @@ function copyKolibriWasm(): Plugin {
 const knowledgeProxyTarget = process.env.KNOWLEDGE_API || "http://127.0.0.1:8001";
 
 export default defineConfig({
+  define: {
+    __KOLIBRI_BUILD__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [react(), copyKolibriWasm()],
   server: {
     port: 3000,

@@ -14,9 +14,14 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.util
+import os
+import re
+import subprocess
+import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 # ──────────────────────────────────────────────────────────────────────
 #  Константы методов сжатия Kolibri (из compress.h)
@@ -31,6 +36,121 @@ KOLIBRI_COMPRESS_ZSTD     = 0x40
 KOLIBRI_COMPRESS_ADAPTIVE = 0x80
 KOLIBRI_COMPRESS_TOKEN    = 0x100
 KOLIBRI_COMPRESS_ALL      = 0x1FF
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+SUPER_ARCHIVER_TOOL = PROJECT_ROOT / "tools" / "kolibri-agi.py"
+VAULT_ARCHIVER_TOOL = PROJECT_ROOT / "tools" / "kolibri-vault.py"
+DEFAULT_ARCHIVE_ROOT = Path(os.environ.get("KOLIBRI_ARCHIVER_OUTPUT_DIR", "/tmp/kolibri_archives"))
+DEFAULT_RESTORE_ROOT = Path(os.environ.get("KOLIBRI_ARCHIVER_RESTORE_DIR", "/tmp/kolibri_restores"))
+DEFAULT_STORAGE_ROOT = Path(os.environ.get("KOLIBRI_ARCHIVER_STORAGE_DIR", "/tmp/kolibri_archiver_storage"))
+
+
+def _safe_seed(value: object, fallback: str) -> str:
+    """Normalize a user-visible seed into a portable filename stem."""
+    raw = str(value or fallback or f"kolibri_{int(time.time())}")
+    seed = re.sub(r"[^A-Za-z0-9_.-]+", "_", raw).strip("._-")
+    return (seed or f"kolibri_{int(time.time())}")[:96]
+
+
+def _expanded_path(value: object, default: Path | str | None = None) -> Path:
+    raw = value if value not in (None, "") else default
+    if raw is None:
+        raise ValueError("path is required")
+    return Path(str(raw)).expanduser()
+
+
+def _existing_path(value: object, label: str) -> Path:
+    path = _expanded_path(value).resolve()
+    if not path.exists():
+        raise FileNotFoundError(f"{label} not found: {path}")
+    return path
+
+
+def _artifact(path: Path) -> dict[str, object]:
+    return {
+        "path": str(path),
+        "exists": path.exists(),
+        "size": path.stat().st_size if path.exists() else 0,
+    }
+
+
+def _parse_archiver_report(text: str) -> dict[str, object]:
+    report: dict[str, object] = {}
+
+    def take_int(key: str, pattern: str) -> None:
+        match = re.search(pattern, text, re.MULTILINE)
+        if match:
+            report[key] = int(match.group(1))
+
+    take_int("original_size", r"(?:Исходный размер|Source bytes):\s+(\d+)")
+    take_int("seed_size", r"Seed:\s+(\d+)\s+bytes")
+    take_int("bin_size", r"Bin corpus:\s+(\d+)\s+bytes")
+    take_int("seed_bin_size", r"Seed\+bin:\s+(\d+)\s+bytes")
+    take_int("vault_size", r"Vault sealed: .*?\((\d+)\s+bytes\)")
+    take_int("pure_formula_bytes", r"(?:Чистая формула|Pure formula):\s+(\d+)\s+bytes")
+    take_int("residual_bytes", r"(?:Lossless residual|Residual):\s+(\d+)\s+bytes")
+    ratio = re.search(r"^Коэффициент:\s+([0-9.]+)x", text, re.MULTILINE)
+    if ratio is None:
+        ratio = re.search(r"^\[\*\]\s+Ratio:\s+([0-9.]+)x", text, re.MULTILINE)
+    if ratio:
+        report["ratio"] = float(ratio.group(1))
+
+    ru_counts = re.search(
+        r"Файлов:\s+(\d+)\s*\nДиректорий:\s+(\d+)\s*\nSymlink:\s+(\d+)",
+        text,
+        re.MULTILINE,
+    )
+    slash_counts = re.search(r"Files/dirs/symlinks:\s+(\d+)/(\d+)/(\d+)", text)
+    counts = ru_counts or slash_counts
+    if counts:
+        report["files"] = int(counts.group(1))
+        report["dirs"] = int(counts.group(2))
+        report["symlinks"] = int(counts.group(3))
+
+    bit_exact = re.search(r"Bit-exact:\s+(yes|no)", text, re.IGNORECASE)
+    if bit_exact:
+        report["bit_exact"] = bit_exact.group(1).lower() == "yes"
+    elif "BIT-EXACT MATCH" in text:
+        report["bit_exact"] = True
+    elif "BIT-EXACT MISMATCH" in text:
+        report["bit_exact"] = False
+
+    return report
+
+
+def _run_super_tool(
+    tool: Path,
+    args: list[str],
+    seed: str,
+    extra_env: dict[str, str] | None = None,
+    timeout_sec: int = 3600,
+) -> dict[str, object]:
+    if not tool.exists():
+        raise FileNotFoundError(f"Kolibri tool not found: {tool}")
+
+    env = os.environ.copy()
+    env.setdefault("PYTHONUNBUFFERED", "1")
+    env.setdefault("KOLIBRI_AGI_STORAGE", str((DEFAULT_STORAGE_ROOT / seed).expanduser()))
+    if extra_env:
+        env.update(extra_env)
+
+    proc = subprocess.run(
+        [sys.executable, str(tool), *args],
+        cwd=str(PROJECT_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=timeout_sec,
+        check=False,
+    )
+    combined = "\n".join(part for part in (proc.stdout, proc.stderr) if part)
+    return {
+        "returncode": proc.returncode,
+        "success": proc.returncode == 0,
+        "stdout": proc.stdout,
+        "stderr": proc.stderr,
+        "report": _parse_archiver_report(combined),
+    }
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -321,6 +441,14 @@ class ArchiverService:
             "version": "v50.0",
             "methods": self._methods,
             "methods_description": self._describe_methods(),
+            "super_hybrid": {
+                "seed_bin_available": SUPER_ARCHIVER_TOOL.exists(),
+                "vault_available": VAULT_ARCHIVER_TOOL.exists(),
+                "seed_bin_tool": str(SUPER_ARCHIVER_TOOL),
+                "vault_tool": str(VAULT_ARCHIVER_TOOL),
+                "default_archive_root": str(DEFAULT_ARCHIVE_ROOT),
+                "default_restore_root": str(DEFAULT_RESTORE_ROOT),
+            },
             # Поля для совместимости со старыми UI
             "method": method_name,
             "trained": self._use_native,
@@ -406,5 +534,189 @@ def create_archiver_router() -> object:
     @router.get("/stats")
     def stats_endpoint() -> dict[str, object]:
         return _service.get_stats()
+
+    def as_bool(value: object, default: bool) -> bool:
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() in {"1", "true", "yes", "y", "да"}
+
+    def as_timeout(payload: dict[str, Any]) -> int:
+        try:
+            return max(1, int(payload.get("timeout_sec") or 3600))
+        except (TypeError, ValueError):
+            return 3600
+
+    @router.get("/project/status")
+    def project_archiver_status_endpoint() -> dict[str, object]:
+        return {
+            "success": True,
+            "project_root": str(PROJECT_ROOT),
+            "seed_bin_available": SUPER_ARCHIVER_TOOL.exists(),
+            "vault_available": VAULT_ARCHIVER_TOOL.exists(),
+            "seed_bin_tool": str(SUPER_ARCHIVER_TOOL),
+            "vault_tool": str(VAULT_ARCHIVER_TOOL),
+            "default_archive_root": str(DEFAULT_ARCHIVE_ROOT),
+            "default_restore_root": str(DEFAULT_RESTORE_ROOT),
+        }
+
+    @router.post("/project/pair")
+    def project_pair_endpoint(payload: dict[str, Any] = Body(...)) -> dict[str, object]:
+        """Создать переносимую пару name.seed + name.bin, опционально с roundtrip-проверкой."""
+        try:
+            source_path = _existing_path(payload.get("source_path") or PROJECT_ROOT, "source_path")
+            seed = _safe_seed(payload.get("seed"), source_path.stem if source_path.is_file() else source_path.name)
+            output_dir = _expanded_path(payload.get("output_dir"), DEFAULT_ARCHIVE_ROOT / seed).resolve()
+            restore_dir = _expanded_path(payload.get("restore_dir"), DEFAULT_RESTORE_ROOT / seed).resolve()
+            verify = as_bool(payload.get("verify"), True)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            restore_dir.parent.mkdir(parents=True, exist_ok=True)
+
+            action = "roundtrip" if verify else "pair"
+            args = [action, "--path", str(source_path), "--seed", seed, "--out", str(output_dir)]
+            if verify:
+                args += ["--restore", str(restore_dir)]
+
+            formula_report_path = output_dir / f"{seed}.formula-report.json"
+            result = _run_super_tool(
+                SUPER_ARCHIVER_TOOL,
+                args,
+                seed,
+                extra_env={"KOLIBRI_AGI_FORMULA_REPORT": str(formula_report_path)},
+                timeout_sec=as_timeout(payload),
+            )
+            seed_path = output_dir / f"{seed}.seed"
+            bin_path = output_dir / f"{seed}.bin"
+            result.update({
+                "source_path": str(source_path),
+                "restore_dir": str(restore_dir) if verify else "",
+                "artifacts": {
+                    "seed": _artifact(seed_path),
+                    "bin": _artifact(bin_path),
+                    "formula_report": _artifact(formula_report_path),
+                },
+            })
+            return result
+        except subprocess.TimeoutExpired:
+            return {"success": False, "error": "Kolibri seed+bin operation timed out"}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    @router.post("/project/restore-pair")
+    def project_restore_pair_endpoint(payload: dict[str, Any] = Body(...)) -> dict[str, object]:
+        """Восстановить проект из переносимой пары name.seed + name.bin."""
+        try:
+            seed_path = _existing_path(payload.get("seed_path"), "seed_path")
+            bin_path = _existing_path(payload.get("bin_path"), "bin_path")
+            seed = _safe_seed(payload.get("seed"), seed_path.stem)
+            target_path = _expanded_path(payload.get("target_path"), DEFAULT_RESTORE_ROOT / seed).resolve()
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+
+            result = _run_super_tool(
+                SUPER_ARCHIVER_TOOL,
+                [
+                    "restore-pair",
+                    "--seed",
+                    str(seed_path),
+                    "--bin",
+                    str(bin_path),
+                    "--target",
+                    str(target_path),
+                ],
+                seed,
+                timeout_sec=as_timeout(payload),
+            )
+            result.update({
+                "target_path": str(target_path),
+                "artifacts": {
+                    "seed": _artifact(seed_path),
+                    "bin": _artifact(bin_path),
+                },
+            })
+            return result
+        except subprocess.TimeoutExpired:
+            return {"success": False, "error": "Kolibri restore-pair operation timed out"}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    @router.post("/project/vault")
+    def project_vault_endpoint(payload: dict[str, Any] = Body(...)) -> dict[str, object]:
+        """Создать автономный .klb Vault с meta-formula стратегией."""
+        try:
+            source_path = _existing_path(payload.get("source_path") or PROJECT_ROOT, "source_path")
+            seed = _safe_seed(payload.get("seed"), source_path.stem if source_path.is_file() else source_path.name)
+            vault_path = _expanded_path(payload.get("vault_path"), DEFAULT_ARCHIVE_ROOT / seed / f"{seed}.klb").resolve()
+            vault_path.parent.mkdir(parents=True, exist_ok=True)
+
+            mode = str(payload.get("mode") or "standalone")
+            strategy = str(payload.get("strategy") or "auto")
+            if mode not in {"standalone", "linked"}:
+                return {"success": False, "error": f"unsupported vault mode: {mode}"}
+            if strategy not in {"auto", "embedded_world_model", "materialized_atoms"}:
+                return {"success": False, "error": f"unsupported vault strategy: {strategy}"}
+
+            result = _run_super_tool(
+                VAULT_ARCHIVER_TOOL,
+                [
+                    "create",
+                    str(source_path),
+                    str(vault_path),
+                    "--seed",
+                    seed,
+                    "--mode",
+                    mode,
+                    "--strategy",
+                    strategy,
+                ],
+                seed,
+                timeout_sec=as_timeout(payload),
+            )
+
+            verify_result: dict[str, object] | None = None
+            if result.get("success") and as_bool(payload.get("verify"), True):
+                verify_result = _run_super_tool(
+                    VAULT_ARCHIVER_TOOL,
+                    ["verify", str(vault_path)],
+                    seed,
+                    timeout_sec=as_timeout(payload),
+                )
+
+            result.update({
+                "source_path": str(source_path),
+                "vault_path": str(vault_path),
+                "artifacts": {"vault": _artifact(vault_path)},
+                "verify": verify_result,
+            })
+            return result
+        except subprocess.TimeoutExpired:
+            return {"success": False, "error": "Kolibri vault operation timed out"}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    @router.post("/project/extract-vault")
+    def project_extract_vault_endpoint(payload: dict[str, Any] = Body(...)) -> dict[str, object]:
+        """Восстановить проект из .klb Vault."""
+        try:
+            vault_path = _existing_path(payload.get("vault_path"), "vault_path")
+            seed = _safe_seed(payload.get("seed"), vault_path.stem)
+            target_path = _expanded_path(payload.get("target_path"), DEFAULT_RESTORE_ROOT / seed).resolve()
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+
+            result = _run_super_tool(
+                VAULT_ARCHIVER_TOOL,
+                ["extract", str(vault_path), str(target_path)],
+                seed,
+                timeout_sec=as_timeout(payload),
+            )
+            result.update({
+                "target_path": str(target_path),
+                "artifacts": {"vault": _artifact(vault_path)},
+            })
+            return result
+        except subprocess.TimeoutExpired:
+            return {"success": False, "error": "Kolibri extract-vault operation timed out"}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
 
     return router

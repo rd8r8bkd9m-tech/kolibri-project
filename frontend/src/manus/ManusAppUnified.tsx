@@ -5,18 +5,28 @@
  * Все вкладки в едином стиле Manus.
  */
 
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { ManusLayout, TabId, type ChatHistoryItem } from './ManusLayout';
 import { ChatTab } from './tabs/ChatTab';
-import { CrawlerTab } from './tabs/CrawlerTab';
-import { TasksTab } from './tabs/TasksTab';
-import { KnowledgeTab } from './tabs/KnowledgeTab';
-import { TerminalTab } from './tabs/TerminalTab';
-import { SettingsTab } from './tabs/SettingsTab';
-import { ArchiverTab } from './tabs/ArchiverTab';
-import { VoiceTab } from './tabs/VoiceTab';
+
+const VoiceTab = lazy(() => import('./tabs/VoiceTab').then((module) => ({ default: module.VoiceTab })));
+const CoreTab = lazy(() => import('./tabs/CoreTab').then((module) => ({ default: module.CoreTab })));
+const GPUStoreTab = lazy(() => import('./tabs/GPUStoreTab').then((module) => ({ default: module.GPUStoreTab })));
+const FactoryTab = lazy(() => import('./tabs/FactoryTab').then((module) => ({ default: module.FactoryTab })));
+const CrawlerTab = lazy(() => import('./tabs/CrawlerTab').then((module) => ({ default: module.CrawlerTab })));
+const TasksTab = lazy(() => import('./tabs/TasksTab').then((module) => ({ default: module.TasksTab })));
+const KnowledgeTab = lazy(() => import('./tabs/KnowledgeTab').then((module) => ({ default: module.KnowledgeTab })));
+const TerminalTab = lazy(() => import('./tabs/TerminalTab').then((module) => ({ default: module.TerminalTab })));
+const ArchiverTab = lazy(() => import('./tabs/ArchiverTab').then((module) => ({ default: module.ArchiverTab })));
+const SettingsTab = lazy(() => import('./tabs/SettingsTab').then((module) => ({ default: module.SettingsTab })));
 
 const CHAT_HISTORY_KEY = 'kolibri-chat-history-v1';
+
+const TabLoading = () => (
+  <div className="gx-tab-loading" role="status" aria-live="polite">
+    Загрузка модуля...
+  </div>
+);
 
 function loadChatHistory(): ChatHistoryItem[] {
   try {
@@ -65,10 +75,17 @@ export const ManusAppUnified = () => {
             resetToken={chatResetToken}
             activeChatId={activeChatId}
             onChatActivity={upsertChatHistory}
+            onNavigate={setActiveTab}
           />
         );
       case 'voice':
         return <VoiceTab />;
+      case 'core':
+        return <CoreTab />;
+      case 'gpu':
+        return <GPUStoreTab />;
+      case 'factory':
+        return <FactoryTab />;
       case 'crawler':
         return <CrawlerTab />;
       case 'tasks':
@@ -87,6 +104,7 @@ export const ManusAppUnified = () => {
             resetToken={chatResetToken}
             activeChatId={activeChatId}
             onChatActivity={upsertChatHistory}
+            onNavigate={setActiveTab}
           />
         );
     }
@@ -105,7 +123,7 @@ export const ManusAppUnified = () => {
         setActiveTab('chat');
       }}
     >
-      {renderTab()}
+      <Suspense fallback={<TabLoading />}>{renderTab()}</Suspense>
     </ManusLayout>
   );
 };

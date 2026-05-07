@@ -1,0 +1,153 @@
+- generic [ref=e101]:
+  - complementary [ref=e102]:
+    - generic [ref=e103]:
+      - generic [ref=e104]:
+        - button "Колибри AI Workspace" [ref=e105] [cursor=pointer]:
+          - img [ref=e107]
+          - generic [ref=e110]:
+            - generic [ref=e111]: Колибри
+            - generic [ref=e112]: AI Workspace
+        - button "Свернуть сайдбар" [ref=e113] [cursor=pointer]:
+          - img [ref=e114]
+      - button "Новый чат" [ref=e116] [cursor=pointer]:
+        - img [ref=e117]
+        - generic [ref=e120]: Новый чат
+      - generic "Поиск чатов" [ref=e121]:
+        - img [ref=e122]
+        - textbox "Поиск чатов" [ref=e125]:
+          - /placeholder: Поиск по истории
+    - navigation "Разделы" [ref=e126]:
+      - button "Чаты" [ref=e127] [cursor=pointer]:
+        - img [ref=e129]
+        - generic [ref=e131]: Чаты
+      - button "Компаньоны" [ref=e132] [cursor=pointer]:
+        - img [ref=e134]
+        - generic [ref=e137]: Компаньоны
+      - button "Задачи" [ref=e138] [cursor=pointer]:
+        - img [ref=e140]
+        - generic [ref=e143]: Задачи
+      - button "AI Агент" [active] [ref=e144] [cursor=pointer]:
+        - img [ref=e146]
+        - generic [ref=e149]: AI Агент
+      - button "Знания" [ref=e150] [cursor=pointer]:
+        - img [ref=e152]
+        - generic [ref=e156]: Знания
+      - button "Архиватор" [ref=e157] [cursor=pointer]:
+        - img [ref=e159]
+        - generic [ref=e162]: Архиватор
+      - button "Терминал" [ref=e163] [cursor=pointer]:
+        - img [ref=e165]
+        - generic [ref=e167]: Терминал
+      - button "Настройки" [ref=e168] [cursor=pointer]:
+        - img [ref=e170]
+        - generic [ref=e173]: Настройки
+    - region "История чатов" [ref=e174]:
+      - generic [ref=e175]:
+        - generic [ref=e176]: История
+        - generic [ref=e177]: "0"
+      - paragraph [ref=e178]: Начните новый диалог
+  - main [ref=e179]:
+    - generic [ref=e181]:
+      - generic [ref=e182]:
+        - generic [ref=e183]:
+          - img [ref=e186]
+          - generic [ref=e189]:
+            - heading "Колибри Learning Agent" [level=1] [ref=e190]
+            - paragraph [ref=e191]: Автономное обучение из интернета — поиск, загрузка, обучение
+        - generic [ref=e192]:
+          - button "Тема" [ref=e193] [cursor=pointer]:
+            - img [ref=e194]
+            - text: Тема
+          - button "URL" [ref=e198] [cursor=pointer]:
+            - img [ref=e199]
+            - text: URL
+      - generic [ref=e202]:
+        - generic [ref=e203]:
+          - generic [ref=e204]:
+            - generic [ref=e205]:
+              - img [ref=e206]
+              - generic [ref=e210]: Как пользоваться
+            - list [ref=e211]:
+              - listitem [ref=e212]:
+                - text: "Выберите режим:"
+                - strong [ref=e213]: Тема
+                - text: или
+                - strong [ref=e214]: URL
+                - text: .
+              - listitem [ref=e215]:
+                - text: Заполните поле и нажмите
+                - strong [ref=e216]: Запустить
+                - text: .
+              - listitem [ref=e217]: "Следите за прогрессом справа: фаза, статистика, источники и лог."
+          - generic [ref=e218]:
+            - generic [ref=e219]:
+              - img [ref=e220]
+              - text: Тема для изучения
+            - generic [ref=e223]:
+              - img [ref=e224]
+              - textbox "Квантовые вычисления, AI, космос..." [ref=e228]
+          - generic [ref=e229]:
+            - generic [ref=e230]: Быстрый выбор темы
+            - generic [ref=e231]:
+              - button "🤖 Искусственный интеллект" [ref=e232] [cursor=pointer]:
+                - generic [ref=e233]: 🤖
+                - generic [ref=e234]: Искусственный интеллект
+              - button "⚛️ Квантовые вычисления" [ref=e235] [cursor=pointer]:
+                - generic [ref=e236]: ⚛️
+                - generic [ref=e237]: Квантовые вычисления
+              - button "🧠 Нейронные сети" [ref=e238] [cursor=pointer]:
+                - generic [ref=e239]: 🧠
+                - generic [ref=e240]: Нейронные сети
+              - button "🚀 Космос и астрономия" [ref=e241] [cursor=pointer]:
+                - generic [ref=e242]: 🚀
+                - generic [ref=e243]: Космос и астрономия
+              - button "🔗 Блокчейн и крипто" [ref=e244] [cursor=pointer]:
+                - generic [ref=e245]: 🔗
+                - generic [ref=e246]: Блокчейн и крипто
+              - button "🤖 Робототехника" [ref=e247] [cursor=pointer]:
+                - generic [ref=e248]: 🤖
+                - generic [ref=e249]: Робототехника
+              - button "🧬 Генетика и биотех" [ref=e250] [cursor=pointer]:
+                - generic [ref=e251]: 🧬
+                - generic [ref=e252]: Генетика и биотех
+              - button "🛡️ Кибербезопасность" [ref=e253] [cursor=pointer]:
+                - generic [ref=e254]: 🛡️
+                - generic [ref=e255]: Кибербезопасность
+              - button "📦 Компрессия данных" [ref=e256] [cursor=pointer]:
+                - generic [ref=e257]: 📦
+                - generic [ref=e258]: Компрессия данных
+              - button "💻 Операционные системы" [ref=e259] [cursor=pointer]:
+                - generic [ref=e260]: 💻
+                - generic [ref=e261]: Операционные системы
+          - generic [ref=e262]:
+            - generic [ref=e263]: Параметры поиска
+            - generic [ref=e265]:
+              - generic [ref=e266]: Макс. страниц
+              - generic [ref=e267]:
+                - slider [ref=e268]: "25"
+                - generic [ref=e269]: "25"
+          - button "Запустить агента" [disabled] [ref=e270]:
+            - img [ref=e271]
+            - text: Запустить агента
+          - generic [ref=e273]:
+            - generic [ref=e274]:
+              - img [ref=e275]
+              - generic [ref=e279]: Текущая модель
+              - button [ref=e280] [cursor=pointer]:
+                - img [ref=e281]
+            - generic [ref=e286]:
+              - generic [ref=e288]:
+                - generic [ref=e289]: Паттерны
+                - generic [ref=e290]: 0 / 131,072
+              - generic [ref=e293]:
+                - generic [ref=e294]: Связи
+                - generic [ref=e295]: 0 / 262,144
+            - generic [ref=e297]: 27.31 МБ / 50 МБ
+        - generic [ref=e299]:
+          - img [ref=e302]
+          - heading "Колибри Learning Agent" [level=3] [ref=e305]
+          - paragraph [ref=e306]: Введите тему — агент найдёт страницы в DuckDuckGo, Bing и Wikipedia, загрузит их, извлечёт текст и обучит модель автоматически
+          - generic [ref=e307]:
+            - generic [ref=e308]: DuckDuckGo
+            - generic [ref=e309]: Bing
+            - generic [ref=e310]: Wikipedia

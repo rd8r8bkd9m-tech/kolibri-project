@@ -1,4 +1,4 @@
-const CACHE_VERSION = "kolibri-pwa-v2-20260213";
+const CACHE_VERSION = "kolibri-pwa-v3-20260213";
 const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/kolibri.svg", "/favicon.ico"];
 
 self.addEventListener("install", (event) => {

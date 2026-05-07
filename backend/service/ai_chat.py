@@ -20,6 +20,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from .ai_engine import get_engine
+from .gpu_store import DEFAULT_DIMS, search_text_documents
 from .number_mind import (
     KLM_PATTERN_SIZE,
     GENE_SIZE,
@@ -46,6 +47,18 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4096)
     conversation_id: Optional[str] = Field(default=None)
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    use_gpu_context: bool = True
+    gpu_context_limit: int = Field(default=3, ge=0, le=10)
+
+
+class GpuContextHit(BaseModel):
+    doc_id: int
+    score: float
+    path: str
+    sha256: str = ""
+    cls: str = Field(default="", alias="class")
+    bytes: int = 0
+    snippet: str = ""
 
 
 class ChatResponse(BaseModel):
@@ -53,6 +66,8 @@ class ChatResponse(BaseModel):
     confidence: float
     conversation_id: str
     sources: list[str]
+    gpu_context: list[GpuContextHit] = Field(default_factory=list)
+    web_sources: Optional[list[dict]] = None
     knowledge_hits: int
     method: str
     duration_ms: float
@@ -203,6 +218,36 @@ class EmbeddingCompareResponse(BaseModel):
 # Числовые Embeddings (через DJB2 паттерны)
 # ---------------------------------------------------------------------------
 
+
+def _gpu_context_for_message(message: str, limit: int) -> list[dict]:
+    if limit <= 0:
+        return []
+    try:
+        hits = search_text_documents(message, limit=limit, dims=DEFAULT_DIMS, min_score=0.05)
+    except Exception:
+        return []
+    return [hit for hit in hits if str(hit.get("snippet") or "").strip()]
+
+
+def _message_with_gpu_context(message: str, context_hits: list[dict]) -> str:
+    if not context_hits:
+        return message
+
+    blocks = [
+        "GPU Store context:",
+        "Use these retrieved local documents when they are relevant. Do not invent facts outside them.",
+    ]
+    for index, hit in enumerate(context_hits, start=1):
+        blocks.append(
+            "\n".join(
+                [
+                    f"[{index}] path={hit.get('path', '')} score={hit.get('score', 0)} class={hit.get('class', '')}",
+                    str(hit.get("snippet") or "")[:900],
+                ]
+            )
+        )
+    return "\n\n".join([*blocks, f"User question:\n{message}"])
+
 def _numeric_embedding(text: str, dims: int = 64) -> list[float]:
     """
     Embedding на основе числовых паттернов Kolibri.
@@ -255,22 +300,45 @@ async def ai_chat(req: ChatRequest) -> ChatResponse:
     - Статистику графа знаний
     """
     engine = get_engine()
+    gpu_context = _gpu_context_for_message(req.message, req.gpu_context_limit) if req.use_gpu_context else []
+    engine_message = _message_with_gpu_context(req.message, gpu_context)
     try:
         result = await asyncio.to_thread(
             engine.chat,
-            message=req.message,
+            message=engine_message,
             conversation_id=req.conversation_id,
             temperature=req.temperature,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI engine error: {e}")
 
+    sources = list(result.get("sources", []))
+    for hit in gpu_context:
+        source = f"gpu:{hit.get('path', '')}"
+        if source not in sources:
+            sources.append(source)
+
     return ChatResponse(
         response=result["response"],
         confidence=result.get("confidence", 0.0),
         conversation_id=result.get("conversation_id", ""),
-        sources=result.get("sources", []),
-        knowledge_hits=result.get("knowledge_hits", 0),
+        sources=sources,
+        gpu_context=[
+            GpuContextHit(
+                doc_id=int(hit.get("doc_id", 0)),
+                score=float(hit.get("score", 0.0)),
+                path=str(hit.get("path", "")),
+                sha256=str(hit.get("sha256", "")),
+                **{
+                    "class": str(hit.get("class", "")),
+                    "bytes": int(hit.get("bytes", 0)),
+                    "snippet": str(hit.get("snippet", ""))[:600],
+                },
+            )
+            for hit in gpu_context
+        ],
+        web_sources=result.get("web_sources"),
+        knowledge_hits=int(result.get("knowledge_hits", 0)) + len(gpu_context),
         method=result.get("method", "unknown"),
         duration_ms=result.get("duration_ms", 0.0),
         model_available=result.get("model_available", False),
@@ -291,6 +359,8 @@ async def ai_chat_stream(req: ChatRequest) -> StreamingResponse:
     - event: done     — полный результат (JSON)
     """
     engine = get_engine()
+    gpu_context = _gpu_context_for_message(req.message, req.gpu_context_limit) if req.use_gpu_context else []
+    engine_message = _message_with_gpu_context(req.message, gpu_context)
 
     async def stream_generator():
         # Фаза 1: CoT thinking
@@ -310,7 +380,7 @@ async def ai_chat_stream(req: ChatRequest) -> StreamingResponse:
         try:
             result = await asyncio.to_thread(
                 engine.chat,
-                message=req.message,
+                message=engine_message,
                 conversation_id=req.conversation_id,
                 temperature=req.temperature,
             )
@@ -331,8 +401,19 @@ async def ai_chat_stream(req: ChatRequest) -> StreamingResponse:
             "confidence": result.get("confidence", 0.0),
             "method": result.get("method", "unknown"),
             "duration_ms": result.get("duration_ms", 0.0),
-            "knowledge_hits": result.get("knowledge_hits", 0),
+            "knowledge_hits": int(result.get("knowledge_hits", 0)) + len(gpu_context),
             "conversation_id": result.get("conversation_id", ""),
+            "gpu_context": [
+                {
+                    "doc_id": hit.get("doc_id", 0),
+                    "score": hit.get("score", 0.0),
+                    "path": hit.get("path", ""),
+                    "class": hit.get("class", ""),
+                    "bytes": hit.get("bytes", 0),
+                    "snippet": str(hit.get("snippet", ""))[:600],
+                }
+                for hit in gpu_context
+            ],
             "cached": result.get("cached", False),
         }
         yield f"event: done\ndata: {json.dumps(done_data, ensure_ascii=False)}\n\n"

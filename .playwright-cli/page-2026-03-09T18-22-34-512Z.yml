@@ -1,0 +1,195 @@
+- generic [ref=e101]:
+  - complementary [ref=e102]:
+    - generic [ref=e103]:
+      - generic [ref=e104]:
+        - button "Колибри AI Workspace" [ref=e105] [cursor=pointer]:
+          - img [ref=e107]
+          - generic [ref=e110]:
+            - generic [ref=e111]: Колибри
+            - generic [ref=e112]: AI Workspace
+        - button "Свернуть сайдбар" [ref=e113] [cursor=pointer]:
+          - img [ref=e114]
+      - button "Новый чат" [ref=e116] [cursor=pointer]:
+        - img [ref=e117]
+        - generic [ref=e120]: Новый чат
+      - generic "Поиск чатов" [ref=e121]:
+        - img [ref=e122]
+        - textbox "Поиск чатов" [ref=e125]:
+          - /placeholder: Поиск по истории
+    - navigation "Разделы" [ref=e126]:
+      - button "Чаты" [ref=e127] [cursor=pointer]:
+        - img [ref=e129]
+        - generic [ref=e131]: Чаты
+      - button "Компаньоны" [ref=e132] [cursor=pointer]:
+        - img [ref=e134]
+        - generic [ref=e137]: Компаньоны
+      - button "Задачи" [ref=e138] [cursor=pointer]:
+        - img [ref=e140]
+        - generic [ref=e143]: Задачи
+      - button "AI Агент" [ref=e144] [cursor=pointer]:
+        - img [ref=e146]
+        - generic [ref=e149]: AI Агент
+      - button "Знания" [ref=e150] [cursor=pointer]:
+        - img [ref=e152]
+        - generic [ref=e156]: Знания
+      - button "Архиватор" [ref=e157] [cursor=pointer]:
+        - img [ref=e159]
+        - generic [ref=e162]: Архиватор
+      - button "Терминал" [ref=e163] [cursor=pointer]:
+        - img [ref=e165]
+        - generic [ref=e167]: Терминал
+      - button "Настройки" [ref=e168] [cursor=pointer]:
+        - img [ref=e170]
+        - generic [ref=e173]: Настройки
+    - region "История чатов" [ref=e174]:
+      - generic [ref=e175]:
+        - generic [ref=e176]: История
+        - generic [ref=e177]: "1"
+      - 'button "К какая погода в москве Балет для всей семьи: куда сходить в Москве. Источники: www.gismeteo.ru 21:21" [ref=e620] [cursor=pointer]':
+        - generic [ref=e462]: К
+        - generic [ref=e463]:
+          - generic [ref=e464]: какая погода в москве
+          - generic [ref=e465]: "Балет для всей семьи: куда сходить в Москве. Источники: www.gismeteo.ru"
+        - generic [ref=e466]: 21:21
+  - main [ref=e179]:
+    - generic [ref=e393]:
+      - generic [ref=e394]:
+        - generic [ref=e395]:
+          - heading "Колибри AI" [level=1] [ref=e396]
+          - paragraph [ref=e397]: Готово к запросу
+          - tablist "Режим ответа" [ref=e398]:
+            - tab "Auto" [ref=e399] [cursor=pointer]
+            - tab "Глубоко" [selected] [ref=e400] [cursor=pointer]
+            - tab "Креатив" [ref=e401] [cursor=pointer]
+        - generic [ref=e402]:
+          - button "Очистить" [ref=e403] [cursor=pointer]:
+            - img [ref=e404]
+            - generic [ref=e407]: Очистить
+          - button "Запустить голосовой ввод" [ref=e408] [cursor=pointer]:
+            - img [ref=e673]
+            - generic [ref=e412]: Голос
+          - button "Отключить автоозвучку" [ref=e413] [cursor=pointer]:
+            - img [ref=e414]
+            - generic [ref=e418]: Озвучка ON
+      - log [ref=e419]:
+        - generic [ref=e420]:
+          - article [ref=e467]:
+            - paragraph [ref=e469]: Сделай быстрый статус backend и frontend.
+          - article [ref=e470]:
+            - img [ref=e472]
+            - generic [ref=e475]:
+              - paragraph [ref=e476]:
+                - text: 🟢
+                - strong [ref=e477]: Kolibri AI — Числовое Мышление
+              - paragraph [ref=e478]:
+                - text: "• Граф:"
+                - strong [ref=e479]: 25,663
+                - text: паттернов,
+                - strong [ref=e480]: 253,199
+                - text: "рёбер • Предложений:"
+                - strong [ref=e481]: 8,825
+                - text: "• Формулы: поколение"
+                - strong [ref=e482]: "338"
+                - text: "• C-модель:"
+                - strong [ref=e483]: ❌
+                - text: "• Диалогов:"
+                - strong [ref=e484]: "2"
+                - text: "• Движок:"
+                - strong [ref=e485]: Числовое Формульное Мышление
+              - generic [ref=e486]:
+                - button [ref=e487] [cursor=pointer]:
+                  - img [ref=e488]
+                - button [ref=e491] [cursor=pointer]:
+                  - img [ref=e492]
+                - button [ref=e498] [cursor=pointer]:
+                  - img [ref=e499]
+                - button [ref=e501] [cursor=pointer]:
+                  - img [ref=e502]
+                - button [ref=e504] [cursor=pointer]:
+                  - img [ref=e676]
+                - button [ref=e507] [cursor=pointer]:
+                  - img [ref=e508]
+                - button [ref=e513] [cursor=pointer]:
+                  - img [ref=e514]
+          - article [ref=e552]:
+            - paragraph [ref=e554]: что такое python
+          - article [ref=e573]:
+            - img [ref=e575]
+            - generic [ref=e578]:
+              - paragraph [ref=e579]: У меня пока недостаточно знаний по этой теме. Обучите меня — отправьте текст или URL для обучения.
+              - generic [ref=e580]:
+                - button [ref=e581] [cursor=pointer]:
+                  - img [ref=e582]
+                - button [ref=e585] [cursor=pointer]:
+                  - img [ref=e586]
+                - button [ref=e592] [cursor=pointer]:
+                  - img [ref=e593]
+                - button [ref=e595] [cursor=pointer]:
+                  - img [ref=e596]
+                - button [ref=e598] [cursor=pointer]:
+                  - img [ref=e680]
+                - button [ref=e601] [cursor=pointer]:
+                  - img [ref=e602]
+                - button [ref=e607] [cursor=pointer]:
+                  - img [ref=e608]
+          - article [ref=e625]:
+            - paragraph [ref=e627]: какая погода в москве
+          - article [ref=e628]:
+            - img [ref=e630]
+            - generic [ref=e633]:
+              - paragraph [ref=e634]: "Балет для всей семьи: куда сходить в Москве."
+              - paragraph [ref=e635]:
+                - text: "Источники:"
+                - link "www.gismeteo.ru" [ref=e636] [cursor=pointer]:
+                  - /url: http://www.gismeteo.ru
+              - generic [ref=e637]:
+                - button [ref=e638] [cursor=pointer]:
+                  - img [ref=e639]
+                - button [ref=e642] [cursor=pointer]:
+                  - img [ref=e643]
+                - button [ref=e649] [cursor=pointer]:
+                  - img [ref=e650]
+                - button [ref=e652] [cursor=pointer]:
+                  - img [ref=e653]
+                - button [ref=e655] [cursor=pointer]:
+                  - img [ref=e684]
+                - button [ref=e658] [cursor=pointer]:
+                  - img [ref=e659]
+                - button [ref=e664] [cursor=pointer]:
+                  - img [ref=e665]
+          - generic [ref=e518]:
+            - heading "Как прошёл твой звонок?" [level=3] [ref=e519]
+            - generic [ref=e520]:
+              - button "😡" [ref=e521] [cursor=pointer]:
+                - generic [ref=e522]: 😡
+              - button "😔" [ref=e524] [cursor=pointer]:
+                - generic [ref=e525]: 😔
+              - button "😐" [ref=e527] [cursor=pointer]:
+                - generic [ref=e528]: 😐
+              - button "🙂" [ref=e530] [cursor=pointer]:
+                - generic [ref=e531]: 🙂
+              - button "😁" [ref=e533] [cursor=pointer]:
+                - generic [ref=e534]: 😁
+          - generic [ref=e536]:
+            - button "Уточни ключевой вывод" [ref=e537] [cursor=pointer]
+            - button "Сделай краткую версию" [ref=e538] [cursor=pointer]
+            - button "Продолжай" [ref=e539] [cursor=pointer]
+      - generic [ref=e433]:
+        - button "Think harder" [ref=e541] [cursor=pointer]:
+          - img [ref=e542]
+          - generic [ref=e547]: Think harder
+        - generic [ref=e434]:
+          - textbox "Спрашивай что угодно" [active] [ref=e435]: кто создал колибри
+          - generic [ref=e436]:
+            - generic [ref=e437]:
+              - button "Прикрепить файл" [ref=e438] [cursor=pointer]:
+                - img [ref=e439]
+              - button "Auto" [ref=e442] [cursor=pointer]:
+                - img [ref=e443]
+                - generic [ref=e448]: Auto
+            - generic [ref=e449]:
+              - button "Голосовой ввод" [ref=e450] [cursor=pointer]:
+                - img [ref=e688]
+              - button "Отправить сообщение" [ref=e691] [cursor=pointer]:
+                - img [ref=e692]
+                - generic [ref=e459]: Отправить

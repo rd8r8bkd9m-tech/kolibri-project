@@ -19,13 +19,15 @@ const CodeBlock = ({ className, children }: { className?: string; children?: Rea
   const lang = className?.replace('language-', '') || '';
   const code = String(children).replace(/\n$/, '');
 
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {}
-  }, [code]);
+	  const handleCopy = useCallback(async () => {
+	    try {
+	      await navigator.clipboard.writeText(code);
+	      setCopied(true);
+	      setTimeout(() => setCopied(false), 2000);
+	    } catch {
+	      // ignore clipboard errors
+	    }
+	  }, [code]);
 
   return (
     <div style={{ margin: '12px 0', borderRadius: 'var(--m-radius-md)', overflow: 'hidden', border: '1px solid var(--m-border)' }}>

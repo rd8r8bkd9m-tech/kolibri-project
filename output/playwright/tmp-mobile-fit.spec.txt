@@ -1,0 +1,43 @@
+import { test, devices, expect } from '@playwright/test';
+
+test.use({ ...devices['iPhone 12'] });
+
+async function getMetrics(page: any) {
+  return await page.evaluate(() => {
+    const viewW = window.innerWidth;
+    const fullW = Math.max(document.documentElement.scrollWidth, document.body ? document.body.scrollWidth : 0);
+    return { viewW, fullW, overflow: fullW - viewW };
+  });
+}
+
+test('mobile fit checks', async ({ page }) => {
+  await page.goto('http://127.0.0.1:4174/', { waitUntil: 'networkidle' });
+  await page.waitForTimeout(900);
+
+  const chat = await getMetrics(page);
+  console.log('CHAT', chat);
+  expect(chat.fullW).toBeLessThanOrEqual(chat.viewW + 1);
+
+  await page.getByRole('button', { name: 'Открыть меню' }).click();
+  await page.getByRole('button', { name: 'Задачи' }).click();
+  await page.waitForSelector('h1:has-text("Задачи")');
+  const tasks = await getMetrics(page);
+  console.log('TASKS', tasks);
+  expect(tasks.fullW).toBeLessThanOrEqual(tasks.viewW + 1);
+
+  await page.getByRole('button', { name: 'Закрыть' }).click();
+  await page.waitForTimeout(250);
+
+  await page.getByRole('button', { name: 'Открыть меню' }).click();
+  await page.getByRole('button', { name: 'Настройки' }).click();
+  await page.waitForSelector('h1:has-text("Настройки")');
+  const settings = await getMetrics(page);
+  console.log('SETTINGS', settings);
+  expect(settings.fullW).toBeLessThanOrEqual(settings.viewW + 1);
+
+  await page.getByRole('button', { name: 'Оформление' }).click();
+  await page.waitForSelector('h1:has-text("Оформление")');
+  const appearance = await getMetrics(page);
+  console.log('APPEARANCE', appearance);
+  expect(appearance.fullW).toBeLessThanOrEqual(appearance.viewW + 1);
+});

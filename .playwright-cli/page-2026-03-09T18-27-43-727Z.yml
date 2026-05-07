@@ -1,0 +1,93 @@
+- generic [ref=e101]:
+  - complementary [ref=e102]:
+    - generic [ref=e103]:
+      - generic [ref=e104]:
+        - button "Колибри AI Workspace" [ref=e105] [cursor=pointer]:
+          - img [ref=e107]
+          - generic [ref=e110]:
+            - generic [ref=e111]: Колибри
+            - generic [ref=e112]: AI Workspace
+        - button "Свернуть сайдбар" [ref=e113] [cursor=pointer]:
+          - img [ref=e114]
+      - button "Новый чат" [ref=e116] [cursor=pointer]:
+        - img [ref=e117]
+        - generic [ref=e120]: Новый чат
+      - generic "Поиск чатов" [ref=e121]:
+        - img [ref=e122]
+        - textbox "Поиск чатов" [ref=e125]:
+          - /placeholder: Поиск по истории
+    - navigation "Разделы" [ref=e126]:
+      - button "Чаты" [ref=e127] [cursor=pointer]:
+        - img [ref=e129]
+        - generic [ref=e131]: Чаты
+      - button "Компаньоны" [ref=e132] [cursor=pointer]:
+        - img [ref=e134]
+        - generic [ref=e137]: Компаньоны
+      - button "Задачи" [ref=e138] [cursor=pointer]:
+        - img [ref=e140]
+        - generic [ref=e143]: Задачи
+      - button "AI Агент" [ref=e144] [cursor=pointer]:
+        - img [ref=e146]
+        - generic [ref=e149]: AI Агент
+      - button "Знания" [ref=e150] [cursor=pointer]:
+        - img [ref=e152]
+        - generic [ref=e156]: Знания
+      - button "Архиватор" [ref=e157] [cursor=pointer]:
+        - img [ref=e159]
+        - generic [ref=e162]: Архиватор
+      - button "Терминал" [ref=e163] [cursor=pointer]:
+        - img [ref=e165]
+        - generic [ref=e167]: Терминал
+      - button "Настройки" [ref=e168] [cursor=pointer]:
+        - img [ref=e170]
+        - generic [ref=e173]: Настройки
+    - region "История чатов" [ref=e174]:
+      - generic [ref=e175]:
+        - generic [ref=e176]: История
+        - generic [ref=e177]: "0"
+      - paragraph [ref=e178]: Начните новый диалог
+  - main [ref=e179]:
+    - generic [ref=e181]:
+      - generic [ref=e182]:
+        - generic [ref=e183]:
+          - heading "Колибри AI" [level=1] [ref=e184]
+          - paragraph [ref=e185]: Готово к запросу
+          - tablist "Режим ответа" [ref=e186]:
+            - tab "Auto" [selected] [ref=e187] [cursor=pointer]
+            - tab "Глубоко" [ref=e188] [cursor=pointer]
+            - tab "Креатив" [ref=e189] [cursor=pointer]
+        - generic [ref=e190]:
+          - button "Очистить" [ref=e191] [cursor=pointer]:
+            - img [ref=e192]
+            - generic [ref=e195]: Очистить
+          - button "Запустить голосовой ввод" [ref=e196] [cursor=pointer]:
+            - img [ref=e197]
+            - generic [ref=e200]: Голос
+          - button "Отключить автоозвучку" [ref=e201] [cursor=pointer]:
+            - img [ref=e202]
+            - generic [ref=e206]: Озвучка ON
+      - log [ref=e207]:
+        - generic [ref=e209]:
+          - img [ref=e211]
+          - generic [ref=e214]:
+            - heading "Чем помочь в этом чате?" [level=2] [ref=e215]
+            - generic [ref=e216]:
+              - button "Сделай быстрый статус backend и frontend." [ref=e217] [cursor=pointer]
+              - button "Покажи 5 рисков текущей архитектуры и решения." [ref=e218] [cursor=pointer]
+              - button "Обучи модель на https://en.wikipedia.org/wiki/Neural_network" [ref=e219] [cursor=pointer]
+              - button "Составь план релиза на эту неделю." [ref=e220] [cursor=pointer]
+      - generic [ref=e222]:
+        - textbox "Спрашивай что угодно" [active] [ref=e223]: кто создал колибри
+        - generic [ref=e224]:
+          - generic [ref=e225]:
+            - button "Прикрепить файл" [ref=e226] [cursor=pointer]:
+              - img [ref=e227]
+            - button "Auto" [ref=e230] [cursor=pointer]:
+              - img [ref=e231]
+              - generic [ref=e236]: Auto
+          - generic [ref=e237]:
+            - button "Голосовой ввод" [ref=e238] [cursor=pointer]:
+              - img [ref=e239]
+            - button "Отправить сообщение" [ref=e248] [cursor=pointer]:
+              - img [ref=e249]
+              - generic [ref=e247]: Отправить

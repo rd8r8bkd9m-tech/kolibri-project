@@ -1,7 +1,8 @@
 /**
  * App.tsx
  *
- * Точка входа: лендинг + основное приложение.
+ * Точка входа: основное приложение.
+ * Лендинг оставлен только как явный режим: /?landing=1.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -21,21 +22,8 @@ const shouldShowLandingInitially = (): boolean => {
   if (params.get("landing") === "1") {
     return true;
   }
-  if (params.get("app") === "1") {
-    return false;
-  }
 
-  // На мобильных устройствах запускаем сразу приложение:
-  // лендинг добавлял лишний шаг и мешал быстрому входу в чат.
-  if (typeof window.matchMedia === "function" && window.matchMedia("(max-width: 900px)").matches) {
-    return false;
-  }
-
-  try {
-    return localStorage.getItem(LANDING_STORAGE_KEY) !== "1";
-  } catch {
-    return true;
-  }
+  return false;
 };
 
 const App = () => {

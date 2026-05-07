@@ -114,8 +114,16 @@ typedef struct {
     char domain_name[KOLIBRI_DOMAIN_NAME_MAX];
 } KolibriFormula;
 
-/* Начальный размер пула формул (дальше растёт динамически, без лимита) */
+/* Начальные размеры пула в браузере должны быть скромнее: одна формула уже занимает ~4 МБ. */
+#if defined(__EMSCRIPTEN__)
+#define KOLIBRI_FORMULA_INITIAL_CAPACITY 1
+#define KOLIBRI_POOL_EXAMPLES_INITIAL_CAPACITY 128
+#define KOLIBRI_POOL_ASSOC_INITIAL_CAPACITY 128
+#else
 #define KOLIBRI_FORMULA_INITIAL_CAPACITY 16
+#define KOLIBRI_POOL_EXAMPLES_INITIAL_CAPACITY 1000
+#define KOLIBRI_POOL_ASSOC_INITIAL_CAPACITY 1000
+#endif
 
 typedef struct {
     KolibriFormula *formulas;   /* Динамический массив формул (безлимитный) */

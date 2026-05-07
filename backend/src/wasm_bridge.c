@@ -17,7 +17,14 @@ static int bridge_ensure_initialized(void) {
     }
 
     kf_pool_init(&g_pool, 424242ULL);
+    if (!g_pool.formulas || g_pool.count == 0) {
+        if (kf_pool_add_domain_formula(&g_pool, KOLIBRI_DOMAIN_GENERAL, "bridge-default") != 0) {
+            kf_pool_free(&g_pool);
+            return -1;
+        }
+    }
     if (ks_init(&g_script, &g_pool, NULL) != 0) {
+        kf_pool_free(&g_pool);
         return -1;
     }
 
@@ -33,6 +40,7 @@ int kolibri_bridge_init(void) {
 int kolibri_bridge_reset(void) {
     if (g_bridge_ready) {
         ks_free(&g_script);
+        kf_pool_free(&g_pool);
         g_bridge_ready = 0;
     }
     return bridge_ensure_initialized();

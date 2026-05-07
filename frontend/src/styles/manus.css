@@ -341,6 +341,16 @@ select {
   overflow: hidden;
 }
 
+.gx-tab-loading {
+  height: 100%;
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted, #8b9ba8);
+  font-size: 14px;
+}
+
 .gx-mobile-overlay {
   display: none;
 }
@@ -610,6 +620,59 @@ select {
   font-size: 12px;
 }
 
+.gx-gpu-context {
+  margin-top: 12px;
+  max-width: 720px;
+  border: 1px solid var(--border-primary, rgba(220, 235, 250, 0.12));
+  border-radius: 8px;
+  background: var(--bg-card, #0f1720);
+  overflow: hidden;
+}
+
+.gx-gpu-context-head {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  color: var(--accent-primary, #00d2c9);
+  font-size: 12px;
+  font-weight: 700;
+  border-bottom: 1px solid var(--border-primary, rgba(220, 235, 250, 0.12));
+}
+
+.gx-gpu-context-list {
+  display: grid;
+  gap: 1px;
+  background: var(--border-primary, rgba(220, 235, 250, 0.12));
+}
+
+.gx-gpu-context-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  background: var(--bg-tertiary, #101923);
+  padding: 9px 10px;
+}
+
+.gx-gpu-context-item strong {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.gx-gpu-context-item span {
+  color: var(--accent-primary, #00d2c9);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.gx-gpu-context-item p {
+  grid-column: 1 / -1;
+  color: var(--text-muted, #8b9ba8);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .gx-message-action-row {
   margin-top: 12px;
   display: inline-flex;
@@ -714,6 +777,58 @@ select {
 
 .gx-followup-item:hover {
   background: var(--bg-hover, #151f2b);
+}
+
+.gx-cta-row {
+  width: min(980px, 100%);
+  margin: 0 auto;
+  display: none;
+  gap: 12px;
+}
+
+.gx-cta-btn {
+  flex: 1;
+  min-height: 58px;
+  border-radius: 999px;
+  border: 1px solid var(--border-primary, rgba(220, 235, 250, 0.12));
+  background: var(--bg-tertiary, #101923);
+  color: var(--text-primary, #e8f0f7);
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: calc(18px * var(--kolibri-font-scale, 1));
+  font-weight: 700;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.gx-cta-btn:hover {
+  background: var(--bg-hover, #151f2b);
+}
+
+.gx-cta-btn.gx-cta-pro {
+  border-color: color-mix(in srgb, var(--brand-secondary, #5b8eff) 44%, transparent);
+  background: linear-gradient(
+    140deg,
+    color-mix(in srgb, var(--brand-secondary, #5b8eff) 34%, transparent),
+    color-mix(in srgb, var(--brand-primary, #35ddd3) 20%, transparent)
+  );
+}
+
+.gx-cta-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--brand-primary, #35ddd3) 50%, transparent);
+  background: color-mix(in srgb, var(--brand-primary, #35ddd3) 16%, transparent);
+  flex-shrink: 0;
 }
 
 .gx-composer-wrap {
@@ -1099,6 +1214,39 @@ select {
     text-align: left;
   }
 
+  .gx-mobile-module-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .gx-mobile-module {
+    min-height: 46px;
+    border: 1px solid var(--border-primary, rgba(220, 235, 250, 0.12));
+    border-radius: 8px;
+    background: var(--bg-tertiary, #101923);
+    color: var(--text-secondary, #b2c0cd);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .gx-mobile-module.is-active {
+    border-color: var(--border-accent, rgba(0, 210, 201, 0.44));
+    background: var(--accent-bg, rgba(0, 210, 201, 0.14));
+    color: var(--text-primary, #e8f0f7);
+  }
+
+  .gx-mobile-module svg {
+    width: 17px;
+    height: 17px;
+    flex-shrink: 0;
+  }
+
   .gx-mobile-conversations-head {
     display: flex;
     align-items: center;
@@ -1228,6 +1376,17 @@ select {
     border-radius: 9px;
   }
 
+  .gx-cta-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .gx-cta-btn {
+    min-height: 54px;
+    font-size: calc(16px * var(--kolibri-font-scale, 1));
+    padding: 0 14px;
+  }
+
   .gx-call-feedback h3 {
     font-size: calc(20px * var(--kolibri-font-scale, 1));
   }
@@ -1337,6 +1496,13 @@ select {
 
   .gx-mobile-conversation-time {
     font-size: clamp(12px, 3.6vw, 14px);
+  }
+
+  .gx-cta-btn {
+    min-height: 52px;
+    font-size: calc(15px * var(--kolibri-font-scale, 1));
+    padding: 0 12px;
+    gap: 8px;
   }
 }
 

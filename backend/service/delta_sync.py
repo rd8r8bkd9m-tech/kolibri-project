@@ -391,6 +391,8 @@ class DeltaApplyRequest(BaseModel):
 
 
 class SyncStatusResponse(BaseModel):
+    enabled: bool = True
+    detail: str | None = None
     node_id: str
     global_version: int
     peers: int
@@ -499,11 +501,14 @@ async def sync_with_all(_auth: None = Depends(require_swarm_token)) -> dict:
 
 
 @router.get("/status", response_model=SyncStatusResponse)
-async def sync_status(_auth: None = Depends(require_swarm_token)) -> SyncStatusResponse:
+async def sync_status() -> SyncStatusResponse:
     """Статус синхронизации."""
     mgr = get_sync_manager()
     s = mgr.stats
+    token_configured = bool(os.getenv("KOLIBRI_SWARM_TOKEN", "").strip())
     return SyncStatusResponse(
+        enabled=token_configured,
+        detail=None if token_configured else "KOLIBRI_SWARM_TOKEN is not configured",
         node_id=mgr.node_id,
         global_version=s["global_version"],
         peers=s["peers"],

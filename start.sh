@@ -17,6 +17,7 @@ LOGDIR="$ROOT/logs"
 RUNDIR="$ROOT/.run"
 BACKEND_PIDFILE="$RUNDIR/backend.pid"
 FRONTEND_PIDFILE="$RUNDIR/frontend.pid"
+SWARM_TOKEN_FILE="$RUNDIR/swarm.token"
 
 mkdir -p "$LOGDIR" "$RUNDIR"
 
@@ -144,6 +145,21 @@ if [[ -z "$PYTHON_BIN" ]]; then
     exit 1
 fi
 
+if [[ -z "${KOLIBRI_SWARM_TOKEN:-}" ]]; then
+    if [[ ! -f "$SWARM_TOKEN_FILE" ]]; then
+        umask 077
+        "$PYTHON_BIN" - <<'PY' > "$SWARM_TOKEN_FILE"
+import secrets
+print(secrets.token_urlsafe(32))
+PY
+    fi
+    KOLIBRI_SWARM_TOKEN="$(cat "$SWARM_TOKEN_FILE")"
+    export KOLIBRI_SWARM_TOKEN
+    echo -e "${CYAN}[Kolibri]${NC} KOLIBRI_SWARM_TOKEN загружен из $SWARM_TOKEN_FILE"
+else
+    echo -e "${CYAN}[Kolibri]${NC} KOLIBRI_SWARM_TOKEN взят из окружения"
+fi
+
 echo ""
 echo -e "${CYAN}╔═══════════════════════════════════════╗${NC}"
 echo -e "${CYAN}║     🐦 Kolibri OS — Запуск            ║${NC}"
@@ -176,6 +192,7 @@ PYTHONPATH="$ROOT:${PYTHONPATH:-}" \
 KOLIBRI_PROJECT_ROOT="$ROOT" \
 KOLIBRI_RESPONSE_MODE=script \
 KOLIBRI_AUTH_ENABLED=0 \
+KOLIBRI_SWARM_TOKEN="$KOLIBRI_SWARM_TOKEN" \
 nohup "$PYTHON_BIN" -m uvicorn backend.service.main:app \
     --host 127.0.0.1 --port "$BACKEND_PORT" \
     > "$LOGDIR/backend.log" 2>&1 &

@@ -1,0 +1,161 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - button "Колибри AI Workspace" [ref=e7] [cursor=pointer]:
+          - img [ref=e9]
+          - generic [ref=e12]:
+            - generic [ref=e13]: Колибри
+            - generic [ref=e14]: AI Workspace
+        - button "Свернуть сайдбар" [ref=e15] [cursor=pointer]:
+          - img [ref=e16]
+      - button "Новый чат" [ref=e18] [cursor=pointer]:
+        - img [ref=e19]
+        - generic [ref=e22]: Новый чат
+      - generic "Поиск чатов" [ref=e23]:
+        - img [ref=e24]
+        - textbox "Поиск чатов" [ref=e27]:
+          - /placeholder: Поиск по истории
+    - navigation "Разделы" [ref=e28]:
+      - button "Чаты" [ref=e29] [cursor=pointer]:
+        - img [ref=e31]
+        - generic [ref=e33]: Чаты
+      - button "Компаньоны" [ref=e34] [cursor=pointer]:
+        - img [ref=e36]
+        - generic [ref=e39]: Компаньоны
+      - button "Задачи" [ref=e40] [cursor=pointer]:
+        - img [ref=e42]
+        - generic [ref=e45]: Задачи
+      - button "AI Агент" [ref=e46] [cursor=pointer]:
+        - img [ref=e48]
+        - generic [ref=e51]: AI Агент
+      - button "Знания" [ref=e52] [cursor=pointer]:
+        - img [ref=e54]
+        - generic [ref=e58]: Знания
+      - button "Архиватор" [ref=e59] [cursor=pointer]:
+        - img [ref=e61]
+        - generic [ref=e64]: Архиватор
+      - button "Терминал" [ref=e65] [cursor=pointer]:
+        - img [ref=e67]
+        - generic [ref=e69]: Терминал
+      - button "Настройки" [ref=e70] [cursor=pointer]:
+        - img [ref=e72]
+        - generic [ref=e75]: Настройки
+    - region "История чатов" [ref=e76]:
+      - generic [ref=e77]:
+        - generic [ref=e78]: История
+        - generic [ref=e79]: "1"
+      - 'button "С Сделай краткую версию Ошибка: AI endpoint error (500) 22:44" [ref=e81] [cursor=pointer]':
+        - generic [ref=e82]: С
+        - generic [ref=e83]:
+          - generic [ref=e84]: Сделай краткую версию
+          - generic [ref=e85]: "Ошибка: AI endpoint error (500)"
+        - generic [ref=e86]: 22:44
+  - main [ref=e87]:
+    - generic [ref=e89]:
+      - generic [ref=e90]:
+        - generic [ref=e91]:
+          - heading "Колибри AI" [level=1] [ref=e92]
+          - paragraph [ref=e93]: Готово к запросу
+          - tablist "Режим ответа" [ref=e94]:
+            - tab "Auto" [selected] [ref=e95] [cursor=pointer]
+            - tab "Глубоко" [ref=e96] [cursor=pointer]
+            - tab "Креатив" [ref=e97] [cursor=pointer]
+        - generic [ref=e98]:
+          - button "Очистить" [ref=e99] [cursor=pointer]:
+            - img [ref=e100]
+            - generic [ref=e103]: Очистить
+          - button "Запустить голосовой ввод" [ref=e104] [cursor=pointer]:
+            - img [ref=e105]
+            - generic [ref=e108]: Голос
+          - button "Отключить автоозвучку" [ref=e109] [cursor=pointer]:
+            - img [ref=e110]
+            - generic [ref=e114]: Озвучка ON
+      - log [ref=e115]:
+        - generic [ref=e116]:
+          - article [ref=e117]:
+            - paragraph [ref=e119]: Составь план релиза на эту неделю.
+          - article [ref=e120]:
+            - img [ref=e122]
+            - generic [ref=e125]:
+              - paragraph [ref=e126]: "Ошибка: AI endpoint error (500)"
+              - generic [ref=e127]:
+                - button [ref=e128] [cursor=pointer]:
+                  - img [ref=e129]
+                - button [ref=e132] [cursor=pointer]:
+                  - img [ref=e133]
+                - button [ref=e139] [cursor=pointer]:
+                  - img [ref=e140]
+                - button [ref=e142] [cursor=pointer]:
+                  - img [ref=e143]
+                - button [ref=e145] [cursor=pointer]:
+                  - img [ref=e146]
+                - button [ref=e150] [cursor=pointer]:
+                  - img [ref=e151]
+                - button [ref=e156] [cursor=pointer]:
+                  - img [ref=e157]
+          - article [ref=e161]:
+            - paragraph [ref=e163]: Уточни ключевой вывод
+          - article [ref=e164]:
+            - img [ref=e166]
+            - generic [ref=e169]:
+              - paragraph [ref=e170]: "Ошибка: AI endpoint error (500)"
+              - generic [ref=e171]:
+                - button [ref=e172] [cursor=pointer]:
+                  - img [ref=e173]
+                - button [ref=e176] [cursor=pointer]:
+                  - img [ref=e177]
+                - button [ref=e183] [cursor=pointer]:
+                  - img [ref=e184]
+                - button [ref=e186] [cursor=pointer]:
+                  - img [ref=e187]
+                - button [ref=e189] [cursor=pointer]:
+                  - img [ref=e190]
+                - button [ref=e194] [cursor=pointer]:
+                  - img [ref=e195]
+                - button [ref=e200] [cursor=pointer]:
+                  - img [ref=e201]
+          - article [ref=e205]:
+            - paragraph [ref=e207]: Сделай краткую версию
+          - article [ref=e208]:
+            - img [ref=e210]
+            - generic [ref=e213]:
+              - paragraph [ref=e214]: "Ошибка: AI endpoint error (500)"
+              - generic [ref=e215]:
+                - button [ref=e216] [cursor=pointer]:
+                  - img [ref=e217]
+                - button [ref=e220] [cursor=pointer]:
+                  - img [ref=e221]
+                - button [ref=e227] [cursor=pointer]:
+                  - img [ref=e228]
+                - button [ref=e230] [cursor=pointer]:
+                  - img [ref=e231]
+                - button [ref=e233] [cursor=pointer]:
+                  - img [ref=e234]
+                - button [ref=e238] [cursor=pointer]:
+                  - img [ref=e239]
+                - button [ref=e244] [cursor=pointer]:
+                  - img [ref=e245]
+          - generic [ref=e249]:
+            - button "Уточни ключевой вывод" [ref=e250] [cursor=pointer]
+            - button "Сделай краткую версию" [ref=e251] [cursor=pointer]
+            - button "Продолжай" [ref=e252] [cursor=pointer]
+      - generic [ref=e253]:
+        - button "Think harder" [ref=e255] [cursor=pointer]:
+          - img [ref=e256]
+          - generic [ref=e261]: Think harder
+        - generic [ref=e262]:
+          - textbox "Спрашивай что угодно" [ref=e263]
+          - generic [ref=e264]:
+            - generic [ref=e265]:
+              - button "Прикрепить файл" [ref=e266] [cursor=pointer]:
+                - img [ref=e267]
+              - button "Auto" [ref=e270] [cursor=pointer]:
+                - img [ref=e271]
+                - generic [ref=e276]: Auto
+            - generic [ref=e277]:
+              - button "Голосовой ввод" [ref=e278] [cursor=pointer]:
+                - img [ref=e279]
+              - button "Говорить" [ref=e282] [cursor=pointer]:
+                - img [ref=e283]
+                - generic [ref=e287]: Говорить

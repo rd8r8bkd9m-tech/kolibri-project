@@ -1,0 +1,79 @@
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - img "Колибри" [ref=e8]
+      - generic [ref=e11]:
+        - paragraph [ref=e12]: Колибри AI
+        - paragraph [ref=e13]: Production Preview
+    - generic [ref=e14]:
+      - img [ref=e15]
+      - text: Public Beta
+  - main [ref=e18]:
+    - generic [ref=e19]:
+      - paragraph [ref=e20]: Стартовая страница
+      - heading "Колибри AI запущен в бета-режиме на домене kolibriai.ru" [level=1] [ref=e21]
+      - paragraph [ref=e22]: "Интерфейс уже рабочий и повторяет структуру основного приложения: чат, агент, знания, архиватор и терминал. Часть функций еще дорабатывается, но платформой уже можно пользоваться."
+      - generic [ref=e23]:
+        - button "Войти в приложение" [ref=e24] [cursor=pointer]:
+          - text: Войти в приложение
+          - img [ref=e25]
+        - link "API Docs" [ref=e27] [cursor=pointer]:
+          - /url: /api/docs
+      - generic [ref=e28]:
+        - article [ref=e29]:
+          - img [ref=e30]
+          - generic [ref=e33]:
+            - paragraph [ref=e34]: Статус запуска
+            - strong [ref=e35]: Бета, доступ открыт
+        - article [ref=e36]:
+          - img [ref=e37]
+          - generic [ref=e40]:
+            - paragraph [ref=e41]: Среда
+            - strong [ref=e42]: Домашний production server
+        - article [ref=e43]:
+          - img [ref=e44]
+          - generic [ref=e47]:
+            - paragraph [ref=e48]: Домен
+            - strong [ref=e49]: 127.0.0.1:9999
+      - paragraph [ref=e50]:
+        - text: "Примечание: исторический домен"
+        - code [ref=e51]: calibri.ai.ru
+        - text: можно оставить как алиас, основной адрес -
+        - code [ref=e52]: kolibriai.ru
+        - text: .
+    - region "Превью интерфейса" [ref=e53]:
+      - generic [ref=e54]:
+        - complementary [ref=e55]:
+          - generic [ref=e56]:
+            - img "Колибри" [ref=e57]
+            - generic [ref=e60]: Колибри
+          - generic [ref=e61]:
+            - img [ref=e62]
+            - generic [ref=e64]: Чат
+          - generic [ref=e65]:
+            - img [ref=e66]
+            - generic [ref=e69]: AI Агент
+          - generic [ref=e70]:
+            - img [ref=e71]
+            - generic [ref=e75]: Знания
+          - generic [ref=e76]:
+            - img [ref=e77]
+            - generic [ref=e80]: Архиватор
+          - generic [ref=e81]:
+            - img [ref=e82]
+            - generic [ref=e84]: Терминал
+          - generic [ref=e85]:
+            - img [ref=e86]
+            - generic [ref=e89]: Настройки
+        - generic [ref=e90]:
+          - generic [ref=e91]:
+            - generic [ref=e92]:
+              - paragraph [ref=e93]: Чат
+              - paragraph [ref=e94]: Бета-интерфейс Manus
+            - generic [ref=e95]: ONLINE
+          - generic [ref=e96]: Добро пожаловать в Колибри AI Beta.
+          - generic [ref=e97]: Покажи статус системы и доступные модули.
+          - generic [ref=e98]: "Доступны: чат, AI агент, архиватор, терминал, знания."
+          - generic [ref=e99]:
+            - text: Введите запрос...
+            - generic [ref=e100]: Enter

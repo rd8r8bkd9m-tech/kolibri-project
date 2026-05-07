@@ -21,7 +21,7 @@ if (import.meta.env.PROD && typeof window !== "undefined" && "serviceWorker" in 
     });
 
     navigator.serviceWorker
-      .register("/sw.js")
+      .register(`/sw.js?v=${encodeURIComponent(__KOLIBRI_BUILD__)}`)
       .then((registration) => {
         const triggerUpdate = () => {
           if (registration.waiting) {

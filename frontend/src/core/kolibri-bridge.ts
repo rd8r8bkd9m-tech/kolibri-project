@@ -54,7 +54,6 @@ const textDecoder = new TextDecoder("utf-8");
 const textEncoder = new TextEncoder();
 
 const WASI_ERRNO_SUCCESS = 0;
-const WASI_ERRNO_BADF = 8;
 const WASI_ERRNO_INVAL = 28;
 const WASI_ERRNO_IO = 29;
 const WASI_FILETYPE_CHARACTER_DEVICE = 2;

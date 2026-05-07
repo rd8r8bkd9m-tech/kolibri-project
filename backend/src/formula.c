@@ -15,6 +15,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #define KOLIBRI_FORMULA_CAPACITY (pool->capacity)
 #define KOLIBRI_DIGIT_MAX 11U
 #define KOLIBRI_ASSOC_TEXT_LIMIT (sizeof(((KolibriAssociation *)0)->question))
@@ -280,11 +284,10 @@ static int formula_predict_numeric(const KolibriFormula *formula, int input, int
     }
     
     long long x = (long long)input;
-    /* ResNet-архитектура: 50 residual-блоков × 10 слоёв = 500 слоёв */
-    /* Skip-connection в каждом блоке предотвращает затухание сигнала */
+    /* ResNet-архитектура: оптимизировано для скорости (50 слоев) */
     #define BACKEND_BLOCK_SIZE 10
     size_t total_layers = formula->gene.length / 8;
-    if (total_layers > 500) total_layers = 500;
+    if (total_layers > 50) total_layers = 50; /* Ограничение глубины для ускорения */
     size_t num_blocks = total_layers / BACKEND_BLOCK_SIZE;
     if (num_blocks == 0) num_blocks = 1;
 
@@ -329,24 +332,33 @@ static int formula_predict_numeric(const KolibriFormula *formula, int input, int
             }
             case 4: result = (x ^ auxiliary) + bias; break;
             case 5: result = (x & slope) + bias; break;
-            case 6: result = (long long)(sin((double)x / 256.0) * (double)slope) + bias; break;
-            case 7: {
+            case 6: { /* Жесткое возведение в квадрат: x * x */
+                long long sqr = x * x;
+                result = (long long)slope * sqr / 100 + bias;
+                break;
+            }
+            case 7: result = (long long)(sin((double)x / 256.0) * (double)slope) + bias; break;
+            case 8: {
                 double denom = 1.0 + fabs((double)x);
                 result = (long long)((double)slope * (double)x / denom) + bias;
                 break;
             }
-            case 8: result = (x >> ((unsigned)slope & 3)) + bias; break;
-            case 9: result = ((x + (long long)slope) * (long long)bias) / 100; break;
-            case 10: /* Tanh */
+            case 9: result = (x >> ((unsigned)slope & 3)) + bias; break;
+            case 10: result = ((x + (long long)slope) * (long long)bias) / 100; break;
+            case 11: /* Tanh */
                 result = (long long)(tanh((double)x / 100.0) * (double)slope) + bias;
                 break;
-            case 11: { /* Sigmoid */
+            case 12: { /* Sigmoid */
                 double arg = -(double)x / 100.0;
                 if (arg > 50.0) arg = 50.0;
                 result = (long long)((2.0 / (1.0 + exp(arg)) - 1.0) * (double)slope) + bias;
                 break;
             }
-            default: result = (x + bias) ^ slope; break;
+            case 13: { /* Bitwise Mask: x & auxiliary */
+                result = (x & auxiliary) + bias;
+                break;
+            }
+            default: result = x; break;
             }
 
             /* Клиппинг внутри слоя: ±10000 */
@@ -386,8 +398,7 @@ static double evaluate_formula_numeric(const KolibriFormula *formula, const Koli
     if (!formula || !pool || pool->examples == 0) {
         return 0.0;
     }
-    double total_error = 0.0;
-    
+
     /* Оптимизация Hyper-Scale: если примеров слишком много, берем случайную выборку (батч) */
     size_t samples = pool->examples;
     size_t stride = 1;
@@ -396,6 +407,58 @@ static double evaluate_formula_numeric(const KolibriFormula *formula, const Koli
         stride = pool->examples / samples;
     }
 
+    /* Подсчёт количества итераций для аллокации массива ошибок */
+    size_t num_iterations = 0;
+    for (size_t i = 0; i < pool->examples; i += stride) {
+        num_iterations++;
+        if (stride > 1 && i >= 4096 * stride) break;
+    }
+
+    if (num_iterations == 0) {
+        return 0.0001;
+    }
+
+#ifdef _OPENMP
+    /* Параллельное вычисление ошибок через OpenMP */
+    double *errors = (double *)malloc(num_iterations * sizeof(double));
+    if (!errors) {
+        return 0.0001;
+    }
+
+    #pragma omp parallel for schedule(dynamic, 64)
+    for (size_t iter = 0; iter < num_iterations; ++iter) {
+        size_t i = iter * stride;
+        int prediction = 0;
+        if (formula_predict_numeric(formula, pool->inputs[i], &prediction) != 0) {
+            errors[iter] = -1.0; /* Маркер ошибки */
+            continue;
+        }
+        int diff = pool->targets[i] - prediction;
+        double err = fabs((double)diff);
+        if (diff == 0) {
+            err -= 0.5; /* Бонус за точное совпадение */
+        }
+        errors[iter] = err;
+    }
+
+    /* Редукция: суммируем ошибки */
+    double total_error = 0.0;
+    int has_error = 0;
+    for (size_t iter = 0; iter < num_iterations; ++iter) {
+        if (errors[iter] < 0) {
+            has_error = 1;
+            break;
+        }
+        total_error += errors[iter];
+    }
+    free(errors);
+
+    if (has_error) {
+        return 0.0;
+    }
+#else
+    /* Последовательная версия (fallback) */
+    double total_error = 0.0;
     for (size_t i = 0; i < pool->examples; i += stride) {
         int prediction = 0;
         if (formula_predict_numeric(formula, pool->inputs[i], &prediction) != 0) {
@@ -404,11 +467,12 @@ static double evaluate_formula_numeric(const KolibriFormula *formula, const Koli
         int diff = pool->targets[i] - prediction;
         if (diff == 0) total_error -= 0.5; /* Бонус за точное совпадение */
         total_error += fabs((double)diff);
-        
+
         if (stride > 1 && i >= 4096 * stride) break; /* Ограничиваем количество проверок */
     }
-    
-    double avg_error = total_error / (double)samples;
+#endif
+
+    double avg_error = total_error / (double)num_iterations;
     double penalty = complexity_penalty(&formula->gene);
     double fitness = 1.0 / (1.0 + log1p(avg_error) + penalty);
     return fitness > 0.0001 ? fitness : 0.0001;
@@ -437,7 +501,18 @@ static void mutate_gene(KolibriFormulaPool *pool, KolibriGene *gene) {
     if (mutations == 0) mutations = 1;
     for (size_t m = 0; m < mutations; ++m) {
         size_t index = (size_t)(k_rng_next(&pool->rng) % gene->length);
-        gene->digits[index] = random_digit(pool);
+        
+        /* 30% шанс на микромутацию (fine-tuning), 70% на случайную замену */
+        if (k_rng_next(&pool->rng) % 100 < 30) {
+            int8_t current = (int8_t)gene->digits[index];
+            int8_t delta = (k_rng_next(&pool->rng) % 2 == 0) ? 1 : -1;
+            int new_val = (int)current + delta;
+            if (new_val < 0) new_val = 0;
+            if (new_val > 9) new_val = 9;
+            gene->digits[index] = (uint8_t)new_val;
+        } else {
+            gene->digits[index] = random_digit(pool);
+        }
     }
 }
 
@@ -531,11 +606,11 @@ void kf_pool_init(KolibriFormulaPool *pool, uint64_t seed) {
     kf_config_default(&pool->config);
     kf_pool_reset_metrics(pool);
     
-    pool->examples_capacity = 1000;
+    pool->examples_capacity = KOLIBRI_POOL_EXAMPLES_INITIAL_CAPACITY;
     pool->inputs = (int *)malloc(pool->examples_capacity * sizeof(int));
     pool->targets = (int *)malloc(pool->examples_capacity * sizeof(int));
     
-    pool->association_capacity = 1000;
+    pool->association_capacity = KOLIBRI_POOL_ASSOC_INITIAL_CAPACITY;
     pool->associations = (KolibriAssociation *)malloc(pool->association_capacity * sizeof(KolibriAssociation));
     
     for (size_t i = 0; i < pool->count; ++i) {
@@ -546,6 +621,46 @@ void kf_pool_init(KolibriFormulaPool *pool, uint64_t seed) {
         pool->formulas[i].domain = KOLIBRI_DOMAIN_GENERAL;
         pool->formulas[i].domain_name[0] = '\0';
     }
+}
+
+void kf_pool_refine_best(KolibriFormulaPool *pool) {
+    if (!pool || pool->count == 0 || pool->examples == 0) return;
+
+    /* Берем лучшую формулу (после сортировки она первая) */
+    KolibriFormula *best = &pool->formulas[0];
+    
+    /* Простой градиентный спуск: пытаемся улучшить fitness через мутации, 
+       направляемые ошибкой */
+    for (int step = 0; step < 50; ++step) {
+        double current_error = 0.0;
+        for (size_t i = 0; i < pool->examples; ++i) {
+            int y_pred = 0;
+            kf_formula_apply(best, pool->inputs[i], &y_pred);
+            double diff = (double)(y_pred - pool->targets[i]);
+            current_error += diff * diff;
+        }
+        
+        /* Делаем направленную мутацию */
+        KolibriGene backup = best->gene;
+        mutate_gene(pool, &best->gene);
+        
+        /* Проверяем, стало ли лучше */
+        double new_error = 0.0;
+        for (size_t i = 0; i < pool->examples; ++i) {
+            int y_pred = 0;
+            kf_formula_apply(best, pool->inputs[i], &y_pred);
+            double diff = (double)(y_pred - pool->targets[i]);
+            new_error += diff * diff;
+        }
+        
+        /* Если хуже — откатываемся */
+        if (new_error >= current_error) {
+            best->gene = backup;
+        }
+    }
+    
+    /* Пересчитываем fitness для лучшей формулы */
+    best->fitness = evaluate_formula_numeric(best, pool);
 }
 
 void kf_pool_free(KolibriFormulaPool *pool) {
@@ -671,6 +786,9 @@ void kf_pool_tick(KolibriFormulaPool *pool, size_t generations) {
         }
         qsort(pool->formulas, pool->count, sizeof(KolibriFormula), compare_formulas);
     }
+
+    /* Гибридная оптимизация: локальная докрутка лучшего решения */
+    kf_pool_refine_best(pool);
 }
 
 const KolibriFormula *kf_pool_best(const KolibriFormulaPool *pool) {

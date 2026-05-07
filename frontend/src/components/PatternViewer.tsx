@@ -13,8 +13,6 @@ import {
   patternToString,
   patternSimilarity,
   patternHeatmap,
-  findSimilar,
-  PATTERN_SIZE,
 } from "../core/numeric-patterns";
 
 /* --- Цвета цифр для тепловой карты --- */

@@ -1,0 +1,58 @@
+- generic [ref=e3]:
+  - complementary:
+    - generic:
+      - button "Профиль и настройки":
+        - generic:
+          - img
+        - generic:
+          - strong: Vladislav Kochurov
+          - generic: Аккаунт
+        - generic:
+          - img
+      - generic:
+        - button "Задачи":
+          - img
+          - generic: Задачи
+        - button "Компаньоны":
+          - img
+          - generic: Компаньоны
+      - generic:
+        - generic: Разговоры
+        - img
+      - generic:
+        - generic: Разговоры появятся после первых сообщений
+      - generic:
+        - generic "Поиск":
+          - img
+          - searchbox "Поиск"
+        - button "Настройки":
+          - img
+        - button "Новый чат":
+          - img
+  - main [ref=e4]:
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - button "Назад" [ref=e9] [cursor=pointer]:
+          - img [ref=e10]
+        - heading "Оформление" [level=1] [ref=e12]
+      - generic [ref=e14]:
+        - button "Система" [ref=e15] [cursor=pointer]:
+          - img [ref=e16]
+          - generic [ref=e22]: Система
+        - button "День" [ref=e23] [cursor=pointer]:
+          - img [ref=e24]
+          - generic [ref=e30]: День
+        - button "Ночь" [ref=e31] [cursor=pointer]:
+          - img [ref=e32]
+          - generic [ref=e34]: Ночь
+      - generic [ref=e35]:
+        - heading "Размер текста" [level=3] [ref=e36]
+        - generic [ref=e37]:
+          - generic [ref=e38]:
+            - generic [ref=e39]: A
+            - slider [ref=e40]: "0.99"
+            - generic [ref=e41]: A
+          - generic [ref=e43]:
+            - generic [ref=e44]: Расскажи мне о Вселенной.
+            - paragraph [ref=e45]: "Вселенная это всё, что существует: пространство, время, материя, энергия и законы, по которым всё работает."
+            - button "Сбросить" [ref=e46] [cursor=pointer]

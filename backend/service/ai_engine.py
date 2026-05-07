@@ -26,6 +26,10 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional
+from urllib.parse import parse_qs, quote_plus, unquote, urlparse
+
+import requests
+from bs4 import BeautifulSoup
 
 from .number_mind import (
     KnowledgeGraph,
@@ -71,10 +75,187 @@ _EMBEDDINGS_SAVE_PATH = _PROJECT_ROOT / "data" / "models" / "kolibri_embeddings.
 _MAX_CONTEXT_TURNS = 20
 _QUERY_TIMEOUT = 10
 
+
+def _env_bool(name: str, default: bool) -> bool:
+    """Прочитать bool-флаг из ENV в стиле 0/1, true/false, on/off."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() not in {"0", "false", "no", "off", ""}
+
+
+# Production-safe старт:
+# по умолчанию не запускаем тяжёлое обучение при boot, чтобы HTTP не "залипал".
+_STARTUP_BACKGROUND_TRAIN = _env_bool("KOLIBRI_STARTUP_BACKGROUND_TRAIN", False)
+_STARTUP_LM_TRAIN = _env_bool("KOLIBRI_STARTUP_LM_TRAIN", False)
+_STARTUP_CAUSAL_INDEX = _env_bool("KOLIBRI_STARTUP_CAUSAL_INDEX", False)
+_LM_MAX_TEXTS = int(os.getenv("KOLIBRI_LM_MAX_TEXTS", "400"))
+_LM_MAX_SEQUENCES = int(os.getenv("KOLIBRI_LM_MAX_SEQUENCES", "120"))
+_LM_GENERATIONS = int(os.getenv("KOLIBRI_LM_GENERATIONS", "8"))
+_WEB_FALLBACK = _env_bool("KOLIBRI_WEB_FALLBACK", True)
+_WEB_MAX_URLS = int(os.getenv("KOLIBRI_WEB_MAX_URLS", "6"))
+_WEB_MAX_PAGES = int(os.getenv("KOLIBRI_WEB_MAX_PAGES", "1"))
+_WEB_PAGE_TIMEOUT = int(os.getenv("KOLIBRI_WEB_PAGE_TIMEOUT", "8"))
+_WEB_MAX_TRAIN_CHARS = int(os.getenv("KOLIBRI_WEB_MAX_TRAIN_CHARS", "80000"))
+_WEB_TOTAL_TIMEOUT = int(os.getenv("KOLIBRI_WEB_TOTAL_TIMEOUT", "20"))
+_WEATHER_ENABLED = _env_bool("KOLIBRI_WEATHER_ENABLED", True)
+_WEATHER_GEO_URL = "https://geocoding-api.open-meteo.com/v1/search"
+_WEATHER_FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
+
+_WEB_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "ru,en-US;q=0.9,en;q=0.8",
+}
+
+
+def _read_secret_file(path: str) -> Optional[str]:
+    if not path:
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as secret_file:
+            value = secret_file.read().strip()
+    except OSError:
+        return None
+    return value or None
+
+
+def _strip_weather_prefix(text: str) -> str:
+    cleaned = re.sub(r"[?!,.]", " ", text)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    cleaned = re.sub(
+        r"^(какая\s+погода|какова\s+погода|погода|weather|forecast)\s+",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        r"^(сейчас|сегодня|завтра|послезавтра)\s+",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(r"^(в|на)\s+", "", cleaned, flags=re.IGNORECASE)
+    return cleaned.strip()
+
+
+def _match_weather_intent(text: str) -> bool:
+    low = text.lower()
+    if "погод" in low or "weather" in low or "forecast" in low or "прогноз" in low:
+        return True
+    return False
+
+
+def _extract_weather_location(text: str) -> str:
+    cleaned = _strip_weather_prefix(text)
+    if not cleaned:
+        return ""
+    # Try "в <location>" / "in <location>"
+    match = re.search(r"(?:\bв\b|\bin\b)\s+([\\w\\s\\-\\.]+)$", cleaned, flags=re.IGNORECASE)
+    if match:
+        candidate = match.group(1).strip()
+        return candidate
+    # If the whole string is a location, return it as-is.
+    return cleaned.strip()
+
+
+def _weather_code_label(code: int) -> str:
+    mapping = {
+        0: "ясно",
+        1: "преимущественно ясно",
+        2: "переменная облачность",
+        3: "пасмурно",
+        45: "туман",
+        48: "изморозь/туман",
+        51: "морось",
+        53: "морось умеренная",
+        55: "морось сильная",
+        56: "ледяная морось",
+        57: "ледяная морось сильная",
+        61: "дождь",
+        63: "дождь умеренный",
+        65: "дождь сильный",
+        66: "ледяной дождь",
+        67: "ледяной дождь сильный",
+        71: "снег",
+        73: "снег умеренный",
+        75: "снег сильный",
+        77: "снег/крупа",
+        80: "ливень",
+        81: "ливень умеренный",
+        82: "ливень сильный",
+        85: "снегопад",
+        86: "снегопад сильный",
+        95: "гроза",
+        96: "гроза с градом",
+        99: "гроза с сильным градом",
+    }
+    return mapping.get(code, "неизвестно")
+
+
+def _load_text_llm_api_key() -> Optional[str]:
+    key = (
+        os.getenv("KOLIBRI_TEXT_LLM_API_KEY")
+        or os.getenv("KOLIBRI_LLM_API_KEY")
+        or os.getenv("KOLIBRI_VOICE_API_KEY")
+        or os.getenv("OPENAI_API_KEY")
+    )
+    if key:
+        return key.strip()
+
+    key_file = (
+        os.getenv("KOLIBRI_TEXT_LLM_API_KEY_FILE", "").strip()
+        or os.getenv("KOLIBRI_VOICE_API_KEY_FILE", "").strip()
+    )
+    if not key_file:
+        key_file = str(_PROJECT_ROOT / ".run" / "voice_api_key")
+    return _read_secret_file(key_file)
+
+
+def _resolve_text_llm_provider(api_key: Optional[str]) -> str:
+    provider_raw = os.getenv("KOLIBRI_TEXT_LLM_PROVIDER", "auto").strip().lower()
+    if provider_raw in {"none", "off", "disabled"}:
+        return ""
+    if provider_raw in {"gemini", "openrouter"}:
+        return provider_raw
+    if not api_key:
+        return ""
+    if api_key.startswith("AIza"):
+        return "gemini"
+    if api_key.startswith("sk-or-"):
+        return "openrouter"
+    # Если тип ключа неизвестен, по умолчанию пробуем OpenRouter-совместимый API.
+    return "openrouter"
+
+
+_TEXT_LLM_ENABLE = _env_bool("KOLIBRI_TEXT_LLM_ENABLE", True)
+_TEXT_LLM_API_KEY = _load_text_llm_api_key()
+_TEXT_LLM_PROVIDER = _resolve_text_llm_provider(_TEXT_LLM_API_KEY)
+_TEXT_LLM_TIMEOUT = float(os.getenv("KOLIBRI_TEXT_LLM_TIMEOUT", "12"))
+_TEXT_LLM_TEMPERATURE = float(os.getenv("KOLIBRI_TEXT_LLM_TEMPERATURE", "0.2"))
+_TEXT_LLM_MAX_TOKENS = int(os.getenv("KOLIBRI_TEXT_LLM_MAX_TOKENS", "700"))
+_TEXT_GEMINI_BASE_URL = os.getenv("KOLIBRI_GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta").strip().rstrip("/")
+_TEXT_GEMINI_MODEL = os.getenv("KOLIBRI_TEXT_GEMINI_MODEL", "gemini-2.5-flash").strip()
+_TEXT_OPENROUTER_URL = os.getenv("KOLIBRI_OPENROUTER_URL", "https://openrouter.ai/api/v1/chat/completions").strip()
+_TEXT_OPENROUTER_MODEL = os.getenv("KOLIBRI_TEXT_OPENROUTER_MODEL", "openai/gpt-4o-mini").strip()
+_TEXT_LLM_RUNTIME_DISABLED = False
+
 # Минимальный словарь RU→EN для кросс-языкового retrieval по англ. корпусу.
 # Это не переводчик; только "мост" для частых технических терминов.
 _RU_TO_EN_TERMS: dict[str, str] = {
     "кубит": "qubit",
+    "бит": "bit",
+    "трансформер": "transformer",
+    "трансформера": "transformer",
+    "трансформеры": "transformer",
+    "архитектура": "architecture",
+    "архитектуру": "architecture",
+    "энтропия": "entropy",
+    "энтропии": "entropy",
     "квантовый": "quantum",
     "квантовая": "quantum",
     "квантовые": "quantum",
@@ -85,6 +266,34 @@ _RU_TO_EN_TERMS: dict[str, str] = {
     "компьютер": "computer",
     "вычисления": "computing",
     "вычисление": "computing",
+}
+
+# Служебные слова вопроса, которые не считаем "темой" при проверке релевантности.
+_GENERIC_QUERY_TOKENS: set[str] = {
+    "что", "такое", "как", "почему", "зачем", "когда", "где",
+    "объясни", "объяснить", "расскажи", "опиши", "покажи",
+    "работает", "работать", "работают",
+    "простыми", "словами", "подробно", "кратко",
+    "please", "explain", "simple", "simply",
+}
+
+_TOPIC_FALLBACKS: dict[str, str] = {
+    "qubit": (
+        "Квантовый бит (кубит) — базовая единица квантовой информации. "
+        "В отличие от обычного бита, кубит может находиться в суперпозиции: "
+        "одновременно в состояниях 0 и 1 до момента измерения."
+    ),
+    "transformer": (
+        "Трансформер — архитектура нейросетей на механизме self-attention. "
+        "Она позволяет модели учитывать связи между всеми словами сразу, "
+        "поэтому лучше понимать контекст длинного текста."
+    ),
+    "entropy": (
+        "Энтропия — мера неопределённости. "
+        "В теории информации энтропия Шеннона показывает, "
+        "сколько в среднем бит нужно для кодирования сообщения: "
+        "чем выше непредсказуемость, тем выше энтропия."
+    ),
 }
 
 
@@ -371,16 +580,26 @@ class KolibriAIEngine:
             self._load_corpus()
         except Exception as e:
             log.error("Ошибка загрузки корпуса: %s", e)
-        # --- Обучаем FormulaLM после загрузки корпуса ---
-        try:
-            self._train_lm_on_corpus()
-        except Exception as e:
-            log.error("Ошибка обучения FormulaLM: %s", e)
-        # --- Автоматически строим каузальный индекс из корпуса ---
-        try:
-            self._auto_build_causal_index()
-        except Exception as e:
-            log.error("Ошибка построения каузального индекса: %s", e)
+        # --- Тяжёлые шаги запускаем только по явному ENV-флагу ---
+        if _STARTUP_LM_TRAIN:
+            try:
+                self._train_lm_on_corpus()
+            except Exception as e:
+                log.error("Ошибка обучения FormulaLM: %s", e)
+        else:
+            log.info(
+                "FormulaLM startup training skipped (set KOLIBRI_STARTUP_LM_TRAIN=1 to enable)",
+            )
+
+        if _STARTUP_CAUSAL_INDEX:
+            try:
+                self._auto_build_causal_index()
+            except Exception as e:
+                log.error("Ошибка построения каузального индекса: %s", e)
+        else:
+            log.info(
+                "Causal index startup build skipped (set KOLIBRI_STARTUP_CAUSAL_INDEX=1 to enable)",
+            )
         # --- Сохраняем граф в SQLite для персистентности ---
         try:
             self._save_to_db()
@@ -402,6 +621,17 @@ class KolibriAIEngine:
                 elif kind == "c_knowledge":
                     _, query, c_knowledge = task
                     self._train_formula_on_c_knowledge(query, c_knowledge)
+                elif kind == "web_train":
+                    _, query, web_text, web_sources = task
+                    if isinstance(web_text, str) and len(web_text) >= 120:
+                        self.train_text(web_text[:_WEB_MAX_TRAIN_CHARS])
+                        self._save_to_db()
+                        if isinstance(web_sources, list):
+                            self._persist_web_learning(
+                                query=query,
+                                training_text=web_text,
+                                sources=web_sources,
+                            )
                 elif kind == "corpus":
                     self._train_all_background()
             except Exception as e:
@@ -499,17 +729,31 @@ class KolibriAIEngine:
 
         if total_texts > 0:
             self._corpus_loaded = True
-            # ВСЁ тяжёлое обучение — через единый worker (не плодим потоки)
-            self._formulas_training = True
-            self._embeddings_training = True
-            self._train_queue.put(("corpus",))
+            # Тяжёлое обучение при старте — только если явно включено.
+            if _STARTUP_BACKGROUND_TRAIN:
+                self._formulas_training = True
+                self._embeddings_training = True
+                try:
+                    self._train_queue.put_nowait(("corpus",))
+                except queue.Full:
+                    log.warning("Фоновая очередь обучения переполнена, задача corpus пропущена")
+            else:
+                log.info(
+                    "Startup background training skipped "
+                    "(set KOLIBRI_STARTUP_BACKGROUND_TRAIN=1 to enable)",
+                )
+        train_mode = (
+            "startup background training enabled"
+            if _STARTUP_BACKGROUND_TRAIN
+            else "startup background training skipped"
+        )
         log.info(
             "Corpus loaded: %d files (%d priority, %d agent, %d wiki, %d other), "
-            "%d sentences in %.1fs (training in background)",
+            "%d sentences in %.1fs (%s)",
             total_texts,
             total_texts - agent_count - wiki_count - extra_count,
             agent_count, wiki_count, extra_count,
-            self.sentence_store.size, time.time() - t0,
+            self.sentence_store.size, time.time() - t0, train_mode,
         )
 
     def _train_formulas_from_graph(self) -> None:
@@ -786,7 +1030,7 @@ class KolibriAIEngine:
             return
         try:
             all_texts: list[str] = []
-            for idx in range(min(self.sentence_store.size, 2000)):
+            for idx in range(min(self.sentence_store.size, _LM_MAX_TEXTS)):
                 text = self.sentence_store.get_text(idx)
                 if len(text) > 20:
                     all_texts.append(text)
@@ -803,12 +1047,20 @@ class KolibriAIEngine:
             if len(sequences) < 30:
                 return
 
-            self._formula_lm.evolve(sequences[:200], generations=30)
+            self._formula_lm.evolve(
+                sequences[:max(10, _LM_MAX_SEQUENCES)],
+                generations=max(1, _LM_GENERATIONS),
+            )
             self._lm_trained = True
-            self._lm_generation += 30
+            self._lm_generation += max(1, _LM_GENERATIONS)
             log.info(
-                "FormulaLM trained: gen=%d, vocab=%d, sequences=%d",
-                self._lm_generation, len(self._bpe_tokenizer), len(sequences),
+                "FormulaLM trained: gen=%d, vocab=%d, sequences=%d (caps: texts=%d, seq=%d, gens=%d)",
+                self._lm_generation,
+                len(self._bpe_tokenizer),
+                len(sequences),
+                _LM_MAX_TEXTS,
+                _LM_MAX_SEQUENCES,
+                _LM_GENERATIONS,
             )
         except Exception as e:
             log.warning("FormulaLM training error: %s", e)
@@ -984,15 +1236,63 @@ class KolibriAIEngine:
             assoc_answer=assoc_answer,
         )
 
-        # Если вопрос был на русском, а retrieval шёл по англ. терминам — добавляем короткую RU-подсказку.
-        if has_cyrillic and mapped_terms.get("кубит") == "qubit":
-            ru_hint = (
-                "Кубит (qubit) — базовая единица квантовой информации: как бит, "
-                "но может быть в суперпозиции 0 и 1."
-            )
-            if ru_hint not in response:
-                response = f"{ru_hint}\n\n{response}"
-                confidence = max(confidence, 0.6)
+        digit_vote = self._digit_vote(
+            message=message,
+            retrieved_sentences=retrieved,
+            graph_confidence=graph_confidence,
+            c_knowledge=c_knowledge,
+            c_digits=c_digits,
+            formula_result=formula_result,
+        )
+        boost = digit_vote["decision"]["confidence_boost"]
+        if boost > 0:
+            confidence = min(0.98, confidence + boost)
+        if digit_vote["decision"]["reject"] and confidence < 0.55:
+            response = self._build_explain_fallback(message)
+            confidence = max(confidence, 0.3)
+            method = "digit-vote-reject"
+
+        # Safety-слой для explain: не отдаём шумные псевдо-ответы.
+        is_explain = search_strategy.get("intent") == "explain"
+        core_topic = self._detect_core_topic(message, mapped_terms)
+        if core_topic and method in {"knowledge-graph", "formula-generation", "no-knowledge"}:
+            response = self._topic_fallback_answer(core_topic)
+            confidence = max(confidence, 0.72)
+            method = "topic-fallback"
+        elif core_topic and has_cyrillic and method in {"formula-retrieval", "formula-association", "c-model"}:
+            # Если русскоязычный запрос отдался в основном на англ., добавляем RU-объяснение сверху.
+            if not self._has_cyrillic(response):
+                response = f"{self._topic_fallback_answer(core_topic)}\n\n{response}"
+                confidence = max(confidence, 0.62)
+                method = "topic-fallback"
+        elif is_explain and method in {"knowledge-graph", "formula-generation"}:
+            if not self._is_response_coherent(query=message, answer=response, min_overlap=1):
+                response = self._build_explain_fallback(message)
+                confidence = 0.35
+                method = "explain-fallback"
+
+        web_sources: list[dict] = []
+        if method in {"no-knowledge", "explain-fallback"}:
+            web_result = self._web_search_and_learn(message)
+            if web_result is not None:
+                response, web_confidence, web_sources = web_result
+                confidence = max(confidence, web_confidence)
+                method = "web-search-learning"
+
+        llm_polished = self._llm_polish_answer(
+            message=message,
+            base_answer=response,
+            method=method,
+            confidence=confidence,
+            search_strategy=search_strategy,
+            retrieved_sentences=retrieved,
+            c_knowledge=c_knowledge,
+            web_sources=web_sources,
+        )
+        if llm_polished:
+            response = llm_polished
+            confidence = max(confidence, 0.9 if web_sources else 0.88)
+            method = "colibri-hybrid-llm"
 
         # --- CoT: обновление шагов реальными результатами ---
         if len(thinking_steps) >= 2:
@@ -1025,7 +1325,8 @@ class KolibriAIEngine:
         thinking_text = self._chain_of_thought.format_thinking()
 
         # --- CoT-управляемое обогащение ответа ---
-        if search_strategy.get("use_abstract") or search_strategy.get("use_causal"):
+        allow_cot_enrich = method in {"knowledge-graph", "formula-generation"}
+        if allow_cot_enrich and (search_strategy.get("use_abstract") or search_strategy.get("use_causal")):
             response = self._cot_enrich_response(
                 response, message, confidence, search_strategy,
             )
@@ -1063,6 +1364,7 @@ class KolibriAIEngine:
             "response": full_response,
             "confidence": confidence,
             "sources": [method],
+            "web_sources": web_sources,
             "conversation_id": conv.id,
             "knowledge_hits": graph_meta.get("candidates_total", 0),
             "method": method,
@@ -1090,6 +1392,10 @@ class KolibriAIEngine:
                 "memory_digits": self.sentence_store.memory_digits,
                 "embedding_vocab": self.embeddings.vocab_size,
                 "embedding_trained_pairs": self.embeddings.trained_pairs,
+                "web_learning_used": bool(web_sources),
+                "llm_hybrid_used": method == "colibri-hybrid-llm",
+                "llm_provider": _TEXT_LLM_PROVIDER,
+                "digit_voting": digit_vote,
             },
             "graph_stats": self.graph.get_stats(),
             "thinking": thinking_text,
@@ -1149,8 +1455,8 @@ class KolibriAIEngine:
         Приоритеты:
         1. Формульные ассоциации (точное Q→A через FNV1a хеш)
         2. Гибрид: sentence retrieval + формульная генерация слов
-        3. Чистая формульная генерация (слова из трансформации паттернов)
-        4. C-модель (.klm бинарь)
+        3. C-модель (.klm бинарь)
+        4. Чистая формульная генерация (слова из трансформации паттернов)
         5. Граф слов (fallback)
         """
         # 1. Формульные ассоциации (точное совпадение через хеш)
@@ -1172,11 +1478,27 @@ class KolibriAIEngine:
                 answer = self._build_coherent_response(
                     retrieval_query, retrieved_sentences, formula_words, c_knowledge,
                 )
-                if answer:  # Прошёл фильтр релевантности
+                if answer and self._is_response_coherent(
+                    query=retrieval_query,
+                    answer=answer,
+                    min_overlap=1,
+                ):
                     confidence = min(0.95, best_score + 0.2)
                     return (answer, confidence, "formula-retrieval")
 
-        # 3. Чистая формульная генерация
+        # 3. C-модель (.klm) — связная интеграция
+        if c_knowledge:
+            clean = [
+                k for k in c_knowledge
+                if len(k) > 10 and "://" not in k
+                and not k.startswith("[") and not k.startswith("(")
+            ]
+            if clean:
+                answer = self._merge_c_knowledge(message, clean)
+                if self._is_response_coherent(query=message, answer=answer, min_overlap=1):
+                    return (answer, 0.5, "c-model")
+
+        # 4. Чистая формульная генерация
         #    Нет retrieved предложений, но формула ПОРОЖДАЕТ слова
         #    Связная генерация: ищем предложения по формульным словам
         if formula_words and len(formula_words) >= 2:
@@ -1190,7 +1512,11 @@ class KolibriAIEngine:
                     answer = self._build_coherent_response(
                         message, fw_sentences, formula_words, c_knowledge,
                     )
-                    if answer:  # Релевантный ответ найден
+                    if answer and self._is_response_coherent(
+                        query=message,
+                        answer=answer,
+                        min_overlap=1,
+                    ):
                         avg_score = sum(s for _, s in formula_words[:5]) / min(5, len(formula_words))
                         return (answer, min(0.7, avg_score + 0.15), "formula-generation")
 
@@ -1198,29 +1524,732 @@ class KolibriAIEngine:
                 answer = self._generate_from_formula_words(
                     message, words_only, graph_answer, graph_meta,
                 )
-                avg_score = sum(s for _, s in formula_words[:5]) / min(5, len(formula_words))
-                return (answer, min(0.5, avg_score), "formula-generation")
-
-        # 4. C-модель (.klm) — связная интеграция
-        if c_knowledge:
-            clean = [
-                k for k in c_knowledge
-                if len(k) > 10 and "://" not in k
-                and not k.startswith("[") and not k.startswith("(")
-            ]
-            if clean:
-                answer = self._merge_c_knowledge(message, clean)
-                return (answer, 0.5, "c-model")
+                if self._is_response_coherent(query=message, answer=answer, min_overlap=1):
+                    avg_score = sum(s for _, s in formula_words[:5]) / min(5, len(formula_words))
+                    return (answer, min(0.5, avg_score), "formula-generation")
 
         # 5. Граф слов (fallback)
-        if graph_answer and graph_confidence >= 0.15:
-            return (graph_answer, graph_confidence, "knowledge-graph")
+        if graph_answer and graph_confidence >= 0.15 and self._is_response_coherent(
+            query=message,
+            answer=graph_answer,
+            min_overlap=1,
+        ):
+            return (graph_answer, min(0.75, graph_confidence), "knowledge-graph")
 
         return (
             "У меня пока недостаточно знаний по этой теме. "
             "Обучите меня — отправьте текст или URL для обучения.",
             0.1, "no-knowledge",
         )
+
+    def _is_response_coherent(self, query: str, answer: str, min_overlap: int = 1) -> bool:
+        """
+        Быстрый quality-gate для отсеивания шумных ответов.
+        Не заменяет модельную валидацию, но убирает явный бессвязный текст.
+        """
+        text = (answer or "").strip()
+        if len(text) < 24:
+            return False
+
+        ans_tokens = [t for t in _tokenize(text.lower()) if len(t) >= 2]
+        if len(ans_tokens) < 5:
+            return False
+
+        unique_ratio = len(set(ans_tokens)) / max(1, len(ans_tokens))
+        if unique_ratio < 0.28:
+            return False
+
+        query_tokens = {
+            t for t in _tokenize(query.lower())
+            if len(t) >= 3 and not _is_stop_word(t) and t not in _GENERIC_QUERY_TOKENS
+        }
+        answer_tokens = {t for t in ans_tokens if len(t) >= 3 and not _is_stop_word(t)}
+        if query_tokens and min_overlap > 0:
+            overlap = len(query_tokens & answer_tokens)
+            if overlap < min_overlap:
+                query_stems = {_stem_ru(t) for t in query_tokens if len(t) >= 4}
+                answer_stems = {_stem_ru(t) for t in answer_tokens if len(t) >= 4}
+                stem_overlap = len(query_stems & answer_stems) if query_stems and answer_stems else 0
+                if stem_overlap < min_overlap:
+                    return False
+
+        # Для русскоязычного запроса отсекаем ответы с чрезмерной долей англ./латиницы.
+        has_cyr_query = any("\u0400" <= ch <= "\u04ff" for ch in query)
+        if has_cyr_query:
+            ascii_tokens = [t for t in ans_tokens if t.isascii()]
+            if len(ascii_tokens) / max(1, len(ans_tokens)) > 0.45:
+                return False
+
+        return True
+
+    def _has_cyrillic(self, text: str) -> bool:
+        return any("\u0400" <= ch <= "\u04ff" for ch in text)
+
+    def _detect_core_topic(self, message: str, mapped_terms: dict[str, str] | None = None) -> str | None:
+        lowered = message.lower()
+        tokens = _tokenize(lowered)
+        stems = {_stem_ru(t) for t in tokens if len(t) >= 3}
+        mapped_values = set((mapped_terms or {}).values())
+
+        has_qubit_token = "qubit" in tokens or "кубит" in tokens
+        has_quantum = any(s.startswith("квант") for s in stems) or "quantum" in tokens
+        has_bit = "бит" in tokens or "bit" in tokens
+        mapped_qubit = "qubit" in mapped_values
+        if has_qubit_token or mapped_qubit or (has_quantum and has_bit):
+            return "qubit"
+
+        has_transformer = (
+            any(s.startswith("трансформ") for s in stems)
+            or "transformer" in tokens
+            or "transformer" in mapped_values
+        )
+        if has_transformer:
+            return "transformer"
+
+        has_entropy = (
+            any(s.startswith("энтроп") for s in stems)
+            or "entropy" in tokens
+            or "entropy" in mapped_values
+        )
+        if has_entropy:
+            return "entropy"
+
+        return None
+
+    def _topic_fallback_answer(self, topic: str) -> str:
+        return _TOPIC_FALLBACKS.get(
+            topic,
+            "Не могу дать надёжное объяснение по этому запросу без дополнительного источника.",
+        )
+
+    def _build_explain_fallback(self, message: str) -> str:
+        return (
+            "Не могу дать надёжное объяснение по этому запросу без дополнительного источника. "
+            "Если отправите короткий текст или ссылку по теме, отвечу точнее и без догадок."
+        )
+
+    def _fetch_weather(self, location: str) -> tuple[str, float, str]:
+        """Получить погоду через Open-Meteo. Возвращает (response, confidence, method)."""
+        if not _WEATHER_ENABLED:
+            return ("Погода сейчас недоступна на этом сервере.", 0.1, "weather-unavailable")
+        try:
+            geo = requests.get(
+                _WEATHER_GEO_URL,
+                params={"name": location, "count": 1, "language": "ru", "format": "json"},
+                headers={"User-Agent": "KolibriBot/1.0 (weather)"},
+                timeout=6,
+            )
+            geo.raise_for_status()
+            geo_data = geo.json()
+            results = geo_data.get("results") or []
+            if not results:
+                return ("Не нашёл такой населённый пункт. Уточните город.", 0.2, "weather-clarify")
+            loc = results[0]
+            lat = loc.get("latitude")
+            lon = loc.get("longitude")
+            name = loc.get("name") or location
+            country = loc.get("country") or ""
+            region = loc.get("admin1") or ""
+            if lat is None or lon is None:
+                return ("Не смог получить координаты этого места.", 0.2, "weather-unavailable")
+
+            forecast = requests.get(
+                _WEATHER_FORECAST_URL,
+                params={
+                    "latitude": lat,
+                    "longitude": lon,
+                    "current_weather": "true",
+                    "daily": "temperature_2m_max,temperature_2m_min,precipitation_probability_max",
+                    "timezone": "auto",
+                },
+                headers={"User-Agent": "KolibriBot/1.0 (weather)"},
+                timeout=6,
+            )
+            forecast.raise_for_status()
+            data = forecast.json()
+
+            current = data.get("current_weather") or {}
+            daily = data.get("daily") or {}
+            temp = current.get("temperature")
+            wind = current.get("windspeed")
+            code = current.get("weathercode")
+
+            tmax = None
+            tmin = None
+            rain = None
+            if isinstance(daily, dict):
+                tmax_list = daily.get("temperature_2m_max") or []
+                tmin_list = daily.get("temperature_2m_min") or []
+                rain_list = daily.get("precipitation_probability_max") or []
+                if tmax_list:
+                    tmax = tmax_list[0]
+                if tmin_list:
+                    tmin = tmin_list[0]
+                if rain_list:
+                    rain = rain_list[0]
+
+            place = ", ".join([p for p in [name, region, country] if p])
+            parts: list[str] = []
+            if temp is not None:
+                parts.append(f"Сейчас: {temp} °C")
+            if code is not None:
+                parts.append(_weather_code_label(int(code)))
+            if wind is not None:
+                parts.append(f"ветер {wind} км/ч")
+            line_now = ", ".join(parts) if parts else "Сейчас: нет данных."
+
+            line_day = ""
+            if tmin is not None and tmax is not None:
+                line_day = f"Сегодня: от {tmin} до {tmax} °C"
+                if rain is not None:
+                    line_day += f", осадки до {rain}%"
+            elif rain is not None:
+                line_day = f"Сегодня: вероятность осадков до {rain}%"
+
+            response = f"{place}\n{line_now}"
+            if line_day:
+                response += f". {line_day}."
+            return (response, 0.85, "weather-open-meteo")
+        except Exception:
+            return ("Сейчас не могу получить погоду из внешнего источника.", 0.1, "weather-unavailable")
+
+    def _quick_search_duckduckgo(self, query: str, max_results: int = 4) -> list[dict]:
+        results: list[dict] = []
+        try:
+            resp = requests.post(
+                "https://html.duckduckgo.com/html/",
+                data={"q": query, "b": ""},
+                headers=_WEB_HEADERS,
+                timeout=6,
+            )
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.text, "html.parser")
+            for result_div in soup.select(".result"):
+                a_tag = result_div.select_one("a.result__a")
+                if not a_tag:
+                    continue
+                href = a_tag.get("href", "").strip()
+                title = a_tag.get_text(strip=True)
+                actual_url = href
+                if "uddg=" in href:
+                    parsed = urlparse(href)
+                    params = parse_qs(parsed.query)
+                    uddg = params.get("uddg", [""])[0]
+                    if uddg:
+                        actual_url = unquote(uddg)
+                if not actual_url.startswith(("http://", "https://")):
+                    continue
+                snippet_tag = result_div.select_one(".result__snippet")
+                snippet = snippet_tag.get_text(strip=True) if snippet_tag else ""
+                results.append({
+                    "url": actual_url,
+                    "title": title,
+                    "snippet": snippet[:240],
+                    "source": "duckduckgo",
+                })
+                if len(results) >= max_results:
+                    break
+        except Exception:
+            return []
+        return results
+
+    def _quick_search_wikipedia(self, query: str, lang: str = "ru", max_results: int = 3) -> list[dict]:
+        results: list[dict] = []
+        try:
+            api_url = f"https://{lang}.wikipedia.org/w/api.php"
+            resp = requests.get(
+                api_url,
+                params={
+                    "action": "query",
+                    "list": "search",
+                    "srsearch": query,
+                    "srlimit": max_results,
+                    "format": "json",
+                    "utf8": 1,
+                },
+                headers={
+                    "User-Agent": "KolibriBot/1.0 (knowledge retrieval)",
+                    "Accept": "application/json",
+                },
+                timeout=5,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            for item in data.get("query", {}).get("search", []):
+                title = item.get("title", "").strip()
+                if not title:
+                    continue
+                page_url = f"https://{lang}.wikipedia.org/wiki/{quote_plus(title.replace(' ', '_'))}"
+                snippet = BeautifulSoup(item.get("snippet", ""), "html.parser").get_text()
+                results.append({
+                    "url": page_url,
+                    "title": title,
+                    "snippet": snippet[:240],
+                    "source": f"wikipedia_{lang}",
+                })
+        except Exception:
+            return []
+        return results
+
+    def _fetch_web_page_text(self, url: str, timeout: int = _WEB_PAGE_TIMEOUT) -> tuple[str, str]:
+        """Загрузить страницу и извлечь очищенный текст."""
+        try:
+            resp = requests.get(
+                url,
+                headers=_WEB_HEADERS,
+                timeout=timeout,
+                allow_redirects=True,
+            )
+            resp.raise_for_status()
+        except Exception:
+            return ("", "")
+
+        content_type = (resp.headers.get("content-type") or "").lower()
+        if "text/html" not in content_type:
+            return ("", "")
+
+        if not resp.encoding or resp.encoding.lower() in {"iso-8859-1", "ascii"}:
+            resp.encoding = resp.apparent_encoding or "utf-8"
+
+        soup = BeautifulSoup(resp.text, "html.parser")
+        title_tag = soup.find("title")
+        title = title_tag.get_text(strip=True) if title_tag else url
+
+        for tag in soup([
+            "script", "style", "nav", "footer", "header", "aside", "noscript",
+            "iframe", "form", "button", "svg", "img", "video", "audio",
+            "figure", "input", "select", "textarea",
+        ]):
+            tag.decompose()
+
+        main_content = (
+            soup.find("article")
+            or soup.find("main")
+            or soup.find(class_=re.compile(r"content|article|post|entry|text", re.I))
+            or soup.find("div", {"id": re.compile(r"content|article|main|body", re.I)})
+            or soup.find("body")
+        )
+
+        text_raw = (
+            main_content.get_text(separator="\n", strip=True)
+            if main_content else soup.get_text(separator="\n", strip=True)
+        )
+
+        lines: list[str] = []
+        seen: set[str] = set()
+        total_chars = 0
+        for line in text_raw.split("\n"):
+            clean = re.sub(r"\s+", " ", line).strip()
+            if len(clean) < 40:
+                continue
+            low = clean.lower()
+            if low in seen:
+                continue
+            if any(bad in low for bad in ("cookie", "privacy policy", "accept all", "all rights reserved")):
+                continue
+            seen.add(low)
+            lines.append(clean)
+            total_chars += len(clean)
+            if total_chars >= 18000:
+                break
+
+        if not lines:
+            return (title, "")
+        return (title, "\n".join(lines))
+
+    def _build_web_answer_from_docs(self, query: str, docs: list[dict]) -> str:
+        """Собрать краткий ответ из найденных веб-документов."""
+        query_tokens = {
+            t for t in _tokenize(query.lower())
+            if len(t) >= 3 and not _is_stop_word(t) and t not in _GENERIC_QUERY_TOKENS
+        }
+        query_stems = {_stem_ru(t) for t in query_tokens if len(t) >= 4}
+
+        candidates: list[tuple[float, str]] = []
+        for doc in docs:
+            text = doc.get("text", "")
+            if not text:
+                continue
+            sentences = re.split(r"(?<=[.!?])\s+|\n+", text)
+            for sent in sentences:
+                clean = sent.strip(" \t\r\n-•")
+                if len(clean) < 40 or len(clean) > 360:
+                    continue
+                tokens = {
+                    t for t in _tokenize(clean.lower())
+                    if len(t) >= 3 and not _is_stop_word(t)
+                }
+                if not tokens:
+                    continue
+                overlap = len(query_tokens & tokens) if query_tokens else 0
+                if overlap == 0 and query_stems:
+                    sent_stems = {_stem_ru(t) for t in tokens if len(t) >= 4}
+                    overlap = len(query_stems & sent_stems)
+                if query_tokens and overlap == 0:
+                    continue
+                score = overlap * 2.0 + min(1.0, len(tokens) / 24.0)
+                candidates.append((score, clean))
+
+        if not candidates:
+            return ""
+
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        selected: list[str] = []
+        seen_prefix: set[str] = set()
+        for _, sentence in candidates:
+            pref = sentence[:80].lower()
+            if pref in seen_prefix:
+                continue
+            seen_prefix.add(pref)
+            selected.append(sentence.rstrip(" ."))
+            if len(selected) >= 3:
+                break
+
+        if not selected:
+            return ""
+
+        answer = ". ".join(selected)
+        if not answer.endswith((".", "!", "?")):
+            answer += "."
+        return answer
+
+    def _persist_web_learning(self, query: str, training_text: str, sources: list[dict]) -> None:
+        """Сохранить найденные веб-знания в corpus для загрузки после рестарта."""
+        try:
+            _CORPUS_DIR.mkdir(parents=True, exist_ok=True)
+            q_hash = hashlib.sha1(query.lower().encode("utf-8")).hexdigest()[:12]
+            path = _CORPUS_DIR / f"web_auto_{q_hash}.txt"
+            # Пишем в corpus только обучающий контент (без мета-шапок),
+            # чтобы retrieval не начинал отвечать комментариями.
+            path.write_text(training_text[:_WEB_MAX_TRAIN_CHARS], encoding="utf-8")
+        except Exception as exc:
+            log.warning("web learning persist failed: %s", exc)
+
+    def _web_search_and_learn(self, query: str) -> tuple[str, float, list[dict]] | None:
+        """Если знаний не хватает: ищем в web, отвечаем и дообучаемся на найденном."""
+        if not _WEB_FALLBACK:
+            return None
+
+        deadline = time.monotonic() + max(6, _WEB_TOTAL_TIMEOUT)
+        target_urls = max(3, _WEB_MAX_URLS)
+        search_results: list[dict] = []
+        seen_urls: set[str] = set()
+
+        handlers = [
+            ("duckduckgo", lambda q: self._quick_search_duckduckgo(q, max_results=target_urls)),
+            ("wikipedia_ru", lambda q: self._quick_search_wikipedia(q, max_results=3, lang="ru")),
+            ("wikipedia_en", lambda q: self._quick_search_wikipedia(q, max_results=3, lang="en")),
+        ]
+
+        for _, handler in handlers:
+            if len(search_results) >= target_urls:
+                break
+            if time.monotonic() >= deadline:
+                break
+            try:
+                candidates = handler(query)
+            except Exception:
+                candidates = []
+            for item in candidates:
+                url = (item.get("url") or "").strip()
+                if not url:
+                    continue
+                key = re.sub(r"[?#].*$", "", url.rstrip("/").lower())
+                if key in seen_urls:
+                    continue
+                seen_urls.add(key)
+                search_results.append(item)
+                if len(search_results) >= target_urls:
+                    break
+
+        if not search_results:
+            return None
+
+        docs: list[dict] = []
+        for result in search_results[: max(3, _WEB_MAX_URLS)]:
+            if time.monotonic() >= deadline:
+                break
+            url = result.get("url", "")
+            if not url:
+                continue
+            title, text = self._fetch_web_page_text(url=url, timeout=_WEB_PAGE_TIMEOUT)
+            if len(text) < 250:
+                snippet = (result.get("snippet") or "").strip()
+                if len(snippet) < 40:
+                    continue
+                text = f"{result.get('title', '')}. {snippet}"
+                if not title:
+                    title = result.get("title", "") or url
+            docs.append({
+                "url": url,
+                "title": title or result.get("title", ""),
+                "source": result.get("source", ""),
+                "text": text[:40000],
+            })
+            if len(docs) >= max(1, _WEB_MAX_PAGES):
+                break
+
+        if not docs:
+            return None
+
+        train_chunks: list[str] = []
+        for doc in docs:
+            train_chunks.append(
+                f"{doc.get('title', '')}\n"
+                f"Источник: {doc.get('url', '')}\n"
+                f"{doc.get('text', '')}"
+            )
+        train_text = "\n\n".join(train_chunks)[:_WEB_MAX_TRAIN_CHARS]
+
+        if len(train_text) >= 120:
+            try:
+                src_meta = [
+                    {
+                        "url": d.get("url", ""),
+                        "title": d.get("title", ""),
+                        "source": d.get("source", ""),
+                    }
+                    for d in docs[:5]
+                ]
+                self._train_queue.put_nowait(("web_train", query, train_text, src_meta))
+            except Exception as exc:
+                log.warning("web learning enqueue failed: %s", exc)
+
+        answer = self._build_web_answer_from_docs(query=query, docs=docs)
+        if not answer:
+            return None
+        if not self._is_response_coherent(query=query, answer=answer, min_overlap=0):
+            return None
+
+        source_list: list[dict] = []
+        seen_urls: set[str] = set()
+        for doc in docs:
+            url = doc.get("url", "")
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            source_list.append({
+                "url": url,
+                "title": doc.get("title", ""),
+                "source": doc.get("source", ""),
+                "host": urlparse(url).netloc.lower(),
+            })
+            if len(source_list) >= 3:
+                break
+
+        if source_list:
+            hosts = ", ".join(s.get("host") or s.get("url") for s in source_list[:2])
+            answer = f"{answer}\n\nИсточники: {hosts}"
+
+        confidence = 0.82 if len(source_list) >= 2 else 0.74
+        return (answer, confidence, source_list)
+
+    def _extract_gemini_text(self, payload: dict) -> str:
+        candidates = payload.get("candidates")
+        if not isinstance(candidates, list):
+            return ""
+        parts_out: list[str] = []
+        for cand in candidates:
+            if not isinstance(cand, dict):
+                continue
+            content = cand.get("content")
+            if not isinstance(content, dict):
+                continue
+            parts = content.get("parts")
+            if not isinstance(parts, list):
+                continue
+            for part in parts:
+                if isinstance(part, dict) and isinstance(part.get("text"), str):
+                    parts_out.append(part["text"])
+        return "\n".join(p.strip() for p in parts_out if p and p.strip()).strip()
+
+    def _extract_openrouter_text(self, payload: dict) -> str:
+        choices = payload.get("choices")
+        if not isinstance(choices, list) or not choices:
+            return ""
+        first = choices[0]
+        if not isinstance(first, dict):
+            return ""
+        message = first.get("message")
+        if not isinstance(message, dict):
+            return ""
+        content = message.get("content")
+        if isinstance(content, str):
+            return content.strip()
+        if isinstance(content, list):
+            chunks: list[str] = []
+            for item in content:
+                if isinstance(item, dict) and item.get("type") == "text" and isinstance(item.get("text"), str):
+                    chunks.append(item["text"])
+            return "\n".join(c.strip() for c in chunks if c and c.strip()).strip()
+        return ""
+
+    def _sanitize_llm_prompt(self, text: str, max_chars: int = 7000) -> str:
+        cleaned = (text or "").replace("\r", "\n")
+        cleaned = re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F]", " ", cleaned)
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+        cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+        cleaned = cleaned.strip()
+        if len(cleaned) > max_chars:
+            cleaned = cleaned[:max_chars].rsplit(" ", 1)[0].rstrip() + "…"
+        return cleaned
+
+    def _call_text_llm(self, system_prompt: str, user_prompt: str) -> str:
+        global _TEXT_LLM_RUNTIME_DISABLED
+        if _TEXT_LLM_RUNTIME_DISABLED:
+            return ""
+        if not _TEXT_LLM_ENABLE or not _TEXT_LLM_API_KEY or not _TEXT_LLM_PROVIDER:
+            return ""
+        try:
+            if _TEXT_LLM_PROVIDER == "gemini":
+                merged_prompt = self._sanitize_llm_prompt(
+                    f"{system_prompt}\n\n{user_prompt}",
+                    max_chars=7000,
+                )
+                payload = {
+                    "contents": [
+                        {"role": "user", "parts": [{"text": merged_prompt}]},
+                    ],
+                    "generationConfig": {
+                        "temperature": max(0.0, min(1.0, _TEXT_LLM_TEMPERATURE)),
+                        "maxOutputTokens": max(128, min(2048, _TEXT_LLM_MAX_TOKENS)),
+                    },
+                }
+                url = f"{_TEXT_GEMINI_BASE_URL}/models/{_TEXT_GEMINI_MODEL}:generateContent"
+                resp = requests.post(
+                    f"{url}?key={_TEXT_LLM_API_KEY}",
+                    json=payload,
+                    timeout=max(5.0, _TEXT_LLM_TIMEOUT),
+                )
+                if resp.status_code >= 400:
+                    err_text = (resp.text or "")[:400]
+                    log.warning("text llm gemini error %s: %s", resp.status_code, err_text)
+                    if "location is not supported" in err_text.lower():
+                        _TEXT_LLM_RUNTIME_DISABLED = True
+                        log.warning("text llm disabled for runtime due to provider geo restriction")
+                    return ""
+                return self._extract_gemini_text(resp.json())
+
+            if _TEXT_LLM_PROVIDER == "openrouter":
+                system_prompt = self._sanitize_llm_prompt(system_prompt, max_chars=2000)
+                user_prompt = self._sanitize_llm_prompt(user_prompt, max_chars=6000)
+                payload = {
+                    "model": _TEXT_OPENROUTER_MODEL,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "temperature": max(0.0, min(1.5, _TEXT_LLM_TEMPERATURE)),
+                    "max_tokens": max(128, min(2048, _TEXT_LLM_MAX_TOKENS)),
+                }
+                headers = {
+                    "Authorization": f"Bearer {_TEXT_LLM_API_KEY}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://kolibriai.ru",
+                    "X-Title": "Kolibri AI",
+                }
+                resp = requests.post(
+                    _TEXT_OPENROUTER_URL,
+                    json=payload,
+                    headers=headers,
+                    timeout=max(5.0, _TEXT_LLM_TIMEOUT),
+                )
+                if resp.status_code >= 400:
+                    err_text = (resp.text or "")[:400]
+                    log.warning("text llm openrouter error %s: %s", resp.status_code, err_text)
+                    return ""
+                return self._extract_openrouter_text(resp.json())
+        except Exception as exc:
+            log.warning("text llm call failed: %s", exc)
+        return ""
+
+    def _should_use_llm_polish(
+        self,
+        message: str,
+        method: str,
+        confidence: float,
+        search_strategy: dict,
+    ) -> bool:
+        if not _TEXT_LLM_ENABLE or not _TEXT_LLM_API_KEY or not _TEXT_LLM_PROVIDER:
+            return False
+        if method in {"greeting", "command", "math-eval"}:
+            return False
+        tokens = [t for t in _tokenize(message.lower()) if len(t) >= 2]
+        if len(tokens) < 3:
+            return False
+        intent = search_strategy.get("intent", "general")
+        if intent in {"explain", "compare", "create"}:
+            return True
+        if method in {"web-search-learning", "topic-fallback", "no-knowledge", "explain-fallback"}:
+            return True
+        if method in {"formula-generation", "knowledge-graph", "c-model"}:
+            return True
+        if method in {"formula-retrieval", "formula-association"} and (confidence < 0.92 or len(tokens) >= 7):
+            return True
+        return False
+
+    def _llm_polish_answer(
+        self,
+        message: str,
+        base_answer: str,
+        method: str,
+        confidence: float,
+        search_strategy: dict,
+        retrieved_sentences: list[tuple[str, float]],
+        c_knowledge: list[str],
+        web_sources: list[dict],
+    ) -> str:
+        if not self._should_use_llm_polish(
+            message=message,
+            method=method,
+            confidence=confidence,
+            search_strategy=search_strategy,
+        ):
+            return ""
+
+        retr_lines = [
+            f"- ({round(score, 3)}) {text[:220]}"
+            for text, score in retrieved_sentences[:5]
+            if text and len(text) >= 20
+        ]
+        c_lines = [f"- {k[:220]}" for k in c_knowledge[:4] if k and len(k) >= 20]
+        web_lines = [
+            f"- {item.get('title', '')} | {item.get('url', '')}"
+            for item in web_sources[:4]
+            if item.get("url")
+        ]
+
+        system_prompt = (
+            "Ты — финальный редактор ответов Colibri AI. "
+            "Нужно улучшить ясность и точность, не выдумывать факты. "
+            "Используй ТОЛЬКО переданный контекст. "
+            "Если контекста мало, честно укажи это."
+        )
+        user_prompt = (
+            f"Запрос пользователя:\n{message}\n\n"
+            f"Черновой ответ Colibri:\n{base_answer}\n\n"
+            f"Контекст retrieval:\n{chr(10).join(retr_lines) if retr_lines else '- нет'}\n\n"
+            f"Контекст C-модели:\n{chr(10).join(c_lines) if c_lines else '- нет'}\n\n"
+            f"Веб-источники:\n{chr(10).join(web_lines) if web_lines else '- нет'}\n\n"
+            "Сформируй итоговый ответ на русском, 1-3 абзаца, без воды. "
+            "Если есть веб-источники, добавь в конце строку вида: "
+            "\"Источники: host1, host2\"."
+        )
+        llm_text = self._call_text_llm(system_prompt=system_prompt, user_prompt=user_prompt)
+        if not llm_text:
+            return ""
+
+        cleaned = llm_text.strip()
+        cleaned = re.sub(r"^```[a-zA-Z0-9_-]*\n?", "", cleaned)
+        cleaned = re.sub(r"\n?```$", "", cleaned).strip()
+        if len(cleaned) > 3200:
+            cleaned = cleaned[:3200].rsplit(" ", 1)[0].rstrip() + "…"
+
+        # Для LLM-полировки достаточно базовой связности: он может перефразировать
+        # без буквального совпадения токенов с запросом.
+        if not self._is_response_coherent(query=message, answer=cleaned, min_overlap=0):
+            return ""
+        return cleaned
 
     # ------------------------------------------------------------------
     # Связная генерация: когерентные ответы вместо склейки фрагментов
@@ -1245,7 +2274,10 @@ class KolibriAIEngine:
         """
         query_tokens = set(_tokenize(query.lower()))
         # Значимые токены (без стоп-слов) для оценки релевантности
-        meaningful_query = {t for t in query_tokens if not _is_stop_word(t)}
+        meaningful_query = {
+            t for t in query_tokens
+            if not _is_stop_word(t) and t not in _GENERIC_QUERY_TOKENS
+        }
         # --- Стемы для морфологического совпадения («искусственном» ≈ «искусственный») ---
         meaningful_stems = {_stem_ru(t) for t in meaningful_query if len(t) >= 4}
         scored_sentences: list[tuple[str, float, int]] = []
@@ -1253,6 +2285,7 @@ class KolibriAIEngine:
         # Семантический вектор запроса (для embedding-ранжирования)
         query_vec = None
         use_embeddings = len(self.embeddings.vectors) > 100
+        strict_lexical_match = any("\u0400" <= ch <= "\u04ff" for ch in query)
         if use_embeddings:
             query_vec = self.embeddings.sentence_vector(query)
 
@@ -1261,6 +2294,15 @@ class KolibriAIEngine:
         for text, base_score in sentences[:8]:
             text = text.strip()
             if not text or len(text) < 15:
+                continue
+            # Не подмешиваем self-referential текст о Kolibri,
+            # если пользователь не спрашивал именно о Kolibri.
+            lower_text = text.lower()
+            lower_query = query.lower()
+            if (
+                ("kolibri" in lower_text or "колибри" in lower_text)
+                and ("kolibri" not in lower_query and "колибри" not in lower_query)
+            ):
                 continue
             # Проверка на near-duplicate: не добавлять предложения с >60% пересечением слов
             text_words = set(_tokenize(text.lower()))
@@ -1298,8 +2340,13 @@ class KolibriAIEngine:
 
             # Адаптивный порог: если embedding sim высокий, пропускаем overlap-check
             min_overlap = 2 if len(meaningful_query) >= 3 else 1
-            if overlap < min_overlap and meaningful_query and emb_sim < 0.35:
-                continue
+            if meaningful_query and overlap < min_overlap:
+                # Для русскоязычных запросов требуем явное лексическое совпадение:
+                # эмбеддинги здесь чаще дают шумные "псевдо-сходства".
+                if strict_lexical_match:
+                    continue
+                if emb_sim < 0.35:
+                    continue
             relevance = base_score + overlap * 0.15 + emb_sim * 0.25
             len_bonus = min(1.0, len(text) / 200) * 0.1
             if len(text) > 300:
@@ -1344,6 +2391,17 @@ class KolibriAIEngine:
             if i == 0:
                 parts.append(text)
             else:
+                curr_meaningful = {
+                    t for t in _tokenize(text.lower())
+                    if not _is_stop_word(t) and len(t) >= 3
+                }
+                q_overlap = len(meaningful_query & curr_meaningful)
+                if q_overlap == 0 and meaningful_stems:
+                    curr_stems = {_stem_ru(t) for t in curr_meaningful if len(t) >= 4}
+                    q_overlap = len(meaningful_stems & curr_stems)
+                if meaningful_query and q_overlap == 0:
+                    continue
+
                 prev_tokens = set(_tokenize(parts[-1].lower()))
                 curr_tokens = set(_tokenize(text.lower()))
                 new_info = len(curr_tokens - prev_tokens)
@@ -1484,6 +2542,64 @@ class KolibriAIEngine:
             sections.append(f"📊 **Граф знаний:** {cands} кандидатов, score={score}")
 
         return "\n".join(sections)
+
+    def _digit_vote(
+        self,
+        message: str,
+        retrieved_sentences: list[tuple[str, float]],
+        graph_confidence: float,
+        c_knowledge: list[str],
+        c_digits: list[int],
+        formula_result: dict,
+    ) -> dict:
+        """0..9 voting layer for canonical chat decisions."""
+        digits = c_digits[:200]
+        if not digits:
+            try:
+                digits = text_to_digits(message)[:200]
+            except Exception:
+                digits = []
+        counts = Counter(digits) if digits else Counter()
+        total = sum(counts.values()) or 1
+        strength = {d: round(counts.get(d, 0) / total, 4) for d in range(10)}
+
+        low_signal = not retrieved_sentences and not c_knowledge and graph_confidence < 0.2
+        has_math = self._try_math_eval(message.strip().lower()) is not None
+        has_digits = any(c.isdigit() for c in message)
+        has_structure = any(t in message.lower() for t in ("структур", "как устроен", "как устроено", "схема"))
+        has_causal = any(t in message.lower() for t in ("почему", "из-за", "причин", "следств"))
+        has_tool = _match_weather_intent(message) or "http://" in message or "https://" in message
+
+        base = {
+            0: 0.7 if low_signal else 0.15,
+            1: 0.6 if (retrieved_sentences or c_knowledge) else 0.25,
+            2: 0.6 if has_structure else 0.2,
+            3: 0.6 if has_causal else 0.2,
+            4: 0.8 if (has_math or has_digits) else 0.2,
+            5: 0.6 if (retrieved_sentences or graph_confidence >= 0.4) else 0.2,
+            6: 0.7 if c_knowledge else 0.25,
+            7: 0.5 if low_signal else 0.2,
+            8: 0.7 if has_tool else 0.15,
+            9: 0.6 if (retrieved_sentences and c_knowledge) else 0.3,
+        }
+
+        channels = {d: round(min(1.0, base[d] + strength.get(d, 0)), 4) for d in range(10)}
+        reject = channels[0] > 0.7 and channels[9] < 0.45
+        needs_tool = channels[8] > 0.6
+        boost = min(0.12, channels[9] * 0.12)
+
+        return {
+            "channels": channels,
+            "strength": strength,
+            "decision": {
+                "reject": reject,
+                "needs_tool": needs_tool,
+                "confidence_boost": round(boost, 4),
+                "low_signal": low_signal,
+            },
+            "input_digits": len(digits),
+            "formula_predict": formula_result.get("predict_value", 0),
+        }
 
     # ------------------------------------------------------------------
     # Обучение
@@ -1895,6 +3011,30 @@ class KolibriAIEngine:
         math_result = self._try_math_eval(stripped)
         if math_result is not None:
             return math_result
+
+        # --- Погода ---
+        if _match_weather_intent(stripped):
+            location = _extract_weather_location(stripped)
+            if not location:
+                return {
+                    "response": "Уточните город для прогноза погоды.",
+                    "confidence": 0.2,
+                    "sources": ["weather"],
+                    "method": "weather-clarify",
+                    "knowledge_hits": 0,
+                    "formula_data": self._basic_formula_data(),
+                    "graph_stats": self.graph.get_stats(),
+                }
+            resp, conf, method = self._fetch_weather(location)
+            return {
+                "response": resp,
+                "confidence": conf,
+                "sources": ["open-meteo"] if method == "weather-open-meteo" else ["weather"],
+                "method": method,
+                "knowledge_hits": 0,
+                "formula_data": self._basic_formula_data(),
+                "graph_stats": self.graph.get_stats(),
+            }
 
         # --- Приветствия ---
         _GREETINGS = {

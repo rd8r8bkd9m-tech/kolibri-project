@@ -77,6 +77,24 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
   const [childModeEnabled, setChildModeEnabled] = useState(false);
   const [language, setLanguage] = useState<'ru' | 'en'>('ru');
 
+  const buildLabel = useMemo(() => {
+    const raw = typeof __KOLIBRI_BUILD__ === 'string' ? __KOLIBRI_BUILD__ : '';
+    if (!raw) {
+      return 'dev';
+    }
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) {
+      return raw;
+    }
+    return date.toLocaleString('ru-RU', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }, []);
+
   useEffect(() => {
     try {
       localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
@@ -329,7 +347,7 @@ export const SettingsTab = ({ onClose }: SettingsTabProps) => {
           <button type="button" className="kol-settings-logout">Выйти</button>
         </section>
 
-        <footer className="kol-settings-version">xI · ВЕРСИЯ 1.3.38 (СБОРКА 2713)</footer>
+        <footer className="kol-settings-version">Колибри · сборка {buildLabel}</footer>
       </>
     );
   };

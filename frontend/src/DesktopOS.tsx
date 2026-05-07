@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Terminal, Cpu, Database, Activity, Settings, X, Minus, Square, Wifi, Battery, Volume2 } from 'lucide-react';
 
 // --- Types ---
