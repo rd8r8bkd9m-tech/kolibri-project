@@ -116,6 +116,13 @@ benchmarks/results/*.json
 benchmarks/results/*.md
 !benchmarks/results/BENCHMARK_REPORT_TEMPLATE.md
 
+# Removed/Old benchmark tests
+tests/benchmarks/test_128bit_prefix_recovery.py
+tests/benchmarks/test_128bit_partial_recovery_suite.py
+tests/benchmarks/test_32bit_stress.py
+tests/benchmarks/test_40bit_recovery.py
+tests/benchmarks/test_real_key_proof.py
+
 # Generated data (training, proofs, models)
 data/proof/
 data/models/*.klm

@@ -10,7 +10,11 @@
       "Bash(cat *)",
       "Bash(pkill *)",
       "Bash(uvicorn *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git tag *)",
+      "Bash(git push *)",
+      "Bash(rm *)"
     ]
   },
   "$version": 3

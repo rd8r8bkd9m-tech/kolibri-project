@@ -3,7 +3,7 @@
 ![Version](https://img.shields.io/badge/version-2.0.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![C Standard](https://img.shields.io/badge/C-C23-orange)
-![Python](https://img.shields.io/badge/Python-3.10+-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.14+-brightgreen)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 
 > **Гибридная C23 / Python / WASM платформа с числовым формульным мышлением, эволюционным сжатием и децентрализованным обменом знаниями.**
@@ -593,6 +593,10 @@ kolibri-project/
 ├── kolibri-archiver/           # Standalone архиватор
 ├── scripts/                    # 65+ скриптов (Bash/Python)
 ├── tests/                      # 80+ тестов (C/Python/TS)
+│   └── benchmarks/             #   Бенчмарки производительности
+│       ├── test_benchmark_ladder.py      # Лестница бенчмарков API
+│       ├── test_partial_key_recovery.py  # Частичное восстановление ключей (C-core)
+│       └── test_128bit_inversion_suite.py # Проверка бижективности хеша
 ├── docs/                       # 140+ документов
 ├── deploy/                     # Docker, K8s, мониторинг
 ├── benchmarks/                 # Бенчмарки сжатия

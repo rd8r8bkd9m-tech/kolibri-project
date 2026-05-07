@@ -123,9 +123,9 @@ python3.14 tests/benchmarks/test_partial_key_recovery.py 32bit-stress
 python3.14 tests/benchmarks/test_benchmark_ladder.py
 ```
 
-Для стресс-теста полного 32-битного пространства:
+Для стресс-теста полного 32-битного пространства используйте новый тест:
 ```bash
-python3.14 tests/benchmarks/test_32bit_stress.py
+python3.14 tests/benchmarks/test_partial_key_recovery.py 32bit-stress
 ```
 
 ## Внедрение в ядро
