@@ -55,6 +55,21 @@ class KolibriReverseHashResult(Structure):
         ("range_end", c_uint64),
     ]
 
+class KolibriHashLabResult(Structure):
+    _fields_ = [
+        ("status", c_int),
+        ("mode", c_int),
+        ("success", c_bool),
+        ("recovered_key", KolibriKey128),
+        ("candidate_hash", KolibriHash128),
+        ("target_hash", KolibriHash128),
+        ("inverted_key", KolibriKey128),
+        ("recomputed_hash", KolibriHash128),
+        ("attempts", c_uint64),
+        ("time_ms", c_double),
+        ("keys_per_second", c_double),
+    ]
+
 class KolibriReverseHashRequest(Structure):
     _fields_ = [
         ("target_hash", c_uint32),
@@ -100,6 +115,18 @@ class KolibriAI:
         self.lib.kolibri_hash_128.restype = KolibriHash128
         self.lib.kolibri_hash_128.argtypes = [KolibriKey128]
 
+        # Setup kolibri_hash_lab_128
+        self.lib.kolibri_hash_lab_128.restype = KolibriHashLabResult
+        self.lib.kolibri_hash_lab_128.argtypes = [
+            c_int,             # mode
+            c_int,             # hash_id
+            KolibriHash128,    # target_hash
+            c_uint64,          # known_high
+            c_uint64,          # low_start
+            c_uint64,          # low_end
+            c_uint32,          # threads
+        ]
+
     def bruteforce_hash(self, min_key, max_key, target_hash, threads=8, policy=2):
         req = KolibriReverseHashRequest(
             target_hash=target_hash,
@@ -135,5 +162,24 @@ class KolibriAI:
             low_end,
             threads,
             policy
+        )
+        return result
+
+    def hash_lab_128(self, mode, hash_id, target_hash_low, target_hash_high,
+                     known_high=0, low_start=0, low_end=0, threads=8):
+        """
+        128-bit Hash Lab with two modes:
+        - BRUTE_FORCE_MODE (mode=0): Partial brute-force with known high prefix
+        - INVERSION_MODE (mode=1): Analytical inversion for toy/demo reversible hash
+        """
+        target_hash = KolibriHash128(low=target_hash_low, high=target_hash_high)
+        result = self.lib.kolibri_hash_lab_128(
+            mode,
+            hash_id,
+            target_hash,
+            known_high,
+            low_start,
+            low_end,
+            threads
         )
         return result

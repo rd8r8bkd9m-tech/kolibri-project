@@ -50,6 +50,7 @@ const char* kolibri_search_policy_to_string(KolibriSearchPolicy policy) {
 const char* kolibri_hash_id_to_string(KolibriHashId hash_id) {
     switch (hash_id) {
         case KOLIBRI_HASH_SIMPLE_V1: return "simple_hash_v1";
+        case KOLIBRI_HASH_FEISTEL_128_DEMO: return "feistel128_demo";
         default: return "unknown";
     }
 }
@@ -470,6 +471,75 @@ KolibriPartial128Result kolibri_recover_low64_with_known_high(
         memset(&result.recovered_key, 0, sizeof(result.recovered_key));
         memset(&result.candidate_hash, 0, sizeof(result.candidate_hash));
     }
+
+    return result;
+}
+
+/* --- 128-bit Hash Lab Implementation --- */
+
+KolibriHashLabResult kolibri_hash_lab_128(
+    KolibriHashLabMode mode,
+    KolibriHashId hash_id,
+    KolibriHash128 target_hash,
+    uint64_t known_high,
+    uint64_t low_start,
+    uint64_t low_end,
+    uint32_t threads
+) {
+    KolibriHashLabResult result = {0};
+    result.mode = mode;
+    result.target_hash = target_hash;
+
+    if (hash_id != KOLIBRI_HASH_FEISTEL_128_DEMO) {
+        result.status = KOLIBRI_SEARCH_INVALID_ARGUMENT;
+        result.success = false;
+        return result;
+    }
+
+    if (mode == KOLIBRI_HASH_LAB_INVERSION_MODE) {
+        /* INVERSION_MODE: Use analytical inverse for toy/demo reversible hash */
+        double t0 = get_time_ms();
+
+        KolibriKey128 inverted_key;
+        int rc = kolibri_unhash_128_demo(target_hash, &inverted_key);
+
+        double t1 = get_time_ms();
+        result.time_ms = t1 - t0;
+        result.attempts = 1;
+        result.keys_per_second = (result.time_ms > 0.0) ? (1000.0 / result.time_ms) : 0.0;
+
+        if (rc == 0) {
+            result.status = KOLIBRI_SEARCH_OK;
+            result.success = true;
+            result.inverted_key = inverted_key;
+
+            /* Verify by recomputing */
+            result.recomputed_hash = kolibri_hash_128(inverted_key);
+            result.success = (result.recomputed_hash.low == target_hash.low &&
+                             result.recomputed_hash.high == target_hash.high);
+        } else {
+            result.status = KOLIBRI_SEARCH_INTERNAL_ERROR;
+            result.success = false;
+            memset(&result.inverted_key, 0, sizeof(result.inverted_key));
+            memset(&result.recomputed_hash, 0, sizeof(result.recomputed_hash));
+        }
+
+        return result;
+    }
+
+    /* BRUTE_FORCE_MODE: Use existing partial key recovery */
+    KolibriPartial128Result bf_result = kolibri_recover_low64_with_known_high(
+        known_high, target_hash, low_start, low_end, threads,
+        KOLIBRI_SEARCH_POLICY_FIRST_FOUND_FAST
+    );
+
+    result.status = bf_result.status;
+    result.success = bf_result.found;
+    result.recovered_key = bf_result.recovered_key;
+    result.candidate_hash = bf_result.candidate_hash;
+    result.attempts = bf_result.attempts;
+    result.time_ms = bf_result.time_ms;
+    result.keys_per_second = bf_result.keys_per_second;
 
     return result;
 }

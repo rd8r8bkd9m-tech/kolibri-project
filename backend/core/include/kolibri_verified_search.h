@@ -40,7 +40,8 @@ typedef enum {
 
 typedef enum {
     KOLIBRI_HASH_UNKNOWN = 0,
-    KOLIBRI_HASH_SIMPLE_V1 = 1
+    KOLIBRI_HASH_SIMPLE_V1 = 1,
+    KOLIBRI_HASH_FEISTEL_128_DEMO = 2
 } KolibriHashId;
 
 typedef uint32_t (*KolibriHashFn32)(uint32_t key);
@@ -130,6 +131,43 @@ const char* kolibri_result_type_to_string(KolibriResultType type);
 const char* kolibri_search_policy_to_string(KolibriSearchPolicy policy);
 const char* kolibri_hash_id_to_string(KolibriHashId hash_id);
 KolibriHashFn32 kolibri_hash_fn_from_id(KolibriHashId hash_id);
+
+/* 128-bit Hash Lab Modes */
+typedef enum {
+    KOLIBRI_HASH_LAB_BRUTE_FORCE_MODE = 0,
+    KOLIBRI_HASH_LAB_INVERSION_MODE = 1
+} KolibriHashLabMode;
+
+/* 128-bit Hash Lab Result */
+typedef struct {
+    KolibriSearchStatus status;
+    KolibriHashLabMode mode;
+    bool success;
+
+    /* For BRUTE_FORCE_MODE */
+    KolibriKey128 recovered_key;
+    KolibriHash128 candidate_hash;
+    KolibriHash128 target_hash;
+
+    /* For INVERSION_MODE */
+    KolibriKey128 inverted_key;
+    KolibriHash128 recomputed_hash;
+
+    uint64_t attempts;
+    double time_ms;
+    double keys_per_second;
+} KolibriHashLabResult;
+
+/* Hash Lab Function */
+KolibriHashLabResult kolibri_hash_lab_128(
+    KolibriHashLabMode mode,
+    KolibriHashId hash_id,
+    KolibriHash128 target_hash,
+    uint64_t known_high,       /* For partial brute-force */
+    uint64_t low_start,
+    uint64_t low_end,
+    uint32_t threads
+);
 
 /* Core Functions */
 uint32_t kolibri_simple_hash_v1(uint32_t key);

@@ -28,10 +28,15 @@ extern void formula_forward(const KPCFormula *f, const uint8_t *context, float *
 #define BRAIN_FRACTAL_SEED 1337
 #define BRAIN_SWARM_AGENTS 8
 
+/* Forward declaration */
+typedef struct KolibriBrainInternal KolibriBrainInternal;
+
 /* Конфигурация краулера для мозга */
 static KwcConfig _brain_crawler_cfg = {0};
 
 /* Callback для краулера: обучение мозга на каждой странице */
+/* Forward declarations */
+static int _brain_ingest_text(KolibriBrainInternal *brain, const char *text, size_t len);
 static void _brain_crawl_callback(const KwcPage *page, void *userdata) {
     if (!page || !page->text || !userdata) return;
     
@@ -42,7 +47,7 @@ static void _brain_crawl_callback(const KwcPage *page, void *userdata) {
 }
 
 /* Внутренний контекст мозга */
-typedef struct {
+struct KolibriBrainInternal {
     /* Память и знания */
     KfmContext fractal_mem;
     LogicalMemory *logical_mem;
@@ -61,7 +66,8 @@ typedef struct {
 
     uint64_t total_processed_bytes;
     uint64_t start_time;
-} KolibriBrainInternal;
+};
+typedef struct KolibriBrainInternal KolibriBrainInternal;
 
 void* kolibri_brain_create(void) {
     KolibriBrainInternal *brain = (KolibriBrainInternal *)calloc(1, sizeof(KolibriBrainInternal));

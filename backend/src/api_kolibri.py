@@ -35,6 +35,17 @@ class PartialKeyRecovery128Task(BaseModel):
     threads: Optional[int] = 8
     search_policy: Optional[str] = "lowest_key_in_range"
 
+class HashLab128Task(BaseModel):
+    mode: str = "BRUTE_FORCE_MODE"  # BRUTE_FORCE_MODE or INVERSION_MODE
+    hash_function: Optional[str] = "feistel128_demo"
+    target_hash_low_hex: str
+    target_hash_high_hex: str
+    # For BRUTE_FORCE_MODE only:
+    known_high_hex: Optional[str] = None
+    low_start_hex: Optional[str] = None
+    low_end_hex: Optional[str] = None
+    threads: Optional[int] = 8
+
 class HybridTask(BaseModel):
     task: Optional[str] = "reverse_hash"
     # reverse_hash fields
@@ -237,6 +248,134 @@ def _handle_partial_key_recovery_128(task: HybridTask):
     }
 
     return response
+
+@app.post("/hash_lab/128")
+def hash_lab_128(task: HashLab128Task):
+    if not ai_core:
+        raise HTTPException(status_code=503, detail="Kolibri C-core is unavailable")
+
+    # Parse hex values
+    try:
+        target_hash_low = int(task.target_hash_low_hex, 16) if task.target_hash_low_hex else 0
+        target_hash_high = int(task.target_hash_high_hex, 16) if task.target_hash_high_hex else 0
+    except ValueError as e:
+        return {
+            "status": "rejected",
+            "reason": "invalid_hex_format",
+            "error": str(e)
+        }
+
+    mode = 0 if task.mode == "BRUTE_FORCE_MODE" else 1
+    hash_id = 2  # KOLIBRI_HASH_FEISTEL_128_DEMO
+    threads = task.threads or 8
+
+    if mode == 1:
+        # INVERSION_MODE: analytical inversion
+        result = ai_core.hash_lab_128(
+            mode=mode,
+            hash_id=hash_id,
+            target_hash_low=target_hash_low,
+            target_hash_high=target_hash_high,
+            known_high=0,
+            low_start=0,
+            low_end=0,
+            threads=threads
+        )
+
+        STATUS_OK = 0
+        if result.status != STATUS_OK or not result.success:
+            return {
+                "status": "failed",
+                "mode": "INVERSION_MODE",
+                "message": "Inversion failed for this hash (may not be invertible)"
+            }
+
+        return {
+            "status": "solved",
+            "mode": "INVERSION_MODE",
+            "hash_function": task.hash_function,
+            "target_hash_low_hex": f"0x{result.target_hash.low:016X}",
+            "target_hash_high_hex": f"0x{result.target_hash.high:016X}",
+            "inverted_key_low_hex": f"0x{result.inverted_key.low:016X}",
+            "inverted_key_high_hex": f"0x{result.inverted_key.high:016X}",
+            "recomputed_hash_low_hex": f"0x{result.recomputed_hash.low:016X}",
+            "recomputed_hash_high_hex": f"0x{result.recomputed_hash.high:016X}",
+            "verified": result.success,
+            "attempts": result.attempts,
+            "time_ms": round(result.time_ms, 4),
+            "keys_per_second": round(result.keys_per_second) if result.keys_per_second > 0 else 0
+        }
+    else:
+        # BRUTE_FORCE_MODE: partial brute-force with known high prefix
+        try:
+            known_high = int(task.known_high_hex, 16) if task.known_high_hex else 0
+            low_start = int(task.low_start_hex, 16) if task.low_start_hex else 0
+            low_end = int(task.low_end_hex, 16) if task.low_end_hex else 0
+        except ValueError as e:
+            return {
+                "status": "rejected",
+                "reason": "invalid_hex_format",
+                "error": str(e)
+            }
+
+        # Check for infeasible search space
+        space_size = low_end - low_start + 1
+        if space_size > (1 << 40):
+            return {
+                "status": "rejected",
+                "reason": "search_space_infeasible",
+                "space_bits": 128,
+                "space_size_estimate": f"2^{128}",
+                "estimated_time_years": "~1.26e22",
+                "suggested_methods": [
+                    "known_prefix",
+                    "bounded_window",
+                    "analytic_inverse",
+                    "symbolic_solver",
+                    "meet_in_the_middle"
+                ]
+            }
+
+        result = ai_core.hash_lab_128(
+            mode=mode,
+            hash_id=hash_id,
+            target_hash_low=target_hash_low,
+            target_hash_high=target_hash_high,
+            known_high=known_high,
+            low_start=low_start,
+            low_end=low_end,
+            threads=threads
+        )
+
+        STATUS_OK = 0
+        if result.status != STATUS_OK or not result.success:
+            return {
+                "status": "not_found",
+                "mode": "BRUTE_FORCE_MODE",
+                "known_high_hex": f"0x{known_high:016X}",
+                "low_start_hex": f"0x{low_start:X}",
+                "low_end_hex": f"0x{low_end:X}",
+                "message": "No key found in the specified range"
+            }
+
+        return {
+            "status": "solved",
+            "mode": "BRUTE_FORCE_MODE",
+            "hash_function": task.hash_function,
+            "known_high_hex": f"0x{known_high:016X}",
+            "recovered_low_hex": f"0x{result.recovered_key.low:016X}",
+            "recovered_key_low_hex": f"0x{result.recovered_key.low:016X}",
+            "recovered_key_high_hex": f"0x{result.recovered_key.high:016X}",
+            "target_hash_low_hex": f"0x{result.target_hash.low:016X}",
+            "target_hash_high_hex": f"0x{result.target_hash.high:016X}",
+            "candidate_hash_low_hex": f"0x{result.candidate_hash.low:016X}",
+            "candidate_hash_high_hex": f"0x{result.candidate_hash.high:016X}",
+            "verified": result.success,
+            "attempts": result.attempts,
+            "time_ms": round(result.time_ms, 2),
+            "keys_per_second": round(result.keys_per_second),
+            "threads": threads
+        }
 
 @app.get("/health")
 def health_check():
