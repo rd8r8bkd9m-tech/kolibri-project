@@ -1,7 +1,44 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cmake *)"
+      "Bash(cmake *)",
+      "Bash(python *)",
+      "Bash(npm install)",
+      "Bash(npx *)",
+      "Bash(sleep *)",
+      "Bash(curl *)",
+      "Bash(cat *)",
+      "Bash(pkill *)",
+      "Bash(uvicorn *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git tag *)",
+      "Bash(git push *)",
+      "Bash(rm *)",
+      "Bash(mv *)",
+      "Bash(ls *)",
+      "Bash(/* *)",
+      "Bash(void *)",
+      "Bash(const *)",
+      "Bash(!compact_out)",
+      "Bash(compact_len *)",
+      "Bash(memcpy)",
+      "Bash(memset)",
+      "Bash(return)",
+      "Bash(})",
+      "Bash(size_t *)",
+      "Bash(i)",
+      "Bash(i++)",
+      "Bash(int *)",
+      "Bash(j)",
+      "Bash(j++)",
+      "Bash(sum *)",
+      "Bash(kolibrigene *)",
+      "Bash(!compact_in)",
+      "Bash(gene-)",
+      "Bash(eof)",
+      "Bash(awk *)"
     ]
-  }
+  },
+  "$version": 3
 }

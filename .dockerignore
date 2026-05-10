@@ -1,19 +1,65 @@
-# Ignore git metadata
+# Git & Version Control
 .git
 .gitmodules
 
-# Build outputs
+# Build & Compilation
 build/
+build-*/
 dist/
+*.o
+*.a
+*.so
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+
+# Logs & Runtime Data
 logs/
+*.log
+.run/
+data/*.json
+data/*.sqlite
+.kolibri/
+models/local_sources/
+models/forked/
 
-# Python environments
+# Python Environments & Cache
 .venv/
+.venv312/
 __pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Node artifacts
+# Node.js & Frontend
 frontend/node_modules/
 frontend/dist/
+frontend/*.tsbuildinfo
 
-# OS junk
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 .DS_Store
+
+# Temporary & Generated
+*.tmp
+.cache/
+tmp/
+temp/
+*.wasm
+*.wasm.map
+_codeql_build_dir/
+
+# Cloud Storage & Large Data
+cloud-storage/uploads/
+cloud-storage/compressed/
+cloud-storage/server.log
+data/proof/
+data/models/*.klm
+data/queue/
+data/massive_swarm/

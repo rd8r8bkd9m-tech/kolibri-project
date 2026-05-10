@@ -166,6 +166,10 @@ int kf_formula_lookup_answer(const KolibriFormula *formula, int input,
                              char *buffer, size_t buffer_len);
 int kf_hash_from_text(const char *text);
 
+/* --- Унификация генома (Swarm <-> Compressor) --- */
+void kf_gene_to_compact(const KolibriGene *gene, uint8_t *compact_out, size_t compact_len);
+void kf_gene_from_compact(KolibriGene *gene, const uint8_t *compact_in, size_t compact_len);
+
 /* --- Динамическое управление формулами --- */
 
 /** Расширить пул: добавить новые слоты формул */

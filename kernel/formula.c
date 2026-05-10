@@ -2,6 +2,12 @@
 
 #include "support.h"
 #include <stdio.h>
+#include <string.h>
+
+/* Compatibility macros for kernel support functions */
+#define k_memset memset
+#define k_memcpy memcpy
+#define k_memcmp memcmp
 
 #define KOLIBRI_FORMULA_CAPACITY (sizeof(((KolibriFormulaPool *)0)->formulas) / sizeof(KolibriFormula))
 
@@ -317,4 +323,106 @@ int kf_pool_feedback(KolibriFormulaPool *pool, const KolibriGene *gene, double d
         }
     }
     return -1;
+}
+
+/* --- Missing API implementations for backend compatibility --- */
+
+int kf_hash_from_text(const char *text) {
+    if (!text) return 0;
+    unsigned long hash = 5381;
+    int c;
+    while ((c = *text++)) {
+        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+    }
+    return (int)(hash & 0x7FFFFFFF); /* Ensure positive */
+}
+
+int kf_formula_lookup_answer(const KolibriFormula *formula, int query_hash, char *answer_buffer, size_t buffer_size) {
+    if (!formula || !answer_buffer || buffer_size == 0) return -1;
+    /* В kernel-версии пула нет ассоциаций, возвращаем ошибку */
+    return -1;
+}
+
+int kf_pool_add_association(KolibriFormulaPool *pool, int input_hash, int output_hash, const char *question, const char *answer) {
+    /* В kernel-версии пула нет поддержки ассоциаций */
+    (void)pool;
+    (void)input_hash;
+    (void)output_hash;
+    (void)question;
+    (void)answer;
+    return -1;
+}
+
+void kf_pool_free(KolibriFormulaPool *pool) {
+    if (pool) {
+        memset(pool, 0, sizeof(*pool));
+    }
+}
+
+int kf_pool_ensure_association_capacity(KolibriFormulaPool *pool, size_t count) {
+    (void)pool;
+    (void)count;
+    return 0; /* Stub: static array in kernel struct */
+}
+
+void kf_config_default(KolibriEvolutionConfig *config) {
+    if (config) {
+        memset(config, 0, sizeof(*config));
+        config->mutation_rate = 0.05;
+        config->crossover_rate = 0.7;
+        config->elite_ratio = 0.1;
+        config->tournament_size = 0.2;
+        config->mutation_type = KOLIBRI_MUTATION_POINT;
+        config->crossover_type = KOLIBRI_CROSSOVER_SINGLE_POINT;
+        config->generations_per_tick = 1;
+        config->adaptive_mutation = 0;
+    }
+}
+
+int kf_pool_get_config(const KolibriFormulaPool *pool, KolibriEvolutionConfig *config) {
+    if (!pool || !config) return -1;
+    memcpy(config, &pool->config, sizeof(*config));
+    return 0;
+}
+
+void kf_pool_reset_metrics(KolibriFormulaPool *pool) {
+    if (pool) {
+        memset(&pool->metrics, 0, sizeof(pool->metrics));
+    }
+}
+
+int kf_pool_set_config(KolibriFormulaPool *pool, const KolibriEvolutionConfig *config) {
+    if (!pool || !config) return -1;
+    memcpy(&pool->config, config, sizeof(*config));
+    return 0;
+}
+
+int kf_pool_get_metrics(const KolibriFormulaPool *pool, KolibriEvolutionMetrics *metrics) {
+    if (!pool || !metrics) return -1;
+    memcpy(metrics, &pool->metrics, sizeof(*metrics));
+    return 0;
+}
+
+int kf_reactor_run(KolibriFormulaPool *pool, size_t max_generations, double target_fitness) {
+    if (!pool) return -1;
+    
+    size_t gen = 0;
+    for (; gen < max_generations; gen++) {
+        kf_pool_tick(pool, 1);
+        const KolibriFormula *best = kf_pool_best(pool);
+        if (best && best->fitness >= target_fitness) {
+            break;
+        }
+    }
+    pool->metrics.total_generations += gen;
+    return (int)gen;
+}
+
+int kf_metrics_to_digits(const KolibriEvolutionMetrics *metrics, char *buffer, size_t buffer_len) {
+    if (!metrics || !buffer || buffer_len < 20) return -1;
+    return snprintf(buffer, buffer_len, "%lu_%lu_%.4f_%.4f",
+                    (unsigned long)metrics->total_generations,
+                    (unsigned long)metrics->beneficial_mutations,
+                    metrics->best_fitness,
+                    metrics->avg_fitness);
 }

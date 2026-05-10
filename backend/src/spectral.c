@@ -8,37 +8,101 @@
 
 #define PI 3.14159265358979323846
 
-static void fft_recursive(Complex *x, size_t n) {
-    if (n <= 1) return;
+#if defined(__ARM_NEON)
+#include <arm_neon.h>
+#endif
 
-    Complex *even = malloc(n / 2 * sizeof(Complex));
-    Complex *odd = malloc(n / 2 * sizeof(Complex));
-    for (size_t i = 0; i < n / 2; i++) {
-        even[i] = x[2 * i];
-        odd[i] = x[2 * i + 1];
+static void bit_reverse_complex(Complex *x, size_t n) {
+    size_t j = 0;
+    for (size_t i = 0; i < n; i++) {
+        if (j > i) {
+            Complex temp = x[j];
+            x[j] = x[i];
+            x[i] = temp;
+        }
+        size_t m = n >> 1;
+        while (m >= 1 && j >= m) {
+            j -= m;
+            m >>= 1;
+        }
+        j += m;
     }
-
-    fft_recursive(even, n / 2);
-    fft_recursive(odd, n / 2);
-
-    for (size_t k = 0; k < n / 2; k++) {
-        double angle = -2.0 * PI * k / n;
-        Complex t;
-        t.real = cos(angle) * odd[k].real - sin(angle) * odd[k].imag;
-        t.imag = sin(angle) * odd[k].real + cos(angle) * odd[k].imag;
-
-        x[k].real = even[k].real + t.real;
-        x[k].imag = even[k].imag + t.imag;
-        x[k + n / 2].real = even[k].real - t.real;
-        x[k + n / 2].imag = even[k].imag - t.imag;
-    }
-
-    free(even);
-    free(odd);
 }
 
 void kolibri_fft(Complex *x, size_t n) {
-    fft_recursive(x, n);
+    if (n <= 1) return;
+    
+    // Bit-reversal permutation
+    bit_reverse_complex(x, n);
+
+    // Iterative FFT with SIMD support
+    for (size_t len = 2; len <= n; len <<= 1) {
+        double angle = -2.0 * PI / len;
+        Complex wlen;
+        wlen.real = cos(angle);
+        wlen.imag = sin(angle);
+
+        for (size_t i = 0; i < n; i += len) {
+            Complex w;
+            w.real = 1.0;
+            w.imag = 0.0;
+
+#if defined(__ARM_NEON) && defined(__APPLE__)
+            // NEON optimization: process 2 complex pairs simultaneously
+            for (size_t j = 0; j < len / 2; j += 2) {
+                // Load 2 complex numbers from the first half
+                float64x2_t u1 = vld1q_f64((double *)&x[i + j]);
+                // Load 2 complex numbers from the second half
+                float64x2_t u2 = vld1q_f64((double *)&x[i + j + len / 2]);
+                
+                // Manual complex multiply for clarity and correctness
+                double t1_re = w.real * x[i + j + len/2].real - w.imag * x[i + j + len/2].imag;
+                double t1_im = w.real * x[i + j + len/2].imag + w.imag * x[i + j + len/2].real;
+                
+                // Update w for next iteration (w *= wlen)
+                double w_re = w.real * wlen.real - w.imag * wlen.imag;
+                double w_im = w.real * wlen.imag + w.imag * wlen.real;
+                
+                // Second butterfly in the pair
+                double t2_re = w_re * x[i + j + len/2 + 1].real - w_im * x[i + j + len/2 + 1].imag;
+                double t2_im = w_re * x[i + j + len/2 + 1].imag + w_im * x[i + j + len/2 + 1].real;
+
+                // Store results back (Butterfly operation)
+                double u1_re = x[i + j].real;
+                double u1_im = x[i + j].imag;
+                x[i + j].real = u1_re + t1_re;
+                x[i + j].imag = u1_im + t1_im;
+                x[i + j + len / 2].real = u1_re - t1_re;
+                x[i + j + len / 2].imag = u1_im - t1_im;
+                
+                double u2_re = x[i + j + 1].real;
+                double u2_im = x[i + j + 1].imag;
+                x[i + j + 1].real = u2_re + t2_re;
+                x[i + j + 1].imag = u2_im + t2_im;
+                x[i + j + 1 + len / 2].real = u2_re - t2_re;
+                x[i + j + 1 + len / 2].imag = u2_im - t2_im;
+
+                w.real = w_re;
+                w.imag = w_im;
+            }
+#else
+            for (size_t j = 0; j < len / 2; j++) {
+                Complex u = x[i + j];
+                Complex t;
+                t.real = w.real * x[i + j + len / 2].real - w.imag * x[i + j + len / 2].imag;
+                t.imag = w.real * x[i + j + len / 2].imag + w.imag * x[i + j + len / 2].real;
+
+                x[i + j] = (Complex){u.real + t.real, u.imag + t.imag};
+                x[i + j + len / 2] = (Complex){u.real - t.real, u.imag - t.imag};
+
+                Complex w_next;
+                w_next.real = w.real * wlen.real - w.imag * wlen.imag;
+                w_next.imag = w.real * wlen.imag + w.imag * wlen.real;
+                w = w_next;
+            }
+#endif
+        }
+    }
 }
 
 void kolibri_ifft(Complex *x, size_t n) {
@@ -226,6 +290,91 @@ void kolibri_solve_logic_gf2(const int *inputs, const int *outputs, size_t n_sam
 /* Глубокая эволюционная сеть (CPU Optimized for Apple Silicon) */
 #define DEEP_LAYERS 50
 #define LAYER_WIDTH 16
+
+/* Квадратичный GF(2) Solver: Расширение метода Гаусса для парных взаимодействий */
+void kolibri_solve_logic_gf2_quadratic(const int *inputs, const int *outputs, size_t n_samples, int n_bits, int *predicted) {
+    if (n_samples == 0 || !inputs || !outputs || !predicted) return;
+    
+    /* Для квадратичного случая мы рассматриваем мономы x_i*x_j */
+    /* Ограничиваем размерность, так как количество мономов растет как N^2 */
+    if (n_bits > 16) n_bits = 16; 
+    
+    int n_monomials = n_bits * (n_bits + 1) / 2;
+    if (n_monomials > 130) n_monomials = 130; /* Лимит для стека */
+
+    size_t limit = (n_samples < 130) ? n_samples : 130;
+    uint32_t matrix[130];
+    uint32_t results[130];
+    memset(matrix, 0, sizeof(matrix));
+    memset(results, 0, sizeof(results));
+
+    /* Заполняем матрицу квадратичными признаками */
+    for (size_t i = 0; i < limit; ++i) {
+        uint32_t val = (uint32_t)inputs[i];
+        uint32_t mono_row = 0;
+        int bit_idx = 0;
+        
+        /* Генерируем все пары битов (x_i AND x_j) */
+        for (int a = 0; a < n_bits; ++a) {
+            for (int b = a; b < n_bits; ++b) {
+                if ((val & (1U << a)) && (val & (1U << b))) {
+                    mono_row |= (1U << bit_idx);
+                }
+                bit_idx++;
+                if (bit_idx >= 32) goto fill_done;
+            }
+        }
+fill_done:
+        matrix[i] = mono_row;
+        results[i] = (uint32_t)outputs[i];
+    }
+
+    /* Метод Гаусса над GF(2) */
+    int pivot_rows[130];
+    int num_pivots = 0;
+    for (int col = 0; col < n_monomials && col < 32; ++col) {
+        int pivot = -1;
+        for (int r = num_pivots; r < (int)limit; ++r) {
+            if (matrix[r] & (1U << col)) { pivot = r; break; }
+        }
+        if (pivot == -1) continue;
+
+        uint32_t tmp_m = matrix[num_pivots]; matrix[num_pivots] = matrix[pivot]; matrix[pivot] = tmp_m;
+        uint32_t tmp_r = results[num_pivots]; results[num_pivots] = results[pivot]; results[pivot] = tmp_r;
+
+        for (int r = 0; r < (int)limit; ++r) {
+            if (r != num_pivots && (matrix[r] & (1U << col))) {
+                matrix[r] ^= matrix[num_pivots];
+                results[r] ^= results[num_pivots];
+            }
+        }
+        pivot_rows[num_pivots++] = col;
+    }
+
+    /* Предсказание через разложение по квадратичному базису */
+    for (size_t i = 0; i < n_samples; ++i) {
+        uint32_t val = (uint32_t)inputs[i];
+        int pred = 0;
+        uint32_t mono_val = 0;
+        int bit_idx = 0;
+        for (int a = 0; a < n_bits; ++a) {
+            for (int b = a; b < n_bits; ++b) {
+                if ((val & (1U << a)) && (val & (1U << b))) {
+                    mono_val |= (1U << bit_idx);
+                }
+                bit_idx++;
+            }
+        }
+        
+        for (int p = 0; p < num_pivots; ++p) {
+            if (mono_val & (1U << pivot_rows[p])) {
+                mono_val ^= matrix[p];
+                pred ^= results[p];
+            }
+        }
+        predicted[i] = (int)pred;
+    }
+}
 
 typedef struct {
     __attribute__((aligned(64))) float weights[DEEP_LAYERS][LAYER_WIDTH][LAYER_WIDTH];

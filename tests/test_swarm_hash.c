@@ -49,7 +49,7 @@ int main() {
         printf("[RESULT] Аналитика провалилась (%d ошибок). \n", errors);
         printf("[ACTION] Передача задачи Рою (Deep Swarm Evolution)...\n");
 
-        kolibri_hybrid_solve(inputs, outputs, N, NULL, 500);
+        kolibri_hybrid_solve(inputs, outputs, N, 0, NULL, 500);
 
         printf("\n[FINAL CHECK] Проверка накопленных знаний...\n");
         int final_score = 0;

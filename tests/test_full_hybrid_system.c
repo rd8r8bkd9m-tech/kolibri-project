@@ -12,19 +12,19 @@ int main() {
     printf("\n--- Сценарий 1: Логика (GF2) ---\n");
     int in1[] = {0, 1, 2, 3};
     int out1[] = {5, 4, 7, 6}; /* XOR с 5 */
-    kolibri_hybrid_solve(in1, out1, 4, NULL, 0);
+    kolibri_hybrid_solve(in1, out1, 4, 0, NULL, 0);
 
     /* Сценарий 2: Нелинейная периодическая задача */
     printf("\n--- Сценарий 2: Периодичность (Shor) ---\n");
     int in2[] = {0, 1, 2, 3, 4, 5, 6, 7};
     int out2[] = {0, 1, 4, 2, 2, 4, 1, 0}; /* x^2 mod 7 */
-    kolibri_hybrid_solve(in2, out2, 8, NULL, 0);
+    kolibri_hybrid_solve(in2, out2, 8, 0, NULL, 0);
 
     /* Сценарий 3: Сложная задача без очевидной структуры */
     printf("\n--- Сценарий 3: Хаос (Требуется Рой) ---\n");
     int in3[] = {10, 20, 30};
     int out3[] = {101, 401, 901}; /* y = x^2 + 1 (непериодично на малом отрезке) */
-    kolibri_hybrid_solve(in3, out3, 3, NULL, 100);
+    kolibri_hybrid_solve(in3, out3, 3, 0, NULL, 100);
 
     printf("\n[PASS] Гибридная система успешно распределила задачи!\n");
     return 0;

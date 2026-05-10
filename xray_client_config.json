@@ -1,0 +1,64 @@
+{
+  "log": {
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "port": 1080,
+      "listen": "127.0.0.1",
+      "protocol": "socks",
+      "settings": {
+        "auth": "noauth",
+        "udp": true
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls"]
+      }
+    },
+    {
+      "port": 8080,
+      "listen": "127.0.0.1",
+      "protocol": "http",
+      "settings": {
+        "auth": "noauth"
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls"]
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "vmess",
+      "settings": {
+        "vnext": [
+          {
+            "address": "45.39.60.146",
+            "port": 443,
+            "users": [
+              {
+                "id": "a3418fb5-9a18-4f1d-b5bc-6efdc13b85aa",
+                "alterId": 0,
+                "security": "auto",
+                "level": 0,
+                "email": "admin@xray"
+              }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "tls",
+        "tlsSettings": {
+          "allowInsecure": true
+        },
+        "wsSettings": {
+          "path": "/vmess"
+        }
+      }
+    }
+  ]
+}

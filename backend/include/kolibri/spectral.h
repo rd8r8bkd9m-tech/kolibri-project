@@ -29,6 +29,9 @@ size_t kolibri_shor_find_hidden_period(const int *data, size_t n, int modulus);
 /** Мгновенное решение логических задач через линейную алгебру GF(2) */
 void kolibri_solve_logic_gf2(const int *inputs, const int *outputs, size_t n_samples, int n_bits, int *predicted);
 
+/** Квадратичный решатель GF(2): учет парных взаимодействий битов (AND/XOR) */
+void kolibri_solve_logic_gf2_quadratic(const int *inputs, const int *outputs, size_t n_samples, int n_bits, int *predicted);
+
 /** Гибридный солвер: Аналитика (Шор/GF2) + Эволюция (Рой) */
 void kolibri_hybrid_solve(const int *inputs, const int *outputs, size_t n, int target_hash, void *pool, int max_generations);
 

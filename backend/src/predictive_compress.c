@@ -66,7 +66,7 @@ static void softmax(float *logits, int n) {
 }
 
 /* --- Forward pass одной формулы: контекст → P(byte) --- */
-static void formula_forward(const KPCFormula *f,
+void formula_forward(const KPCFormula *f,
                             const uint8_t *context,
                             float *probs) {
     float hidden[KPC_HIDDEN_SIZE];
