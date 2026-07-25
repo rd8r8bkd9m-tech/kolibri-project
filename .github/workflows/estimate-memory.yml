@@ -1,0 +1,27 @@
+name: Estimate Memory
+
+on:
+  push:
+    branches:
+      - product/kolibri-local-estimate-memory-20260725
+  pull_request:
+    paths:
+      - "components/estimate_memory/**"
+      - ".github/workflows/estimate-memory.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  c23-sqlite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libsqlite3-dev
+      - name: Configure
+        run: cmake -S components/estimate_memory -B build-estimate-memory -G Ninja
+      - name: Build
+        run: cmake --build build-estimate-memory
+      - name: Test offline memory
+        run: ctest --test-dir build-estimate-memory --output-on-failure
