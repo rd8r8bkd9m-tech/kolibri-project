@@ -1,20 +1,22 @@
-# Changelog
-All notable changes to this project will be documented in this file.
+# Журнал изменений
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+Все значимые изменения в этом проекте будут задокументированы в этом файле.
 
-## [Unreleased]
-### Added
-- **Partial Key Recovery 128-bit:** New C-core function `kolibri_recover_low64_with_known_high` for recovering unknown low 64-bit part when high 64-bit prefix is known.
-- **Infeasible Guard:** Automatic rejection of search spaces larger than $2^{40}$ to prevent infeasible brute-force requests.
-- **API Extension:** `/solve/hybrid` endpoint now supports `task: "partial_key_recovery_128"` with hex-formatted inputs and detailed JSON response.
-- **Python Wrapper:** `KolibriAI.recover_low64_with_known_high()` method added to `kolibri_wrapper.py`.
-- **Benchmarks & Tests:** New test suite `test_partial_key_recovery.py` covering small-window, not-found, and 32-bit stress scenarios.
-- **Documentation:** Updated `docs/benchmarks/reverse_hash/README.md` and new `docs/hash_128/README.md` describing partial recovery architecture.
-- Formalised public interface overview in `docs/public_interfaces.md`.
-- Documented semantic versioning and changelog policy in `docs/developer_guide.md`.
-- Multi-stage GitHub Actions pipeline with cosign signing, Docker packaging smoke tests, and release bundle assembly (`.github/workflows/ci.yml`).
-- Deployment scripts for Linux/macOS/Windows with image override support (`scripts/deploy_*.sh`).
-- Packaging, security, operations, and ops-briefing documentation (`docs/packaging_guide.md`, `docs/security_policy.md`, `docs/service_playbook.md`, `docs/ops_briefing.md`, etc.).
-- Template release manifest for `v0.1.0` and guidance in `deploy/release-manifests/`.
+Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
+и этот проект придерживается [Семантического версионирования](https://semver.org/lang/ru/).
+
+## [Не выпущено]
+
+### Добавлено
+- **Восстановление частичного ключа 128 бит:** Новая функция C-ядра `kolibri_recover_low64_with_known_high` для восстановления неизвестной младшей 64-битной части, когда старший 64-битный префикс известен.
+- **Защита от невыполнимых задач:** Автоматический отклонение поисковых пространств больше чем $2^{40}$ для предотвращения невыполнимых запросов перебором.
+- **Расширение API:** Эндпоинт `/solve/hybrid` теперь поддерживает `task: "partial_key_recovery_128"` с HEX-форматированными входными данными и детальным JSON-ответом.
+- **Python-обёртка:** Метод `KolibriAI.recover_low64_with_known_high()` добавлен в `kolibri_wrapper.py`.
+- **Бенчмарки и тесты:** Новый набор тестов `test_partial_key_recovery.py`, покрывающий сценарии с малым окном, не найденные ключи и 32-битные стресс-тесты.
+- **Документация:** Обновлён `docs/benchmarks/reverse_hash/README.md` и новый `docs/hash_128/README.md`, описывающий архитектуру частичного восстановления.
+- Формализованный обзор публичных интерфейсов в `docs/public_interfaces.md`.
+- Документирована политика семантического версионирования и журнала изменений в `docs/developer_guide.md`.
+- Многоэтапный конвейер GitHub Actions с подписью cosign, тестами дыма Docker-пакетов и сборкой релизного пакета (`.github/workflows/ci.yml`).
+- Скрипты развёртывания для Linux/macOS/Windows с поддержкой переопределения образов (`scripts/deploy_*.sh`).
+- Документация по упаковке, безопасности, операциям и инструктажу для операторов (`docs/packaging_guide.md`, `docs/security_policy.md`, `docs/service_playbook.md`, `docs/ops_briefing.md` и др.).
+- Шаблон манифеста релиза для `v0.1.0` и руководство в `deploy/release-manifests/`.

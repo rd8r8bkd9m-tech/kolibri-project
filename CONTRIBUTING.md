@@ -1,4 +1,4 @@
-# Contributing to Kolibri OS
+# Вклад в Kolibri OS
 
 Добро пожаловать в проект Kolibri OS! Этот документ описывает, как начать разработку, запустить проект и внести вклад.
 
@@ -6,11 +6,11 @@
 
 ### Предварительные требования
 
-- **macOS/Linux/Windows WSL2**
-- **Python 3.10+** с pip и virtualenv
+- **ОС**: macOS/Linux/Windows WSL2
+- **Python** 3.10+ с pip и virtualenv
 - **Компилятор C**: gcc/clang с CMake 3.20+
-- **QEMU** для запуска OS (опционально)
-- **Node.js 16+** для фронтенда (опционально)
+- **QEMU** для запуска ОС (опционально)
+- **Node.js** 16+ для фронтенда (опционально)
 
 ### Установка окружения
 
@@ -54,7 +54,7 @@ qemu-system-i386 -cdrom build/kolibri.iso -serial stdio -display cocoa
 
 ### Команды в Kolibri OS Shell
 
-После загрузки OS вы увидите приглашение `Kolibri OS Shell> > `. Доступные команды:
+После загрузки ОС вы увидите приглашение `Kolibri OS Shell> > `. Доступные команды:
 
 ```
 help              - список команд
@@ -100,7 +100,7 @@ kolibri-os/
 │       ├── genome.c
 │       ├── formula.c
 │       └── net.c
-├── kernel/                  # Kernel OS (x86)
+├── kernel/                  # Kernel ОС (x86)
 │   ├── main.c              # Главное ядро
 │   ├── entry.asm           # x86 точка входа
 │   └── interrupts.asm      # Обработчики прерываний
@@ -196,13 +196,13 @@ static void shell_process_command(const char *cmd) {
 
 void test_my_feature(void) {
     printf("Testing my feature...\n");
-    
+
     // Arrange
     int expected = 42;
-    
+
     // Act
     int result = my_function();
-    
+
     // Assert
     assert(result == expected);
     printf("✓ Test passed\n");
@@ -338,7 +338,7 @@ perf report
 
 ## 📄 Лицензия
 
-Kolibri OS распространяется под лицензией указанной в LICENSE файле.
+Kolibri OS распространяется под лицензией указанной в файле LICENSE.
 
 ---
 
